@@ -32,6 +32,16 @@ type Store = Pick<Storage, "getItem" | "setItem">;
 const sessionStore = (): Store | null => { try { return typeof window === "undefined" ? null : window.sessionStorage; } catch { return null; } };
 const count = (value: unknown) => Number.isSafeInteger(value) && (value as number) > 0;
 
+// A hidden series is discovered by owning a figure from a completed opening,
+// never by selecting its box. Missing models cannot unlock an empty shelf.
+export function collectionShelves<T extends { id: string; number: string; hidden?: boolean; released: boolean; keys: string[] }>(series: readonly T[], collection: FigurineCollection): T[] {
+  const hidden = series.filter((entry) => entry.hidden && entry.released && entry.keys.some((key) => copiesOf(collection[key]) > 0))
+    .sort((a, b) => Number(a.number) - Number(b.number));
+  const released = [...hidden, ...series.filter((entry) => !entry.hidden && entry.released)];
+  const upcoming = series.filter((entry) => !entry.hidden && !entry.released);
+  return [...released, ...upcoming.slice(0, (5 - released.length % 5) % 5)];
+}
+
 export const copiesOf = (entry: FigurineCopies | undefined) => QUALITIES.reduce((total, quality) => total + (entry?.[quality] ?? 0), 0);
 // The finest quality owned, or null for a figure not in the collection.
 export function bestQuality(entry: FigurineCopies | undefined): FigurineQuality | null {

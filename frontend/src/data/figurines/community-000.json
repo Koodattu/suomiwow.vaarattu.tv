@@ -1,0 +1,252 @@
+{
+  "id": "community-000",
+  "title": "Secret Series 000",
+  "number": 0,
+  "region": "eu",
+  "releaseState": "awaiting-models",
+  "hidden": true,
+  "hue": 36,
+  "discovery": "collection-right-barrel",
+  "characters": [
+    {
+      "id": "roiza",
+      "name": "Röiza",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 82,
+        "variation": 0,
+        "timeMs": 39
+      },
+      "weapons": "sheathed",
+      "race": "Draenei",
+      "characterClass": "Death Knight",
+      "fetchedAt": "2026-10-31T12:17:41.897Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/232/211317992-main-raw.png"
+    },
+    {
+      "id": "tonzidan",
+      "name": "Tonzidan",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 74,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "held",
+      "race": "Night Elf",
+      "characterClass": "Demon Hunter",
+      "fetchedAt": "2026-10-31T12:17:42.111Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/88/211913048-main-raw.png"
+    },
+    {
+      "id": "valopallo",
+      "name": "Valopallo",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 73,
+        "variation": 0,
+        "timeMs": 53
+      },
+      "weapons": "sheathed",
+      "race": "Human",
+      "characterClass": "Paladin",
+      "fetchedAt": "2026-10-31T12:17:42.238Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/137/210830217-main-raw.png"
+    },
+    {
+      "id": "pajatso",
+      "name": "Pajatso",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 66,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Draenei",
+      "characterClass": "Shaman",
+      "fetchedAt": "2026-10-31T12:17:42.352Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/115/213005171-main-raw.png"
+    },
+    {
+      "id": "syopa",
+      "name": "Syöpä",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 64,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Draenei",
+      "characterClass": "Warlock",
+      "fetchedAt": "2026-10-31T12:17:42.464Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/79/211913039-main-raw.png"
+    },
+    {
+      "id": "valoja",
+      "name": "Valoja",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 67,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Night Elf",
+      "characterClass": "Priest",
+      "fetchedAt": "2026-10-31T12:17:42.583Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/109/211317869-main-raw.png"
+    },
+    {
+      "id": "rmxqa",
+      "name": "Rmxqa",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 68,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Night Elf",
+      "characterClass": "Demon Hunter",
+      "fetchedAt": "2026-10-31T12:17:42.742Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/244/222482164-main-raw.png"
+    },
+    {
+      "id": "roi",
+      "name": "Röi",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 74,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "held",
+      "race": "Blood Elf",
+      "characterClass": "Hunter",
+      "fetchedAt": "2026-10-31T12:17:42.932Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/198/145973190-main-raw.png"
+    },
+    {
+      "id": "oita",
+      "name": "Öitä",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 26,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "held",
+      "race": "Night Elf",
+      "characterClass": "Warrior",
+      "fetchedAt": "2026-10-31T12:17:43.089Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/205/217550285-main-raw.png"
+    },
+    {
+      "id": "valotettu",
+      "name": "Valotettu",
+      "realm": "Outland",
+      "pose": {
+        "animationId": 67,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Lightforged Draenei",
+      "characterClass": "Paladin",
+      "fetchedAt": "2026-10-31T12:17:43.210Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/161/86574753-main-raw.png"
+    },
+    {
+      "id": "syttyyko",
+      "name": "Syttyykö",
+      "realm": "Outland",
+      "pose": {
+        "animationId": 68,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Human",
+      "characterClass": "Mage",
+      "fetchedAt": "2026-10-31T12:17:43.311Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/106/86793578-main-raw.png"
+    },
+    {
+      "id": "jousivakio",
+      "name": "Jousivakio",
+      "realm": "Outland",
+      "pose": {
+        "animationId": 69,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Night Elf",
+      "characterClass": "Hunter",
+      "fetchedAt": "2026-10-31T12:17:43.431Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/76/87483980-main-raw.png"
+    },
+    {
+      "id": "tahto",
+      "name": "Tahto",
+      "realm": "Outland",
+      "pose": {
+        "animationId": 66,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Night Elf",
+      "characterClass": "Demon Hunter",
+      "fetchedAt": "2026-10-31T12:17:43.555Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/46/142296622-main-raw.png"
+    },
+    {
+      "id": "muoto",
+      "name": "Muoto",
+      "realm": "Outland",
+      "pose": {
+        "animationId": 64,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Night Elf",
+      "characterClass": "Druid",
+      "fetchedAt": "2026-10-31T12:17:43.680Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/94/101827166-main-raw.png"
+    },
+    {
+      "id": "dalarian",
+      "name": "Dalarian",
+      "realm": "Outland",
+      "pose": {
+        "animationId": 74,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "held",
+      "race": "Draenei",
+      "characterClass": "Death Knight",
+      "fetchedAt": "2026-10-31T12:17:43.783Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/104/102565224-main-raw.png"
+    },
+    {
+      "id": "taivaallinen",
+      "name": "Taivaallinen",
+      "realm": "Outland",
+      "pose": {
+        "animationId": 67,
+        "variation": 0,
+        "timeMs": 700
+      },
+      "weapons": "sheathed",
+      "race": "Human",
+      "characterClass": "Priest",
+      "fetchedAt": "2026-10-31T12:17:43.877Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/99/88319075-main-raw.png"
+    }
+  ]
+}

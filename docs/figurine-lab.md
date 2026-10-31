@@ -475,3 +475,161 @@ props and figures pick up soft sky shading), a warm sun whose single 2048 shadow
 plaza and both stations (trees, stalls, props, the box and figures cast; figures self-shadow),
 light haze fog and dimmed lantern glows. The box rests on the pedestal; its contact shadow and
 glow planes lie between the two so they never cut across the box walls.
+
+## Deferred: gravity-driven gear (2026-10-31)
+
+Deferred at the user's request. Do not start a physics implementation or rebuild
+collectibles for it until requested. Some rope-hung ornaments use physics-driven
+bones rather than ordinary animation tracks. Both our fork and the upstream
+wow.export M2 loader currently skip PFID (external physics) and PFDC (embedded
+physics); playing or freezing an animation cannot reproduce that simulation.
+This is a possible cause of rigid dangling parts, not a diagnosis for every item.
+The `.phys.obj` collision export is not this simulation data.
+
+Research references:
+
+- [Upstream M2 loader](https://github.com/Kruithne/wow.export/blob/main/src/js/3D/loaders/M2Loader.js)
+- [PHYS research and hanging-gear examples](https://www.wowmodding.net/files/file/133-phys-template-mop-and-wod/)
+- [Elune M2 source](https://github.com/elune-m2/addon) and
+  [physics documentation](https://elune-m2.github.io/documentation.html#physics).
+
+Elune documents importing embedded/external physics versions 0–6 and previewing
+bone-driven bodies/joints in Blender. This is a candidate, not a tested dependency;
+its preview uses Blender's solver and does not promise WoW-identical motion.
+A future experiment should extract one real affected weapon, retain its rig,
+place it in the final held/sheathed orientation, fix its anchor, settle the dangling
+parts, and bake the resulting geometry before our normal compression. A mid-swing
+snapshot instead requires simulating the preceding movement. Test both orientations,
+attachment stability and collisions, and compare against the game. No browser
+physics is needed for a static result. Do not infer which bones should sag simply
+from their names. Inspect tool compatibility and license before integrating code.
+
+## Secret Series 000 — prepared, models deferred (2026-10-31)
+
+Update: the owner subsequently authorized a render gallery. Local review batch
+`E:/Projektit/wow.export/worker/data/series/secret-000-review-001/` contains all
+sixteen models from the saved 12:17 UTC snapshots. Valopallo uses EmoteRude (73),
+variation 0, at exactly 53 ms with weapons sheathed. All sixteen compressed
+models passed decoded validation with zero errors or warnings (12,308,704 bytes
+total, 330,088–1,833,384 bytes each). The local gallery and decoded render inputs
+are in `.codex-runtime/figurine-research/series-000/review-001/`. This is a review
+batch only; the website catalog remains unreleased. The earlier preparation
+notes below describe the pre-export state.
+
+Review flags: the Blender sheets show rectangular effect surfaces on Tonzidan
+and visible red effect planes on Syöpä, including after approximating the
+website's additive materials. Compare these in the website renderer before
+attributing them to export data or approving the batch. Geometry validation is
+not visual sign-off. Front/rear PNG sheets and `index.html` are in the review
+folder; the local review server uses port 3019.
+
+The canonical roster and future exporter recipe is
+`frontend/src/data/figurines/community-000.json`. It contains exactly the sixteen
+requested EU characters, in requested order: nine on Kazzak and seven on Outland.
+All sixteen resolved through the development Armory endpoint. Frozen appearance
+snapshots are local-only in `.codex-runtime/figurine-research/series-000/<id>.json`;
+the manifest records class/race, lookup timestamp and reference image. No model
+exports, silhouettes or character renders were generated.
+
+After the owner logged into all sixteen characters, their appearances were
+refreshed on 2026-10-31 at 12:17 UTC. The new local batch is
+`.codex-runtime/figurine-research/series-000/refresh-2026-10-31T12-17-41-646Z/`.
+Each `imports/<id>.json` is a raw Battle.net appearance response, not a native
+desktop import file. Use `wow-export/<Name>-<Realm>.json` with the desktop
+Import JSON / Import Character buttons. These version-2 files contain race/model
+IDs, model-specific customization choices, equipment and appearance modifiers.
+All sixteen passed the actual direct JSON import handler with a simulated UI;
+model mappings and choices were checked against cached game tables. No visual
+preview was performed. `snapshots/` preserves the full lab responses; `jobs/`
+contains validated future worker inputs outside any watched queue. The batch
+also includes the matching series recipe and a README with the pose table.
+Importing appearance alone does not apply the recipe's pose or weapon placement.
+All sixteen profiles report logins on the refresh date. Earlier snapshots remain
+intact. No exports or renders were performed during this refresh.
+
+The manifest is compatible with wow.export's `validateSeries`; extra authoring
+metadata is ignored by that validator. Emote timestamps and weapon placement are
+provisional until the target models' animations can be checked. Preserve the
+standing rule: non-Evoker Dracthyr use visage unless explicitly overridden.
+
+The barrel at world x=11.3, z=-2.1, beside the right of the collection case, is the
+hidden interaction. It selects an amber Series 000 box on the pedestal. The box
+remains sealed and says coming soon until real models are registered. There is no
+shop entry, announcement, draw-pool entry, or keyboard shop shortcut for
+this series. Its collection shelf is hidden until the first Series 000 box is
+opened and a figure is added to the collection. Selecting the barrel/box alone
+does not unlock it. Once unlocked, the full sixteen-slot shelf appears at the
+very top, above Series 001; uncollected figures keep the usual silhouettes.
+The cabinet updates immediately without resetting the reveal or camera. The
+existing session collection restores the unlock on reload (any owned quality
+counts), and the recycler preserves the last copy. Unreleased series never
+unlock a shelf, even if stale collection data mentions them. The target is tied to one barrel instance, not every barrel; foreground
+scenery/stations block the pick. This is an Easter egg, not an access-control boundary.
+
+When model generation is requested later:
+
+1. Copy the recipe to a new authoring batch ID before invoking
+   `E:/Projektit/wow.export/worker/build-series.mjs`; do not run the builder now.
+   Choose whether to replay the saved appearances or refresh them intentionally.
+2. Verify the emotes exist and sample times fit each model; render and review
+   transmog, attachments, feet, capes, effects, and ground placement.
+3. Compress at the approved improved texture quality, validate, copy the reviewed
+   models into `frontend/public/figurines/community-000/`, and bake silhouettes.
+4. Register the real catalog for opening/collection while retaining its hidden
+   distribution. Supply its real keys, models and silhouettes to the world and
+   mark it released. The existing collection-shelf policy then unlocks its top
+   shelf after the first opening. Never add it to the normal shop or public
+   announced series as a side effect of release.
+
+Preparation verification: 37 figurine tests, targeted ESLint, TypeScript, and the
+exporter's recipe/job validators pass. Browser check on `http://localhost:3000/collectibles`:
+tapping the chosen broken barrel selects Series 000, Enter leaves it sealed, and
+the collection keeps its normal 001–005 shelves. No model jobs were queued.
+
+Secret-shelf regression checks cover first ownership at all qualities, session
+restoration, unknown/zero-count entries, unreleased data, shelf ordering across
+cases, and safe cabinet replacement without disposing shared box/portrait assets.
+
+## Series 000 armor and weapon repair review (2026-10-31)
+
+The latest local review batch is
+`E:/Projektit/wow.export/worker/data/series/secret-000-repair-001/`.
+All 16 compressed GLBs rebuilt successfully with zero export warnings and zero
+validation warnings; total size is 16,169,292 bytes. Tonzidan is 2,674,732 bytes
+because its masked weapon effects are now included. Improved texture quality is
+retained. The front/back review gallery is in
+`.codex-runtime/figurine-research/series-000/repair/`, served locally on port 3019.
+The previous review batch remains available on disk for comparison.
+
+Root causes and fixes in the wow.export fork:
+
+- A single candidate in ComponentTextureFileData bypassed gender/class filtering.
+  Some classic female chest pieces therefore received a male-only lower-torso
+  panel. Apply the normal filter even to a single candidate, and skip a region
+  when no compatible texture exists. Röiza, Valopallo, Valotettu and Röi were
+  checked in the frontend lab after rebuilding.
+- Base clothing layers 13 (top) and 14 (bottom) were both enabled globally.
+  The new default `chrIncludeBaseClothing: "auto"` evaluates chest and legs
+  independently. Visible armor suppresses that region's underwear; hidden or
+  empty slots retain it. Existing explicit true/false settings remain supported.
+  In a desktop installation with saved preferences, choose **Underwear → Auto
+  (per armor slot)**. Dalarian's rebuilt layers were checked in the lab.
+- Tonzidan and Syöpä use two-texture M2 effects, while equipment export retained
+  only the first texture. The posed GLB path now bakes the supported Mod_Mod and
+  Mod_Mod2x combinations using both UV sets, texture transforms and opacity.
+  Their opaque rectangular sheets are gone in the frontend review. This is a
+  static texture bake, not a complete implementation of animated or
+  view-dependent WoW shaders; future unfamiliar effect types still need review.
+
+Röiza now uses EmoteFlex (82), variation 0, 39 ms, sheathed. Öitä uses Ready1H
+(26), variation 0, 700 ms, held. Valopallo retains EmoteRude (73), 53 ms,
+sheathed. The canonical community-000 recipe contains these changes.
+
+The optimized effect bake was verified by rebuilding both affected weapons in
+`secret-000-effect-check-001`: compressed model SHA-256 hashes exactly match the
+initial repair batch. Export duration changed from 424,684 to 29,011 ms for
+Tonzidan and 19,883 to 6,232 ms for Syöpä (excluding worker startup/compression).
+Exporter regression coverage includes gender-only regions, independent underwear
+rules, both texture combiners, UV transforms and overlapping effect faces.
+Series 000 is still unreleased; these files were not registered in the website
+catalog or copied into public assets.

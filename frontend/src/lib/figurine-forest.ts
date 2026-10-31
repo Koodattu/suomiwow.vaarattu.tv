@@ -38,7 +38,7 @@ const HEIGHTS: Record<ForestModel, [number, number]> = {
   signpost: [3, 3], lantern: [0.55, 0.55], cheese: [0.22, 0.26], fruit: [0.34, 0.34], bread: [0.16, 0.2],
 };
 // `y` lifts an item onto a table or a stack. Casters throw shadows from the sun.
-export type Placement = { model: ForestModel; x: number; z: number; yaw: number; size: number; y?: number };
+export type Placement = { model: ForestModel; x: number; z: number; yaw: number; size: number; y?: number; secretSeries?: string };
 const CASTERS = new Set<ForestModel>(["tree", "bareTree", "bush", "stump", "haystack", "lamp", "tent", "wagon", "table", "crate", "barrel", "signpost"]);
 // WoW models face +x; this yaw turns one at (x, z) toward the plaza centre.
 const facingCentre = (x: number, z: number) => Math.atan2(z, -x);
@@ -58,7 +58,7 @@ export function marketLayout(): Placement[] {
     at("tent", -5.6, -18.2), at("wagon", 6.4, -18.4),
     at("signpost", 2.6, -15.6, { yaw: 2.2 }), at("crate", -5.2, -14.2, { yaw: 0.5 }), at("barrel", 5.4, -14.5),
     at("crate", -11, -2.2, { yaw: 0.3 }), at("crate", -11.7, -1.3, { yaw: -0.2, size: 0.2 }), at("crate", -11.1, -2.1, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -10.6, -0.6),
-    at("barrel", 11.3, -2.1), at("barrel", 11.9, -1), at("crate", 11.1, -0.2, { yaw: 1.1 }),
+    at("barrel", 11.3, -2.1, { secretSeries: "community-000" }), at("barrel", 11.9, -1), at("crate", 11.1, -0.2, { yaw: 1.1 }),
     ...table(-10.6, 4.6), ...table(10.9, 4.2),
   ];
 }
@@ -119,6 +119,7 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
           place.compose(new THREE.Vector3(spot.x, (spot.y ?? 0) - bounds.min.y * scale - 0.02, spot.z), quaternion.setFromAxisAngle(up, spot.yaw), new THREE.Vector3(scale, scale, scale));
           instances.setMatrixAt(index, matrix.multiplyMatrices(place, object.matrixWorld));
         });
+        instances.userData.secretSeries = spots.map((spot) => spot.secretSeries ?? null);
         instances.computeBoundingSphere();
         instances.castShadow = CASTERS.has(model); instances.receiveShadow = model !== "tree" && model !== "bareTree";
         if (model === "tree" || model === "bareTree" || model === "bush") (Array.isArray(object.material) ? object.material : [object.material]).forEach((material) => onSway?.(material));
@@ -127,7 +128,12 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
       return { model, top: bounds.max.y, unit };
     } catch { return null; }
   });
-  return { group, ready: Promise.all(loads) };
+  return { group, ready: Promise.all(loads), pickSecret(raycaster: THREE.Raycaster) {
+    // Only the nearest scenery surface can reveal a secret; other props occlude it.
+    const hit = raycaster.intersectObject(group, true)[0];
+    const id = hit?.instanceId !== undefined ? hit.object.userData.secretSeries?.[hit.instanceId] : null;
+    return typeof id === "string" ? { id, distance: hit!.distance } : null;
+  } };
 }
 
 // A gentle wind sway for foliage: tops move, bases stay planted.

@@ -19,7 +19,7 @@ import { buildMachine, type MachinePick } from "@/lib/figurine-machine";
 import { buildOutpost } from "@/lib/figurine-outposts";
 import { propPlacer } from "@/lib/figurine-props";
 import { FINISH_TIME, applyFinish, releaseFinishes } from "@/lib/figurine-finish";
-import { bestQuality, copiesOf, type FigurineCollection, type FigurineQuality } from "@/lib/figurine-collection";
+import { collectionShelves, bestQuality, copiesOf, type FigurineCollection, type FigurineQuality } from "@/lib/figurine-collection";
 import { buildPedestal, PEDESTAL_TOP } from "@/lib/figurine-pedestal";
 import { hoverOutline } from "@/lib/figurine-glow";
 import { warmFigurineScene } from "@/lib/figurine-warmup";
@@ -28,7 +28,7 @@ import styles from "./figurine-lab.module.css";
 export type { Outpost, WorldView };
 // One series as the world shows it: its box, its step in the shop and its shelf in the case.
 // Announced series have no figures yet and print in a colour from their hue.
-export type StageSeries = { id: string; number: string; theme?: keyof typeof PACKAGING_THEMES; hue?: number; released: boolean; silhouettes?: string; keys: string[]; names: string[]; models: string[] };
+export type StageSeries = { id: string; number: string; theme?: keyof typeof PACKAGING_THEMES; hue?: number; hidden?: boolean; released: boolean; silhouettes?: string; keys: string[]; names: string[]; models: string[] };
 export type StageWorld = {
   series: StageSeries[]; collection: FigurineCollection;
   labels: ShopLabels & CaseLabels & { trading: string; fame: string };
@@ -240,16 +240,19 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const machineGroup = immersive ? placeStation(scene, "machine") : null;
     const outpostGroups = { trading: immersive ? placeStation(scene, "trading") : null, fame: immersive ? placeStation(scene, "fame") : null };
     const accentOf = (entry: StageSeries) => paletteOf(entry).glow;
+    const publicSeries = worldSetup?.series.filter((entry) => !entry.hidden) ?? [];
     const shop = shopGroup && worldSetup?.series.length ? buildShop(shopGroup, {
-      series: worldSetup.series.map((entry) => ({ id: entry.id, number: entry.number, count: entry.released ? entry.keys.length : 16, accent: accentOf(entry), design: designOf(entry), released: entry.released })),
+      series: publicSeries.map((entry) => ({ id: entry.id, number: entry.number, count: entry.released ? entry.keys.length : 16, accent: accentOf(entry), design: designOf(entry), released: entry.released })),
       envMap: environment, labels: worldSetup.labels,
     }) : null;
-    // The case shows every released series and fills its last case with the next announced ones.
-    const shelved = worldSetup ? (() => { const released = worldSetup.series.filter((entry) => entry.released); return [...released, ...worldSetup.series.filter((entry) => !entry.released).slice(0, (5 - released.length % 5) % 5)]; })() : [];
-    const cabinet = caseGroup && shelved.length ? buildCase(caseGroup, {
+    // Secret shelves unlock only after an opening adds a figure to the collection.
+    let shelved = collectionShelves(worldSetup?.series ?? [], worldSetup?.collection ?? {});
+    const caseContents = new THREE.Group(); caseGroup?.add(caseContents);
+    const makeCase = () => caseGroup && worldSetup && shelved.length ? buildCase(caseContents, {
       series: shelved.map((entry) => ({ id: entry.id, number: entry.number, accent: accentOf(entry), silhouettes: entry.silhouettes, keys: entry.keys, released: entry.released, box: shop?.boxCopy(entry.id) ?? null })),
-      labels: worldSetup!.labels, envMap: environment,
+      labels: worldSetup.labels, envMap: environment,
     }) : null;
+    let cabinet = makeCase();
     // Station props load with the scenery; the start-up loader waits for them too.
     const propsReady: Promise<unknown>[] = [];
     const placeProps = propPlacer();
@@ -357,6 +360,24 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     };
     const setCollection = (collection: FigurineCollection) => {
       owned = collection;
+      const nextShelves = collectionShelves(worldRef.current?.series ?? [], collection);
+      if (nextShelves.map((entry) => entry.id).join("|") !== shelved.map((entry) => entry.id).join("|")) {
+        stationOutlines.gallery?.dispose();
+        cabinet?.dispose();
+        shelved = nextShelves; cabinet = makeCase();
+        if (cabinet) stationOutlines.gallery = hoverOutline(cabinet.frame, GOLD_GLOW, 0.035);
+        // Keep the case light in the scene when camera occlusion hides the station.
+        const lights: THREE.Light[] = [], materials = new Set<THREE.MeshStandardMaterial>();
+        caseContents.traverse((object) => {
+          if (object instanceof THREE.Light) lights.push(object);
+          if (object instanceof THREE.Mesh) for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+            if (material instanceof THREE.MeshStandardMaterial && material.map && !material.emissiveMap) {
+              material.emissiveMap = material.map; material.emissive.set(0xffe2b8); material.emissiveIntensity = 0; materials.add(material);
+            }
+          }
+        });
+        lights.forEach((light) => scene.attach(light)); glowing.set("gallery", [...materials]);
+      }
       for (const entry of worldRef.current?.series ?? []) {
         entry.keys.forEach(showSlot);
         const got = entry.keys.filter((key) => collection[key]).length;
@@ -756,6 +777,9 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const roots = stationGroups;
       const hit = raycaster.intersectObjects(roots.map(([root]) => root).filter((root): root is THREE.Group => !!root && root.visible), true)
         .find(({ object }) => !(object instanceof THREE.Sprite) && !(object instanceof THREE.Points));
+      // Scenery uses instances: only the marked barrel, not every copy of that model, is a secret.
+      const secretHit = scenery?.pickSecret(raycaster);
+      if (secretHit && (!hit || secretHit.distance < hit.distance) && worldRef.current?.series.some((entry) => entry.hidden && entry.id === secretHit.id)) return { kind: "series", id: secretHit.id };
       // Empty ground steps back from a station; at the centre (home) it does nothing.
       if (!hit) return view === "shop" || view === "gallery" || view === "machine" ? { kind: "back" } : null;
       let station: Station | null = null;

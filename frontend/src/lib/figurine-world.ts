@@ -200,7 +200,7 @@ export function buildWorld(scene: THREE.Scene, { onSky }: { onSky?: () => void }
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.position.set(Math.sin(angle) * radius, LAMP_HEAD, Math.cos(angle) * radius); glow.scale.setScalar(1.8); group.add(glow);
   }
-  return { group, sky, ready: forest.ready, update(time: number) { wind.value = time; } };
+  return { group, sky, ready: forest.ready, pickSecret: forest.pickSecret, update(time: number) { wind.value = time; } };
 }
 
 // Places a station group in the world.

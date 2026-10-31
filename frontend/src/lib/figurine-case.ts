@@ -156,7 +156,31 @@ export function buildCase(parent: THREE.Group, { series, labels, envMap }: { ser
   const glow = cardGlow(FIG_W, FIG_H, 0xffd98a); parent.add(glow.mesh);
   const lamp = new THREE.PointLight(0xffd8a0, 3, 7, 1.6); lamp.position.set(0, CASE_HEIGHT - 0.4, 1.6); parent.add(lamp);
 
+  // Capture only resources this case owns. Box prints, reflections and later
+  // portrait render targets are borrowed and must survive a shelf rebuild.
+  const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>(), textures = new Set<THREE.Texture>();
+  const boxes = new Set(series.map((entry) => entry.box));
+  const capture = (object: THREE.Object3D) => {
+    if (boxes.has(object as THREE.Mesh)) return;
+    if (object instanceof THREE.Mesh) {
+      geometries.add(object.geometry);
+      for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+        materials.add(material);
+        for (const value of Object.values(material)) if (value instanceof THREE.Texture && value !== envMap) textures.add(value);
+      }
+    }
+    object.children.forEach(capture);
+  };
+  capture(parent);
   return {
+    dispose() {
+      lamp.removeFromParent();
+      slots.forEach(({ tag }) => (tag.material as THREE.MeshBasicMaterial).map?.dispose());
+      geometries.forEach((geometry) => geometry.dispose());
+      materials.forEach((material) => material.dispose());
+      textures.forEach((texture) => texture.dispose());
+      parent.clear();
+    },
     picks, frame, width: cases * CASE_W + (cases - 1) * GAP,
     setSlot(key: string, { state, portrait, quality = null, count = 0 }: SlotView) {
       const slot = slots.get(key);

@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { MACHINE_SLOTS, addToCollection, bestQuality, changeCollection, copiesOf, emptyCollection, machineChanges, machineOutcome, readCollection, rollQuality, spare, subscribeCollection, trayGroups, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
-import { ALL_QUIPS, FIGURINE_SERIES, UPCOMING_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
+import { ALL_QUIPS, FIGURINE_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
 import type { Outpost, StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
 import type { MachinePick } from "@/lib/figurine-machine";
 import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
@@ -23,7 +23,7 @@ const STATION_VIEWS: WorldView[] = ["shop", "gallery", "machine"];
 // Every series in shop order: released ones first, then the announced ones.
 const ALL_SERIES = [...FIGURINE_SERIES.map((entry) => entry.id), ...UPCOMING_SERIES.map((entry) => entry.id)];
 const CATALOG_ORDER = FIGURINE_SERIES.flatMap((entry) => entry.characters.map((character) => figureKey(entry.id, character.id)));
-const seriesNumber = (id: string) => [...FIGURINE_SERIES, ...UPCOMING_SERIES].find((entry) => entry.id === id)?.number ?? 0;
+const seriesNumber = (id: string) => [...FIGURINE_SERIES, ...UPCOMING_SERIES, SECRET_SERIES].find((entry) => entry.id === id)?.number ?? 0;
 
 export default function FigurineWorld() {
   const t = useTranslations("figurineLab");
@@ -205,6 +205,7 @@ export default function FigurineWorld() {
   const world: StageWorld = useMemo(() => ({
     collection,
     series: [
+      { id: SECRET_SERIES.id, number: pad(SECRET_SERIES.number), hue: SECRET_SERIES.hue, hidden: true, released: false, keys: [], names: Array.from({ length: SECRET_SERIES.size }, () => "?"), models: [] },
       ...FIGURINE_SERIES.map((entry) => ({
         id: entry.id, number: pad(entry.number), theme: entry.theme, released: true, silhouettes: entry.silhouettes,
         keys: entry.characters.map((character) => figureKey(entry.id, character.id)),
