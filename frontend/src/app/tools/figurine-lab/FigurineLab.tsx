@@ -25,7 +25,6 @@ export default function FigurineLab() {
   const [files, setFiles] = useState<File[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
   const [quality, setQuality] = useState<FigurineQuality>("standard");
-  const [previewArmor, setPreviewArmor] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState(false);
   const modelRequest = useRef<AbortController | null>(null);
@@ -115,7 +114,6 @@ export default function FigurineLab() {
           <select id="workbench-finish" value={quality} onChange={(event) => { if (isQuality(event.target.value)) setQuality(event.target.value); }}>
             {QUALITIES.map((finish) => <option key={finish} value={finish}>{t(`quality.${finish}`)}</option>)}
           </select>
-          <label className={styles.check}><input type="checkbox" checked={previewArmor} disabled={quality === "standard"} onChange={(event) => setPreviewArmor(event.target.checked)} />{t("previewArmorFinish")}</label>
           {modelLoading && <p role="status">{t("modelLoading")}</p>}
           {modelError && <p role="alert">{t("bundledModelError")}</p>}
         </div>
@@ -123,7 +121,7 @@ export default function FigurineLab() {
           <div className={styles.segmented}><button type="button" aria-pressed={!boxMode} onClick={() => setBoxMode(false)}>{t("figureMode")}</button><button type="button" aria-pressed={boxMode} onClick={() => setBoxMode(true)}>{t("boxMode")}</button></div>
           <label className={styles.check}><input type="checkbox" checked={rotate} onChange={(event) => setRotate(event.target.checked)} />{t("rotate")}</label>
         </div>
-        <FigurineStage files={files} quality={quality} previewArmor={previewArmor} boxMode={boxMode} open={open} rotate={rotate} labels={{ loading: t("modelLoading"), ready: t("modelReady"), empty: t("modelEmpty"), error: t("modelError"), webgl: t("webglError"), box: t("boxStatus"), boxTitle: t("boxTitle"), boxSubtitle: t("boxSubtitle") }} />
+        <FigurineStage files={files} quality={quality} boxMode={boxMode} open={open} rotate={rotate} labels={{ loading: t("modelLoading"), ready: t("modelReady"), empty: t("modelEmpty"), error: t("modelError"), webgl: t("webglError"), box: t("boxStatus"), boxTitle: t("boxTitle"), boxSubtitle: t("boxSubtitle") }} />
         <div className={styles.viewerActions}>
           <label className={styles.fileButton}>{t("importModel")}<input type="file" multiple accept=".glb,.gltf,.bin,.png,.jpg,.jpeg,.webp" onChange={(event) => { importFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} /></label>
           <label className={styles.fileButton}>{t("importFolder")}<input type="file" multiple {...{ webkitdirectory: "" }} onChange={(event) => { importFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} /></label>

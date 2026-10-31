@@ -19,7 +19,6 @@
     "viewerTitle": "Collectible workbench",
     "bundledModel": "Saved character model",
     "previewFinish": "Figure finish",
-    "previewArmorFinish": "Keep armour detail · lab experiment",
     "chooseBundledModel": "Choose a character from any series…",
     "bundledModelError": "Could not load this saved model. Choose it again to retry.",
     "threeTag": "Interactive 3D",

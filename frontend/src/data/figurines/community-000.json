@@ -13,66 +13,69 @@
       "name": "Röiza",
       "realm": "Kazzak",
       "pose": {
-        "animationId": 82,
+        "animationId": 27,
         "variation": 0,
-        "name": "EmoteFlex",
-        "durationMs": 3333,
-        "timeMs": 39
+        "name": "Ready2H",
+        "durationMs": 1333,
+        "timeMs": 776
       },
-      "weapons": "sheathed",
+      "weapons": "held",
       "race": "Draenei",
       "characterClass": "Death Knight",
       "fetchedAt": "2026-10-31T12:17:41.897Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/232/211317992-main-raw.png",
-      "model": "/figurines/community-000/roiza.glb",
-      "bytes": 1461960,
-      "sha256": "478c509824c4d00b46d6c6e3bcb38b8039345194874df15ede20ae301c866e23",
+      "model": "/figurines/community-000/roiza.glb?v=7feedd1e4992",
+      "bytes": 1462308,
+      "sha256": "7feedd1e49923708927f83ff3d0356a59b59e06fc8a664ca3b1f70b45dd767d7",
       "raceKey": "draenei",
-      "classKey": "deathKnight"
+      "classKey": "deathKnight",
+      "authoringSeries": "secret-000-ready-talk-001"
     },
     {
       "id": "tonzidan",
       "name": "Tonzidan",
       "realm": "Kazzak",
       "pose": {
-        "animationId": 74,
+        "animationId": 26,
         "variation": 0,
-        "name": "EmoteRoar",
-        "durationMs": 2067,
-        "timeMs": 700
+        "name": "Ready1H",
+        "durationMs": 1000,
+        "timeMs": 350
       },
       "weapons": "held",
       "race": "Night Elf",
       "characterClass": "Demon Hunter",
       "fetchedAt": "2026-10-31T12:17:42.111Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/88/211913048-main-raw.png",
-      "model": "/figurines/community-000/tonzidan.glb",
-      "bytes": 2674732,
-      "sha256": "84b71df7bccb103775568f624a33582004e74c20b49891c694b8cc15031876ff",
+      "model": "/figurines/community-000/tonzidan.glb?v=03c06f9537d5",
+      "bytes": 2673552,
+      "sha256": "03c06f9537d5a330cff7764595190e99c81f7bd817deea707ba664e4ae394f70",
       "raceKey": "nightElf",
-      "classKey": "demonHunter"
+      "classKey": "demonHunter",
+      "authoringSeries": "secret-000-ready-talk-001"
     },
     {
       "id": "valopallo",
       "name": "Valopallo",
       "realm": "Kazzak",
       "pose": {
-        "animationId": 73,
+        "animationId": 65,
         "variation": 0,
-        "name": "EmoteRude",
-        "durationMs": 1333,
-        "timeMs": 53
+        "name": "EmoteTalkQuestion",
+        "durationMs": 1800,
+        "timeMs": 967
       },
       "weapons": "sheathed",
       "race": "Human",
       "characterClass": "Paladin",
       "fetchedAt": "2026-10-31T12:17:42.238Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/137/210830217-main-raw.png",
-      "model": "/figurines/community-000/valopallo.glb",
-      "bytes": 929828,
-      "sha256": "ae1e15de40edb9a1aaabb7493d12c2582635c9075791d844605da17b82a6bb16",
+      "model": "/figurines/community-000/valopallo.glb?v=c071457e2c73",
+      "bytes": 929876,
+      "sha256": "c071457e2c73e7b7f934a66cfa85bc56e1b6b3a9af2defce7c2076fa9d373c48",
       "raceKey": "human",
-      "classKey": "paladin"
+      "classKey": "paladin",
+      "authoringSeries": "secret-000-ready-talk-001"
     },
     {
       "id": "pajatso",

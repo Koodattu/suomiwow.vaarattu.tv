@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { applyFinish, releaseFinishes } from "../src/lib/figurine-finish.ts";
 import { restoreFigurineMaterials } from "../src/lib/figurine-materials.ts";
 
-test("lab alternatives remain separate from game finishes and restore the source materials", () => {
+test("game finishes retain armour maps, cache each quality and restore the source materials", () => {
   const texture = new THREE.Texture();
   const source = new THREE.MeshStandardMaterial({ map: texture, color: 0x6789ab, alphaTest: .5, side: THREE.DoubleSide });
   const glow = new THREE.MeshBasicMaterial({ blending: THREE.AdditiveBlending });
@@ -13,32 +13,30 @@ test("lab alternatives remain separate from game finishes and restore the source
   const created = new Set();
   for (const quality of ["golden", "galaxy"]) {
     applyFinish(root, quality);
-    const originalFinish = mesh.material;
-    applyFinish(root, quality, null, true);
-    const alternative = mesh.material;
-    assert.notEqual(alternative[0], originalFinish[0]);
-    assert.equal(alternative[0].map, texture);
-    assert.equal(alternative[0].alphaTest, source.alphaTest);
-    assert.equal(alternative[0].side, source.side);
-    assert.equal(alternative[1], glow);
+    const finish = mesh.material;
+    assert.notEqual(finish[0], source);
+    assert.equal(finish[0].map, texture);
+    assert.equal(finish[0].alphaTest, source.alphaTest);
+    assert.equal(finish[0].side, source.side);
+    assert.equal(finish[1], glow, "untagged blended materials stay unchanged");
+    applyFinish(root, "standard");
+    assert.deepEqual(mesh.material, [source, glow]);
     applyFinish(root, quality);
-    assert.equal(mesh.material, originalFinish, "default callers still get the original finish");
-    applyFinish(root, quality, null, true);
-    assert.equal(mesh.material, alternative, "toggling reuses the alternative material");
-    created.add(originalFinish[0]); created.add(alternative[0]);
+    assert.equal(mesh.material, finish, "toggling reuses the finish material");
+    created.add(finish[0]);
   }
-  applyFinish(root, "standard", null, true);
+  applyFinish(root, "standard");
   assert.deepEqual(mesh.material, [source, glow]);
   let disposed = 0, sourceDisposed = 0;
   for (const material of created) material.addEventListener("dispose", () => disposed++);
   for (const resource of [source, glow, texture]) resource.addEventListener("dispose", () => sourceDisposed++);
   releaseFinishes(root);
-  assert.equal(disposed, 4);
+  assert.equal(disposed, 2);
   assert.equal(sourceDisposed, 0);
   assert.deepEqual(mesh.material, [source, glow]);
 });
 
-test("lab glow finishes retain WoW additive transparency and restore the original effects", () => {
+test("game finishes recolour WoW glows while retaining additive transparency and restoring original effects", () => {
   for (const blendingMode of [3, 4]) {
     const texture = new THREE.Texture();
     const exported = new THREE.MeshStandardMaterial({ map: texture, opacity: .6, side: THREE.DoubleSide });
@@ -49,8 +47,6 @@ test("lab glow finishes retain WoW additive transparency and restore the origina
     const finishes = [];
     for (const quality of ["golden", "galaxy"]) {
       applyFinish(mesh, quality);
-      assert.equal(mesh.material, original, "original finishes keep the original glow");
-      applyFinish(mesh, quality, null, true);
       const finish = mesh.material;
       assert.notEqual(finish, original);
       assert.ok(finish instanceof THREE.MeshBasicMaterial, "effects remain unlit light cards");
@@ -60,7 +56,7 @@ test("lab glow finishes retain WoW additive transparency and restore the origina
       finishes.push(finish);
       applyFinish(mesh, "standard");
       assert.equal(mesh.material, original);
-      applyFinish(mesh, quality, null, true);
+      applyFinish(mesh, quality);
       assert.equal(mesh.material, finish, "toggling reuses the glow material");
     }
     let disposed = 0, originalDisposed = 0;

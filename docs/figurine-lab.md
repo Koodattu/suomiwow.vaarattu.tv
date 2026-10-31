@@ -703,3 +703,22 @@ The final batch is `secret-000-valotettu-rude-frame53-001`, EmoteRude at 883 ms
 the bow drawn, and Syöpä uses EmoteRude (73) at frame 53 (883 ms), weapon sheathed.
 All three were inspected in the frontend lab. Their GLBs, catalog pose metadata,
 hashes/cache versions and the shelf silhouette atlas are updated together.
+
+`secret-000-ready-talk-001` replaces three Series 000 poses using their saved
+Armory appearances, with variation 0 throughout:
+
+| Character | Animation | wow.export frame | Baked time (ms) | Weapons |
+|---|---|---:|---:|---|
+| Röiza | Ready2H (27) | 46 | 776 | Held |
+| Tonzidan | Ready1H (26) | 21 | 350 | Held |
+| Valopallo | EmoteTalkQuestion (65) | 58 | 967 | Sheathed |
+
+Frame conversion matches the desktop viewer's 60 fps slider:
+`round(frame / floor(durationMs / 1000 * 60) * durationMs)`. The three GLBs,
+catalog metadata/cache versions and shelf silhouettes are updated together.
+Decoded GLB validation reports zero errors and warnings for all three; the
+Series 000 catalog/asset checks pass. All three poses and weapon states were
+visually checked in the frontend lab. Authoring inputs and desktop appearance
+imports are in `.codex-runtime/figurine-research/series-000/ready-talk/`.
+Desktop appearance imports do not set the pose or weapon state automatically;
+use the table above. The worker inputs in `jobs/` include both settings.
