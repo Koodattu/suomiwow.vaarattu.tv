@@ -722,3 +722,95 @@ visually checked in the frontend lab. Authoring inputs and desktop appearance
 imports are in `.codex-runtime/figurine-research/series-000/ready-talk/`.
 Desktop appearance imports do not set the pose or weapon state automatically;
 use the table above. The worker inputs in `jobs/` include both settings.
+
+`community-pose-update-002` updates ten more poses from frozen appearances:
+
+| Character | Animation (ID / variation) | Frame | Baked time (ms) | Weapons |
+|---|---|---:|---:|---|
+| Pajatso | ShaReadySpellCast (860 / 0) | 0 | 0 | Sheathed |
+| Valoja | PriReadyPostSpellCast (988 / 0) | 0 | 0 | Sheathed |
+| Valotettu | EmoteFlex (82 / 0) | 50 | 837 | Sheathed |
+| Syttyykö | ChannelCastOmniUp (1448 / 0) | 0 | 0 | Held |
+| Taivaallinen | EmoteDance (69 / 1) | 340 | 5681 | Sheathed |
+| Tahto | Fall (40 / 0) | 51 | 850 | Sheathed |
+| Muoto | DruSpellPrecastBothChannel (944 / 0) | 0 | 0 | Held |
+| Dalarian | DkCast1HFront (1104 / 0) | 37 | 632 | Held |
+| Eppugrip | PriSpellPrecastBoth (876 / 0) | 88 | 1467 | Sheathed |
+| Zetacmi | PriReadySpellCast (874 / 0) | 110 | 1834 | Sheathed |
+
+The last two remain visage models in Series 002; the others belong to Series 000.
+Both catalogs, versioned model URLs and silhouette atlases match the new exports.
+All ten were inspected in the frontend lab, decoded GLB validation has zero
+errors/warnings, and all seven Series 000/002 catalog and asset tests pass.
+The local recipe, frame conversions, complete worker job inputs and screenshots
+are in `.codex-runtime/figurine-research/pose-update-002/`.
+
+`community-pose-update-003c` updates six Series 001 models from saved appearances:
+
+| Character | Animation | Frame | Baked time (ms) | Weapons |
+|---|---|---:|---:|---|
+| Röidy | MagSpellPrecastBoth (898) | 87 | 1450 | Sheathed |
+| Karstinen | ReadyBow (29) | 0 | 0 | Held |
+| Kahvishock | CastTwistUpBoth (1120) | 56 | 933 | Sheathed |
+| Stablol | Ready1H (26) | 0 | 0 | Held |
+| Violetmw | MonkOffenseReadyUnarmed (678) | 0 | 0 | Sheathed |
+| Shippyboi | WAShovelLoop (1772) | 37 | 617 | Main hand held; shield sheathed |
+
+All use variation 0. The worker now accepts optional per-hand `weaponStates`
+overrides, with omitted hands inheriting `weapons`. Shippyboi's recipe uses
+`weapons: "held", weaponStates: { "offHand": "sheathed" }`; the export confirms
+main-hand attachment 1 and shield attachment 28, both visible. Attachment and
+hand-grip regression checks cover mixed placement without changing old recipes.
+No desktop UI setting was added.
+
+Röidy exposed an effect-atlas assumption: the second UV set can intentionally
+sample a fixed point or line, rather than span an atlas. The baker now falls
+back to the first UV set for packing, while retaining both original texture
+coordinates and transforms for sampling. Tests cover the constant secondary
+mask, existing secondary masks, scrolling racial runes and overlapping faces.
+
+The six GLBs have zero validation errors/warnings, and their cache URLs and
+Series 001 silhouette sheet were updated. All six were inspected in the lab,
+including Shippyboi from front and back. Stablol has dark weapon-effect surfaces
+visible in this pose; this remains a visual review flag, despite valid geometry.
+Texture quality is retained: Röidy is 2,918,800 bytes (explicitly approved),
+Kahvishock is 2,206,268 bytes, and the other four remain below 2 MB.
+Authoring inputs and review captures are in
+`.codex-runtime/figurine-research/pose-update-003/`.
+
+
+## Series 001/002 pose update (2026-10-31)
+
+`community-pose-update-004` rebuilds Abiw and twelve Series 002 characters from
+their existing appearance snapshots. Chipi is the Series 002 paladin; Series 001
+priest Chipie is unchanged. Morinicar remains in the Evoker dragon form.
+Frames use the desktop exporter's 60 fps slider conversion; dance 69.0 means
+animation 69, variation 0. Texture settings remain WebP quality 89, max 2048.
+
+| Character | Animation | Frame | Time (ms) | Weapons |
+| --- | --- | ---: | ---: | --- |
+| abiw | WA2HIdle (1740.0) | 0 | 0 | held |
+| ajotettu | Ready2H (27.0) | 0 | 0 | held |
+| np | MagReadySpellCast (896.0) | 0 | 0 | sheathed |
+| tonza | ArtOffLoop (1330.0) | 0 | 0 | sheathed |
+| hirvihotline | HoldRifle (110.0) | 0 | 0 | held |
+| mightyhuu | ReadyBow (29.0) | 0 | 0 | held |
+| thrusbard | ArtMainLoop (962.0) | 0 | 0 | held |
+| jampton | EmoteDance (69.0) | 26 | 433 | sheathed |
+| morinicar | EmoteDance (69.0) | 171 | 2850 | sheathed |
+| rookiheal | PriSpellPrecastBoth (876.0) | 0 | 0 | sheathed |
+| galardodric | LocSpellPrecastBoth (920.0) | 89 | 1496 | sheathed |
+| chipi | EmoteTalkQuestion (65.0) | 24 | 400 | sheathed |
+| kuurankukka | EmoteFlex (82.0) | 75 | 1250 | sheathed |
+
+Frozen source snapshots and exported models are stored under
+`E:/Projektit/wow.export/worker/data/series/community-pose-update-004/`.
+The selection, frame conversion record and complete worker jobs are in
+`.codex-runtime/figurine-research/pose-update-004/`.
+
+All 13 exports passed GLB validation with zero errors and warnings. Installation
+verified their pose, weapon state, appearance snapshot, byte size and SHA-256;
+both catalog cache versions and silhouette sheets were refreshed. The 17 tests
+in `figurine-box`, `figurine-secret` and `figurine-series-002` passed. Models were
+opened individually in the local figurine lab; review screenshots are saved
+alongside the frame records. The worker stopped after completing the batch.
