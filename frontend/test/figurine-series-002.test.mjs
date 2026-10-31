@@ -39,8 +39,10 @@ test("upcoming box 2 contains 16 distinct characters and intact posed models at 
   assert.notEqual(series.characters.find((entry) => entry.id === "morinicar").form?.type, "visage");
 
   for (const entry of series.characters) {
-    assert.match(entry.model, /^\/figurines\/community-002\/[a-z-]+\.glb$/);
-    assert.ok(entry.pose.timeMs > 0 && entry.pose.timeMs < entry.pose.durationMs, entry.id);
+    const modelUrl = new URL(entry.model, "https://figurines.test");
+    assert.match(modelUrl.pathname, /^\/figurines\/community-002\/[a-z-]+\.glb$/);
+    assert.equal(modelUrl.search, ["community-pose-update-002", "community-pose-update-004"].includes(entry.authoringSeries) ? `?v=${entry.sha256.slice(0, 12)}` : "");
+    assert.ok(entry.pose.timeMs >= 0 && entry.pose.timeMs < entry.pose.durationMs, entry.id);
     const bytes = await readFile(new URL(`../public${entry.model}`, import.meta.url));
     // Box 2 deliberately retains full texture quality, including larger Dracthyr.
     assert.ok(bytes.length > 0, entry.id);
@@ -70,5 +72,31 @@ test("Abiw's mop and slippers use equipment textures rather than the character s
       assert.notEqual(material.name, "data-1");
       assert.ok(material.pbrMetallicRoughness.baseColorTexture);
     }
+  }
+});
+
+
+test("box 2 retains the requested casting, weapon-ready and dance frames", async () => {
+  const catalog = JSON.parse(await readFile(new URL("../src/data/figurines/community-002.json", import.meta.url)));
+  for (const [id, animationId, frame, weapons] of [
+    ["ajotettu", 27, 0, "held"],
+    ["np", 896, 0, "sheathed"],
+    ["tonza", 1330, 0, "sheathed"],
+    ["hirvihotline", 110, 0, "held"],
+    ["mightyhuu", 29, 0, "held"],
+    ["thrusbard", 962, 0, "held"],
+    ["jampton", 69, 26, "sheathed"],
+    ["morinicar", 69, 171, "sheathed"],
+    ["rookiheal", 876, 0, "sheathed"],
+    ["galardodric", 920, 89, "sheathed"],
+    ["chipi", 65, 24, "sheathed"],
+    ["kuurankukka", 82, 75, "sheathed"],
+  ]) {
+    const figure = catalog.characters.find((entry) => entry.id === id);
+    assert.equal(figure.pose.animationId, animationId, id);
+    assert.equal(figure.pose.variation, 0, id);
+    const frameCount = Math.floor(figure.pose.durationMs / 1000 * 60);
+    assert.equal(figure.pose.timeMs, Math.round(frame / frameCount * figure.pose.durationMs), id);
+    assert.equal(figure.weapons, weapons, id);
   }
 });

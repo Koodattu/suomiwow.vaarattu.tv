@@ -82,22 +82,23 @@
       "name": "Pajatso",
       "realm": "Kazzak",
       "pose": {
-        "animationId": 66,
+        "animationId": 860,
         "variation": 0,
-        "name": "EmoteBow",
-        "durationMs": 2133,
-        "timeMs": 700
+        "name": "ShaReadySpellCast",
+        "durationMs": 1500,
+        "timeMs": 0
       },
       "weapons": "sheathed",
       "race": "Draenei",
       "characterClass": "Shaman",
       "fetchedAt": "2026-10-31T12:17:42.352Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/115/213005171-main-raw.png",
-      "model": "/figurines/community-000/pajatso.glb",
-      "bytes": 1738344,
-      "sha256": "ae6c6141a065e279b107e41f5f0ead504ac7f4eb9cbb325a3774d9aa540028a4",
+      "model": "/figurines/community-000/pajatso.glb?v=8f7584f8ca59",
+      "bytes": 1738508,
+      "sha256": "8f7584f8ca5928c823ab72893e3996957815423466af2ad142782276d76c4f7e",
       "raceKey": "draenei",
-      "classKey": "shaman"
+      "classKey": "shaman",
+      "authoringSeries": "community-pose-update-002"
     },
     {
       "id": "syopa",
@@ -127,22 +128,23 @@
       "name": "Valoja",
       "realm": "Kazzak",
       "pose": {
-        "animationId": 67,
+        "animationId": 988,
         "variation": 0,
-        "name": "EmoteWave",
-        "durationMs": 2000,
-        "timeMs": 700
+        "name": "PriReadyPostSpellCast",
+        "durationMs": 1500,
+        "timeMs": 0
       },
       "weapons": "sheathed",
       "race": "Night Elf",
       "characterClass": "Priest",
       "fetchedAt": "2026-10-31T12:17:42.583Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/109/211317869-main-raw.png",
-      "model": "/figurines/community-000/valoja.glb",
-      "bytes": 514908,
-      "sha256": "e38cb34e1b367ff1e0878d6f5fe2b0bc966701e1a6dc989e817043ed6d526902",
+      "model": "/figurines/community-000/valoja.glb?v=3300b76617ce",
+      "bytes": 515020,
+      "sha256": "3300b76617ce3e5e94d8aeff7955a2d1ea816b83119cf518a052f84e683327d5",
       "raceKey": "nightElf",
-      "classKey": "priest"
+      "classKey": "priest",
+      "authoringSeries": "community-pose-update-002"
     },
     {
       "id": "rmxqa",
@@ -216,45 +218,46 @@
       "name": "Valotettu",
       "realm": "Outland",
       "pose": {
-        "animationId": 73,
+        "animationId": 82,
         "variation": 0,
-        "name": "EmoteRude",
-        "durationMs": 4667,
-        "timeMs": 883
+        "name": "EmoteFlex",
+        "durationMs": 3333,
+        "timeMs": 837
       },
       "weapons": "sheathed",
       "race": "Lightforged Draenei",
       "characterClass": "Paladin",
       "fetchedAt": "2026-10-31T12:17:43.210Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/161/86574753-main-raw.png",
-      "model": "/figurines/community-000/valotettu.glb?v=59f35e04a2b4",
-      "bytes": 999264,
-      "sha256": "59f35e04a2b45e17554d3eaa163e9fe7eacbe4f2ad86cfcb9addcf8e90759a64",
+      "model": "/figurines/community-000/valotettu.glb?v=7882eb89e1dc",
+      "bytes": 999048,
+      "sha256": "7882eb89e1dcb20e29f498a856861adf961b89cdf26e3fe674d7ae0c48469dc3",
       "raceKey": "lightforgedDraenei",
       "classKey": "paladin",
-      "authoringSeries": "secret-000-valotettu-rude-frame53-001"
+      "authoringSeries": "community-pose-update-002"
     },
     {
       "id": "syttyyko",
       "name": "Syttyykö",
       "realm": "Outland",
       "pose": {
-        "animationId": 68,
+        "animationId": 1448,
         "variation": 0,
-        "name": "EmoteCheer",
-        "durationMs": 2334,
-        "timeMs": 700
+        "name": "ChannelCastOmniUp",
+        "durationMs": 1000,
+        "timeMs": 0
       },
-      "weapons": "sheathed",
+      "weapons": "held",
       "race": "Human",
       "characterClass": "Mage",
       "fetchedAt": "2026-10-31T12:17:43.311Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/106/86793578-main-raw.png",
-      "model": "/figurines/community-000/syttyyko.glb",
-      "bytes": 790408,
-      "sha256": "2ad4e607de1fb49adcf71ea2c598a39664ef10e9d4cca4d93156cef4d03c397f",
+      "model": "/figurines/community-000/syttyyko.glb?v=2d735c9751d5",
+      "bytes": 790424,
+      "sha256": "2d735c9751d58eb6d278e713844c941d9c55fbaba652f15f3e08560dedb4f6f7",
       "raceKey": "human",
-      "classKey": "mage"
+      "classKey": "mage",
+      "authoringSeries": "community-pose-update-002"
     },
     {
       "id": "jousivakio",
@@ -284,88 +287,92 @@
       "name": "Tahto",
       "realm": "Outland",
       "pose": {
-        "animationId": 66,
+        "animationId": 40,
         "variation": 0,
-        "name": "EmoteBow",
-        "durationMs": 2333,
-        "timeMs": 700
+        "name": "Fall",
+        "durationMs": 1000,
+        "timeMs": 850
       },
       "weapons": "sheathed",
       "race": "Night Elf",
       "characterClass": "Demon Hunter",
       "fetchedAt": "2026-10-31T12:17:43.555Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/46/142296622-main-raw.png",
-      "model": "/figurines/community-000/tahto.glb",
-      "bytes": 1433872,
-      "sha256": "a053f3813b70c63c5fdf84cbe9fa74b97d38bf8e70fd0a0ae74b1079ca63e1d9",
+      "model": "/figurines/community-000/tahto.glb?v=7f9cae295d54",
+      "bytes": 1431868,
+      "sha256": "7f9cae295d54d8f0099d3b8816a7a209d1617da34113ee233dd90893d5ffebf9",
       "raceKey": "nightElf",
-      "classKey": "demonHunter"
+      "classKey": "demonHunter",
+      "authoringSeries": "community-pose-update-002"
     },
     {
       "id": "muoto",
       "name": "Muoto",
       "realm": "Outland",
       "pose": {
-        "animationId": 64,
+        "animationId": 944,
         "variation": 0,
-        "name": "EmoteTalkExclamation",
-        "durationMs": 2066,
-        "timeMs": 700
+        "name": "DruSpellPrecastBothChannel",
+        "durationMs": 1000,
+        "timeMs": 0
       },
-      "weapons": "sheathed",
+      "weapons": "held",
       "race": "Night Elf",
       "characterClass": "Druid",
       "fetchedAt": "2026-10-31T12:17:43.680Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/94/101827166-main-raw.png",
-      "model": "/figurines/community-000/muoto.glb",
-      "bytes": 434060,
-      "sha256": "0ed9255ee7d10139a73bd6d7486e1b1e2a1c7aa50711cd4c8af45f314da6c717",
+      "model": "/figurines/community-000/muoto.glb?v=0088c30717fd",
+      "bytes": 432968,
+      "sha256": "0088c30717fdfa810f7019b0548493d0d9330eb68ff78130180b8b56ddd514e2",
       "raceKey": "nightElf",
-      "classKey": "druid"
+      "classKey": "druid",
+      "authoringSeries": "community-pose-update-002"
     },
     {
       "id": "dalarian",
       "name": "Dalarian",
       "realm": "Outland",
       "pose": {
-        "animationId": 74,
+        "animationId": 1104,
         "variation": 0,
-        "name": "EmoteRoar",
-        "durationMs": 2167,
-        "timeMs": 700
+        "name": "DkCast1HFront",
+        "durationMs": 666,
+        "timeMs": 632
       },
       "weapons": "held",
       "race": "Draenei",
       "characterClass": "Death Knight",
       "fetchedAt": "2026-10-31T12:17:43.783Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/104/102565224-main-raw.png",
-      "model": "/figurines/community-000/dalarian.glb",
-      "bytes": 526072,
-      "sha256": "37bd08bbf550ea38bf9739711b5458114f7a98b3b272519b02fd9e1a2f7acdaa",
+      "model": "/figurines/community-000/dalarian.glb?v=5f979838a316",
+      "bytes": 525852,
+      "sha256": "5f979838a31694b44bf1c4c6da7a2f9f564f36015d750043fe8bc0c327a233e8",
       "raceKey": "draenei",
-      "classKey": "deathKnight"
+      "classKey": "deathKnight",
+      "authoringSeries": "community-pose-update-002"
     },
     {
       "id": "taivaallinen",
       "name": "Taivaallinen",
       "realm": "Outland",
       "pose": {
-        "animationId": 67,
-        "variation": 0,
-        "name": "EmoteWave",
-        "durationMs": 2667,
-        "timeMs": 700
+        "animationId": 69,
+        "variation": 1,
+        "name": "EmoteDance",
+        "durationMs": 6333,
+        "timeMs": 5681
       },
       "weapons": "sheathed",
       "race": "Human",
       "characterClass": "Priest",
       "fetchedAt": "2026-10-31T12:17:43.877Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/99/88319075-main-raw.png",
-      "model": "/figurines/community-000/taivaallinen.glb",
-      "bytes": 325912,
-      "sha256": "0f4e266414dad5d9b56f8eea96b8f5db10eaf13a543d70bc2b031f31e29e6230",
+      "model": "/figurines/community-000/taivaallinen.glb?v=84c85c7ce209",
+      "bytes": 326464,
+      "sha256": "84c85c7ce209b7babcc5f129961a1d9b275f43baa656e3ea2b842d370e31e8be",
       "raceKey": "human",
-      "classKey": "priest"
+      "classKey": "priest",
+      "authoringSeries": "community-pose-update-002"
     }
   ],
   "authoringSeries": "secret-000-repair-001",

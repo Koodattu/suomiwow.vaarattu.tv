@@ -75,15 +75,19 @@ test("failed loading retries the same selected character with a fresh scene", ()
   assert.deepEqual(state, { phase: "loading", selected: 0, round: 1 });
 });
 
-test("catalog serves complete embedded GLBs below the 2 MB per-character budget", async () => {
+test("catalog serves complete embedded GLBs within the approved per-character budgets", async () => {
   const catalog = JSON.parse(await readFile(new URL("../src/data/figurines/community-001.json", import.meta.url)));
   assert.equal(catalog.characters.length, 16);
   for (const id of ["roidy", "yolobolt", "laku", "chipie", "ovelakettu"]) assert.ok(catalog.characters.some(c => c.id === id));
   assert.equal(new Set(catalog.characters.map(c => c.id)).size, catalog.characters.length);
   for (const entry of catalog.characters) {
-    assert.match(entry.model, /^\/figurines\/community-001\/[a-z-]+\.glb$/);
+    const modelUrl = new URL(entry.model, "https://figurines.test");
+    assert.match(modelUrl.pathname, /^\/figurines\/community-001\/[a-z-]+\.glb$/);
+    assert.equal(modelUrl.search, ["community-pose-update-003c", "community-pose-update-004"].includes(entry.authoringSeries) ? `?v=${entry.sha256.slice(0, 12)}` : "");
     const bytes = await readFile(new URL(`../public${entry.model}`, import.meta.url));
-    assert.ok(bytes.length < 2_000_000);
+    // Retain the approved texture quality on the rebuilt effect-heavy models.
+    const budget = { roidy: 3_000_000, kahvishock: 2_300_000 }[entry.id] ?? 2_000_000;
+    assert.ok(bytes.length < budget, entry.id);
     assert.equal(bytes.length, entry.bytes);
     assert.equal(bytes.subarray(0, 4).toString(), "glTF");
     assert.equal(bytes.readUInt32LE(8), bytes.length);
@@ -102,8 +106,8 @@ test("catalog serves complete embedded GLBs below the 2 MB per-character budget"
 
 test("the series retains the requested poses and weapon placement", async () => {
   const catalog = JSON.parse(await readFile(new URL("../src/data/figurines/community-001.json", import.meta.url)));
-  assert.equal(catalog.characters.find(c => c.id === "stablol").weapons, "sheathed");
-  for (const [id, animationId, weapons, timeMs] of [["roidy", 68, "held", 900], ["yolobolt", 74, "held", 1200], ["laku", 1260, "hidden", 0], ["suursmurffi", 83, "sheathed", 1800], ["turrilol", 69, "sheathed", 2500], ["ovelakettu", 1260, "sheathed", 1600]]) {
+  assert.deepEqual(catalog.characters.find(c => c.id === "shippyboi").weaponStates, { offHand: "sheathed" });
+  for (const [id, animationId, weapons, timeMs] of [["abiw", 1740, "held", 0], ["roidy", 898, "sheathed", 1450], ["karstinen", 29, "held", 0], ["kahvishock", 1120, "sheathed", 933], ["stablol", 26, "held", 0], ["violetmw", 678, "sheathed", 0], ["shippyboi", 1772, "held", 617], ["yolobolt", 74, "held", 1200], ["laku", 1260, "hidden", 0], ["suursmurffi", 83, "sheathed", 1800], ["turrilol", 69, "sheathed", 2500], ["ovelakettu", 1260, "sheathed", 1600]]) {
     const figure = catalog.characters.find(c => c.id === id);
     assert.equal(figure.pose.animationId, animationId);
     assert.equal(figure.weapons, weapons);
