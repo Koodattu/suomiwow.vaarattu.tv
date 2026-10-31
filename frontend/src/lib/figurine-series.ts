@@ -15,6 +15,11 @@ const series = (catalog: { id: string; characters: FigurineCharacter[] }, number
 });
 
 export const FIGURINE_SERIES: readonly FigurineSeries[] = [series(first, 1, "amethyst", firstSilhouettes.src), series(second, 2, "verdigris", secondSilhouettes.src)];
+// Announced series: their boxes already stand in the shop (greyed, sealed shut) and their shelves
+// wait in the case. Each prints in its own colour, a hue on the packaging colour wheel.
+export type UpcomingSeries = { id: string; number: number; hue: number; size: number };
+const UPCOMING_HUES = [18, 206, 140, 338, 42, 192, 4, 96, 280, 30, 220, 54, 300, 156, 234, 118, 318, 75];
+export const UPCOMING_SERIES: readonly UpcomingSeries[] = UPCOMING_HUES.map((hue, index) => ({ id: `community-${String(index + 3).padStart(3, "0")}`, number: index + 3, hue, size: 16 }));
 export const TOTAL_FIGURES = FIGURINE_SERIES.reduce((total, entry) => total + entry.characters.length, 0);
 
 export const figureKey = (seriesId: string, figureId: string) => `${seriesId}:${figureId}`;

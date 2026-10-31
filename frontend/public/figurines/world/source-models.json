@@ -118,5 +118,82 @@
       }
     ],
     "searched": 0
+  },
+  "stations": {
+    "id": "station-models-001",
+    "build": {
+      "Region": "eu",
+      "BuildConfig": "d718abcc42604d8efbd35aecfa5bb75b",
+      "CDNConfig": "9529b048134c5f9375bbe754b8edc5ef",
+      "KeyRing": "3ca57fe7319a297346440e4d2a03a0cd",
+      "BuildId": "70575",
+      "VersionsName": "12.1.5.70575",
+      "ProductConfig": "53020d32e1a25648c8e1eafd5771935f",
+      "Product": "wow"
+    },
+    "exporterVersion": "0.2.19",
+    "kind": "models",
+    "models": [
+      {
+        "name": "gnome-gear",
+        "file": "world/khazmodan/ironforge/passivedoodads/gnomearea/gnomekinggear.m2",
+        "fileDataID": 203164,
+        "bytes": 54252
+      },
+      {
+        "name": "gnome-pistons",
+        "file": "world/khazmodan/ironforge/passivedoodads/gnomearea/gnomekingpistons.m2",
+        "fileDataID": 203167,
+        "bytes": 91112
+      },
+      {
+        "name": "gnome-pipe",
+        "file": "world/generic/gnome/passive doodads/pipes/gnomepipe02.m2",
+        "fileDataID": 197737,
+        "bytes": 149720
+      },
+      {
+        "name": "gnome-light",
+        "file": "world/generic/gnome/passive doodads/lights/gnomemaintenancelight02.m2",
+        "fileDataID": 197717,
+        "bytes": 100056
+      },
+      {
+        "name": "gnome-tool",
+        "file": "world/generic/gnome/passive doodads/tools/gnometool01.m2",
+        "fileDataID": 197754,
+        "bytes": 104140
+      },
+      {
+        "name": "gnome-bucket",
+        "file": "world/generic/gnome/passive doodads/buckets/gnomebucket01.m2",
+        "fileDataID": 197640,
+        "bytes": 104836
+      },
+      {
+        "name": "postbox-gnome",
+        "file": "world/generic/passivedoodads/postboxes/postboxgnome.m2",
+        "fileDataID": 199996,
+        "bytes": 70316
+      },
+      {
+        "name": "shop-counter-b",
+        "file": "world/generic/human/passive doodads/shopcounter/duskwoodshopcounter02.m2",
+        "fileDataID": 198462,
+        "bytes": 78216
+      },
+      {
+        "name": "podium",
+        "file": "world/generic/human/passive doodads/podiums/duskwoodpodium01.m2",
+        "fileDataID": 198407,
+        "bytes": 72096
+      },
+      {
+        "name": "wanted-poster",
+        "file": "world/generic/passive doodads/wantedposters/newwantedposter02.m2",
+        "fileDataID": 199475,
+        "bytes": 97472
+      }
+    ]
   }
 }

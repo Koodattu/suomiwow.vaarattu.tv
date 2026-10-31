@@ -154,3 +154,8 @@
 .soundSwitch[aria-checked="true"] { background: rgba(214, 187, 134, .32); }
 .soundSwitch[aria-checked="true"]::after { transform: translateX(14px); background: #f1d48a; }
 @media (prefers-reduced-motion: reduce) { .soundPanel { animation: none; } .soundButton, .soundSwitch, .soundSwitch::after { transition: none; } }
+/* Quality of a revealed or inspected figure, beside the new/duplicate badge. */
+.qualityBadge { display: inline-block; margin: 0 0 10px 8px; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; animation: badgePop .6s .35s cubic-bezier(.2, 1.6, .4, 1) both; }
+.qualityBadge[data-quality="golden"] { background: linear-gradient(90deg, #ffe7a3, #e0a93a 60%, #fff0c2); color: #3a2506; box-shadow: 0 0 18px rgba(255, 200, 90, .55); }
+.qualityBadge[data-quality="galaxy"] { background: linear-gradient(90deg, #2a1660, #6d3fd8 45%, #2b7fd8); color: #f1e9ff; box-shadow: 0 0 18px rgba(140, 100, 255, .6); }
+@media (prefers-reduced-motion: reduce) { .qualityBadge { animation: none; } }

@@ -362,12 +362,13 @@ Blender renders do not reproduce the viewer's additive effects exactly.
 
 ## Collectibles world
 
-`/collectibles` is one 3D scene with a home and two stations. Home is the centre: the
+`/collectibles` is one 3D scene with a home and stations round it. Home is the centre: the
 pedestal, seen head-on with the shop and the case at either side, holding either a sealed box
 (opening) or an inspected figure (viewer). Both share one camera, so swapping between a box
 and a figure never moves it, and returning from a station lands where the camera was left.
-The stations are the shop (a stall with every series' boxes) and the collection (a lit cubby
-cabinet, one 4×4 grid per series); the camera flies there and back in under a second.
+The stations are the shop, the collection case and the recycler; the camera flies there and
+back in under a second. The trading post and the hall of fame already stand at the plaza
+(`figurine-outposts.ts`) but are not open: tapping one only says "coming soon".
 There are no labels and no buttons: tap a station to go there, a series' boxes to get a box,
 an owned figure to inspect it, and empty ground or the station you are at to come back. From
 home, boxes and figures can be tapped straight in the background stations. A picked box drops
@@ -380,18 +381,61 @@ them. In the shop the middle button turns the shot; in the collection dragging p
 the case and the wheel zooms in close. Auto-rotation is slow, stops while you hold the camera
 and eases back in 2.5 s after you let go. Hovered figures in the case get a soft halo and keep
 their size. Station shots back off until the station's width fits the
-screen, so phones see the whole stall. Keyboard: Esc back, S shop, C collection, 1-9 pick a
-series (in the shop), Enter opens the sealed box. The figure's name and details appear as it
+screen, so phones see the whole stall; when that pulls a shot back past the pedestal, the box
+steps aside. Keyboard: Esc back, S shop, C collection, M recycler, 1-9 pick a series (in the
+shop), Enter opens the sealed box. The figure's name and details appear as it
 lands. The only button is the sound toggle.
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
+Announced series (`UPCOMING_SERIES`, 003–020) have no figures yet, only a hue: `seriesTheme`
+prints their box in the same scheme around it. They fill the shop greyed, can be picked and
+dropped on the pedestal (full colour there, so the print can be seen) and shaken, but the
+tape never comes off.
+
+### Shop and case at scale
+
+The shop is a stepped riser on the stall's counter: one box per series, five to a step,
+series 001 front left. Each step rises more than a box is tall, so every step's price tag
+(number and collected count, or "coming soon") shows over the boxes in front. Twenty series
+fill four steps.
+
+The collection is glass display cases, one shelf per series and five shelves to a case, side
+by side as series grow (pan across them). Each shelf has its series' box at the left end and
+sixteen figures on round bases in two staggered rows, the back row on a clear riser; only a
+card's middle takes taps so the rows never steal each other's taps. The case shows every
+released series and fills its last case with the next announced ones, on shelves washed in
+their colour and labelled "coming soon". Missing figures are faint frosted outlines; a base's
+colour is the figure's finest quality, and spare copies show as a count beside it. A
+completed series' shelf turns gold.
+
+### Qualities, recycler and trade-up
+
+Every box rolls a quality with its figure (`rollQuality`, `figurine-collection.ts`):
+standard, golden (8 %) or galaxy (2 %), prototype odds kept generous for testing. The
+finishes (`figurine-finish.ts`) are swapped onto the figure's own meshes: golden is polished
+metal with the paint's light and shade kept as engraving, galaxy a screen-fixed nebula with
+twinkling stars and a violet rim. Both reflect a neutral studio environment, not the green sky.
+The reveal and viewer show a quality badge; the case shows each figure in its finest quality.
+
+The recycler (`figurine-machine.ts`) is a gnomish machine with a pegboard of every figure
+owned more than once (one card per quality, with its spare count). Tap a card to load a copy
+into one of three slots, tap a loaded card to take it back, and pull the lever. The display
+says what the three will make: three copies of one figure at one quality trade up to the next
+quality (the figure is shown on the pedestal afterwards); any other three make a blind box of
+the series most of them came from (it pops out of the chute, then drops on the pedestal). It
+refuses to recycle the last copy of any figure. The rules are pure functions in
+`figurine-collection.ts` (`trayGroups`, `machineOutcome`, `machineChanges`) and the
+collection changes as one all-or-nothing set. There are no box limits yet, so a recycled box is
+just another box.
 
 The collection is session-only (`sessionStorage`, `figurine-collection.ts`): figure key to
-times opened; nothing is sent anywhere. Unowned figures show as black silhouettes from the
-baked sheet; owned ones show a portrait rendered from their model (captured on reveal, or
-regenerated from the model file after a reload). Portraits use the silhouette sheet's
-framing (orthographic, feet on the bottom edge), so both stand on the cubby floor. Sheet cells
-are 280×360 so nearly every pose is fitted by height and figures share one height.
+copies per quality; nothing is sent anywhere. The first prototype's counts (key
+`…-collection-v1`) carry over as standard copies. Owned figures show a portrait rendered from
+their model at their quality (captured on reveal, or regenerated from the model file after a
+reload). Portraits use the silhouette sheet's framing (orthographic, feet on the bottom edge),
+so all stand on their bases. Sheet cells are 280×360 so nearly every pose is fitted by height
+and figures share one height. Box limits, trading and leaderboards will need the collection on
+the server: anything kept in the browser can be edited by the player.
 
 World textures in `frontend/public/figurines/world/` (Elwynn cobblestone and grass, cloud and
 nebula sky layers) were exported from game data with the local wow.export worker's texture
@@ -408,10 +452,18 @@ woods). Where the path leaves the plaza is a small market (`marketLayout`): a hu
 Duskwood wagon, a signpost, crates, barrels and produce tables. No faction banners: the
 market takes no side.
 
-Loading happens once, behind a start-up screen: scenery models, every series' box (all
-built up front and swapped on series change, never rebuilt), every texture uploaded, all
-sounds downloaded (decoded on the first tap), portraits of every owned figure, and shaders
-compiled. The figure inside each sealed box is drawn when the box arrives and preloaded
+Station props came from a second model job (`station-models-001`; provenance under
+`stations` in `source-models.json`, loaded through `figurine-props.ts`): the Tinker Town
+gear that spins on the recycler, a gnome exhaust pipe, work lamp, pistons, bucket and tool; a
+Duskwood shop counter and gnomish postbox for the trading post; a notice board and podium for
+the hall of fame. Candidates looked at and left out: the Gnomeregan gnome machine and broken
+machine, hut machinery, hazard light, steel plate, goblin weathervane and orc wanted poster.
+
+Loading happens once, behind a start-up screen: scenery and station models, every released
+series' pedestal box (built up front and swapped on series change, never rebuilt; announced
+series' boxes are built when picked, the last two kept), every texture uploaded, all sounds
+downloaded (decoded on the first tap), portraits of every owned figure and every recycler card,
+and shaders compiled. The figure inside each sealed box is drawn when the box arrives and preloaded
 while it waits, so opening goes straight into the build-up; its case portrait shaders are
 compiled with an off-screen target bound (portraits skip tone mapping, a different shader
 variant) and the portrait renders at the next idle moment. Picking a series always drops its
