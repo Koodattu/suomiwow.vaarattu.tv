@@ -65,3 +65,17 @@ test("a failed first draw restores scene visibility and the render target", asyn
   assert.equal(f.hidden.visible, false);
   assert.equal(f.mesh.frustumCulled, true);
 });
+
+test("warming a new figure excludes world geometry while preserving scene lights and visibility", async () => {
+  const f = fixture();
+  const world = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+  const light = new THREE.PointLight();
+  const station = new THREE.Group(); station.visible = false; station.add(light, world); f.scene.add(station);
+  f.renderer.compileAsync = async (root, camera, scene) => {
+    assert.equal(root, f.hidden); assert.equal(scene, f.scene); assert.equal(camera, f.camera);
+    assert.equal(world.visible, false); assert.equal(light.visible, true); assert.equal(station.visible, true);
+  };
+  f.renderer.render = () => { assert.equal(world.visible, false); assert.equal(f.mesh.visible, true); };
+  assert.equal(await warmFigurineScene(f.renderer, f.scene, f.camera, f.target, () => true, f.hidden), true);
+  assert.equal(world.visible, true); assert.equal(station.visible, false); assert.equal(f.hidden.visible, false);
+});

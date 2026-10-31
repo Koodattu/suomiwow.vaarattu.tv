@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
+import { createFigurineFileCache } from "@/lib/figurine-cache";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { MACHINE_SLOTS, addToCollection, bestQuality, changeCollection, copiesOf, emptyCollection, machineChanges, machineOutcome, readCollection, rollQuality, spare, subscribeCollection, trayGroups, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, RELEASED_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
@@ -64,41 +65,46 @@ export default function FigurineWorld() {
   const quality: FigurineQuality = view === "viewer" ? inspected?.quality ?? "standard" : currentDraw?.quality ?? "standard";
   const [model, setModel] = useState<"idle" | "loading" | "ready" | "failed">("idle");
   const [refetch, setRefetch] = useState(0);
-  // Recently fetched figure files, so stepping into the viewer and back does not download again.
-  const fetched = useRef(new Map<string, File>());
+  // Download the finite catalog once. Keep compressed files, rather than all decoded GPU textures.
+  const fetched = useRef<ReturnType<typeof createFigurineFileCache> | null>(null);
+  const [fileProgress, setFileProgress] = useState(0);
+  useEffect(() => {
+    const cache = createFigurineFileCache(); fetched.current = cache;
+    const characters = RELEASED_SERIES.flatMap((entry) => entry.characters);
+    let next = 0, completed = 0, cancelled = false;
+    const worker = async () => {
+      while (!cancelled && next < characters.length) {
+        const character = characters[next++];
+        try { await cache.get(character.model, character.bytes); } catch { /* Selection retries failed downloads. */ }
+        if (!cancelled) setFileProgress(++completed / characters.length);
+      }
+    };
+    void Promise.all(Array.from({ length: 4 }, worker));
+    return () => { cancelled = true; cache.dispose(); if (fetched.current === cache) fetched.current = null; };
+  }, []);
   useEffect(() => {
     if (!wanted) { setFiles([]); setFilesFor(null); setModel("idle"); return; }
-    const remembered = fetched.current.get(wanted.model);
-    if (remembered) { setFiles([remembered]); setFilesFor(wanted.model); setModel("loading"); return; }
-    const controller = new AbortController();
+    let cancelled = false;
     setModel("loading");
     const fail = () => { setModel("failed"); if (viewRef.current !== "viewer") dispatch({ type: "failed" }); };
-    const timeout = window.setTimeout(() => { fail(); controller.abort(); }, 30_000);
     void (async () => {
       try {
-        const response = await fetch(wanted.model, { signal: controller.signal });
-        if (!response.ok) throw new Error("Model unavailable");
-        const blob = await response.blob();
-        if (blob.size !== wanted.bytes) throw new Error("Incomplete model");
-        if (controller.signal.aborted) return;
-        const file = new File([blob], "collectible.glb");
-        fetched.current.set(wanted.model, file);
-        if (fetched.current.size > 6) fetched.current.delete(fetched.current.keys().next().value!);
+        const file = await fetched.current!.get(wanted.model, wanted.bytes);
+        if (cancelled) return;
         setFiles([file]); setFilesFor(wanted.model);
-      } catch { if (!controller.signal.aborted) fail(); }
-      finally { window.clearTimeout(timeout); }
+      } catch { if (!cancelled) fail(); }
     })();
-    return () => { window.clearTimeout(timeout); controller.abort(); };
+    return () => { cancelled = true; };
   }, [wanted, state.round, refetch]);
 
-  // Start-up loading: the stage's scenery, boxes, portraits and shaders, every sound, and the first box's figure.
+  // Start-up loading: scenery, box prints, portraits, sounds, all compressed figures, and the first prepared figure.
   const [stageProgress, setStageProgress] = useState(0), [stageLoaded, setStageLoaded] = useState(false), [audioProgress, setAudioProgress] = useState(0);
   useEffect(() => { void prefetchFigurineAudio([...new Set(FIGURINE_SERIES.flatMap((entry) => entry.characters.map((character) => character.classKey)))], ALL_QUIPS.map(({ file }) => file), setAudioProgress).then(() => setAudioProgress(1)); }, []);
   const figureSettled = model === "ready" || model === "failed" || (sealedDraw === null && view !== "viewer");
-  const loaded = stageLoaded && audioProgress >= 1 && figureSettled;
+  const loaded = stageLoaded && audioProgress >= 1 && fileProgress >= 1 && figureSettled;
   const [revealedWorld, setRevealedWorld] = useState(false);
   useEffect(() => { if (loaded || webglUnavailable) setRevealedWorld(true); }, [loaded, webglUnavailable]);
-  const progress = Math.round(100 * (0.6 * stageProgress + 0.25 * audioProgress + 0.15 * (figureSettled ? 1 : 0)));
+  const progress = Math.round(100 * (0.4 * stageProgress + 0.25 * audioProgress + 0.2 * fileProgress + 0.15 * (figureSettled ? 1 : 0)));
   // Each series pick drops its box onto the pedestal again.
   const [arrival, setArrival] = useState(0);
   // A tapped station that is not open yet says so for a moment.
@@ -128,7 +134,7 @@ export default function FigurineWorld() {
     const selected = sealedDraw ?? chooseFigure(series.characters.length, Math.random());
     preloadFigurineSignature(series.characters[selected].classKey, figureQuip(figureKey(series.id, series.characters[selected].id))?.file);
     if (model === "failed") setRefetch((current) => current + 1);
-    dispatch({ type: "open", selected, ready: sealedDraw !== null && model === "ready" });
+    dispatch({ type: "open", selected, ready: sealedDraw !== null && model === "ready" && filesFor === wanted?.model });
   }
   function revealed() {
     dispatch({ type: "revealed" });
@@ -186,7 +192,7 @@ export default function FigurineWorld() {
   const onKey = useRef<(event: KeyboardEvent) => void>(() => {});
   useEffect(() => {
     onKey.current = (event) => {
-      if (event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement) return;
+      if (!revealedWorld || event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement) return;
       const key = event.key.toLowerCase();
       if (key === "escape" || key === "backspace") back();
       else if (atCentre(view) && key === "s") navigate("shop");
@@ -231,13 +237,14 @@ export default function FigurineWorld() {
     </Link>
     <SoundMenu />
     <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
-      interactive={view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
+      interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
       machine={machine} onMachine={operateMachine} onMachineDone={machineDone} onComingSoon={setSoon}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={(key) => inspect(key)} onHoverFigure={setHovered}
       onStatus={(status) => {
         setWebglUnavailable(status === "webgl");
-        if (status === "ready") { setModel("ready"); dispatch({ type: "loaded" }); }
+        if (status === "loading") setModel("loading");
+        else if (status === "ready") { setModel("ready"); dispatch({ type: "loaded" }); }
         else if (status === "error" || status === "webgl") { setModel("failed"); if (view !== "viewer") dispatch({ type: "failed" }); }
       }}
       onProgress={setStageProgress} onLoaded={() => setStageLoaded(true)} arrival={arrival}

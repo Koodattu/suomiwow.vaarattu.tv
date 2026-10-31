@@ -387,6 +387,7 @@ export type BlindBoxParts = {
   // Transparent from the start so fading the box never forces a shader recompile.
   materials: THREE.Material[];
   thickness: number;
+  ready: Promise<void>;
   // Cancels a pending silhouette repaint.
   stop: () => void;
 };
@@ -404,12 +405,13 @@ export function createBoxPrints({ labels, lineup, theme, silhouettes }: BoxDesig
     .map((paint, index) => face(index === 4 ? width : index > 1 ? depth : width, index === 4 ? depth : height, envMap, paint, density));
   const [front_, back_, left, right, top] = printed.map(({ material }) => material);
   let cancelled = false;
+  let ready = Promise.resolve();
   // The print is repainted with the baked silhouette sheet once it loads.
   if (silhouettes) {
     const sheet = new Image(); sheet.src = silhouettes;
-    sheet.decode().then(() => { if (!cancelled) printed.slice(0, 4).forEach(({ repaint }) => repaint(sheet)); }, () => undefined);
+    ready = sheet.decode().then(() => { if (!cancelled) printed.slice(0, 4).forEach(({ repaint }) => repaint(sheet)); }, () => undefined);
   }
-  return { front: front_, back: back_, left, right, lid: top, edge, inside, stop: () => { cancelled = true; } };
+  return { front: front_, back: back_, left, right, lid: top, edge, inside, ready, stop: () => { cancelled = true; } };
 }
 
 // Builds the box inside `parent`. Walls hinge on their bottom edges (front, back, left, right).
@@ -440,5 +442,5 @@ export function buildBlindBox(parent: THREE.Group, { bottom, design, envMap }: {
   const tape = tearTape(parent, { depth, height, bottom, lid: t, label: labels.openHere, envMap });
   const materials = [edge, inside, frontPrint, backPrint, leftPrint, rightPrint, lidPrint];
   materials.forEach((material) => { material.transparent = true; });
-  return { walls, lidPivot, tape, thickness: t, meshes: [...walls.map(({ mesh }) => mesh), floor, lidMesh], materials, stop: prints.stop };
+  return { walls, lidPivot, tape, thickness: t, meshes: [...walls.map(({ mesh }) => mesh), floor, lidMesh], materials, ready: prints.ready, stop: prints.stop };
 }

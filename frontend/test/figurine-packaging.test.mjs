@@ -15,6 +15,30 @@ function canvas() {
   return { getContext: () => context };
 }
 
+test("packaging readiness waits for the final silhouette repaint", async (t) => {
+  const previous = { document: globalThis.document, Image: globalThis.Image };
+  t.after(() => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete globalThis[key]; else globalThis[key] = value;
+    }
+  });
+  globalThis.document = { createElement: canvas };
+  let decode;
+  globalThis.Image = class {
+    naturalWidth = 2240; naturalHeight = 720;
+    decode() { return new Promise((resolve) => { decode = resolve; }); }
+  };
+  const prints = createBoxPrints({ labels: PACKAGING_FALLBACK, lineup: Array(16).fill("Figure"), theme: PACKAGING_THEMES.amethyst, silhouettes: "/atlas.png" }, new Texture());
+  let ready = false;
+  void prints.ready.then(() => { ready = true; });
+  await Promise.resolve();
+  assert.equal(ready, false);
+  assert.equal(prints.back.map.image.getContext("2d").calls.length, 0);
+  decode(); await prints.ready;
+  assert.equal(ready, true);
+  assert.equal(prints.back.map.image.getContext("2d").calls.length, 16);
+});
+
 for (const [width, height] of [[1600, 720], [2240, 720], [1120, 360]]) {
   test(`box prints isolate all 16 figures from a ${width}×${height} atlas`, async (t) => {
     const previous = { document: globalThis.document, Image: globalThis.Image };

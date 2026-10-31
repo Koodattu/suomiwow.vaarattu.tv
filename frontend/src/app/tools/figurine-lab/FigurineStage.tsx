@@ -23,6 +23,7 @@ import { collectionShelves, bestQuality, copiesOf, type FigurineCollection, type
 import { buildPedestal, PEDESTAL_TOP } from "@/lib/figurine-pedestal";
 import { hoverOutline } from "@/lib/figurine-glow";
 import { warmFigurineScene } from "@/lib/figurine-warmup";
+import { createFigurineResourceCache, disposeFigurineObject as disposeObject, figurineResourceBytes } from "@/lib/figurine-cache";
 import styles from "./figurine-lab.module.css";
 
 export type { Outpost, WorldView };
@@ -42,21 +43,6 @@ export type StageMachine = {
 };
 const portraitId = (key: string, quality: FigurineQuality) => `${key}|${quality}`;
 type StageLabels = { loading: string; ready: string; empty: string; error: string; webgl: string; box: string; boxTitle: string; boxSubtitle: string; series?: string; packaging?: Omit<PackagingLabels, "title" | "subtitle"> };
-
-function disposeObject(root: THREE.Object3D) {
-  const textures = new Set<THREE.Texture>();
-  const materials = new Set<THREE.Material>();
-  root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.Points) && !(object instanceof THREE.Sprite)) return;
-    if (!(object instanceof THREE.Sprite)) object.geometry.dispose();
-    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
-      materials.add(material);
-      for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value);
-    }
-  });
-  textures.forEach((texture) => { texture.dispose(); if (typeof ImageBitmap !== "undefined" && texture.image instanceof ImageBitmap) texture.image.close(); });
-  materials.forEach((material) => material.dispose());
-}
 
 // Small procedural textures for the light effects. Glow maps are painted light-on-black, then
 // their brightness becomes alpha: the canvas is transparent above the floor, and opaque black
@@ -150,7 +136,6 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   const [filename, setFilename] = useState("");
   const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onComingSoon });
   useEffect(() => { callbacks.current = { onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onComingSoon }; });
-  useEffect(() => { callbacks.current.onStatus?.(status); }, [status]);
   // The packaging is rebuilt only when its printed text changes, not on every new labels object.
   const packagingKey = JSON.stringify(labels.packaging ?? null), lineupKey = lineup.join("|");
   const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series), machineRef = useRef(machine);
@@ -160,14 +145,15 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
-  useEffect(() => { filesRef.current = files; loaderState.current?.load(files); }, [files]);
+  useEffect(() => { filesRef.current = files; loaderState.current?.load(files); }, [files, quality]);
 
   useEffect(() => {
     const element = host.current;
     if (!element) return;
+    const reportStatus = (value: typeof status) => { setStatus(value); callbacks.current.onStatus?.(value); };
     let renderer: THREE.WebGLRenderer;
     try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
-    catch { queueMicrotask(() => setStatus("webgl")); return; }
+    catch { queueMicrotask(() => reportStatus("webgl")); return; }
     const maxPixelRatio = Math.min(window.devicePixelRatio, 1.5);
     let pixelRatio = maxPixelRatio;
     renderer.setPixelRatio(pixelRatio);
@@ -225,6 +211,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // Neutral studio reflections for the foil and holographic seal only, so figure lighting is unchanged.
     const pmrem = new THREE.PMREMGenerator(renderer);
     const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; pmrem.dispose();
+    const sharedTextures = new Set([environment]);
     const pedestal = buildPedestal(scene, { envMap: environment, title: labels.boxTitle, series: labels.series ?? "Series 001", count: lineupRef.current.length || 16 });
     // Box designs: the selected series' box on the pedestal, and every series' boxes in the shop.
     const packagingLabels = (): PackagingLabels => ({ title: labelsRef.current.boxTitle, subtitle: labelsRef.current.boxSubtitle, ...PACKAGING_FALLBACK, ...labelsRef.current.packaging });
@@ -423,9 +410,9 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       }
       recycler.set({ tray: next.tray.map((entry) => ({ ...card(entry), spare: entry.spare })), slots: next.slots.map(card), title: next.title, detail: next.detail, ready: next.ready });
     };
-    // Every series' box is built once and kept: switching series swaps which one is shown, so the
-    // print textures are never repainted or re-uploaded mid-game. Print text changes rebuild them all.
-    type Packaging = { group: THREE.Group; parts: BlindBoxParts; outline: ReturnType<typeof hoverOutline> | null };
+    // Released boxes stay prepared; announced boxes use a small cache of full-resolution prints.
+    // Switching a cached series only changes visibility. Print text changes rebuild them all.
+    type Packaging = { group: THREE.Group; parts: BlindBoxParts; outline: ReturnType<typeof hoverOutline> | null; ready: boolean; warming: Promise<void> | null };
     const packagings = new Map<string, Packaging>();
     let walls!: BlindBoxParts["walls"], lidPivot!: THREE.Group, tape!: BlindBoxParts["tape"], thickness = 0;
     let boxMeshes: THREE.Mesh[] = [], packaging: THREE.Material[] = [];
@@ -438,25 +425,26 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       parts.meshes.forEach((mesh) => { mesh.castShadow = immersive; });
       // The tape lights up on its own when hovered.
       parts.tape.material.emissiveMap = parts.tape.material.map; parts.tape.material.emissive.set(0xffe2a8); parts.tape.material.emissiveIntensity = 0;
-      const made = { group, parts, outline: immersive ? hoverOutline(parts.meshes, 0xffcf7a, 0.03) : null };
+      const made: Packaging = { group, parts, outline: immersive ? hoverOutline(parts.meshes, 0xffcf7a, 0.03) : null, ready: false, warming: null };
       packagings.set(key, made);
       return made;
     };
     const clearPackagings = () => {
       sheen.removeFromParent();
-      packagings.forEach(({ group, parts, outline }) => { parts.stop(); outline?.dispose(); box.remove(group); disposeObject(group); });
+      packagings.forEach(({ group, parts, outline }) => { parts.stop(); outline?.dispose(); box.remove(group); disposeObject(group, sharedTextures); });
       packagings.clear();
     };
     const mountBox = () => {
       const shown = packagingFor(selectedSeries());
       const announced = [...packagings].filter(([id, entry]) => entry !== shown && worldRef.current?.series.some((candidate) => candidate.id === id && !candidate.released));
-      for (const [id, { group, parts, outline }] of announced.slice(0, Math.max(0, announced.length - 2))) { parts.stop(); outline?.dispose(); box.remove(group); disposeObject(group); packagings.delete(id); }
+      for (const [id, { group, parts, outline }] of announced.slice(0, Math.max(0, announced.length - 2))) { parts.stop(); outline?.dispose(); box.remove(group); disposeObject(group, sharedTextures); packagings.delete(id); }
       packagings.forEach((entry) => { entry.group.visible = entry === shown; });
       ({ walls, lidPivot, tape, thickness, meshes: boxMeshes, materials: packaging } = shown.parts);
       boxOutline = shown.outline;
       walls[0].pivot.add(sheen); sheen.position.set(0, height / 2, thickness / 2 + 0.003);
       // Force the next opacity write: this box's materials may have been left faded.
       packagingOpacity = Number.NaN;
+      return shown;
     };
     // Soft contact shadow that grounds the box, then shrinks under the figure.
     const contactMaterial = new THREE.MeshBasicMaterial({ map: radial([[0, "rgba(255,255,255,.9)"], [0.5, "rgba(255,255,255,.45)"], [1, "rgba(255,255,255,0)"]], false), color: 0x000000, transparent: true, depthWrite: false, opacity: 0 });
@@ -609,67 +597,122 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       root.position.y = PEDESTAL_TOP - support.y * scale;
       return root;
     };
-    let loadedFor: string | null = null, shownFinish: FigurineQuality = "standard";
-    const load = async (selected: File[]) => {
-      const loading = filesForRef.current; loadedFor = null;
-      const current = ++generation;
-      mixer?.stopAllAction(); mixer = null;
-      if (silhouette) { modelRoot.remove(silhouette); silhouette = null; }
-      if (model) { modelRoot.remove(model); releaseFinishes(model); disposeObject(model); model = null; }
-      const roots = selected.filter((file) => /\.(glb|gltf)$/i.test(file.name));
-      if (!selected.length) { setStatus("empty"); setFilename(""); return; }
-      if (roots.length !== 1 || selected.reduce((size, file) => size + file.size, 0) > 150 * 1024 * 1024) { setStatus("error"); return; }
-      setStatus("loading"); setFilename(roots[0].name);
-      const objects = new Map<string, string>();
-      const paths = selected.map((file) => (file.webkitRelativePath || file.name).replace(/\\/g, "/"));
-      selected.forEach((file, index) => { const url = URL.createObjectURL(file); objects.set(paths[index], url); pendingUrls.add(url); });
-      const manager = new THREE.LoadingManager();
-      manager.setURLModifier((url) => {
-        const resolved = resolveModelResource(url, paths);
-        if (!resolved) throw new Error("Missing or external model resource");
-        return objects.get(resolved) ?? resolved;
+    let loadedFor: string | null = null;
+    type PreparedModel = { model: THREE.Object3D; silhouette: THREE.Object3D | null; animations: THREE.AnimationClip[]; warmed: Set<FigurineQuality> };
+    const prepared = createFigurineResourceCache<PreparedModel>(192 * 1024 * 1024, (entry) => {
+      entry.model.removeFromParent(); entry.silhouette?.removeFromParent();
+      releaseFinishes(entry.model); disposeObject(entry.model);
+    });
+    let cachedModel: string | null = null;
+    // Yield between uploads and first draws so the loading/flight animation can keep rendering.
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const uploadTextures = async (root: THREE.Object3D, current: () => boolean) => {
+      const textures = new Set<THREE.Texture>();
+      root.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        for (const material of Array.isArray(object.material) ? object.material : [object.material])
+          for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value);
       });
-      const loader = new GLTFLoader(manager).setMeshoptDecoder(MeshoptDecoder);
-      try {
-        const rootPath = paths[selected.indexOf(roots[0])];
-        const gltf = await loader.loadAsync(rootPath);
-        if (disposed || generation !== current) { disposeObject(gltf.scene); return; }
-        model = prepareModel(gltf.scene); loadedFor = loading;
-        modelRoot.add(model);
-        shownFinish = state.current.quality; applyFinish(model, shownFinish, environment);
-        displayClock = 0;
-        const textures = new Set<THREE.Texture>();
-        model.traverse((object) => {
-          if (!(object instanceof THREE.Mesh)) return;
-          const sources: THREE.Material[] = Array.isArray(object.material) ? object.material : [object.material];
-          object.castShadow = immersive && sources.every((material) => !material.transparent);
-          object.receiveShadow = immersive;
-          sources.forEach((material) => Object.values(material).forEach((value) => { if (value instanceof THREE.Texture) textures.add(value); }));
-        });
-        if (immersive) {
-          // Shares geometry with the model, so only the shared material is ever disposed separately.
-          silhouette = cloneSkinned(model);
-          silhouette.traverse((object) => {
-            if (!(object instanceof THREE.Mesh)) return;
-            const sources = Array.isArray(object.material) ? object.material : [object.material];
-            object.visible = sources.every((material: THREE.Material) => !material.transparent && material.blending === THREE.NormalBlending);
-            object.material = silhouetteMaterial; object.castShadow = false;
-          });
-          modelRoot.add(silhouette);
+      for (const texture of textures) {
+        await nextFrame(); if (!current()) return false;
+        renderer.initTexture(texture);
+      }
+      return true;
+    };
+    // Announced boxes keep a small cache rather than retaining twenty full-resolution print sets.
+    // Upload a newly chosen box during the camera flight, before exposing it to the render loop.
+    const preparePackaging = (entry: Packaging) => {
+      if (entry.ready) return;
+      entry.group.visible = false;
+      if (entry.warming) return;
+      const current = () => !disposed && [...packagings.values()].includes(entry);
+      entry.warming = (async () => {
+        await entry.parts.ready;
+        if (!await uploadTextures(entry.group, current)) return;
+        if (!await warmFigurineScene(renderer, scene, camera, compileTarget, current, entry.group)) return;
+        entry.ready = true;
+        entry.group.visible = packagings.get(selectedSeries()?.id ?? "lab") === entry;
+      })().catch(() => { if (current()) reportStatus("error"); }).finally(() => { entry.warming = null; });
+    };
+    let loadingTask = Promise.resolve();
+    const load = (selected: File[]) => {
+      const current = ++generation, loading = filesForRef.current, finish = state.current.quality;
+      loadedFor = null;
+      reportStatus(selected.length ? "loading" : "empty");
+      // Serialize scene preparation. A superseded request stops at its next yield and cannot
+      // replace the current figure or dispose resources another preparation is using.
+      loadingTask = loadingTask.then(async () => {
+        const valid = () => !disposed && generation === current;
+        if (!valid() || (immersive && loading !== state.current.showing)) return;
+        mixer?.stopAllAction(); mixer = null;
+        silhouette?.removeFromParent(); silhouette = null;
+        if (model) { model.removeFromParent(); if (!cachedModel) { releaseFinishes(model); disposeObject(model); } model = null; }
+        cachedModel = null;
+        const roots = selected.filter((file) => /\.(glb|gltf)$/i.test(file.name));
+        if (!selected.length) { setFilename(""); prepared.trim(null); return; }
+        if (roots.length !== 1 || selected.reduce((size, file) => size + file.size, 0) > 150 * 1024 * 1024) { reportStatus("error"); return; }
+        setFilename(roots[0].name);
+        const objects = new Map<string, string>();
+        try {
+          let entry = immersive && loading ? prepared.get(loading) : undefined;
+          if (!entry) {
+            const paths = selected.map((file) => (file.webkitRelativePath || file.name).replace(/\\/g, "/"));
+            selected.forEach((file, index) => { const url = URL.createObjectURL(file); objects.set(paths[index], url); pendingUrls.add(url); });
+            const manager = new THREE.LoadingManager();
+            manager.setURLModifier((url) => {
+              const resolved = resolveModelResource(url, paths);
+              if (!resolved) throw new Error("Missing or external model resource");
+              return objects.get(resolved) ?? resolved;
+            });
+            const gltf = await new GLTFLoader(manager).setMeshoptDecoder(MeshoptDecoder).loadAsync(paths[selected.indexOf(roots[0])]);
+            if (!valid()) { disposeObject(gltf.scene); return; }
+            const figure = prepareModel(gltf.scene);
+            figure.traverse((object) => {
+              if (!(object instanceof THREE.Mesh)) return;
+              const materials = Array.isArray(object.material) ? object.material : [object.material];
+              object.castShadow = immersive && materials.every((material) => !material.transparent);
+              object.receiveShadow = immersive;
+            });
+            const shadow = immersive ? cloneSkinned(figure) : null;
+            shadow?.traverse((object) => {
+              if (!(object instanceof THREE.Mesh)) return;
+              const materials = Array.isArray(object.material) ? object.material : [object.material];
+              object.visible = materials.every((material: THREE.Material) => !material.transparent && material.blending === THREE.NormalBlending);
+              object.material = silhouetteMaterial; object.castShadow = false;
+            });
+            entry = { model: figure, silhouette: shadow, animations: gltf.animations, warmed: new Set() };
+            if (immersive && loading) prepared.set(loading, entry, figurineResourceBytes(figure));
+          }
+          model = entry.model; silhouette = entry.silhouette; cachedModel = immersive ? loading : null;
+          modelRoot.add(model); if (silhouette) modelRoot.add(silhouette);
+          applyFinish(model, finish, environment); displayClock = 0;
+          const idle = entry.animations.find((clip) => /stand|idle/i.test(clip.name));
+          if (idle) { mixer = new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
+          if (!entry.warmed.has(finish)) {
+            if (!await uploadTextures(model, valid)) return;
+            if (immersive && cabinet && loading) {
+              const series = worldRef.current?.series.find((series) => series.models.includes(loading));
+              const key = series?.keys[series.models.indexOf(loading)];
+              if (key && !portraits.has(portraitId(key, finish))) {
+                // The portrait has different lighting: compile before its first synchronous draw.
+                await renderer.compileAsync(model, portraitCamera, portraitScene);
+                await nextFrame(); if (!valid()) return;
+                capture(model, portraitId(key, finish));
+              }
+            }
+            await nextFrame(); if (!valid()) return;
+            if (!await warmFigurineScene(renderer, scene, camera, compileTarget, valid, modelRoot)) return;
+            entry.warmed.add(finish);
+          }
+          if (!valid()) return;
+          loadedFor = loading;
+          reportStatus("ready");
+        } catch { if (valid()) reportStatus("error"); }
+        finally {
+          objects.forEach((url) => { URL.revokeObjectURL(url); pendingUrls.delete(url); });
+          prepared.trim(cachedModel);
         }
-        const idle = gltf.animations.find((clip) => /stand|idle/i.test(clip.name));
-        if (idle) { mixer = new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
-        // Prepare the actual first draws while sealed, including the collection portrait.
-        textures.forEach((texture) => renderer.initTexture(texture));
-        if (immersive && cabinet && loading) {
-          const entry = worldRef.current?.series.find((entry) => entry.models.includes(loading));
-          const key = entry?.keys[entry.models.indexOf(loading)];
-          if (key && !portraits.has(portraitId(key, shownFinish))) capture(model, portraitId(key, shownFinish));
-        }
-        if (!await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed && generation === current)) return;
-        setStatus("ready");
-      } catch { if (!disposed && generation === current) setStatus("error"); }
-      finally { objects.forEach((url) => { URL.revokeObjectURL(url); pendingUrls.delete(url); }); }
+      }).catch(() => { if (!disposed && generation === current) reportStatus("error"); });
     };
     // Include hidden lights as well as the materials of the reveal effects.
     const precompile = () => {
@@ -682,7 +725,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     updateSkyLight(); void precompile();
     api.current = {
       rebuildBox: () => { clearPackagings(); worldRef.current?.series.forEach((entry) => { if (entry.released) packagingFor(entry); }); mountBox(); void precompile(); },
-      showBox: () => mountBox(),
+      showBox: () => preparePackaging(mountBox()),
       setCollection, setMachine,
     };
     if (worldSetup) setCollection(worldSetup.collection);
@@ -692,7 +735,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const report = (sceneryDone: boolean) => callbacks.current.onProgress?.((sceneryDone ? 0.35 : 0) + 0.55 * (1 - portraitQueue.length / portraitsQueued));
       report(false);
       void pumpPortraits();
-      await scenery.ready; await Promise.all(propsReady); report(true);
+      await scenery.ready; await Promise.all([...propsReady, shop?.ready, ...secretPrints.map((prints) => prints.ready), ...[...packagings.values()].map(({ parts }) => parts.ready)]); report(true);
       while (!disposed && (portraitQueue.length || portraitBusy)) { report(true); await new Promise((resolve) => setTimeout(resolve, 60)); }
       // Upload every texture now (hidden boxes included), or the first look at one stalls a frame.
       const textures = new Set<THREE.Texture>();
@@ -703,10 +746,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       });
       textures.forEach((texture) => renderer.initTexture(texture));
       await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed);
-      if (!disposed) { callbacks.current.onProgress?.(1); callbacks.current.onLoaded?.(); }
+      if (!disposed) { packagings.forEach((entry) => { entry.ready = true; }); callbacks.current.onProgress?.(1); callbacks.current.onLoaded?.(); }
     })();
-    loaderState.current = { load: (selected) => { void load(selected); } };
-    void load(filesRef.current);
+    loaderState.current = { load };
+    load(filesRef.current);
     const resize = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
       renderer.setSize(width, height); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix();
@@ -977,9 +1020,6 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       }
       const reduced = reducedMotion.matches;
       FINISH_TIME.value = reduced ? 0 : now / 1000;
-      if (model && shownFinish !== current.quality) {
-        shownFinish = current.quality; applyFinish(model, shownFinish, environment);
-      }
       const target = current.open ? 1 : 0;
       reveal = reduced ? target : THREE.MathUtils.damp(reveal, target, 4.5, delta);
       idle += delta;
@@ -1249,6 +1289,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       renderer.domElement.removeEventListener("pointercancel", letGo);
       renderer.domElement.removeEventListener("pointermove", onPointerMove); renderer.domElement.removeEventListener("pointerleave", onPointerLeave); renderer.domElement.removeEventListener("wheel", onWheel);
       renderer.setAnimationLoop(null); resize.disconnect(); skyLight?.dispose(); controls.dispose(); mixer?.stopAllAction();
+      prepared.dispose();
       packagings.forEach(({ parts }) => parts.stop()); releaseFinishes(modelRoot); disposeObject(scene); environment.dispose(); shop?.stop(); secretPrints.forEach((prints) => prints.stop()); portraits.forEach((target) => target.dispose()); compileTarget.dispose(); api.current = null; pendingUrls.forEach((url) => URL.revokeObjectURL(url)); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     };
   }, [labels.boxTitle, labels.boxSubtitle, labels.series, immersive, gallery]);
