@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "codec": "ETC1S",
+  "designs": {
+    "[\"GUILD ARCHIVE\",\"A CHARACTER WORTH COLLECTING\",\"BLIND BOX\",\"COLLECT ALL 16\",\"1 random figure inside · equal odds\",\"OPEN HERE\",[\"Röidy\",\"Yolobolt\",\"Laku\",\"Jannu\",\"Vesipuhveli\",\"Turrilol\",\"Karstinen\",\"Kahvishock\",\"Stablol\",\"Suursmurffi\",\"Rmp\",\"Violetmw\",\"Shippyboi\",\"Abiw\",\"Chipie\",\"Ovelakettu\"],{\"number\":\"001\",\"deep\":[\"#2a1760\",\"#0c1a33\"],\"back\":[\"#16173a\",\"#0b1428\"],\"side\":[\"#251660\",\"#0c1a33\"],\"lid\":[\"#20135a\",\"#1a1446\"],\"accent\":\"160,130,255\",\"glow\":\"#9a7bff\",\"glowSoft\":\"#7e5cff\",\"glowBright\":\"#b49bff\",\"window\":\"rgba(10,6,30,.55)\",\"pale\":\"#cbbcff\",\"paler\":\"#d9cdfa\",\"muted\":\"#a99fc9\",\"ink\":\"#1c1236\",\"edge\":1709632}]": {
+      "150": {
+        "inside": "766b61ff59b9b7e2ad0f.ktx2",
+        "seal": "7b220739306c20832017.ktx2",
+        "front-color": "37ea6c8ec6f0cf5acdf1.ktx2",
+        "front-finish": "ce83130360eb83c8b994.ktx2",
+        "back-color": "cfc1f99d8ea0c942d201.ktx2",
+        "back-finish": "323822d2c3d741c42bbb.ktx2",
+        "left-color": "975e2115f6e56aac92a5.ktx2",
+        "left-finish": "b228a7d133524d565d97.ktx2",
+        "right-color": "2254d1ecab5265118e5b.ktx2",
+        "right-finish": "b228a7d133524d565d97.ktx2",
+        "lid-color": "851688052646d4d321e3.ktx2",
+        "lid-finish": "311c55de37da56d98bfb.ktx2"
+      },
+      "500": {
+        "inside": "766b61ff59b9b7e2ad0f.ktx2",
+        "seal": "7b220739306c20832017.ktx2",
+        "front-color": "fe1662997e71e91629b5.ktx2",
+        "front-finish": "2c1824a1d2e300dcdb1a.ktx2",
+        "back-color": "04ed87245d52748948f4.ktx2",
+        "back-finish": "159bce99ba90b7291a4a.ktx2",
+        "left-color": "b6ae3287f4586e4996f2.ktx2",
+        "left-finish": "2ec8eef961533333a12e.ktx2",
+        "right-color": "ce54bc625d38d5da434d.ktx2",
+        "right-finish": "2ec8eef961533333a12e.ktx2",
+        "lid-color": "1ff83a6de5653a9490b3.ktx2",
+        "lid-finish": "d888db9116e672feffbb.ktx2"
+      }
+    },
+    "[\"GUILD ARCHIVE\",\"A CHARACTER WORTH COLLECTING\",\"BLIND BOX\",\"COLLECT ALL 16\",\"1 random figure inside · equal odds\",\"OPEN HERE\",[\"Ajotettu\",\"Eppugrip\",\"Zetabeach\",\"Np\",\"Zetacmi\",\"Hirvihotline\",\"Tonza\",\"Thrusbard\",\"Jampton\",\"Morinicar\",\"Mightyhuu\",\"Kuurankukká\",\"Raggè\",\"Chipi\",\"Röökiheal\",\"Galardodric\"],{\"number\":\"002\",\"deep\":[\"#0f4a52\",\"#081a2c\"],\"back\":[\"#0b3138\",\"#07141f\"],\"side\":[\"#0f4f57\",\"#081a2c\"],\"lid\":[\"#0d4650\",\"#0a3640\"],\"accent\":\"90,230,210\",\"glow\":\"#3fd6c4\",\"glowSoft\":\"#2bb8a8\",\"glowBright\":\"#8ff5e6\",\"window\":\"rgba(4,24,28,.55)\",\"pale\":\"#bff3ec\",\"paler\":\"#d2f7f1\",\"muted\":\"#8fc4bd\",\"ink\":\"#082a2e\",\"edge\":801344}]": {
+      "150": {
+        "inside": "766b61ff59b9b7e2ad0f.ktx2",
+        "seal": "7b220739306c20832017.ktx2",
+        "front-color": "a9e75e1f8d450b135de6.ktx2",
+        "front-finish": "f4da8662cb314728394b.ktx2",
+        "back-color": "6eb60dc2d8864f56c6dc.ktx2",
+        "back-finish": "323822d2c3d741c42bbb.ktx2",
+        "left-color": "aeadcea31e7e2b52ad6c.ktx2",
+        "left-finish": "b228a7d133524d565d97.ktx2",
+        "right-color": "ddfa70b6d939555afe5d.ktx2",
+        "right-finish": "b228a7d133524d565d97.ktx2",
+        "lid-color": "491bcf6abc4fa5f6b701.ktx2",
+        "lid-finish": "311c55de37da56d98bfb.ktx2"
+      },
+      "500": {
+        "inside": "766b61ff59b9b7e2ad0f.ktx2",
+        "seal": "7b220739306c20832017.ktx2",
+        "front-color": "4b5c87551b7816505f0b.ktx2",
+        "front-finish": "32755c7e97263bad38b1.ktx2",
+        "back-color": "0d94a662fd735ed6544b.ktx2",
+        "back-finish": "159bce99ba90b7291a4a.ktx2",
+        "left-color": "1ff01b43d37392021f18.ktx2",
+        "left-finish": "2ec8eef961533333a12e.ktx2",
+        "right-color": "b6e090155d4964f9b4ff.ktx2",
+        "right-finish": "2ec8eef961533333a12e.ktx2",
+        "lid-color": "40f748305b9c21b14ef8.ktx2",
+        "lid-finish": "d888db9116e672feffbb.ktx2"
+      }
+    },
+    "[\"GUILD ARCHIVE\",\"A CHARACTER WORTH COLLECTING\",\"BLIND BOX\",\"COLLECT ALL 16\",\"1 random figure inside · equal odds\",\"OPEN HERE\",[\"Röiza\",\"Tonzidan\",\"Valopallo\",\"Pajatso\",\"Syöpä\",\"Valoja\",\"Rmxqa\",\"Röi\",\"Öitä\",\"Valotettu\",\"Syttyykö\",\"Jousivakio\",\"Tahto\",\"Muoto\",\"Dalarian\",\"Taivaallinen\"],{\"number\":\"000\",\"deep\":[\"#5e4217\",\"#320c0e\"],\"back\":[\"#3b2016\",\"#280b0d\"],\"side\":[\"#5f4216\",\"#320c0e\"],\"lid\":[\"#583d13\",\"#472f15\"],\"accent\":\"255,198,112\",\"glow\":\"#f1b355\",\"glowSoft\":\"#e89f30\",\"glowBright\":\"#fcd292\",\"window\":\"rgba(29,20,7,.55)\",\"pale\":\"#fce4c0\",\"paler\":\"#faead1\",\"muted\":\"#c9b79c\",\"ink\":\"#322411\",\"edge\":4140824}]": {
+      "150": {
+        "inside": "766b61ff59b9b7e2ad0f.ktx2",
+        "seal": "7b220739306c20832017.ktx2",
+        "front-color": "8a441a899d68fb140fe3.ktx2",
+        "front-finish": "c3ee2bdafb889285be30.ktx2",
+        "back-color": "b104dd84a820d17ecdba.ktx2",
+        "back-finish": "323822d2c3d741c42bbb.ktx2",
+        "left-color": "ef09b316e1189d7ecf8a.ktx2",
+        "left-finish": "b228a7d133524d565d97.ktx2",
+        "right-color": "86ba9b857dbd13847792.ktx2",
+        "right-finish": "b228a7d133524d565d97.ktx2",
+        "lid-color": "1dada458b3f3919c8f13.ktx2",
+        "lid-finish": "311c55de37da56d98bfb.ktx2"
+      },
+      "500": {
+        "inside": "766b61ff59b9b7e2ad0f.ktx2",
+        "seal": "7b220739306c20832017.ktx2",
+        "front-color": "66a5fa5aaf1e6b288afa.ktx2",
+        "front-finish": "c0f4fe467a6b95af22ad.ktx2",
+        "back-color": "5b00567d73335508715f.ktx2",
+        "back-finish": "159bce99ba90b7291a4a.ktx2",
+        "left-color": "878df5d327cbb861f2e7.ktx2",
+        "left-finish": "8221ff38fa81dceee79c.ktx2",
+        "right-color": "c84c80fe288815e1136b.ktx2",
+        "right-finish": "8221ff38fa81dceee79c.ktx2",
+        "lid-color": "ce02227620124d988e14.ktx2",
+        "lid-finish": "d888db9116e672feffbb.ktx2"
+      }
+    },
+    "[\"GUILD ARCHIVE\",\"A CHARACTER WORTH COLLECTING\",\"BLIND BOX\",\"COLLECT ALL 16\",\"1 random figure inside · equal odds\",\"OPEN HERE\",[\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\"],{\"number\":\"???\",\"deep\":[\"#343943\",\"#1c2129\"],\"back\":[\"#292e37\",\"#171b23\"],\"side\":[\"#303640\",\"#1b2028\"],\"lid\":[\"#343b45\",\"#242a33\"],\"accent\":\"150,160,175\",\"glow\":\"#a0a8b5\",\"glowSoft\":\"#858e9c\",\"glowBright\":\"#bbc2cc\",\"window\":\"rgba(15,18,24,.55)\",\"pale\":\"#c2c8d0\",\"paler\":\"#d4d8df\",\"muted\":\"#8f98a6\",\"ink\":\"#20252d\",\"edge\":2370099}]": {
+      "150": {
+        "inside": "766b61ff59b9b7e2ad0f.ktx2",
+        "seal": "7b220739306c20832017.ktx2",
+        "front-color": "8d7a39b916b89f9aa17e.ktx2",
+        "front-finish": "820f6ce001c7099802de.ktx2",
+        "back-color": "6e81652b770cf4022de3.ktx2",
+        "back-finish": "323822d2c3d741c42bbb.ktx2",
+        "left-color": "b872c2d686ea4da35111.ktx2",
+        "left-finish": "b228a7d133524d565d97.ktx2",
+        "right-color": "b872c2d686ea4da35111.ktx2",
+        "right-finish": "b228a7d133524d565d97.ktx2",
+        "lid-color": "c04fe3ca46cda17aa6fe.ktx2",
+        "lid-finish": "311c55de37da56d98bfb.ktx2"
+      },
+      "500": {
+        "inside": "766b61ff59b9b7e2ad0f.ktx2",
+        "seal": "7b220739306c20832017.ktx2",
+        "front-color": "707763196fddf7c7d908.ktx2",
+        "front-finish": "ce22d47870fbbd241677.ktx2",
+        "back-color": "90341e23ce1a3736ff6a.ktx2",
+        "back-finish": "159bce99ba90b7291a4a.ktx2",
+        "left-color": "8c812770c22d973bb009.ktx2",
+        "left-finish": "2ec8eef961533333a12e.ktx2",
+        "right-color": "8c812770c22d973bb009.ktx2",
+        "right-finish": "2ec8eef961533333a12e.ktx2",
+        "lid-color": "54af1df7eeb23b054e42.ktx2",
+        "lid-finish": "d888db9116e672feffbb.ktx2"
+      }
+    },
+    "[\"KILTA-ARKISTO\",\"KERÄILEMÄN ARVOINEN HAHMO\",\"YLLÄTYSLAATIKKO\",\"KERÄÄ KAIKKI 16\",\"Sisällä 1 satunnainen hahmo · samat todennäköisyydet\",\"AVAA TÄSTÄ\",[\"Röidy\",\"Yolobolt\",\"Laku\",\"Jannu\",\"Vesipuhveli\",\"Turrilol\",\"Karstinen\",\"Kahvishock\",\"Stablol\",\"Suursmurffi\",\"Rmp\",\"Violetmw\",\"Shippyboi\",\"Abiw\",\"Chipie\",\"Ovelakettu\"],{\"number\":\"001\",\"deep\":[\"#2a1760\",\"#0c1a33\"],\"back\":[\"#16173a\",\"#0b1428\"],\"side\":[\"#251660\",\"#0c1a33\"],\"lid\":[\"#20135a\",\"#1a1446\"],\"accent\":\"160,130,255\",\"glow\":\"#9a7bff\",\"glowSoft\":\"#7e5cff\",\"glowBright\":\"#b49bff\",\"window\":\"rgba(10,6,30,.55)\",\"pale\":\"#cbbcff\",\"paler\":\"#d9cdfa\",\"muted\":\"#a99fc9\",\"ink\":\"#1c1236\",\"edge\":1709632}]": {
+      "150": {
+        "inside": "47ca8385909b9df15b36.ktx2",
+        "seal": "9f4f9ee22d343342f476.ktx2",
+        "front-color": "8aa3012cf2d08379cb5e.ktx2",
+        "front-finish": "9b9e599153692a92113c.ktx2",
+        "back-color": "547bb270e98b6fe3705e.ktx2",
+        "back-finish": "1580391599d05cacef49.ktx2",
+        "left-color": "5231171274cbf74199a4.ktx2",
+        "left-finish": "a1f8c6c058934e96e067.ktx2",
+        "right-color": "7b35dd11a14cfaa180f4.ktx2",
+        "right-finish": "a1f8c6c058934e96e067.ktx2",
+        "lid-color": "46e1f8a7c5125dd5e940.ktx2",
+        "lid-finish": "5f94616bdc4e4de4e8c6.ktx2"
+      },
+      "500": {
+        "inside": "47ca8385909b9df15b36.ktx2",
+        "seal": "9f4f9ee22d343342f476.ktx2",
+        "front-color": "f7afce2287d32925a946.ktx2",
+        "front-finish": "82e67f9d0bf088899028.ktx2",
+        "back-color": "922da3abdbe06042ff18.ktx2",
+        "back-finish": "249ed4dba7735581ddae.ktx2",
+        "left-color": "0a8243c62b1e49dace9a.ktx2",
+        "left-finish": "78f7145ab5015995f0cf.ktx2",
+        "right-color": "dd34ace9d0a066cc0410.ktx2",
+        "right-finish": "78f7145ab5015995f0cf.ktx2",
+        "lid-color": "564aaa142d2311b450ec.ktx2",
+        "lid-finish": "b0e20e941a43270eb377.ktx2"
+      }
+    },
+    "[\"KILTA-ARKISTO\",\"KERÄILEMÄN ARVOINEN HAHMO\",\"YLLÄTYSLAATIKKO\",\"KERÄÄ KAIKKI 16\",\"Sisällä 1 satunnainen hahmo · samat todennäköisyydet\",\"AVAA TÄSTÄ\",[\"Ajotettu\",\"Eppugrip\",\"Zetabeach\",\"Np\",\"Zetacmi\",\"Hirvihotline\",\"Tonza\",\"Thrusbard\",\"Jampton\",\"Morinicar\",\"Mightyhuu\",\"Kuurankukká\",\"Raggè\",\"Chipi\",\"Röökiheal\",\"Galardodric\"],{\"number\":\"002\",\"deep\":[\"#0f4a52\",\"#081a2c\"],\"back\":[\"#0b3138\",\"#07141f\"],\"side\":[\"#0f4f57\",\"#081a2c\"],\"lid\":[\"#0d4650\",\"#0a3640\"],\"accent\":\"90,230,210\",\"glow\":\"#3fd6c4\",\"glowSoft\":\"#2bb8a8\",\"glowBright\":\"#8ff5e6\",\"window\":\"rgba(4,24,28,.55)\",\"pale\":\"#bff3ec\",\"paler\":\"#d2f7f1\",\"muted\":\"#8fc4bd\",\"ink\":\"#082a2e\",\"edge\":801344}]": {
+      "150": {
+        "inside": "47ca8385909b9df15b36.ktx2",
+        "seal": "9f4f9ee22d343342f476.ktx2",
+        "front-color": "82d2cb8b43d8a7ed47b0.ktx2",
+        "front-finish": "2c68672ac216bd30b046.ktx2",
+        "back-color": "6d89a3041ce920b48521.ktx2",
+        "back-finish": "1580391599d05cacef49.ktx2",
+        "left-color": "4889d03311a01de5bfc3.ktx2",
+        "left-finish": "a1f8c6c058934e96e067.ktx2",
+        "right-color": "8849b317fdd965204b0d.ktx2",
+        "right-finish": "a1f8c6c058934e96e067.ktx2",
+        "lid-color": "5b5cc7f4ef68333f911c.ktx2",
+        "lid-finish": "5f94616bdc4e4de4e8c6.ktx2"
+      },
+      "500": {
+        "inside": "47ca8385909b9df15b36.ktx2",
+        "seal": "9f4f9ee22d343342f476.ktx2",
+        "front-color": "8de4b004421a80d6dba4.ktx2",
+        "front-finish": "f7ccd8cf9109b10c680b.ktx2",
+        "back-color": "8b8841d7074f509c776c.ktx2",
+        "back-finish": "249ed4dba7735581ddae.ktx2",
+        "left-color": "edac37fad1ff51ab3338.ktx2",
+        "left-finish": "45070da3a57cc424d627.ktx2",
+        "right-color": "a5bf6d2673df490553d0.ktx2",
+        "right-finish": "45070da3a57cc424d627.ktx2",
+        "lid-color": "c7f98b83b5b12c70de54.ktx2",
+        "lid-finish": "b0e20e941a43270eb377.ktx2"
+      }
+    },
+    "[\"KILTA-ARKISTO\",\"KERÄILEMÄN ARVOINEN HAHMO\",\"YLLÄTYSLAATIKKO\",\"KERÄÄ KAIKKI 16\",\"Sisällä 1 satunnainen hahmo · samat todennäköisyydet\",\"AVAA TÄSTÄ\",[\"Röiza\",\"Tonzidan\",\"Valopallo\",\"Pajatso\",\"Syöpä\",\"Valoja\",\"Rmxqa\",\"Röi\",\"Öitä\",\"Valotettu\",\"Syttyykö\",\"Jousivakio\",\"Tahto\",\"Muoto\",\"Dalarian\",\"Taivaallinen\"],{\"number\":\"000\",\"deep\":[\"#5e4217\",\"#320c0e\"],\"back\":[\"#3b2016\",\"#280b0d\"],\"side\":[\"#5f4216\",\"#320c0e\"],\"lid\":[\"#583d13\",\"#472f15\"],\"accent\":\"255,198,112\",\"glow\":\"#f1b355\",\"glowSoft\":\"#e89f30\",\"glowBright\":\"#fcd292\",\"window\":\"rgba(29,20,7,.55)\",\"pale\":\"#fce4c0\",\"paler\":\"#faead1\",\"muted\":\"#c9b79c\",\"ink\":\"#322411\",\"edge\":4140824}]": {
+      "150": {
+        "inside": "47ca8385909b9df15b36.ktx2",
+        "seal": "9f4f9ee22d343342f476.ktx2",
+        "front-color": "c120c936927f0243f11a.ktx2",
+        "front-finish": "8cf1ea34e53b29bb5b47.ktx2",
+        "back-color": "c87d9a8b95e4662abaf7.ktx2",
+        "back-finish": "1580391599d05cacef49.ktx2",
+        "left-color": "bbf8884e7f30d1630de9.ktx2",
+        "left-finish": "a1f8c6c058934e96e067.ktx2",
+        "right-color": "03a7c2971563aad9c268.ktx2",
+        "right-finish": "a1f8c6c058934e96e067.ktx2",
+        "lid-color": "75d9f7981eb0e4c01996.ktx2",
+        "lid-finish": "5f94616bdc4e4de4e8c6.ktx2"
+      },
+      "500": {
+        "inside": "47ca8385909b9df15b36.ktx2",
+        "seal": "9f4f9ee22d343342f476.ktx2",
+        "front-color": "ef7b7c167f16a87fd073.ktx2",
+        "front-finish": "4d1e3b56de7b42b78e08.ktx2",
+        "back-color": "050f974c0f4b9d91716d.ktx2",
+        "back-finish": "249ed4dba7735581ddae.ktx2",
+        "left-color": "341ce62a7be1a95ec5e8.ktx2",
+        "left-finish": "0d58eab60d4c51926868.ktx2",
+        "right-color": "b8bf1f54389c95836d02.ktx2",
+        "right-finish": "0d58eab60d4c51926868.ktx2",
+        "lid-color": "d7d02789e8a2651e09b4.ktx2",
+        "lid-finish": "b0e20e941a43270eb377.ktx2"
+      }
+    },
+    "[\"KILTA-ARKISTO\",\"KERÄILEMÄN ARVOINEN HAHMO\",\"YLLÄTYSLAATIKKO\",\"KERÄÄ KAIKKI 16\",\"Sisällä 1 satunnainen hahmo · samat todennäköisyydet\",\"AVAA TÄSTÄ\",[\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\",\"?\"],{\"number\":\"???\",\"deep\":[\"#343943\",\"#1c2129\"],\"back\":[\"#292e37\",\"#171b23\"],\"side\":[\"#303640\",\"#1b2028\"],\"lid\":[\"#343b45\",\"#242a33\"],\"accent\":\"150,160,175\",\"glow\":\"#a0a8b5\",\"glowSoft\":\"#858e9c\",\"glowBright\":\"#bbc2cc\",\"window\":\"rgba(15,18,24,.55)\",\"pale\":\"#c2c8d0\",\"paler\":\"#d4d8df\",\"muted\":\"#8f98a6\",\"ink\":\"#20252d\",\"edge\":2370099}]": {
+      "150": {
+        "inside": "47ca8385909b9df15b36.ktx2",
+        "seal": "9f4f9ee22d343342f476.ktx2",
+        "front-color": "25f21b222c0fedc833a6.ktx2",
+        "front-finish": "1dd3d71c222d681af724.ktx2",
+        "back-color": "ad0b67c282d0995d4c5f.ktx2",
+        "back-finish": "1580391599d05cacef49.ktx2",
+        "left-color": "384c9c9cdb9ae055a4d3.ktx2",
+        "left-finish": "a1f8c6c058934e96e067.ktx2",
+        "right-color": "384c9c9cdb9ae055a4d3.ktx2",
+        "right-finish": "a1f8c6c058934e96e067.ktx2",
+        "lid-color": "5c07421a68731637b2d0.ktx2",
+        "lid-finish": "5f94616bdc4e4de4e8c6.ktx2"
+      },
+      "500": {
+        "inside": "47ca8385909b9df15b36.ktx2",
+        "seal": "9f4f9ee22d343342f476.ktx2",
+        "front-color": "269ecc2f8f2732cc40b1.ktx2",
+        "front-finish": "59a26f623f95d5584b1e.ktx2",
+        "back-color": "c9984b59a21197169bce.ktx2",
+        "back-finish": "249ed4dba7735581ddae.ktx2",
+        "left-color": "3d3ab11a49000c597f72.ktx2",
+        "left-finish": "af0cd750dc1a3572ea73.ktx2",
+        "right-color": "3d3ab11a49000c597f72.ktx2",
+        "right-finish": "af0cd750dc1a3572ea73.ktx2",
+        "lid-color": "2ba7894ddf57f8b6093b.ktx2",
+        "lid-finish": "b0e20e941a43270eb377.ktx2"
+      }
+    }
+  }
+}

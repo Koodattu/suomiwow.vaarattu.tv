@@ -46,3 +46,31 @@ export function figurineSupport(root: THREE.Object3D, bounds: THREE.Box3): THREE
   support.y = figurineGround(metadata, bounds.min.y);
   return support;
 }
+
+/**
+ * Bounds of the character's own body: skin, hair and worn geosets, without attached items.
+ * Exports name item parts after their slot (`Head_Item…`, `Main-hand_Item…`, `Back_Item…`), and
+ * staffs, wings, plumes and their effects stick out by very different amounts, so sizing figures
+ * by their whole bounds made their bodies differ in size. Falls back to the whole model.
+ */
+export function figurineBodyBounds(root: THREE.Object3D): THREE.Box3 {
+  root.updateMatrixWorld(true);
+  const body = new THREE.Box3(), part = new THREE.Box3();
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.visible) return;
+    for (let node: THREE.Object3D | null = mesh; node && node !== root; node = node.parent) if (/_Item/.test(node.name)) return;
+    if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) { (mesh as THREE.SkinnedMesh).computeBoundingBox(); part.copy((mesh as THREE.SkinnedMesh).boundingBox!); }
+    else { mesh.geometry.computeBoundingBox(); part.copy(mesh.geometry.boundingBox!); }
+    body.union(part.applyMatrix4(mesh.matrixWorld));
+  });
+  return body.isEmpty() ? new THREE.Box3().setFromObject(root) : body;
+}
+
+// Every figure's body stands this tall in world units (a box on the pedestal is 2.75); items may
+// reach past it. Wide bodies (sitting, crouching, big races) are fitted within `FIGURE_WIDTH`.
+export const FIGURE_HEIGHT = 2.3, FIGURE_WIDTH = 3.1;
+export const figurineScale = (body: THREE.Box3) => {
+  const size = body.getSize(new THREE.Vector3());
+  return Math.min(FIGURE_HEIGHT / Math.max(size.y, 1e-3), FIGURE_WIDTH / Math.max(size.x, size.z, 1e-3));
+};

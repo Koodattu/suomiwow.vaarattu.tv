@@ -4,26 +4,52 @@
     {
       "name": "raider-constellation-poc",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["backend/scripts/guild-network-poc.mjs"],
+      "runtimeArgs": [
+        "backend/scripts/guild-network-poc.mjs"
+      ],
       "port": 3015
     },
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "frontend-ccg-mock",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev:ccg-mock"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev:ccg-mock"
+      ],
       "port": 3100
     },
     {
       "name": "frontend-ccg-mock-user",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev:ccg-mock:user"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev:ccg-mock:user"
+      ],
       "port": 3100
+    },
+    {
+      "name": "figurine-portrait-bake",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "frontend/scripts/bake-figurine-portraits.mjs",
+        "3210"
+      ],
+      "port": 3210
     }
   ]
 }

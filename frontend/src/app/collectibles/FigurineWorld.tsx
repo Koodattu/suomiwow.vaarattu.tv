@@ -8,19 +8,21 @@ import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
 import { createFigurineFileCache } from "@/lib/figurine-cache";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
-import { MACHINE_SLOTS, addToCollection, bestQuality, changeCollection, copiesOf, emptyCollection, machineChanges, machineOutcome, readCollection, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
+import { MACHINE_SLOTS, addToCollection, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, setShowcaseSlot, showcaseFigure, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, RELEASED_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
-import type { Outpost, StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
+import type { StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
 import type { MachinePick } from "@/lib/figurine-machine";
+import { isStation, type Station } from "@/lib/figurine-world";
+import WorldPanel, { type PanelSeries } from "./WorldPanels";
 import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
 import SoundMenu from "./SoundMenu";
 
 const FigurineStage = dynamic(() => import("@/app/tools/figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
 // Where "back" leads: stations return to the centre (to whichever of its views they were left from).
-const PARENT: Record<WorldView, WorldView | null> = { shop: "opening", gallery: "opening", recycler: "opening", forge: "opening", opening: null, viewer: "opening" };
+const parentOf = (view: WorldView): WorldView | null => view === "opening" ? null : "opening";
 const atCentre = (view: WorldView) => view === "opening" || view === "viewer";
-const STATION_VIEWS: WorldView[] = ["shop", "gallery", "recycler", "forge"];
+
 const isMachine = (view: WorldView): view is FigurineMachine => view === "recycler" || view === "forge";
 // Every series in shop order: released ones first, then the announced ones.
 const ALL_SERIES = [...FIGURINE_SERIES.map((entry) => entry.id), ...UPCOMING_SERIES.map((entry) => entry.id)];
@@ -44,6 +46,12 @@ export default function FigurineWorld() {
   // Stations remember which centre view they were entered from.
   const [origin, setOrigin] = useState<Partial<Record<WorldView, WorldView>>>({});
   const collection = useSyncExternalStore(subscribeCollection, readCollection, emptyCollection);
+  const records = useSyncExternalStore(subscribeCollection, readRecords, emptyRecords);
+  // The opening shot plays to its end before the keyboard can move the camera.
+  const [introDone, setIntroDone] = useState(false);
+  // Stations carry no signs: the one under the pointer is named in the HUD.
+  const [pointed, setPointed] = useState<Station | null>(null);
+  const stationName = (station: Station) => station === "shop" ? t("navShop") : station === "recycler" ? t("stationRecycler") : station === "forge" ? t("stationForge") : t(`world.stations.${station}`);
   const action = useRef<HTMLButtonElement>(null);
   const viewRef = useRef(view);
   useEffect(() => { viewRef.current = view; }, [view]);
@@ -108,20 +116,17 @@ export default function FigurineWorld() {
   const progress = Math.round(100 * (0.4 * stageProgress + 0.25 * audioProgress + 0.2 * fileProgress + 0.15 * (figureSettled ? 1 : 0)));
   // Each series pick drops its box onto the pedestal again.
   const [arrival, setArrival] = useState(0);
-  // A tapped station that is not open yet says so for a moment.
-  const [soon, setSoon] = useState<Outpost | null>(null);
-  useEffect(() => { if (!soon) return; const timer = window.setTimeout(() => setSoon(null), 2400); return () => window.clearTimeout(timer); }, [soon]);
 
   const navigate = useCallback((next: WorldView) => {
     unlockFigurineAudio();
     // Leaving a finished opening clears the pedestal for the next box.
     if (next !== "opening" && (state.phase === "revealed" || state.phase === "error")) { setOpened(null); dispatch({ type: "reset" }); }
     if (next !== "viewer") { setInspected(null); setUpgraded(null); }
-    setHovered(null); setSoon(null);
-    if (STATION_VIEWS.includes(next) && atCentre(view)) setOrigin((current) => ({ ...current, [next]: view }));
+    setHovered(null);
+    if (isStation(next) && atCentre(view)) setOrigin((current) => ({ ...current, [next]: view }));
     setView(next);
   }, [state.phase, view]);
-  const back = useCallback(() => { const parent = origin[view] ?? PARENT[view]; if (parent && state.phase !== "loading" && state.phase !== "opening") navigate(parent); }, [view, state.phase, navigate, origin]);
+  const back = useCallback(() => { const parent = origin[view] ?? parentOf(view); if (parent && state.phase !== "loading" && state.phase !== "opening") navigate(parent); }, [view, state.phase, navigate, origin]);
   useEffect(() => { action.current?.focus({ preventScroll: true }); }, [view, state.phase, state.round]);
 
   function pickSeries(id: string) {
@@ -141,7 +146,7 @@ export default function FigurineWorld() {
     dispatch({ type: "revealed" });
     if (series && drawn) {
       const key = figureKey(series.id, drawn.id), finish = currentDraw?.quality ?? "standard";
-      addToCollection(key, finish);
+      addToCollection(key, finish); recordPull({ key, quality: finish }, "box");
       setOpened({ key, count: copiesOf(readCollection()[key]), quality: finish });
     }
   }
@@ -157,17 +162,20 @@ export default function FigurineWorld() {
   const [machineRuns, setMachineRuns] = useState<Record<FigurineMachine, MachineRun>>({ recycler: { run: 0, output: null, outcome: null }, forge: { run: 0, output: null, outcome: null } });
   const outcomes = useMemo(() => ({ recycler: machineOutcome("recycler", slots.recycler, collection), forge: machineOutcome("forge", slots.forge, collection) }), [slots, collection]);
   const nameOf = useCallback((key: string) => findFigure(key)?.character.name ?? key, []);
+  const loadSlots = (kind: FigurineMachine, next: MachineItem[]) => setSlots((current) => ({ ...current, [kind]: next }));
+  // A card chosen in the picker. The forge works on three of one kind, so it places all three at once.
+  function pickCard(kind: FigurineMachine, item: MachineItem) {
+    unlockFigurineAudio();
+    const loaded = slots[kind];
+    if (kind === "forge") { if (spare(collection, [], item) >= MACHINE_SLOTS) loadSlots(kind, Array.from({ length: MACHINE_SLOTS }, () => item)); }
+    else if (loaded.length < MACHINE_SLOTS && spare(collection, loaded, item) > 0) loadSlots(kind, [...loaded, item]);
+  }
   function operateMachine(kind: FigurineMachine, pick: MachinePick) {
     unlockFigurineAudio();
-    const loaded = slots[kind], outcome = outcomes[kind];
-    const load = (next: MachineItem[]) => setSlots((current) => ({ ...current, [kind]: next }));
-    // The forge works on three of one kind, so a card places all three at once.
-    if (pick.kind === "tray") {
-      const item = { key: pick.key, quality: pick.quality };
-      if (kind === "forge") { if (spare(collection, [], item) >= MACHINE_SLOTS) load(Array.from({ length: MACHINE_SLOTS }, () => item)); }
-      else if (loaded.length < MACHINE_SLOTS && spare(collection, loaded, item) > 0) load([...loaded, item]);
-    } else if (pick.kind === "slot") load(kind === "forge" ? [] : loaded.filter((_, index) => index !== pick.index));
+    const loaded = slots[kind], outcome = outcomes[kind], load = (next: MachineItem[]) => loadSlots(kind, next);
+    if (pick.kind === "slot") load(kind === "forge" ? [] : loaded.filter((_, index) => index !== pick.index));
     else if ((outcome.kind === "box" || outcome.kind === "upgrade") && changeCollection(machineChanges(loaded, outcome))) {
+      if (outcome.kind === "upgrade") recordPull({ key: outcome.key, quality: outcome.quality }, "forge"); else recordRecycle();
       setMachineRuns((current) => ({ ...current, [kind]: {
         run: current[kind].run + 1, outcome,
         output: outcome.kind === "box" ? { kind: "box", series: outcome.series } : { kind: "figure", key: outcome.key, quality: outcome.quality, name: nameOf(outcome.key) },
@@ -193,20 +201,20 @@ export default function FigurineWorld() {
       return {
         ...display, ready: outcome.kind === "box" || outcome.kind === "upgrade", run: machineRuns[kind].run, output: machineRuns[kind].output,
         accent: outcome.kind === "upgrade" ? outcome.quality : undefined,
-        tray: trayGroups(collection, CATALOG_ORDER, kind).map((group) => ({ key: group.key, quality: group.quality, name: nameOf(group.key), spare: spare(collection, loaded, group) })),
         slots: loaded.map((slot) => ({ ...slot, name: nameOf(slot.key) })),
       };
     };
     return { recycler: view("recycler"), forge: view("forge") };
-  }, [collection, slots, outcomes, machineRuns, nameOf, t]);
+  }, [slots, outcomes, machineRuns, nameOf, t]);
 
   // Navigation is in the world; the keyboard mirrors it: Esc back, S shop, C collection, M recycler, U forge,
   // number keys pick a series, Enter opens the sealed box.
   const onKey = useRef<(event: KeyboardEvent) => void>(() => {});
   useEffect(() => {
     onKey.current = (event) => {
-      if (!revealedWorld || event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement) return;
+      if (!revealedWorld || !introDone || event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement) return;
       const key = event.key.toLowerCase();
+      if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
       if (key === "escape" || key === "backspace") back();
       else if (atCentre(view) && key === "s") navigate("shop");
       else if (atCentre(view) && key === "c") navigate("gallery");
@@ -236,9 +244,18 @@ export default function FigurineWorld() {
     labels: {
       sign: t("navShop"), series: (number) => t("seriesName", { number }),
       collected: (owned, total) => t("seriesCollected", { got: owned, total }), comingSoon: t("comingSoon"),
-      trading: t("stationTrading"), fame: t("stationFame"),
     },
-  }), [collection, t]);
+    showcase: records.showcase.map((entry) => showcaseFigure(entry, collection)),
+  }), [collection, records.showcase, t]);
+  // The collection lists released series, a secret one once found, then the announced ones.
+  const panelSeries: PanelSeries[] = useMemo(() => [...collectionShelves(world.series, collection).filter((entry) => entry.released), ...world.series.filter((entry) => !entry.hidden && !entry.released)]
+    .map(({ id, number, released, hidden, keys }) => ({ id, number, released, hidden, keys })), [world.series, collection]);
+  const machineKind = isMachine(view) ? view : null;
+  const machinePanel = machineKind ? {
+    kind: machineKind, slots: slots[machineKind],
+    groups: trayGroups(collection, CATALOG_ORDER, machineKind).map((group) => ({ key: group.key, quality: group.quality, spare: machineKind === "forge" ? group.count : spare(collection, slots[machineKind], group) })),
+    onPick: (item: MachineItem) => pickCard(machineKind, item), onClear: () => loadSlots(machineKind, []),
+  } : undefined;
   const boxCount = series?.characters.length ?? 16;
   const packaging = useMemo(() => ({ blind: t("boxBlind"), collect: t("boxCollect", { count: boxCount }), contents: t("boxContents"), openHere: t("boxOpenHere") }), [t, boxCount]);
   const label = (figure: FigurineCharacter) => `${figure.realm} · ${t(`races.${figure.raceKey}`)} · ${t(`classes.${figure.classKey}`)}`;
@@ -253,7 +270,7 @@ export default function FigurineWorld() {
     <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
       interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
-      machines={machines} onMachine={operateMachine} onMachineDone={machineDone} onComingSoon={setSoon}
+      machines={machines} onMachine={operateMachine} onMachineDone={machineDone} onIntroDone={() => setIntroDone(true)} onHoverStation={setPointed}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={(key) => inspect(key)} onHoverFigure={setHovered}
       onStatus={(status) => {
         setWebglUnavailable(status === "webgl");
@@ -264,18 +281,20 @@ export default function FigurineWorld() {
       onProgress={setStageProgress} onLoaded={() => setStageLoaded(true)} arrival={arrival}
       onRevealed={revealed} signature={drawn?.classKey} quip={drawn && series ? figureQuip(figureKey(series.id, drawn.id)) : undefined}
       labels={{ loading: t("modelLoading"), ready: t("modelReady"), empty: t("modelEmpty"), error: t("modelError"), webgl: t("webglError"), box: t("boxStatus"), boxTitle: t("boxTitle"), boxSubtitle: t("boxSubtitle"), series: t("navCollection"), packaging }} />
+    {isStation(view) && view !== "shop" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back}
+      onInspect={(key, finish) => inspect(key, finish)} onShowcase={(slot, item) => setShowcaseSlot(slot, item)} machine={machinePanel} />}
     <div className={styles.worldLoader} data-done={revealedWorld} role="status" aria-hidden={revealedWorld}>
       <span>{t("worldPreparing")}</span>
       <div className={styles.worldLoaderBar}><i style={{ width: `${progress}%` }} /></div>
     </div>
     <div className={styles.showcaseHud}>
       <div className={styles.revealIdentity} aria-live="polite" aria-atomic="true">
-        {soon ? <p className={styles.worldHint}>{t(soon === "trading" ? "stationTrading" : "stationFame")} · {t("comingSoon")}</p>
-          : view === "opening" && state.phase === "revealed" && drawn ? <>
+        {view === "opening" && state.phase === "revealed" && drawn ? <>
             {opened && <span className={styles.newBadge}>{opened.count === 1 ? t("newFigure") : t("duplicateFigure", { count: opened.count })}</span>}
             {opened && qualityBadge(opened.quality)}
             <h1>{drawn.name}</h1><p>{label(drawn)}</p>
           </> : view === "opening" && state.phase === "error" ? <><h1>{t("drawErrorTitle")}</h1><p>{t(webglUnavailable ? "webglError" : "drawError")}</p></>
+          : pointed && pointed !== view && !(view === "opening" && state.phase !== "sealed") ? <p className={styles.worldHint}>{stationName(pointed)}</p>
           : view === "viewer" && viewing && inspected ? <>
             {upgraded && <span className={styles.newBadge}>{t("tradedUp")}</span>}
             {qualityBadge(inspected.quality)}
@@ -288,8 +307,7 @@ export default function FigurineWorld() {
       {view === "opening" && state.phase === "error" && <div className={styles.drawActions}>
         <button ref={action} className={styles.primary} onClick={() => { unlockFigurineAudio(); setFiles([]); dispatch({ type: "retry" }); }}>{t("retryBox")}</button>
       </div>}
-      {isMachine(view) && <p className={styles.showcaseHint}>{t(machines[view].tray.length ? (view === "forge" ? "forgeHint" : "machineHint") : (view === "forge" ? "forgeEmpty" : "machineEmpty"))}</p>}
-      {!atCentre(view) && <p className={styles.showcaseHint}>{t("tapAwayHint")}</p>}
+      {view === "shop" && <p className={styles.showcaseHint}>{t("tapAwayHint")}</p>}
       {view === "viewer" && (!files.length || filesFor !== wanted?.model) && <p className={styles.showcaseHint}>{t("worldLoading")}</p>}
     </div>
   </main>;

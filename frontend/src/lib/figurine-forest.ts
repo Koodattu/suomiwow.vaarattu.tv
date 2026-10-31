@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import type { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { restoreFigurineMaterials } from "@/lib/figurine-materials";
 
@@ -8,7 +9,7 @@ import { restoreFigurineMaterials } from "@/lib/figurine-materials";
 // instanced mesh per model part. The woods close all the way round; only a lane stays open where
 // the opening shot flies in from far out behind the home camera.
 // Bump MODEL_VERSION when the files change: browsers keep the old ones otherwise.
-const MODEL_VERSION = 2;
+const MODEL_VERSION = 3;
 export const FOREST_MODELS = {
   tree: "/figurines/world/models/tree-canopy-02.glb",
   bareTree: "/figurines/world/models/tree-canopyless-01.glb",
@@ -45,8 +46,8 @@ const CASTERS = new Set<ForestModel>(["tree", "bareTree", "bush", "stump", "hays
 const facingCentre = (x: number, z: number) => Math.atan2(z, -x);
 
 // A small Elwynn market where the path leaves the plaza: a tent and a wagon flanking it, a
-// signpost at the entrance (no faction banners: the market takes no side), stock piled between the
-// stations at the back and the side machines, and two tables of produce in the gaps at the front.
+// signpost at the entrance (no faction banners: the market takes no side), stock and two tables of
+// produce beside them, and more stock behind the station ring at either back corner.
 export function marketLayout(): Placement[] {
   const at = (model: ForestModel, x: number, z: number, extra: Partial<Placement> = {}): Placement => ({ model, x, z, yaw: facingCentre(x, z), size: 0.5, ...extra });
   const table = (x: number, z: number) => {
@@ -56,12 +57,12 @@ export function marketLayout(): Placement[] {
     return [at("table", x, z), on("cheese", 0.35, -0.9), on("cheese", 0.1, -0.55, 0.9), on("bread", -0.3, 0.1), on("bread", -0.2, 0.4, 0.2), on("fruit", 0.2, 0.75), on("lantern", -0.4, -1.3)];
   };
   return [
-    at("tent", -5.6, -18.2), at("wagon", 6.4, -18.4),
-    at("signpost", 2.6, -15.6, { yaw: 2.2 }), at("crate", -5.2, -14.2, { yaw: 0.5 }), at("barrel", 5.4, -14.5),
-    at("crate", -11.9, -6.6, { yaw: 0.3 }), at("crate", -12.5, -5.6, { yaw: -0.2, size: 0.2 }), at("crate", -12, -6.5, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -11.3, -5.2),
+    at("tent", -6.6, -23), at("wagon", 7.2, -23.2),
+    at("signpost", 2.6, -19.6, { yaw: 2.2 }), at("crate", -4.6, -20.4, { yaw: 0.5 }), at("barrel", 4.9, -20.6),
+    at("crate", -11.8, -14, { yaw: 0.3 }), at("crate", -12.6, -13.1, { yaw: -0.2, size: 0.2 }), at("crate", -11.9, -13.9, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -11, -14.9),
     // The broken opening faces local -z; turn it outward from the plaza.
-    at("barrel", 11.9, -6.4, { yaw: Math.atan2(-11.9, 6.4), secretSeries: "community-000" }), at("barrel", 12.6, -5.4), at("crate", 11.6, -4.6, { yaw: 1.1 }),
-    ...table(-10.4, 5.9), ...table(10.6, 5.6),
+    at("barrel", 11.8, -14, { yaw: Math.atan2(-11.8, 14), secretSeries: "community-000" }), at("barrel", 12.6, -13.2), at("crate", 11, -14.9, { yaw: 1.1 }),
+    ...table(-10.2, -21), ...table(10.6, -20.8),
   ];
 }
 // True if (x, z) is clear of the market's footprints.
@@ -71,45 +72,44 @@ const seeded = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t =
 // Angle 0 points at the hub camera (+z); the forest path leaves the plaza at angle π.
 const PATH_ANGLE = Math.PI, PATH_HALF = 0.13;
 // The opening shot starts 2.6 times as far out as the home camera and swings in from up to 0.35 rad
-// round: nothing tall stands in that lane short of its starting point.
+// round: nothing tall stands in that lane short of its starting point. The fishing pond lies in it.
 const LANE = { from: -0.15, to: 0.6, radius: 29 };
+export const POND = { x: 0, z: 22.5, radius: 4.2 };
+const nearPond = (x: number, z: number) => Math.hypot(x - POND.x, z - POND.z) < POND.radius + 3.5;
 const inLane = (angle: number, radius: number) => radius < LANE.radius && Math.atan2(Math.sin(angle), Math.cos(angle)) > LANE.from && Math.atan2(Math.sin(angle), Math.cos(angle)) < LANE.to;
 const angularGap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
-// Lamp posts on the plaza rim, in the gaps between the stations and either side of the path; none
-// in the front gap, where the opening shot flies in.
-export const LAMP_ANGLES = [62, -62, 118, -118, 168, -168].map((degrees) => degrees * Math.PI / 180);
 
-export function forestLayout(plazaRadius: number, seed = 11, market: Placement[] = []): Placement[] {
+export function forestLayout(plazaRadius: number, seed = 11, market: Placement[] = [], lamps: [number, number][] = []): Placement[] {
   const next = seeded(seed), placements: Placement[] = [];
   const ring = (count: number, inner: number, outer: number, models: ForestModel[], lane: boolean, path = PATH_HALF) => {
     for (let i = 0; i < count; i++) {
       // Even spread around the ring with jitter, so there are no bald patches.
       const angle = (i + next() * 0.8) / count * Math.PI * 2, radius = inner + next() * (outer - inner);
       const x = Math.sin(angle) * radius, z = Math.cos(angle) * radius, model = models[Math.floor(next() * models.length)], yaw = next() * Math.PI * 2, size = next();
-      if ((lane && inLane(angle, radius)) || angularGap(angle, PATH_ANGLE) < path * (20 / radius) || !clearOf(market, x, z)) continue;
+      if ((lane && inLane(angle, radius)) || angularGap(angle, PATH_ANGLE) < path * (20 / radius) || !clearOf(market, x, z) || nearPond(x, z)) continue;
       placements.push({ model, x, z, yaw, size });
     }
   };
   // Low growth never blocks the flight, which passes well above it.
-  ring(30, plazaRadius + 8, plazaRadius + 13, ["tree", "tree", "tree", "bareTree"], true);
-  ring(40, plazaRadius + 15, plazaRadius + 24, ["tree", "tree", "bareTree"], true);
-  ring(40, plazaRadius + 0.8, plazaRadius + 5, ["bush", "bush", "bushSmall", "rock", "rockSmall"], false, PATH_HALF * 1.6);
-  ring(11, plazaRadius + 2, plazaRadius + 6, ["stump", "rock"], false, PATH_HALF * 2);
+  ring(36, plazaRadius + 8, plazaRadius + 13, ["tree", "tree", "tree", "bareTree"], true);
+  ring(48, plazaRadius + 15, plazaRadius + 24, ["tree", "tree", "bareTree"], true);
+  // The far woods, fading into the haze toward the painted treeline.
+  ring(64, plazaRadius + 27, plazaRadius + 48, ["tree", "tree", "tree", "bareTree"], false, PATH_HALF * 0.5);
+  ring(56, plazaRadius + 0.8, plazaRadius + 5, ["bush", "bush", "bushSmall", "rock", "rockSmall"], false, PATH_HALF * 1.6);
+  ring(14, plazaRadius + 2, plazaRadius + 6, ["stump", "rock"], false, PATH_HALF * 2);
   placements.push(...market);
   // Hay behind the stock piled between the shop and the recycler.
   for (const [angle, radius] of [[-2.2, plazaRadius + 1.9], [-2.02, plazaRadius + 2.7]]) placements.push({ model: "haystack", x: Math.sin(angle) * radius, z: Math.cos(angle) * radius, yaw: next() * 6.28, size: next() });
-  for (const angle of LAMP_ANGLES) {
-    const radius = plazaRadius - 0.8;
-    placements.push({ model: "lamp", x: Math.sin(angle) * radius, z: Math.cos(angle) * radius, yaw: -angle + Math.PI, size: 0.5 });
-  }
+  for (const [x, z] of lamps) placements.push({ model: "lamp", x, z, yaw: facingCentre(x, z) + Math.PI / 2, size: 0.5 });
   return placements;
 }
 
 // Loads each model once and draws all its placements as instances. Resolves with the lamp
 // heads in world space, for the glow sprites.
-export function buildForest(parent: THREE.Object3D, placements: Placement[], onSway?: (material: THREE.Material) => void) {
+export function buildForest(parent: THREE.Object3D, placements: Placement[], onSway?: (material: THREE.Material) => void, ktx2Loader?: KTX2Loader) {
   const group = new THREE.Group(); parent.add(group);
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  if (ktx2Loader) loader.setKTX2Loader(ktx2Loader);
   const matrix = new THREE.Matrix4(), place = new THREE.Matrix4(), quaternion = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
   const byModel = new Map<ForestModel, Placement[]>();
   placements.forEach((placement) => byModel.set(placement.model, [...(byModel.get(placement.model) ?? []), placement]));

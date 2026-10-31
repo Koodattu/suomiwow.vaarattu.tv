@@ -5,23 +5,22 @@ import { SILHOUETTE } from "@/lib/figurine-packaging";
 import type { PlaceProp } from "@/lib/figurine-props";
 import type { FigurineQuality } from "@/lib/figurine-collection";
 
-// The two machine stations. Both stand beside a pegboard of cards with three card slots, a display
-// and a trigger: tap a card on the board to load it, tap a loaded card to take it back, work the
-// trigger to run.
+// The two machine stations. Each has three card slots, a display and a trigger. Cards are chosen
+// in the page's picker (a grid that scales to any collection) and fly into the slots; tap a loaded
+// card to take it back, work the trigger to run.
 // - The recycler is a gnomish grinder: the three drop into its hopper, its rollers chew them up,
 //   it shakes and clanks, and a blind box slides out of the chute.
 // - The trade-up forge is an anvil before a rune stele: the three fly onto the anvil, fuse under
 //   three blows of the trip hammer, and the figure rises again one quality up.
 export type MachineCard = { key: string; quality: FigurineQuality; name: string; texture: THREE.Texture | null };
 // `accent` tints the forge's runes with the quality a run would make.
-export type MachineView = { tray: (MachineCard & { spare: number })[]; slots: MachineCard[]; title: string; detail: string; ready: boolean; accent?: FigurineQuality };
-export type MachinePick = { kind: "tray"; key: string; quality: FigurineQuality } | { kind: "slot"; index: number } | { kind: "trigger" };
+export type MachineView = { slots: MachineCard[]; title: string; detail: string; ready: boolean; accent?: FigurineQuality };
+export type MachinePick = { kind: "slot"; index: number } | { kind: "trigger" };
 export type MachineOutput = { kind: "box"; box: THREE.Mesh | null } | { kind: "figure"; card: MachineCard };
 export type MachineCue = "pull" | "clank" | "charge" | "strike" | "drop" | "sparkle";
 export type Machine = ReturnType<typeof buildRecycler>;
 
 const CARD_W = 0.4, CARD_H = 0.53, PORTRAIT_H = 0.42, PORTRAIT_W = PORTRAIT_H * SILHOUETTE.w / SILHOUETTE.h;
-const BOARD_COLUMNS = 5, BOARD_ROWS = 5, BOARD_W = 2.4, BOARD_H = 3.05;
 export const QUALITY_COLORS: Record<FigurineQuality, string> = { standard: "#a08a62", golden: "#f2c75c", galaxy: "#9a7bff" };
 
 function canvas(width: number, height: number) {
@@ -42,7 +41,7 @@ function glowMap() {
   return srgb(element);
 }
 
-// A trading-card style backing: quality-coloured frame, the figure's name, and a spare count.
+// A trading-card style backing: quality-coloured frame and the figure's name.
 function backing() {
   const [element, context] = canvas(160, 212), map = srgb(element);
   let painted = "";
@@ -89,16 +88,12 @@ function displayPanel(colors: { back: string; idle: string; ready: string }, sca
 
 type Card = { group: THREE.Group; back: ReturnType<typeof backing>; portrait: THREE.MeshBasicMaterial; pick: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>; fly: { from: THREE.Vector3; t: number } | null };
 
-// The pegboard, the cards and the three slots, shared by both machines. `slots` are the loaded
-// cards' rest positions in the station's space.
-function machineKit(parent: THREE.Group, { boardX, wood, dark, slots: slotSpots }: { boardX: number; wood: THREE.Material; dark: THREE.Material; slots: THREE.Vector3[] }) {
+// The cards and the three slots, shared by both machines. `slots` are the loaded cards' rest
+// positions in the station's space; a newly loaded card flies in from in front, low, as if handed in.
+function machineKit(parent: THREE.Group, { slots: slotSpots }: { slots: THREE.Vector3[] }) {
   const frame: THREE.Mesh[] = [];
-  frame.push(add(parent, new THREE.BoxGeometry(BOARD_W, BOARD_H, 0.08), wood, boardX, 0.25 + BOARD_H / 2, -0.25));
-  for (const side of [-1, 1]) frame.push(add(parent, new THREE.BoxGeometry(0.1, BOARD_H + 0.3, 0.1), wood, boardX + side * (BOARD_W / 2 + 0.03), (BOARD_H + 0.3) / 2, -0.25));
-  const peg = new THREE.CylinderGeometry(0.012, 0.012, 0.06, 6).rotateX(Math.PI / 2);
   const cardGeometry = new THREE.PlaneGeometry(CARD_W, CARD_H), portraitGeometry = new THREE.PlaneGeometry(PORTRAIT_W, PORTRAIT_H);
-  const boardSpot = (index: number) => new THREE.Vector3(boardX + (index % BOARD_COLUMNS - (BOARD_COLUMNS - 1) / 2) * 0.45, 0.25 + BOARD_H - 0.4 - Math.floor(index / BOARD_COLUMNS) * 0.6, -0.17);
-  for (let index = 0; index < BOARD_COLUMNS * BOARD_ROWS; index++) { const spot = boardSpot(index); add(parent, peg, dark, spot.x, spot.y + CARD_H / 2 + 0.02, spot.z - 0.03, false); }
+  const handIn = (spot: THREE.Vector3) => spot.clone().add(new THREE.Vector3(0, -1.1, 2.2));
 
   const makeCard = (): Card => {
     const group = new THREE.Group(); parent.add(group);
@@ -112,43 +107,29 @@ function machineKit(parent: THREE.Group, { boardX, wood, dark, slots: slotSpots 
     parent.remove(card.group); card.back.map.dispose();
     card.pick.material.dispose(); card.portrait.dispose();
   };
-  const dress = (card: Card, entry: MachineCard, spare: number | null) => {
-    card.back.paint(entry.name, entry.quality, spare);
+  const dress = (card: Card, entry: MachineCard) => {
+    card.back.paint(entry.name, entry.quality, null);
     if (card.portrait.map !== entry.texture) { card.portrait.map = entry.texture; card.portrait.needsUpdate = true; }
-    card.portrait.opacity = entry.texture ? (spare === 0 ? 0.35 : 1) : 0;
+    card.portrait.opacity = entry.texture ? 1 : 0;
   };
-  const tray = new Map<string, Card>();
   let loaded: (Card | null)[] = [null, null, null];
   const glow = cardGlow(CARD_W, CARD_H, 0xffd98a); parent.add(glow.mesh);
   const triggers: THREE.Mesh[] = [], picks: THREE.Mesh[] = [];
   const refreshPicks = () => {
     picks.length = 0; picks.push(...triggers);
-    tray.forEach((card) => picks.push(card.pick));
     loaded.forEach((card) => { if (card) picks.push(card.pick); });
   };
   return {
     frame, picks, makeCard, dropCard, dress,
     trigger(mesh: THREE.Mesh) { mesh.userData.machine = { kind: "trigger" } satisfies MachinePick; triggers.push(mesh); refreshPicks(); },
     set(view: MachineView) {
-      const seen = new Set<string>();
-      view.tray.slice(0, BOARD_COLUMNS * BOARD_ROWS).forEach((entry, index) => {
-        const id = `${entry.key}|${entry.quality}`;
-        seen.add(id);
-        let card = tray.get(id);
-        if (!card) { card = makeCard(); tray.set(id, card); }
-        card.pick.userData.machine = { kind: "tray", key: entry.key, quality: entry.quality } satisfies MachinePick;
-        card.group.position.copy(boardSpot(index)); card.group.rotation.set(0, 0, 0);
-        dress(card, entry, entry.spare);
-      });
-      tray.forEach((card, id) => { if (!seen.has(id)) { dropCard(card); tray.delete(id); } });
-      // A newly loaded slot flies in from its card on the board.
       loaded = [0, 1, 2].map((index) => {
         const entry = view.slots[index], current = loaded[index];
         if (!entry) { if (current) dropCard(current); return null; }
         const card = current ?? makeCard();
-        if (!current) card.fly = { from: (tray.get(`${entry.key}|${entry.quality}`)?.group.position ?? slotSpots[index]).clone(), t: 0 };
+        if (!current) card.fly = { from: handIn(slotSpots[index]), t: 0 };
         card.pick.userData.machine = { kind: "slot", index } satisfies MachinePick;
-        dress(card, entry, null);
+        dress(card, entry);
         return card;
       });
       refreshPicks();
@@ -162,13 +143,13 @@ function machineKit(parent: THREE.Group, { boardX, wood, dark, slots: slotSpots 
       return taken;
     },
     update(hovered: MachinePick | null, delta: number) {
-      const hoveredCard = hovered?.kind === "tray" ? tray.get(`${hovered.key}|${hovered.quality}`) : hovered?.kind === "slot" ? loaded[hovered.index] : null;
+      const hoveredCard = hovered?.kind === "slot" ? loaded[hovered.index] : null;
       glow.update(hoveredCard?.pick ?? null, 1, delta);
       loaded.forEach((card, index) => {
         if (!card) return;
         const target = slotSpots[index];
         if (card.fly) {
-          card.fly.t = Math.min(1, card.fly.t + delta / 0.35);
+          card.fly.t = Math.min(1, card.fly.t + delta / 0.45);
           const t = 1 - (1 - card.fly.t) ** 3;
           card.group.position.lerpVectors(card.fly.from, target, t); card.group.position.y += Math.sin(Math.PI * t) * 0.35;
           card.group.rotation.z = (1 - t) * 0.4;
@@ -206,7 +187,7 @@ function particles(parent: THREE.Object3D, map: THREE.Texture, count: number, bl
   };
 }
 
-const RECYCLER_X = -1.3, RECYCLER_BOARD_X = 1.45, BODY_W = 1.9, BODY_H = 1.7, BODY_D = 1.2, LEGS = 0.3;
+const RECYCLER_X = 0.2, BODY_W = 1.9, BODY_H = 1.7, BODY_D = 1.2, LEGS = 0.3;
 const SLOT_Y = LEGS + 1.2, SLOT_GAP = 0.58;
 const RUN_SECONDS = 3.1, SWALLOW = 0.45, POP = 2.15;
 
@@ -214,9 +195,8 @@ export function buildRecycler(parent: THREE.Group, { envMap, placeProp }: { envM
   const steel = new THREE.MeshStandardMaterial({ color: 0x34495a, metalness: 0.55, roughness: 0.5, envMap, envMapIntensity: 0.7 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xc89a4a, metalness: 1, roughness: 0.3, envMap });
   const dark = new THREE.MeshStandardMaterial({ color: 0x15171c, metalness: 0.4, roughness: 0.6 });
-  const wood = new THREE.MeshStandardMaterial({ map: woodTexture(31, [84, 54, 32]), roughness: 0.7 });
   const slotSpots = [-1, 0, 1].map((step) => new THREE.Vector3(RECYCLER_X + step * SLOT_GAP, SLOT_Y, -0.35 + BODY_D / 2 + 0.035));
-  const kit = machineKit(parent, { boardX: RECYCLER_BOARD_X, wood, dark, slots: slotSpots });
+  const kit = machineKit(parent, { slots: slotSpots });
   // The machine shakes as a whole while it works; the base stays on the ground.
   const machine = new THREE.Group(); machine.position.set(RECYCLER_X, 0, -0.35); parent.add(machine);
   const body = new THREE.Group(); machine.add(body);
@@ -271,7 +251,7 @@ export function buildRecycler(parent: THREE.Group, { envMap, placeProp }: { envM
   const pistons = new THREE.Group(); machine.add(pistons);
   placeProp(pistons, "pistons", { height: 1.5, x: 0.45, y: 0.2, z: -BODY_D / 2 - 0.12, yaw: Math.PI / 2 });
   placeProp(parent, "bucket", { height: 0.5, x: RECYCLER_X - 1.55, z: 0.75, yaw: 0.6 });
-  placeProp(parent, "tool", { height: 0.62, x: RECYCLER_BOARD_X + 1.35, z: 0.55, yaw: -0.4 });
+  placeProp(parent, "tool", { height: 0.62, x: RECYCLER_X + 1.75, z: 0.55, yaw: -0.4 });
   // Steam from the pipe, and shreds of card spat from the hopper while it grinds.
   const [puffCanvas, puff] = canvas(64, 64);
   const cloud = puff.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -346,7 +326,7 @@ export function buildRecycler(parent: THREE.Group, { envMap, placeProp }: { envM
           if (run.output.kind === "box" && run.output.box) {
             output = run.output.box; output.scale.setScalar(1.3); parent.add(output);
             run.output.box.geometry.computeBoundingBox(); outputRest = -run.output.box.geometry.boundingBox!.min.y * 1.3;
-          } else if (run.output.kind === "figure") { outputCard = kit.makeCard(); kit.dress(outputCard, run.output.card, null); output = outputCard.group; outputRest = CARD_H / 2; }
+          } else if (run.output.kind === "figure") { outputCard = kit.makeCard(); kit.dress(outputCard, run.output.card); output = outputCard.group; outputRest = CARD_H / 2; }
           run.cue(run.output.kind === "figure" ? "sparkle" : "drop");
         }
         if (t >= RUN_SECONDS) { const done = run.done; run.swallowed.forEach(kit.dropCard); run = null; if (shown) display.paint(shown.title, shown.detail, shown.ready); done(); }
@@ -392,7 +372,7 @@ function runeCircle() {
   return map;
 }
 
-const FORGE_X = 1.25, FORGE_BOARD_X = -1.5, PLINTH_H = 0.9, CAP = 0.1, ANVIL_H = 0.42, STELE_Z = -0.62;
+const FORGE_X = -0.3, PLINTH_H = 0.9, CAP = 0.1, ANVIL_H = 0.42, STELE_Z = -0.62;
 const FACE_Y = PLINTH_H + CAP + ANVIL_H, ANVIL_X = FORGE_X - 0.1, ANVIL_Z = 0.12;
 const RUNES_Y = 2.08, RUNE_RADIUS = 0.55;
 // The trip hammer: an arm pivoting on a post right of the plinth, its head striking the anvil face.
@@ -408,12 +388,11 @@ export function buildForge(parent: THREE.Group, { envMap, placeProp }: { envMap:
   const darkStone = new THREE.MeshStandardMaterial({ color: 0x302c37, roughness: 0.9 });
   const gold = new THREE.MeshStandardMaterial({ color: 0xd4a63c, metalness: 1, roughness: 0.28, envMap });
   const iron = new THREE.MeshStandardMaterial({ color: 0x2b2d33, metalness: 0.85, roughness: 0.38, envMap, envMapIntensity: 0.9 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x15171c, metalness: 0.4, roughness: 0.6 });
   const wood = new THREE.MeshStandardMaterial({ map: woodTexture(37, [66, 44, 30]), roughness: 0.75 });
   // The three cradles sit round the rune circle, at its top and lower corners.
   const corner = RUNE_RADIUS * Math.cos(Math.PI / 6);
   const slotSpots = [[0, RUNE_RADIUS], [-corner, -RUNE_RADIUS / 2], [corner, -RUNE_RADIUS / 2]].map(([x, y]) => new THREE.Vector3(FORGE_X + x, RUNES_Y + y, STELE_Z + 0.19));
-  const kit = machineKit(parent, { boardX: FORGE_BOARD_X, wood, dark, slots: slotSpots });
+  const kit = machineKit(parent, { slots: slotSpots });
 
   // A stone plinth with a gold-edged cap, the display set in its front.
   kit.frame.push(add(parent, new THREE.BoxGeometry(1.6, PLINTH_H, 1.1), stone, FORGE_X, PLINTH_H / 2, 0));
@@ -460,7 +439,7 @@ export function buildForge(parent: THREE.Group, { envMap, placeProp }: { envMap:
     crystal.scale.setScalar(scale); crystal.rotation.z = tilt;
   }
   placeProp(parent, "bucket", { height: 0.42, x: FORGE_X + 0.55, z: 0.95, yaw: 1.2 });
-  placeProp(parent, "tool", { height: 0.55, x: FORGE_BOARD_X - 1.35, z: 0.6, yaw: 0.5 });
+  placeProp(parent, "tool", { height: 0.55, x: FORGE_X - 1.25, z: 0.6, yaw: 0.5 });
   // The glow where the three fuse, the light pillar the result rises in, and sparks from each blow.
   const glows = glowMap();
   const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: glows, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
@@ -539,7 +518,7 @@ export function buildForge(parent: THREE.Group, { envMap, placeProp }: { envMap:
         // Fused: a flash, and the new figure rises in a pillar of its quality's light.
         if (!run.fused && t >= FUSE) {
           run.fused = true; outputClock = 0;
-          if (run.output.kind === "figure") { outputCard = kit.makeCard(); kit.dress(outputCard, run.output.card, null); }
+          if (run.output.kind === "figure") { outputCard = kit.makeCard(); kit.dress(outputCard, run.output.card); }
           run.cue("sparkle");
         }
         if (run.fused) { const k = t - FUSE; glow += Math.max(0, 1.4 - k * 2); pillarGlow = Math.min(1, k * 4) * Math.max(0, 1 - (k - 0.6) / 0.6); }

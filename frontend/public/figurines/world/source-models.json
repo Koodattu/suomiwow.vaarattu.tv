@@ -195,5 +195,205 @@
         "bytes": 97472
       }
     ]
+  },
+  "facilities": {
+    "ids": [
+      "facility-models-001",
+      "facility-models-002"
+    ],
+    "build": {
+      "Region": "eu",
+      "BuildConfig": "d718abcc42604d8efbd35aecfa5bb75b",
+      "CDNConfig": "9529b048134c5f9375bbe754b8edc5ef",
+      "KeyRing": "3ca57fe7319a297346440e4d2a03a0cd",
+      "BuildId": "70575",
+      "VersionsName": "12.1.5.70575",
+      "ProductConfig": "53020d32e1a25648c8e1eafd5771935f",
+      "Product": "wow"
+    },
+    "exporterVersion": "0.2.19",
+    "kind": "models",
+    "models": [
+      {
+        "name": "chest-02",
+        "file": "world/generic/activedoodads/chest02/chest02.m2",
+        "fileDataID": 196979,
+        "bytes": 30844
+      },
+      {
+        "name": "gold-pile",
+        "file": "world/generic/passivedoodads/treasurepiles/goldpilemedium01.m2",
+        "fileDataID": 200136,
+        "bytes": 487612
+      },
+      {
+        "name": "gold-pile-small",
+        "file": "world/generic/passivedoodads/treasurepiles/goldpilesmall01.m2",
+        "fileDataID": 200137,
+        "bytes": 466092
+      },
+      {
+        "name": "postbox-human",
+        "file": "world/generic/passivedoodads/postboxes/postboxhuman.m2",
+        "fileDataID": 199999,
+        "bytes": 92452
+      },
+      {
+        "name": "gift-01",
+        "file": "world/generic/passivedoodads/christmas/xmasgift01.m2",
+        "fileDataID": 199604,
+        "bytes": 228708
+      },
+      {
+        "name": "gift-03",
+        "file": "world/generic/passivedoodads/christmas/xmasgift03.m2",
+        "fileDataID": 199606,
+        "bytes": 56640
+      },
+      {
+        "name": "gift-05",
+        "file": "world/generic/passivedoodads/christmas/xmasgift05.m2",
+        "fileDataID": 199608,
+        "bytes": 77132
+      },
+      {
+        "name": "fishing-box",
+        "file": "world/azeroth/bootybay/passivedoodad/fishingbox/fishingbox.m2",
+        "fileDataID": 189092,
+        "bytes": 25472
+      },
+      {
+        "name": "fish-rack",
+        "file": "world/azeroth/bootybay/passivedoodad/deadfish/fishrack.m2",
+        "fileDataID": 189091,
+        "bytes": 266236
+      },
+      {
+        "name": "fishing-chair",
+        "file": "world/generic/doodads/fishing/chair/fishingchair.m2",
+        "fileDataID": 197230,
+        "bytes": 209008
+      },
+      {
+        "name": "reeds",
+        "file": "world/azeroth/elwynn/passivedoodads/detail/elwynnreeds01/elwynnreeds01.m2",
+        "fileDataID": 189767,
+        "bytes": 13744
+      },
+      {
+        "name": "lilypad",
+        "file": "world/azeroth/swamposorrow/passivedoodads/plants/swampofsorrowlilypad01.m2",
+        "fileDataID": 190375,
+        "bytes": 46528
+      },
+      {
+        "name": "rowboat",
+        "file": "world/azeroth/redridge/passivedoodads/rowboat/rowboat01.m2",
+        "fileDataID": 190104,
+        "bytes": 219572
+      },
+      {
+        "name": "fish-red",
+        "file": "world/generic/passivedoodads/fish/fish_redfloater.m2",
+        "fileDataID": 338529,
+        "bytes": 87304
+      },
+      {
+        "name": "sign-tackle",
+        "file": "world/azeroth/elwynn/passivedoodads/signs/shop/humanbaitandtacklesign.m2",
+        "fileDataID": 189879,
+        "bytes": 61624
+      },
+      {
+        "name": "crystal-ball",
+        "file": "world/expansion02/doodads/dalaran/dalaran_crystalball_01.m2",
+        "fileDataID": 243033,
+        "bytes": 194388
+      },
+      {
+        "name": "scroll-map",
+        "file": "world/generic/human/passive doodads/scrolls/scrollmap.m2",
+        "fileDataID": 198457,
+        "bytes": 18312
+      },
+      {
+        "name": "wanted-01",
+        "file": "world/generic/passive doodads/wantedposters/newwantedposter01.m2",
+        "fileDataID": 199473,
+        "bytes": 95108
+      },
+      {
+        "name": "wanted-wood",
+        "file": "world/generic/orc/passive doodads/wantedposters/wantedposterwood01.m2",
+        "fileDataID": 199428,
+        "bytes": 42888
+      },
+      {
+        "name": "plaque-bronze",
+        "file": "world/generic/passivedoodads/plaque/plaquebronze01.m2",
+        "fileDataID": 199981,
+        "bytes": 26584
+      },
+      {
+        "name": "plaque-silver",
+        "file": "world/generic/passivedoodads/plaque/plaquesilver01.m2",
+        "fileDataID": 199985,
+        "bytes": 25776
+      },
+      {
+        "name": "obelisk",
+        "file": "world/expansion01/doodads/ghostlands/obelisk/ghostland_obelisk_01.m2",
+        "fileDataID": 192738,
+        "bytes": 105296
+      },
+      {
+        "name": "pedestal-kz",
+        "file": "world/azeroth/karazahn/passivedoodads/pedestals/karazahnpedestals01.m2",
+        "fileDataID": 190024,
+        "bytes": 82032
+      },
+      {
+        "name": "lion-statue",
+        "file": "world/azeroth/elwynn/passivedoodads/statue/lionstatue.m2",
+        "fileDataID": 189908,
+        "bytes": 376248
+      },
+      {
+        "name": "trophy-beer",
+        "file": "world/generic/passivedoodads/oktoberfest/beerfest_trophy01.m2",
+        "fileDataID": 2918342,
+        "bytes": 392228
+      },
+      {
+        "name": "museum-plaque",
+        "file": "world/khazmodan/ironforge/passivedoodads/plaques/dwarfmuseumplaque01.m2",
+        "fileDataID": 203198,
+        "bytes": 25336
+      },
+      {
+        "name": "goblin-statue",
+        "file": "world/azeroth/bootybay/passivedoodad/goblinstatue/goblinstatuebooty.m2",
+        "fileDataID": 189095,
+        "bytes": 113368
+      },
+      {
+        "name": "fireworks-barrel",
+        "file": "world/generic/human/passive doodads/gunshop/gunshopfireworksbarrel.m2",
+        "fileDataID": 198273,
+        "bytes": 98768
+      },
+      {
+        "name": "book-large",
+        "file": "world/expansion01/doodads/generic/bloodelf/books/be_book_large01.m2",
+        "fileDataID": 191942,
+        "bytes": 169504
+      },
+      {
+        "name": "bookcase",
+        "file": "world/expansion02/doodads/dalaran/dalaran_bookcase_01.m2",
+        "fileDataID": 242994,
+        "bytes": 524480
+      }
+    ]
   }
 }

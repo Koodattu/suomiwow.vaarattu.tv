@@ -35,7 +35,7 @@ function dispose() { if (current) { scene.remove(current); releaseFinishes(curre
 async function load(id, variant, finish = "standard") {
   window.loadPhase = `${id}/${variant}/${finish}: fetch`;
   dispose();
-  const url = variant === "webp" ? `/figurines/community-001/${id}.glb` : `/pilot/${variant === "etc1s" ? "etc1s/" : ""}${id}.glb`;
+  const url = variant === "webp" ? `/pilot/webp/${id}.glb` : `/pilot/${variant === "etc1s" ? "etc1s/" : ""}${id}.glb`;
   if (!bytes.has(url)) { const response = await fetch(url); if (!response.ok) throw new Error(url); bytes.set(url, await response.arrayBuffer()); }
   const data = bytes.get(url).slice(0);
   await nextFrame(); const start = performance.now();

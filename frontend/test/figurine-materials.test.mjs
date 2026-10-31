@@ -1,7 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
-import { figurineGround, figurineSupport, restoreFigurineMaterials } from "../src/lib/figurine-materials.ts";
+import { figurineBodyBounds, figurineScale, FIGURE_HEIGHT, FIGURE_WIDTH, figurineGround, figurineSupport, restoreFigurineMaterials } from "../src/lib/figurine-materials.ts";
+
+test("attached weapons and wings do not shrink the character's display height", () => {
+  const root = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 0.6)); body.position.y = 1; root.add(body);
+  const baseline = figurineScale(figurineBodyBounds(root));
+  const item = new THREE.Group(); item.name = "Main-hand_Item123";
+  item.add(new THREE.Mesh(new THREE.BoxGeometry(8, 12, 1))); root.add(item);
+  root.rotation.y = -Math.PI / 2;
+  const bounds = figurineBodyBounds(root);
+  assert.equal(figurineScale(bounds), baseline);
+  assert.ok(Math.abs(bounds.getSize(new THREE.Vector3()).y * baseline - FIGURE_HEIGHT) < 1e-6);
+});
+
+test("wide poses retain their proportions and fit the pedestal width", () => {
+  const bounds = new THREE.Box3(new THREE.Vector3(-4, 0, -1), new THREE.Vector3(4, 2, 1));
+  const scale = figurineScale(bounds);
+  assert.equal(scale * 8, FIGURE_WIDTH);
+  assert.ok(scale * 2 < FIGURE_HEIGHT);
+  assert.ok(Number.isFinite(figurineScale(new THREE.Box3(new THREE.Vector3(), new THREE.Vector3()))));
+});
 
 test("source-tagged glow uses the original additive factors without changing dark armor", () => {
   for (const mode of [3, 4]) {

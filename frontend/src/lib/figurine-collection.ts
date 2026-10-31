@@ -161,3 +161,80 @@ export function machineChanges(slots: readonly MachineItem[], outcome: MachineOu
   if (outcome.kind === "upgrade") changes.push({ key: outcome.key, quality: outcome.quality, delta: 1 });
   return changes;
 }
+
+// Records kept beside the collection, session-only like it: when each figure was first acquired at
+// each quality (the museum), the newest golden and galaxy pulls (the feed), counters for quests,
+// and the sixteen showcase slots, whose figures stand on the numbered statue spots round the plaza.
+export type PullSource = "box" | "forge";
+export type FeedEntry = { key: string; quality: FigurineQuality; at: string; source: PullSource };
+export type FigurineStats = { opened: number; recycled: number; tradedUp: number };
+export type FigurineRecords = { acquired: Readonly<Record<string, string>>; feed: readonly FeedEntry[]; stats: FigurineStats; showcase: readonly (MachineItem | null)[] };
+export const SHOWCASE_SLOTS = 16, FEED_LENGTH = 10;
+export const RECORDS_KEY = "suomiwow-figurine-records-v1";
+const EMPTY_RECORDS: FigurineRecords = Object.freeze({ acquired: {}, feed: [], stats: { opened: 0, recycled: 0, tradedUp: 0 }, showcase: Array(SHOWCASE_SLOTS).fill(null) });
+let cachedRecords: FigurineRecords | null = null;
+const FIGURE_KEY = /^[a-z0-9-]+:[a-z0-9-]+$/;
+const isItem = (value: unknown): value is MachineItem => !!value && typeof value === "object" && FIGURE_KEY.test((value as MachineItem).key) && isQuality((value as MachineItem).quality);
+const isDate = (value: unknown): value is string => typeof value === "string" && !Number.isNaN(Date.parse(value));
+export const acquiredId = (key: string, quality: FigurineQuality) => `${key}|${quality}`;
+
+export function parseRecords(raw: string | null): FigurineRecords {
+  try {
+    const value = JSON.parse(raw ?? "null");
+    if (!value || typeof value !== "object") return EMPTY_RECORDS;
+    const acquired = Object.fromEntries(Object.entries(value.acquired ?? {}).filter(([id, at]) => { const [key, quality] = id.split("|"); return FIGURE_KEY.test(key) && isQuality(quality) && isDate(at); })) as Record<string, string>;
+    const feed = (Array.isArray(value.feed) ? value.feed : []).filter((entry: FeedEntry) => isItem(entry) && isDate(entry.at) && (entry.source === "box" || entry.source === "forge")).slice(0, FEED_LENGTH);
+    const stats = Object.fromEntries((["opened", "recycled", "tradedUp"] as const).map((name) => [name, count(value.stats?.[name]) ? value.stats[name] : 0])) as FigurineStats;
+    const showcase = Array.from({ length: SHOWCASE_SLOTS }, (_, index) => isItem(value.showcase?.[index]) ? { key: value.showcase[index].key, quality: value.showcase[index].quality } : null);
+    return { acquired, feed, stats, showcase };
+  } catch { return EMPTY_RECORDS; }
+}
+export function readRecords(store: Store | null = sessionStore()): FigurineRecords {
+  if (store === sessionStore() && cachedRecords) return cachedRecords;
+  let raw: string | null = null;
+  try { raw = store?.getItem(RECORDS_KEY) ?? null; } catch { /* storage blocked: start empty */ }
+  const records = parseRecords(raw);
+  if (store === sessionStore()) cachedRecords = records;
+  return records;
+}
+function writeRecords(next: FigurineRecords, store: Store | null) {
+  try { store?.setItem(RECORDS_KEY, JSON.stringify(next)); } catch { /* keep it in memory */ }
+  if (store === sessionStore()) {
+    cachedRecords = next;
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(CHANGE_EVENT));
+  }
+}
+export const emptyRecords = () => EMPTY_RECORDS;
+
+// A figure arrived (from a box, or from the forge one quality up): stamps its first acquisition at
+// that quality, counts an opened box, and puts golden and galaxy pulls at the top of the feed.
+export function recordPull({ key, quality }: MachineItem, source: PullSource, now = new Date(), store: Store | null = sessionStore()) {
+  const records = readRecords(store), at = now.toISOString(), id = acquiredId(key, quality);
+  writeRecords({
+    ...records,
+    acquired: records.acquired[id] ? records.acquired : { ...records.acquired, [id]: at },
+    feed: quality === "standard" ? records.feed : [{ key, quality, at, source }, ...records.feed].slice(0, FEED_LENGTH),
+    stats: { ...records.stats, opened: records.stats.opened + (source === "box" ? 1 : 0), tradedUp: records.stats.tradedUp + (source === "forge" ? 1 : 0) },
+  }, store);
+}
+export function recordRecycle(store: Store | null = sessionStore()) {
+  const records = readRecords(store);
+  writeRecords({ ...records, stats: { ...records.stats, recycled: records.stats.recycled + 1 } }, store);
+}
+// Puts a figure on a showcase slot (or clears it with null). A figure stands on one spot only:
+// placing it again moves it.
+export function setShowcaseSlot(slot: number, item: MachineItem | null, store: Store | null = sessionStore()) {
+  if (!Number.isSafeInteger(slot) || slot < 0 || slot >= SHOWCASE_SLOTS || (item && !isItem(item))) return false;
+  const showcase = readRecords(store).showcase.map((entry) => entry && item && entry.key === item.key ? null : entry);
+  showcase[slot] = item && { key: item.key, quality: item.quality };
+  writeRecords({ ...readRecords(store), showcase }, store);
+  return true;
+}
+// What a showcase slot shows now: its figure at the stored quality, or at the finest still owned,
+// or nothing once no copy is left.
+export function showcaseFigure(entry: MachineItem | null, collection: FigurineCollection): MachineItem | null {
+  if (!entry) return null;
+  if (collection[entry.key]?.[entry.quality]) return entry;
+  const best = bestQuality(collection[entry.key]);
+  return best ? { key: entry.key, quality: best } : null;
+}

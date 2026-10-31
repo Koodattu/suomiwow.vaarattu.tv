@@ -139,6 +139,127 @@
     "forgeMismatch": "Three of a kind",
     "forgeHint": "Tap a figure to place three · Strike with the hammer",
     "forgeEmpty": "Own 3 of one figure at the same quality to trade it up",
+    "world": {
+      "close": "Close",
+      "stations": {
+        "gallery": "Collection",
+        "crate": "Daily crate",
+        "wheel": "Lucky wheel",
+        "mail": "Gifting post",
+        "quests": "Quest giver",
+        "feed": "Latest pulls",
+        "fame": "Hall of fame",
+        "leaderboard": "Leaderboards",
+        "trading": "Trading post",
+        "pond": "Fishing pond"
+      },
+      "collection": {
+        "figures": "Figures",
+        "showcase": "Showcase",
+        "owned": "{got}/{total} collected",
+        "locked": "Not collected yet",
+        "acquired": "Acquired {date}",
+        "inspect": "Inspect in 3D",
+        "place": "Place in showcase",
+        "remove": "Remove from showcase",
+        "onSpot": "On spot {number}",
+        "showcaseHint": "Your showcase stands on the 16 numbered plinths round the plaza. Pick a figure, then a spot.",
+        "emptySpot": "Empty",
+        "pickSpot": "Choose a spot for {name}",
+        "upcoming": "Series {number} · coming soon",
+        "secret": "Secret series"
+      },
+      "picker": {
+        "recycler": "Pick three spare copies",
+        "forge": "Pick a figure to trade up",
+        "all": "All",
+        "spare": "{count} spare",
+        "loaded": "{count}/3 loaded",
+        "clear": "Clear"
+      },
+      "crate": {
+        "body": "A free blind box every day. Come back days in a row for a streak bonus: the seventh day's crate has a better golden chance.",
+        "day": "Day {day}",
+        "open": "Open today's crate"
+      },
+      "wheel": {
+        "body": "One free spin a day for a prize.",
+        "spin": "Spin",
+        "prizes": {
+          "box": "Extra box",
+          "double": "Two boxes",
+          "golden": "Golden roll",
+          "galaxy": "Galaxy roll",
+          "surprise": "Surprise"
+        }
+      },
+      "mail": {
+        "body": "Send a figure to a guildmate, with a note.",
+        "figure": "Figure",
+        "choose": "Choose a figure",
+        "recipient": "To",
+        "recipientPlaceholder": "Discord name",
+        "message": "Message",
+        "messagePlaceholder": "A little something for you",
+        "send": "Send gift"
+      },
+      "quests": {
+        "body": "Daily, weekly and monthly quests. Finish them for more boxes.",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "reward": "{count, plural, one {+# box} other {+# boxes}}",
+        "claim": "Claim",
+        "items": {
+          "open3": "Open 3 boxes",
+          "recycle1": "Use the recycler",
+          "tradeUp1": "Trade up a figure",
+          "open20": "Open 20 boxes",
+          "recycle5": "Recycle 5 times",
+          "tradeUp3": "Trade up 3 times",
+          "open60": "Open 60 boxes",
+          "galaxy": "Pull a galaxy figure",
+          "series": "Complete a series"
+        }
+      },
+      "feed": {
+        "body": "The newest golden and galaxy pulls.",
+        "empty": "No golden or galaxy pulls yet. Keep opening!",
+        "you": "You",
+        "fromBox": "from a box",
+        "fromForge": "traded up"
+      },
+      "fame": {
+        "body": "The first collectors to reach each milestone, with their name, picture and date.",
+        "items": {
+          "galaxy": "First galaxy figure",
+          "complete": "First complete series",
+          "secret": "First to find Series 000",
+          "goldenSeries": "First all-golden series"
+        },
+        "unclaimed": "Unclaimed",
+        "yours": "You · {date}",
+        "signIn": "Guild-wide firsts arrive with Discord sign-in."
+      },
+      "leaderboard": {
+        "body": "Who has collected the most.",
+        "items": {
+          "unique": "Figures collected",
+          "galaxy": "Galaxy figures",
+          "golden": "Golden figures",
+          "opened": "Boxes opened"
+        },
+        "you": "You",
+        "signIn": "Guild boards arrive with Discord sign-in."
+      },
+      "trading": {
+        "body": "Trade figures with other players: offer yours, ask for theirs, and both accept."
+      },
+      "pond": {
+        "body": "Cast once a day for a blind box and a figure. After that, fish just for fun.",
+        "cast": "Cast"
+      }
+    },
     "tradedUp": "Traded up!",
     "quality": { "standard": "Standard", "golden": "Golden", "galaxy": "Galaxy" },
     "soundOn": "Sound on",

@@ -139,6 +139,127 @@
     "forgeMismatch": "Kolme samaa",
     "forgeHint": "Napauta hahmoa asettaaksesi kolme · Iske vasaralla",
     "forgeEmpty": "Kerää 3 samaa hahmoa samaa laatua jalostaaksesi sen",
+    "world": {
+      "close": "Sulje",
+      "stations": {
+        "gallery": "Kokoelma",
+        "crate": "Päivän arkku",
+        "wheel": "Onnenpyörä",
+        "mail": "Lahjaposti",
+        "quests": "Tehtävänantaja",
+        "feed": "Tuoreimmat vedot",
+        "fame": "Kunniagalleria",
+        "leaderboard": "Tulostaulut",
+        "trading": "Vaihtopiste",
+        "pond": "Kalalampi"
+      },
+      "collection": {
+        "figures": "Hahmot",
+        "showcase": "Vitriini",
+        "owned": "{got}/{total} kerätty",
+        "locked": "Ei vielä kerätty",
+        "acquired": "Saatu {date}",
+        "inspect": "Katso 3D:nä",
+        "place": "Aseta vitriiniin",
+        "remove": "Poista vitriinistä",
+        "onSpot": "Paikalla {number}",
+        "showcaseHint": "Vitriinisi seisoo aukion 16 numeroidulla jalustalla. Valitse hahmo ja sitten paikka.",
+        "emptySpot": "Tyhjä",
+        "pickSpot": "Valitse paikka hahmolle {name}",
+        "upcoming": "Sarja {number} · tulossa",
+        "secret": "Salainen sarja"
+      },
+      "picker": {
+        "recycler": "Valitse kolme ylimääräistä",
+        "forge": "Valitse jalostettava hahmo",
+        "all": "Kaikki",
+        "spare": "{count} ylimääräistä",
+        "loaded": "{count}/3 ladattu",
+        "clear": "Tyhjennä"
+      },
+      "crate": {
+        "body": "Ilmainen yllätyslaatikko joka päivä. Tule monena päivänä peräkkäin putkibonuksen vuoksi: seitsemännen päivän arkussa on parempi kultamahdollisuus.",
+        "day": "Päivä {day}",
+        "open": "Avaa päivän arkku"
+      },
+      "wheel": {
+        "body": "Yksi ilmainen pyöräytys päivässä.",
+        "spin": "Pyöräytä",
+        "prizes": {
+          "box": "Lisälaatikko",
+          "double": "Kaksi laatikkoa",
+          "golden": "Kultaheitto",
+          "galaxy": "Galaksiheitto",
+          "surprise": "Yllätys"
+        }
+      },
+      "mail": {
+        "body": "Lähetä hahmo kiltakaverille viestin kera.",
+        "figure": "Hahmo",
+        "choose": "Valitse hahmo",
+        "recipient": "Vastaanottaja",
+        "recipientPlaceholder": "Discord-nimi",
+        "message": "Viesti",
+        "messagePlaceholder": "Pieni lahja sinulle",
+        "send": "Lähetä lahja"
+      },
+      "quests": {
+        "body": "Päivä-, viikko- ja kuukausitehtäviä. Suorita ne saadaksesi lisää laatikoita.",
+        "daily": "Päivä",
+        "weekly": "Viikko",
+        "monthly": "Kuukausi",
+        "reward": "{count, plural, one {+# laatikko} other {+# laatikkoa}}",
+        "claim": "Lunasta",
+        "items": {
+          "open3": "Avaa 3 laatikkoa",
+          "recycle1": "Käytä kierrätintä",
+          "tradeUp1": "Jalosta hahmo",
+          "open20": "Avaa 20 laatikkoa",
+          "recycle5": "Kierrätä 5 kertaa",
+          "tradeUp3": "Jalosta 3 kertaa",
+          "open60": "Avaa 60 laatikkoa",
+          "galaxy": "Vedä galaksihahmo",
+          "series": "Täydennä sarja"
+        }
+      },
+      "feed": {
+        "body": "Tuoreimmat kulta- ja galaksivedot.",
+        "empty": "Ei vielä kulta- tai galaksivetoja. Jatka avaamista!",
+        "you": "Sinä",
+        "fromBox": "laatikosta",
+        "fromForge": "jalostettu"
+      },
+      "fame": {
+        "body": "Ensimmäiset keräilijät kussakin virstanpylväässä: nimi, kuva ja päivä.",
+        "items": {
+          "galaxy": "Ensimmäinen galaksihahmo",
+          "complete": "Ensimmäinen täysi sarja",
+          "secret": "Ensimmäinen sarjan 000 löytäjä",
+          "goldenSeries": "Ensimmäinen kokonaan kultainen sarja"
+        },
+        "unclaimed": "Vapaana",
+        "yours": "Sinä · {date}",
+        "signIn": "Koko killan ensimmäiset tulevat Discord-kirjautumisen myötä."
+      },
+      "leaderboard": {
+        "body": "Kuka on kerännyt eniten.",
+        "items": {
+          "unique": "Kerätyt hahmot",
+          "galaxy": "Galaksihahmot",
+          "golden": "Kultahahmot",
+          "opened": "Avatut laatikot"
+        },
+        "you": "Sinä",
+        "signIn": "Killan tulostaulut tulevat Discord-kirjautumisen myötä."
+      },
+      "trading": {
+        "body": "Vaihda hahmoja muiden pelaajien kanssa: tarjoa omaasi, pyydä heidän omaansa, ja molemmat hyväksyvät."
+      },
+      "pond": {
+        "body": "Heitä kerran päivässä saadaksesi yllätyslaatikon ja hahmon. Sen jälkeen voit kalastaa huvin vuoksi.",
+        "cast": "Heitä"
+      }
+    },
     "tradedUp": "Paranneltu!",
     "quality": { "standard": "Perus", "golden": "Kulta", "galaxy": "Galaksi" },
     "soundOn": "Äänet päällä",

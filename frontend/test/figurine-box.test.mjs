@@ -83,10 +83,11 @@ test("catalog serves complete embedded GLBs within the approved per-character bu
   for (const entry of catalog.characters) {
     const modelUrl = new URL(entry.model, "https://figurines.test");
     assert.match(modelUrl.pathname, /^\/figurines\/community-001\/[a-z-]+\.glb$/);
-    assert.equal(modelUrl.search, ["community-pose-update-003c", "community-pose-update-004"].includes(entry.authoringSeries) ? `?v=${entry.sha256.slice(0, 12)}` : "");
+    assert.equal(modelUrl.search, `?v=${entry.sha256.slice(0, 12)}`);
     const bytes = await readFile(new URL(`../public${entry.model}`, import.meta.url));
     // Retain the approved texture quality on the rebuilt effect-heavy models.
-    const budget = { roidy: 3_000_000, kahvishock: 2_300_000 }[entry.id] ?? 2_000_000;
+    // Approved ETC1S quality-255 conversion: larger downloads, ~75% smaller GPU texture payload.
+    const budget = { roidy: 3_500_000, kahvishock: 3_100_000 }[entry.id] ?? 2_000_000;
     assert.ok(bytes.length < budget, entry.id);
     assert.equal(bytes.length, entry.bytes);
     assert.equal(bytes.subarray(0, 4).toString(), "glTF");

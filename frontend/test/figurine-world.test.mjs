@@ -121,7 +121,8 @@ test("both series have unique figures, translations, silhouettes and class sound
   for (const file of ["floor-cobble.png", "grass.png", "dirt.png", "clouds.jpg", "source.json", "source-models.json"]) await access(new URL(`../public/figurines/world/${file}`, import.meta.url));
   // Every station prop is on disk and has its game source recorded.
   const props = await readFile(new URL("../src/lib/figurine-props.ts", import.meta.url), "utf8");
-  const recorded = new Set(JSON.parse(await readFile(new URL("../public/figurines/world/source-models.json", import.meta.url), "utf8")).stations.models.map(({ name }) => name));
+  const sources = JSON.parse(await readFile(new URL("../public/figurines/world/source-models.json", import.meta.url), "utf8"));
+  const recorded = new Set([...sources.stations.models, ...sources.facilities.models].map(({ name }) => name));
   for (const [, name] of props.matchAll(/"\/figurines\/world\/models\/([a-z0-9-]+)\.glb"/g)) {
     await access(new URL(`../public/figurines/world/models/${name}.glb`, import.meta.url));
     assert.ok(recorded.has(name), name);
@@ -158,11 +159,11 @@ test("every sound cue has variants on disk; the landing thud and the shaken-box 
   assert.ok(FIGURINE_SOUNDS.rattle.files.length >= 3);
 });
 
-test("announced series fill the shop to twenty, each in its own print colour", async () => {
+test("announced series fill the shop to twenty and reserve distinct theme hues", async () => {
   const source = await readFile(new URL("../src/lib/figurine-series.ts", import.meta.url), "utf8");
   const hues = JSON.parse(source.match(/const UPCOMING_HUES = (\[[^\]]+\])/)[1]);
   assert.equal(2 + hues.length, 20);
-  // No two series print within 10° of each other on the colour wheel.
+  // Reserved future themes remain distinct; unreleased boxes currently share gray artwork.
   const all = [254, 173, ...hues]; // amethyst and verdigris glows first
   for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
     const gap = Math.abs(all[i] - all[j]) % 360;

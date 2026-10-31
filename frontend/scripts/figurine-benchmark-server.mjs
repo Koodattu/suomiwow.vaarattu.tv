@@ -25,6 +25,11 @@ http.createServer(async (req, res) => {
       res.end(name); return;
     }
     if (url.pathname === "/") {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.end(await fs.readFile(path.join(import.meta.dirname, "figurine-compare.html"))); return;
+    }
+    if (url.pathname === "/benchmark") {
       res.setHeader("Content-Type", "text/html");
       res.end(`<!doctype html><title>Figurine asset benchmark</title><style>body{margin:0;background:#20252d;color:#fff;font:14px system-ui}canvas{display:block}pre{white-space:pre-wrap}</style><script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script><div id="view"></div><pre id="status">Loading benchmark…</pre><script type="module" src="/bench/figurine-benchmark-browser.mjs"></script>`); return;
     }
@@ -35,7 +40,7 @@ http.createServer(async (req, res) => {
     let data = await fs.readFile(file);
     const ext = path.extname(file);
     if (ext === ".ts") data = ts.transpileModule(data.toString(), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText.replace(/from "@\/lib\/([^\"]+)"/g, 'from "/lib/$1.ts"');
-    res.setHeader("Content-Type", ({ ".js": "text/javascript", ".mjs": "text/javascript", ".ts": "text/javascript", ".wasm": "application/wasm", ".glb": "model/gltf-binary", ".json": "application/json", ".png": "image/png" })[ext] ?? "application/octet-stream");
+    res.setHeader("Content-Type", ({ ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".mjs": "text/javascript", ".ts": "text/javascript", ".wasm": "application/wasm", ".glb": "model/gltf-binary", ".json": "application/json", ".png": "image/png" })[ext] ?? "application/octet-stream");
     res.setHeader("Cache-Control", "no-store"); res.end(data);
   } catch (error) { res.writeHead(500); res.end(String(error)); }
 }).listen(Number(process.argv[3] ?? 3200), "127.0.0.1", () => console.log(`Benchmark: http://localhost:${process.argv[3] ?? 3200}`));
