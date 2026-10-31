@@ -92,7 +92,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machine, onMachine, onMachineDone, onComingSoon }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", previewArmor = false, locked = false, machine, onMachine, onMachineDone, onComingSoon }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -136,6 +136,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   gallery?: boolean;
   // World mode: the finish of the figure shown (the drawn one, or the inspected one).
   quality?: FigurineQuality;
+  // Workbench-only experiment; never used for game draws or collection portraits.
+  previewArmor?: boolean;
   // World mode: an announced series' box, which shakes but never opens.
   locked?: boolean;
   machine?: StageMachine;
@@ -144,8 +146,9 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onComingSoon?: (outpost: Outpost) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked });
-  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked]);
+  const armorFinish = !immersive && !gallery && previewArmor;
+  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, armorFinish, locked });
+  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, armorFinish, locked }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, armorFinish, locked]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error" | "webgl">("empty");
   const [filename, setFilename] = useState("");
   const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onComingSoon });
@@ -609,7 +612,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       root.position.y = PEDESTAL_TOP - support.y * scale;
       return root;
     };
-    let loadedFor: string | null = null, shownFinish: FigurineQuality = "standard";
+    let loadedFor: string | null = null, shownFinish: FigurineQuality = "standard", shownArmor = false;
     const load = async (selected: File[]) => {
       const loading = filesForRef.current; loadedFor = null;
       const current = ++generation;
@@ -636,7 +639,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         if (disposed || generation !== current) { disposeObject(gltf.scene); return; }
         model = prepareModel(gltf.scene); loadedFor = loading;
         modelRoot.add(model);
-        shownFinish = state.current.quality; applyFinish(model, shownFinish, environment);
+        shownFinish = state.current.quality; shownArmor = state.current.armorFinish; applyFinish(model, shownFinish, environment, shownArmor);
         displayClock = 0;
         const textures = new Set<THREE.Texture>();
         model.traverse((object) => {
@@ -976,8 +979,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         if (immersive && !current.charging && !current.open) { entrance = 0; entranceCue = -1; peel = peelTarget = released = 0; ready = false; }
       }
       const reduced = reducedMotion.matches;
-      FINISH_TIME.value = now / 1000;
-      if (model && shownFinish !== current.quality) { shownFinish = current.quality; applyFinish(model, shownFinish, environment); }
+      FINISH_TIME.value = reduced ? 0 : now / 1000;
+      if (model && (shownFinish !== current.quality || shownArmor !== current.armorFinish)) {
+        shownFinish = current.quality; shownArmor = current.armorFinish; applyFinish(model, shownFinish, environment, shownArmor);
+      }
       const target = current.open ? 1 : 0;
       reveal = reduced ? target : THREE.MathUtils.damp(reveal, target, 4.5, delta);
       idle += delta;

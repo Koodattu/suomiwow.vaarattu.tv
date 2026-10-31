@@ -6,7 +6,7 @@ import type { FigurineQuality } from "@/lib/figurine-collection";
 // into a drifting nebula with twinkling stars, fixed to the view, and a violet rim.
 // Glows and other blended effect surfaces keep their own look.
 export const FINISH_TIME = { value: 0 };
-type FinishRecord = { original: THREE.Material | THREE.Material[]; finishes: Map<FigurineQuality, THREE.Material | THREE.Material[]> };
+type FinishRecord = { original: THREE.Material | THREE.Material[]; finishes: Map<string, THREE.Material | THREE.Material[]> };
 const records = new WeakMap<THREE.Mesh, FinishRecord>();
 
 const DETAIL = `
@@ -27,22 +27,63 @@ float finishNoise( vec2 p ) {
 }
 float finishFbm( vec2 p ) { float v = 0.0, a = 0.5; for ( int i = 0; i < 4; i++ ) { v += a * finishNoise( p ); p = p * 2.03 + 7.1; a *= 0.5; } return v; }
 vec3 finishGalaxy( vec2 p, float t ) {
-  float n = finishFbm( p * 1.4 + vec2( t * 0.03, 0.0 ) );
-  float m = finishFbm( p * 2.6 - vec2( 0.0, t * 0.02 ) + n * 1.5 );
+  // Advect the clouds together, with a gentle curl rather than just sliding a flat image.
+  // Keep the existing noise layers and palette; these offsets add no texture samples.
+  vec2 flow = p + vec2( 0.055, -0.022 ) * t;
+  flow += 0.14 * vec2( sin( p.y * 1.6 + t * 0.3 ), cos( p.x * 1.3 - t * 0.24 ) );
+  float n = finishFbm( flow * 1.4 );
+  float m = finishFbm( flow * 2.6 + vec2( -0.015, 0.035 ) * t + n * 1.5 );
   vec3 color = mix( vec3( 0.015, 0.01, 0.06 ), vec3( 0.42, 0.1, 0.72 ), smoothstep( 0.38, 0.85, n ) );
   color = mix( color, vec3( 0.06, 0.42, 0.9 ), smoothstep( 0.5, 0.92, m ) * 0.75 );
   color += vec3( 0.95, 0.35, 0.6 ) * smoothstep( 0.72, 1.0, n * m * 1.9 ) * 0.5;
-  vec2 grid = p * 16.0, cell = floor( grid ), offset = vec2( finishHash( cell + 1.7 ), finishHash( cell + 3.1 ) ) - 0.5;
+  // Distant stars drift more slowly than the clouds, adding a little depth.
+  vec2 grid = ( p + vec2( 0.008, -0.003 ) * t ) * 16.0, cell = floor( grid ), offset = vec2( finishHash( cell + 1.7 ), finishHash( cell + 3.1 ) ) - 0.5;
   float seed = finishHash( cell );
   float star = step( 0.82, seed ) * smoothstep( 0.11, 0.0, length( fract( grid ) - 0.5 - offset * 0.7 ) ) * ( 0.55 + 0.45 * sin( t * 2.4 + seed * 40.0 ) );
   return color + star * vec3( 1.0, 0.95, 0.88 ) * 2.2;
 }
 `;
 
-function finishMaterial(source: THREE.Material, quality: Exclude<FigurineQuality, "standard">, envMap: THREE.Texture | null): THREE.Material {
+function finishMaterial(source: THREE.Material, quality: Exclude<FigurineQuality, "standard">, envMap: THREE.Texture | null, preserveArmor: boolean): THREE.Material {
   if (source.blending !== THREE.NormalBlending) return source;
   const map = (source as THREE.MeshStandardMaterial).map ?? null;
   const shared = { map, envMap, transparent: source.transparent, opacity: source.opacity, alphaTest: source.alphaTest, side: source.side, depthWrite: source.depthWrite };
+  // Opt-in workbench experiment. The normal game finishes below remain unchanged.
+  if (preserveArmor) {
+    const golden = quality === "golden";
+    const material = new THREE.MeshStandardMaterial({ ...shared,
+      color: golden ? 0xffbe35 : 0xffffff,
+      metalness: golden ? 0.85 : 0.15, roughness: golden ? 0.33 : 0.45,
+      envMapIntensity: golden ? 0.8 : 0.35, emissive: golden ? 0x000000 : 0xffffff,
+    });
+    material.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace("#include <map_fragment>", `${DETAIL}
+        // Recolour the texture's grayscale detail, never its original armour hues.
+        float armorShade = 0.06 + 0.94 * pow( detail, 1.6 );
+        ${golden ? `
+          diffuseColor.rgb *= armorShade;
+        ` : `
+          vec2 sky = isOrthographic ? vViewPosition.xy * 1.1 : vViewPosition.xy / max( vViewPosition.z, 0.1 ) * 7.0;
+          vec3 galaxyColor = finishGalaxy( sky, finishTime );
+          diffuseColor.rgb = vec3( 0.12, 0.055, 0.25 ) * armorShade;
+        `}`);
+      if (golden) {
+        // Dark painted seams stay matte so reflections cannot wash out their detail.
+        shader.fragmentShader = shader.fragmentShader.replace("#include <roughnessmap_fragment>", `
+          #include <roughnessmap_fragment>
+          roughnessFactor = mix( 0.65, 0.33, detail );`);
+      } else {
+        shader.uniforms.finishTime = FINISH_TIME;
+        shader.fragmentShader = `${GALAXY}\n${shader.fragmentShader}`
+          .replace("#include <emissivemap_fragment>", `
+            float rim = pow( 1.0 - abs( dot( normal, normalize( vViewPosition ) ) ), 3.0 );
+            totalEmissiveRadiance = galaxyColor * 0.95 * armorShade
+              + rim * vec3( 0.55, 0.45, 1.0 ) * 0.3 * armorShade;`);
+      }
+    };
+    material.customProgramCacheKey = () => `figurine-lab-grayscale-armor-${quality}`;
+    return material;
+  }
   if (quality === "golden") {
     const gold = new THREE.MeshStandardMaterial({ ...shared, color: 0xffcc66, metalness: 1, roughness: 0.24, envMapIntensity: 1.6 });
     gold.onBeforeCompile = (shader) => {
@@ -65,23 +106,24 @@ function finishMaterial(source: THREE.Material, quality: Exclude<FigurineQuality
         float rim = pow( 1.0 - abs( dot( normal, normalize( vViewPosition ) ) ), 3.0 );
         totalEmissiveRadiance = galaxyColor * 1.05 + rim * vec3( 0.55, 0.45, 1.0 ) * 0.8;`);
   };
-  galaxy.customProgramCacheKey = () => "figurine-finish-galaxy";
+  galaxy.customProgramCacheKey = () => "figurine-finish-galaxy-flow";
   return galaxy;
 }
 
 // Puts `quality`'s finish on every mesh under `root` (standard restores the originals). Finishes
 // are made once per mesh and kept until releaseFinishes. `envMap` gives the metal neutral studio
 // reflections instead of the scene's sky, which would tint it.
-export function applyFinish(root: THREE.Object3D, quality: FigurineQuality, envMap: THREE.Texture | null = null) {
+export function applyFinish(root: THREE.Object3D, quality: FigurineQuality, envMap: THREE.Texture | null = null, preserveArmor = false) {
   root.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     let record = records.get(object);
     if (!record) { if (quality === "standard") return; record = { original: object.material, finishes: new Map() }; records.set(object, record); }
     if (quality === "standard") { object.material = record.original; return; }
-    let finish = record.finishes.get(quality);
+    const key = `${quality}:${preserveArmor ? "armor" : "original"}`;
+    let finish = record.finishes.get(key);
     if (!finish) {
-      finish = Array.isArray(record.original) ? record.original.map((material) => finishMaterial(material, quality, envMap)) : finishMaterial(record.original, quality, envMap);
-      record.finishes.set(quality, finish);
+      finish = Array.isArray(record.original) ? record.original.map((material) => finishMaterial(material, quality, envMap, preserveArmor)) : finishMaterial(record.original, quality, envMap, preserveArmor);
+      record.finishes.set(key, finish);
     }
     object.material = finish;
   });

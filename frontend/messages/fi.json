@@ -19,6 +19,7 @@
     "viewerTitle": "Keräilyfiguurin työpöytä",
     "bundledModel": "Tallennettu hahmomalli",
     "previewFinish": "Hahmon viimeistely",
+    "previewArmorFinish": "Säilytä varusteiden yksityiskohdat · kokeilu",
     "chooseBundledModel": "Valitse hahmo mistä tahansa sarjasta…",
     "bundledModelError": "Tallennetun mallin lataaminen epäonnistui. Yritä uudelleen valitsemalla hahmo uudestaan.",
     "threeTag": "Interaktiivinen 3D",
