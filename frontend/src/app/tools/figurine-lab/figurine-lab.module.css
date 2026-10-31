@@ -76,7 +76,7 @@
 .lab button:disabled { opacity: .6; cursor: progress; }
 .lab button.primary { color: #111923; background: #d5bd8d; border-color: #d5bd8d; }
 .lab button.primary:hover { background: #e5cfa5; }
-.lab :is(button, input, summary):focus-visible, .fileButton:focus-within { outline: 2px solid #e5cfa5; outline-offset: 4px; }
+.lab :is(button, input, select, summary):focus-visible, .fileButton:focus-within { outline: 2px solid #e5cfa5; outline-offset: 4px; }
 .workbench { display: grid; grid-template-columns: minmax(280px, .8fr) minmax(0, 1.4fr); gap: 24px; }
 .reference, .viewer { border: 1px solid #303b48; background: #111a25; border-radius: 10px; overflow: hidden; }
 .panelHeading { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid #303b48; }
@@ -90,6 +90,9 @@
 .identity h3 { color: #ede4d3; font-size: 25px; margin-bottom: 7px; }
 .identity h3 small { display: block; font-size: 12px; color: #9eabba; margin-top: 5px; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 20px; }
+.modelPicker { display: grid; gap: 8px; padding: 16px 20px 0; color: #b8c3ce; font-size: 12px; }
+.modelPicker select { width: 100%; min-width: 0; background: #0c131c; border: 1px solid #3b4858; border-radius: 5px; color: #f3f5f7; font-size: 14px; padding: 10px 12px; }
+.modelPicker [role="alert"] { color: #ffb9b0; }
 .segmented { display: flex; padding: 3px; background: #0a1119; border: 1px solid #303b48; border-radius: 6px; }
 .segmented button { background: transparent; border-color: transparent; font-size: 11px; padding: 7px 11px; }
 .segmented button[aria-pressed="true"] { background: #2d3b4b; color: #f5e8cc; }
@@ -154,3 +157,8 @@
 .soundSwitch[aria-checked="true"] { background: rgba(214, 187, 134, .32); }
 .soundSwitch[aria-checked="true"]::after { transform: translateX(14px); background: #f1d48a; }
 @media (prefers-reduced-motion: reduce) { .soundPanel { animation: none; } .soundButton, .soundSwitch, .soundSwitch::after { transition: none; } }
+/* Quality of a revealed or inspected figure, beside the new/duplicate badge. */
+.qualityBadge { display: inline-block; margin: 0 0 10px 8px; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; animation: badgePop .6s .35s cubic-bezier(.2, 1.6, .4, 1) both; }
+.qualityBadge[data-quality="golden"] { background: linear-gradient(90deg, #ffe7a3, #e0a93a 60%, #fff0c2); color: #3a2506; box-shadow: 0 0 18px rgba(255, 200, 90, .55); }
+.qualityBadge[data-quality="galaxy"] { background: linear-gradient(90deg, #2a1660, #6d3fd8 45%, #2b7fd8); color: #f1e9ff; box-shadow: 0 0 18px rgba(140, 100, 255, .6); }
+@media (prefers-reduced-motion: reduce) { .qualityBadge { animation: none; } }

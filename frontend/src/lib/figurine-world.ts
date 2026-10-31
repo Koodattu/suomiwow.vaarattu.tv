@@ -2,13 +2,21 @@ import * as THREE from "three";
 import { buildForest, forestLayout, marketLayout, swayMaterial } from "@/lib/figurine-forest";
 
 // The collectibles world: a painted sky bubble over a stone plaza, with the opening pedestal
-// at the centre, the shop to the left and the collection case to the right.
-// The centre (the pedestal, with a box or an inspected figure) is home; the shop and the case are stations.
-export type WorldView = "shop" | "opening" | "gallery" | "viewer";
-// Set wide and angled toward the hub camera, so neither station shot catches the pedestal.
+// at the centre and stations round it: the shop to the left, the collection case to the right,
+// the recycler and the (not yet open) trading post behind, the hall of fame off to the left.
+// The centre (the pedestal, with a box or an inspected figure) is home; the others are stations.
+export type WorldView = "shop" | "opening" | "gallery" | "viewer" | "machine";
+// Stations that are built but not open yet: tapping one only says so.
+export type Outpost = "trading" | "fame";
+// Shop and case are set wide and angled toward the hub camera, so neither shot catches the
+// pedestal; the stations behind face the centre and show either side of the box from home.
+const facing = (x: number, z: number) => ({ position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(-x, -z) });
 export const STATIONS = {
   shop: { position: new THREE.Vector3(-7.6, 0, -5.2), rotation: 0.45 },
   gallery: { position: new THREE.Vector3(7.6, 0, -5.2), rotation: -0.45 },
+  machine: facing(-4.6, -11),
+  trading: facing(4.6, -11),
+  fame: facing(-12, 1.9),
 };
 // Classic game textures (Elwynn cobbles and grass, sky layers) exported with the local wow.export
 // worker; the painted fallbacks show until they load. Provenance: /figurines/world/source.json.
@@ -192,7 +200,7 @@ export function buildWorld(scene: THREE.Scene, { onSky }: { onSky?: () => void }
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.position.set(Math.sin(angle) * radius, LAMP_HEAD, Math.cos(angle) * radius); glow.scale.setScalar(1.8); group.add(glow);
   }
-  return { group, sky, ready: forest.ready, update(time: number) { wind.value = time; } };
+  return { group, sky, ready: forest.ready, pickSecret: forest.pickSecret, mountSecretBox: forest.mountSecretBox, update(time: number) { wind.value = time; } };
 }
 
 // Places a station group in the world.
@@ -216,7 +224,8 @@ export function viewPose(view: WorldView, framing: number, home: { offset: THREE
   };
   switch (view) {
     case "shop": return station("shop", new THREE.Vector3(0, 1.3, 9.4), 2.45, 6.6);
-    case "gallery": return station("gallery", new THREE.Vector3(0, 0.9, 9.2), 2.55, 6.6);
+    case "gallery": return station("gallery", new THREE.Vector3(0, 0.9, 9.2), 2.5, 5);
+    case "machine": return station("machine", new THREE.Vector3(0, 1.3, 7.6), 1.65, 6.4);
     default: return pose(home.target.clone(), home.offset.clone());
   }
 }

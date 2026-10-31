@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { BOX_SIZE, createBoxPrints, type BoxDesign } from "@/lib/figurine-packaging";
 
-// Market stall with a stack of boxes per series on the counter and more on the shelves.
+// Market stall: a stepped riser of blind boxes on the counter, one box per series.
 function canvas(width: number, height: number) {
   const element = document.createElement("canvas");
   element.width = width; element.height = height;
@@ -36,7 +36,7 @@ function stripes() {
   return map;
 }
 
-function signTexture(title: string) {
+export function signTexture(title: string) {
   const [element, context] = canvas(1024, 256);
   context.fillStyle = "#2a1a10"; context.fillRect(0, 0, 1024, 256);
   context.strokeStyle = "#c9a565"; context.lineWidth = 10; context.strokeRect(14, 14, 996, 228);
@@ -45,81 +45,106 @@ function signTexture(title: string) {
   return texture(element);
 }
 
-export type ShopSeries = { id: string; design: BoxDesign; count: number; accent: string };
-export type ShopLabels = { sign: string; series: (number: string) => string; collected: (got: number, total: number) => string };
+// Series not yet released: the print mostly drained of colour and dimmed; its hue still shows.
+export function greyedPrint(material: THREE.Material) {
+  const copy = material.clone();
+  copy.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
+      diffuseColor.rgb = mix( vec3( dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) ) ), diffuseColor.rgb, 0.4 ) * 0.7;`);
+  };
+  copy.customProgramCacheKey = () => "figurine-greyed";
+  return copy;
+}
+
+export type ShopSeries = { id: string; number: string; design: BoxDesign; count: number; accent: string; released: boolean };
+export type ShopLabels = { sign: string; series: (number: string) => string; collected: (got: number, total: number) => string; comingSoon: string };
+// The stall's display: a stepped riser on the counter with one box per series, five to a step,
+// first series front left. Each step is taller than a box, so every step's price tag shows over
+// the boxes in front of it.
+const COLUMNS = 5, SCALE = 0.19, SPACING = 1.04, RISE = 0.6, RUN = 0.5, COUNTER_TOP = 1.13, PLINTH = 0.14, FRONT = 1.36;
+const BOX = { w: BOX_SIZE.width * SCALE, h: BOX_SIZE.height * SCALE, d: BOX_SIZE.depth * SCALE };
 
 export function buildShop(parent: THREE.Group, { series, envMap, labels }: { series: ShopSeries[]; envMap: THREE.Texture; labels: ShopLabels }) {
   const wood = new THREE.MeshStandardMaterial({ map: woodTexture(7), roughness: 0.75 });
   const darkWood = new THREE.MeshStandardMaterial({ map: woodTexture(11, [58, 34, 22]), roughness: 0.6 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xc9a565, metalness: 1, roughness: 0.3, envMap });
   const add = (geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[], x: number, y: number, z: number, shadow = true) => {
     const mesh = new THREE.Mesh(geometry, material); mesh.position.set(x, y, z); mesh.castShadow = mesh.receiveShadow = shadow; parent.add(mesh); return mesh;
   };
   // The stall's solid frame, which glows when the shop is hovered.
   const frame = [
     add(new THREE.BoxGeometry(5.6, 1.05, 1.1), wood, 0, 0.525, 0.9), add(new THREE.BoxGeometry(5.9, 0.08, 1.3), darkWood, 0, 1.09, 0.9),
-    add(new THREE.BoxGeometry(6, 3.5, 0.15), wood, 0, 1.75, -0.95),
+    add(new THREE.BoxGeometry(6, 4, 0.15), wood, 0, 2, -0.95),
   ];
-  for (const y of [1.75, 2.65]) frame.push(add(new THREE.BoxGeometry(5.8, 0.07, 0.55), darkWood, 0, y, -0.62));
   const post = new THREE.CylinderGeometry(0.07, 0.08, 3.9, 8);
   for (const x of [-2.95, 2.95]) for (const z of [1.5, -0.85]) frame.push(add(post, darkWood, x, 1.95, z));
-  const canopy = add(new THREE.PlaneGeometry(6.4, 2.7), new THREE.MeshStandardMaterial({ map: stripes(), roughness: 0.9, side: THREE.DoubleSide }), 0, 3.95, 0.35);
+  const canopy = add(new THREE.PlaneGeometry(6.4, 2.7), new THREE.MeshStandardMaterial({ map: stripes(), roughness: 0.9, side: THREE.DoubleSide }), 0, 4.15, 0.35);
   canopy.rotation.x = -Math.PI / 2 + 0.32;
-  const sign = add(new THREE.BoxGeometry(2.8, 0.7, 0.07), [darkWood, darkWood, darkWood, darkWood, new THREE.MeshStandardMaterial({ map: signTexture(labels.sign), roughness: 0.6 }), darkWood], 0, 4.5, 1.55);
+  const sign = add(new THREE.BoxGeometry(2.8, 0.7, 0.07), [darkWood, darkWood, darkWood, darkWood, new THREE.MeshStandardMaterial({ map: signTexture(labels.sign), roughness: 0.6 }), darkWood], 0, 4.7, 1.55);
   sign.castShadow = false;
+  const rows = Math.ceil(series.length / COLUMNS), width = COLUMNS * SPACING + 0.3;
+  const stepTop = (row: number) => COUNTER_TOP + PLINTH + row * RISE, stepFront = (row: number) => FRONT - row * RUN;
+  for (let row = 0; row < rows; row++) {
+    const top = stepTop(row), front = stepFront(row);
+    frame.push(add(new THREE.BoxGeometry(width, top, RUN), darkWood, 0, top / 2, front - RUN / 2));
+    add(new THREE.BoxGeometry(width, 0.018, 0.018), gold, 0, top - 0.009, front + 0.004, false);
+  }
 
   const picks: THREE.Mesh[] = [];
   const hidden = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+  const geometry = new THREE.BoxGeometry(BOX.w, BOX.h, BOX.d);
+  const tagGeometry = new THREE.PlaneGeometry(0.66, 0.12), pickGeometry = new THREE.BoxGeometry(0.8, BOX.h + 0.3, RUN);
   const stacks = series.map((entry, index) => {
+    const row = Math.floor(index / COLUMNS), column = index % COLUMNS;
     const prints = createBoxPrints(entry.design, envMap, 150);
-    const s = 0.24, w = BOX_SIZE.width * s, h = BOX_SIZE.height * s, d = BOX_SIZE.depth * s;
-    const geometry = new THREE.BoxGeometry(w, h, d);
     // BoxGeometry faces: +x, -x, +y, -y, +z, -z.
-    const faces = [prints.right, prints.left, prints.lid, prints.edge, prints.front, prints.back];
-    const stack = new THREE.Group(); stack.position.set(index === 0 ? -1.45 : 1.45, 0, 0); parent.add(stack);
+    const printed = [prints.right, prints.left, prints.lid, prints.edge, prints.front, prints.back];
+    const faces = entry.released ? printed : printed.map(greyedPrint);
+    const stack = new THREE.Group(); stack.position.set((column - (COLUMNS - 1) / 2) * SPACING, stepTop(row), stepFront(row) - RUN / 2); parent.add(stack);
     const lift = new THREE.Group(); stack.add(lift);
-    const boxes: THREE.Mesh[] = [];
-    const place = (group: THREE.Group, x: number, y: number, z: number, yaw: number) => {
-      const boxMesh = new THREE.Mesh(geometry, faces); boxMesh.position.set(x, y + h / 2, z); boxMesh.rotation.y = yaw; boxMesh.castShadow = true; group.add(boxMesh); boxes.push(boxMesh);
-    };
-    [[-0.52, 0], [0, 0], [0.52, 0], [-0.26, 1], [0.26, 1], [0, 2]].forEach(([x, row], i) => place(lift, x, 1.13 + row * h, 0.9, (i % 3 - 1) * 0.06));
-    for (const y of [1.785, 2.685]) [-0.75, -0.25, 0.25, 0.75].forEach((x, i) => place(stack, x, y, -0.6, (i % 2 ? 1 : -1) * 0.08));
-    const [plaqueCanvas, plaque] = canvas(768, 224);
-    const plaqueMap = texture(plaqueCanvas);
+    const boxMesh = new THREE.Mesh(geometry, faces); boxMesh.position.y = BOX.h / 2; boxMesh.rotation.y = (column - 2) * -0.05; boxMesh.castShadow = true; lift.add(boxMesh);
+    // The price tag on the step's edge: series number, and how many are collected (or "soon").
+    const [tagCanvas, tag] = canvas(352, 64);
+    const tagMap = texture(tagCanvas);
     const paint = (got: number) => {
-      plaque.fillStyle = "#1b120c"; plaque.fillRect(0, 0, 768, 224);
-      plaque.strokeStyle = entry.accent; plaque.lineWidth = 8; plaque.strokeRect(10, 10, 748, 204);
-      plaque.textAlign = "center"; plaque.textBaseline = "middle";
-      plaque.fillStyle = "#f1d48a"; plaque.font = "700 64px Georgia, serif"; plaque.letterSpacing = "8px"; plaque.fillText(labels.series(entry.design.theme.number), 384, 88, 700);
-      plaque.font = "600 34px system-ui, sans-serif"; plaque.letterSpacing = "4px";
-      plaque.fillStyle = entry.accent; plaque.fillText(labels.collected(got, entry.count).toUpperCase(), 384, 162, 700);
-      plaqueMap.needsUpdate = true;
+      tag.fillStyle = "#1b120c"; tag.fillRect(0, 0, 352, 64);
+      tag.fillStyle = entry.released ? entry.accent : "#5d554c"; tag.fillRect(0, 0, 8, 64);
+      tag.textBaseline = "middle"; tag.textAlign = "left";
+      tag.fillStyle = entry.released ? "#f1d48a" : "#9b907e"; tag.font = "700 34px Georgia, serif"; tag.letterSpacing = "3px"; tag.fillText(entry.number, 22, 34);
+      tag.textAlign = "right"; tag.font = "600 24px system-ui, sans-serif"; tag.letterSpacing = "2px";
+      tag.fillStyle = entry.released ? entry.accent : "#8a8072"; tag.fillText((entry.released ? labels.collected(got, entry.count) : labels.comingSoon).toUpperCase(), 336, 34, 220);
+      tagMap.needsUpdate = true;
     };
     paint(0);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.55), new THREE.MeshStandardMaterial({ map: plaqueMap, roughness: 0.7 }));
-    sign.position.set(0, 0.62, 1.46); stack.add(sign);
+    const label = new THREE.Mesh(tagGeometry, new THREE.MeshStandardMaterial({ map: tagMap, roughness: 0.7 }));
+    label.position.set(0, -0.075, RUN / 2 + 0.003); stack.add(label);
     const glowCanvas = canvas(64, 64);
     const gradient = glowCanvas[1].createRadialGradient(32, 32, 0, 32, 32, 32);
-    gradient.addColorStop(0, entry.accent); gradient.addColorStop(1, "rgba(0,0,0,0)");
+    gradient.addColorStop(0, entry.released ? entry.accent : "#9a9284"); gradient.addColorStop(1, "rgba(0,0,0,0)");
     glowCanvas[1].fillStyle = gradient; glowCanvas[1].fillRect(0, 0, 64, 64);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture(glowCanvas[0]), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
-    glow.position.set(0, 1.7, 0.9); glow.scale.set(2.6, 2.2, 1); stack.add(glow);
-    for (const [w, h2, d2, y, z] of [[1.75, 3 * h + 0.12, d + 0.2, 1.13 + 1.5 * h, 0.9], [2.1, 1.7, 0.6, 2.55, -0.6]]) {
-      const pick = new THREE.Mesh(new THREE.BoxGeometry(w, h2, d2), hidden);
-      pick.position.set(0, y, z); pick.userData.series = entry.id; stack.add(pick); picks.push(pick);
-    }
-    sign.userData.series = entry.id; picks.push(sign);
-    return { id: entry.id, lift, glow, paint, hover: 0, boxes, stop: prints.stop };
+    glow.position.set(0, BOX.h / 2, 0.1); glow.scale.set(1.1, 1.1, 1); stack.add(glow);
+    const pick = new THREE.Mesh(pickGeometry, hidden); pick.position.y = BOX.h / 2 - 0.1; pick.userData.series = entry.id; stack.add(pick); picks.push(pick);
+    return { id: entry.id, lift, glow, paint, hover: 0, boxes: [boxMesh], faces, released: entry.released, stop: prints.stop };
   });
 
   return {
     picks, frame,
     boxes: new Map(stacks.map((stack) => [stack.id, stack.boxes])),
+    // A copy of a series' shop box, for the case's shelf ends and the recycler's chute.
+    boxCopy(id: string) {
+      const stack = stacks.find((entry) => entry.id === id);
+      if (!stack) return null;
+      const copy = new THREE.Mesh(geometry, stack.faces); copy.castShadow = true;
+      return copy;
+    },
+    boxSize: BOX,
     setCollected(id: string, got: number) { stacks.find((stack) => stack.id === id)?.paint(got); },
     update(hovered: string | null, delta: number, time: number) {
       for (const stack of stacks) {
         stack.hover = THREE.MathUtils.damp(stack.hover, stack.id === hovered ? 1 : 0, 10, delta);
-        stack.lift.position.y = stack.hover * 0.08 + Math.sin(time * 2 + stack.lift.id) * 0.01 * stack.hover;
-        stack.glow.material.opacity = 0.15 + stack.hover * 0.45;
+        stack.lift.position.y = stack.hover * 0.07 + Math.sin(time * 2 + stack.lift.id) * 0.008 * stack.hover;
+        stack.glow.material.opacity = (stack.released ? 0.12 : 0) + stack.hover * 0.4;
       }
     },
     stop() { stacks.forEach((stack) => stack.stop()); },

@@ -21,6 +21,25 @@ export const PACKAGING_THEMES = {
     pale: "#bff3ec", paler: "#d2f7f1", muted: "#8fc4bd", ink: "#082a2e", edge: 0x0c3a40,
   },
 } satisfies Record<string, PackagingTheme>;
+// Any further series prints in the same scheme around its own hue: dark card stock in the hue
+// (shading toward its cooler neighbour) with light glows and inks of the same hue.
+export function seriesTheme(number: number, hue: number): PackagingTheme {
+  // Print colours are sRGB, as the canvas paints them.
+  const channels = (h: number, s: number, l: number) => {
+    const hue = ((h % 360) + 360) % 360, chroma = (1 - Math.abs(2 * l / 100 - 1)) * s / 100;
+    return [0, 8, 4].map((n) => { const k = (n + hue / 30) % 12; return Math.round(255 * (l / 100 - chroma / 2 * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); });
+  };
+  const hex = (h: number, s: number, l: number) => `#${channels(h, s, l).map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+  const rgb = (h: number, s: number, l: number) => channels(h, s, l).join(",");
+  return {
+    number: String(number).padStart(3, "0"),
+    deep: [hex(hue, 60, 23), hex(hue - 40, 62, 12)], back: [hex(hue - 20, 45, 16), hex(hue - 40, 57, 10)],
+    side: [hex(hue, 62, 23), hex(hue - 40, 62, 12)], lid: [hex(hue, 65, 21), hex(hue - 5, 55, 18)],
+    accent: rgb(hue, 100, 72), glow: hex(hue, 85, 64), glowSoft: hex(hue, 80, 55), glowBright: hex(hue, 95, 78),
+    window: `rgba(${rgb(hue, 60, 7)},.55)`, pale: hex(hue, 90, 87), paler: hex(hue, 80, 90), muted: hex(hue, 30, 70), ink: hex(hue, 50, 13),
+    edge: parseInt(hex(hue, 45, 17).slice(1), 16),
+  };
+}
 export const PACKAGING_FALLBACK: Omit<PackagingLabels, "title" | "subtitle"> = { blind: "BLIND BOX", collect: "COLLECT ALL {count}", contents: "1 random figure inside · equal odds", openHere: "OPEN HERE" };
 
 // Finish map channels: R = foil emboss (bump), G = roughness, B = metalness.

@@ -1,5 +1,7 @@
 import first from "@/data/figurines/community-001.json";
 import second from "@/data/figurines/community-002.json";
+import secret from "@/data/figurines/community-000.json";
+import secretSilhouettes from "../../public/figurines/community-000/silhouettes.png";
 import quips from "@/data/figurines/quips.json";
 import firstSilhouettes from "../../public/figurines/community-001/silhouettes.png";
 import secondSilhouettes from "../../public/figurines/community-002/silhouettes.png";
@@ -15,6 +17,14 @@ const series = (catalog: { id: string; characters: FigurineCharacter[] }, number
 });
 
 export const FIGURINE_SERIES: readonly FigurineSeries[] = [series(first, 1, "amethyst", firstSilhouettes.src), series(second, 2, "verdigris", secondSilhouettes.src)];
+// Announced series: their boxes already stand in the shop (greyed, sealed shut) and their shelves
+// wait in the case. Each prints in its own colour, a hue on the packaging colour wheel.
+export type UpcomingSeries = { id: string; number: number; hue: number; size: number };
+const UPCOMING_HUES = [18, 206, 140, 338, 42, 192, 4, 96, 280, 30, 220, 54, 300, 156, 234, 118, 318, 75];
+export const UPCOMING_SERIES: readonly UpcomingSeries[] = UPCOMING_HUES.map((hue, index) => ({ id: `community-${String(index + 3).padStart(3, "0")}`, number: index + 3, hue, size: 16 }));
+// Released through the hidden barrel only; public shop order remains separate.
+export const SECRET_SERIES = { ...series(secret, 0, "amethyst", secretSilhouettes.src), hue: secret.hue, size: secret.characters.length, hidden: secret.hidden };
+export const RELEASED_SERIES: readonly FigurineSeries[] = [...FIGURINE_SERIES, SECRET_SERIES];
 export const TOTAL_FIGURES = FIGURINE_SERIES.reduce((total, entry) => total + entry.characters.length, 0);
 
 export const figureKey = (seriesId: string, figureId: string) => `${seriesId}:${figureId}`;
@@ -26,7 +36,7 @@ export const ALL_QUIPS: readonly FigurineQuip[] = Object.values(QUIPS);
 export const findSeries = (id: string) => FIGURINE_SERIES.find((entry) => entry.id === id) ?? FIGURINE_SERIES[0];
 export function findFigure(key: string) {
   const [seriesId, figureId] = key.split(":");
-  const owner = FIGURINE_SERIES.find((entry) => entry.id === seriesId);
+  const owner = RELEASED_SERIES.find((entry) => entry.id === seriesId);
   const character = owner?.characters.find((entry) => entry.id === figureId);
   return owner && character ? { series: owner, character } : null;
 }

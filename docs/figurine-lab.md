@@ -362,12 +362,13 @@ Blender renders do not reproduce the viewer's additive effects exactly.
 
 ## Collectibles world
 
-`/collectibles` is one 3D scene with a home and two stations. Home is the centre: the
+`/collectibles` is one 3D scene with a home and stations round it. Home is the centre: the
 pedestal, seen head-on with the shop and the case at either side, holding either a sealed box
 (opening) or an inspected figure (viewer). Both share one camera, so swapping between a box
 and a figure never moves it, and returning from a station lands where the camera was left.
-The stations are the shop (a stall with every series' boxes) and the collection (a lit cubby
-cabinet, one 4×4 grid per series); the camera flies there and back in under a second.
+The stations are the shop, the collection case and the recycler; the camera flies there and
+back in under a second. The trading post and the hall of fame already stand at the plaza
+(`figurine-outposts.ts`) but are not open: tapping one only says "coming soon".
 There are no labels and no buttons: tap a station to go there, a series' boxes to get a box,
 an owned figure to inspect it, and empty ground or the station you are at to come back. From
 home, boxes and figures can be tapped straight in the background stations. A picked box drops
@@ -380,18 +381,61 @@ them. In the shop the middle button turns the shot; in the collection dragging p
 the case and the wheel zooms in close. Auto-rotation is slow, stops while you hold the camera
 and eases back in 2.5 s after you let go. Hovered figures in the case get a soft halo and keep
 their size. Station shots back off until the station's width fits the
-screen, so phones see the whole stall. Keyboard: Esc back, S shop, C collection, 1-9 pick a
-series (in the shop), Enter opens the sealed box. The figure's name and details appear as it
+screen, so phones see the whole stall; when that pulls a shot back past the pedestal, the box
+steps aside. Keyboard: Esc back, S shop, C collection, M recycler, 1-9 pick a series (in the
+shop), Enter opens the sealed box. The figure's name and details appear as it
 lands. The only button is the sound toggle.
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
+Announced series (`UPCOMING_SERIES`, 003–020) have no figures yet, only a hue: `seriesTheme`
+prints their box in the same scheme around it. They fill the shop greyed, can be picked and
+dropped on the pedestal (full colour there, so the print can be seen) and shaken, but the
+tape never comes off.
+
+### Shop and case at scale
+
+The shop is a stepped riser on the stall's counter: one box per series, five to a step,
+series 001 front left. Each step rises more than a box is tall, so every step's price tag
+(number and collected count, or "coming soon") shows over the boxes in front. Twenty series
+fill four steps.
+
+The collection is glass display cases, one shelf per series and five shelves to a case, side
+by side as series grow (pan across them). Each shelf has its series' box at the left end and
+sixteen figures on round bases in two staggered rows, the back row on a clear riser; only a
+card's middle takes taps so the rows never steal each other's taps. The case shows every
+released series and fills its last case with the next announced ones, on shelves washed in
+their colour and labelled "coming soon". Missing figures are faint frosted outlines; a base's
+colour is the figure's finest quality, and spare copies show as a count beside it. A
+completed series' shelf turns gold.
+
+### Qualities, recycler and trade-up
+
+Every box rolls a quality with its figure (`rollQuality`, `figurine-collection.ts`):
+standard (89 %), golden (10 %, 1 in 10) or galaxy (1 %, 1 in 100). The
+finishes (`figurine-finish.ts`) are swapped onto the figure's own meshes: golden is polished
+metal with the paint's light and shade kept as engraving, galaxy a screen-fixed nebula with
+twinkling stars and a violet rim. Both reflect a neutral studio environment, not the green sky.
+The reveal and viewer show a quality badge; the case shows each figure in its finest quality.
+
+The recycler (`figurine-machine.ts`) is a gnomish machine with a pegboard of every figure
+owned more than once (one card per quality, with its spare count). Tap a card to load a copy
+into one of three slots, tap a loaded card to take it back, and pull the lever. The display
+says what the three will make: three copies of one figure at one quality trade up to the next
+quality (the figure is shown on the pedestal afterwards); any other three make a blind box of
+the series most of them came from (it pops out of the chute, then drops on the pedestal). It
+refuses to recycle the last copy of any figure. The rules are pure functions in
+`figurine-collection.ts` (`trayGroups`, `machineOutcome`, `machineChanges`) and the
+collection changes as one all-or-nothing set. There are no box limits yet, so a recycled box is
+just another box.
 
 The collection is session-only (`sessionStorage`, `figurine-collection.ts`): figure key to
-times opened; nothing is sent anywhere. Unowned figures show as black silhouettes from the
-baked sheet; owned ones show a portrait rendered from their model (captured on reveal, or
-regenerated from the model file after a reload). Portraits use the silhouette sheet's
-framing (orthographic, feet on the bottom edge), so both stand on the cubby floor. Sheet cells
-are 280×360 so nearly every pose is fitted by height and figures share one height.
+copies per quality; nothing is sent anywhere. The first prototype's counts (key
+`…-collection-v1`) carry over as standard copies. Owned figures show a portrait rendered from
+their model at their quality (captured on reveal, or regenerated from the model file after a
+reload). Portraits use the silhouette sheet's framing (orthographic, feet on the bottom edge),
+so all stand on their bases. Sheet cells are 280×360 so nearly every pose is fitted by height
+and figures share one height. Box limits, trading and leaderboards will need the collection on
+the server: anything kept in the browser can be edited by the player.
 
 World textures in `frontend/public/figurines/world/` (Elwynn cobblestone and grass, cloud and
 nebula sky layers) were exported from game data with the local wow.export worker's texture
@@ -408,10 +452,18 @@ woods). Where the path leaves the plaza is a small market (`marketLayout`): a hu
 Duskwood wagon, a signpost, crates, barrels and produce tables. No faction banners: the
 market takes no side.
 
-Loading happens once, behind a start-up screen: scenery models, every series' box (all
-built up front and swapped on series change, never rebuilt), every texture uploaded, all
-sounds downloaded (decoded on the first tap), portraits of every owned figure, and shaders
-compiled. The figure inside each sealed box is drawn when the box arrives and preloaded
+Station props came from a second model job (`station-models-001`; provenance under
+`stations` in `source-models.json`, loaded through `figurine-props.ts`): the Tinker Town
+gear that spins on the recycler, a gnome exhaust pipe, work lamp, pistons, bucket and tool; a
+Duskwood shop counter and gnomish postbox for the trading post; a notice board and podium for
+the hall of fame. Candidates looked at and left out: the Gnomeregan gnome machine and broken
+machine, hut machinery, hazard light, steel plate, goblin weathervane and orc wanted poster.
+
+Loading happens once, behind a start-up screen: scenery and station models, every released
+series' pedestal box (built up front and swapped on series change, never rebuilt; announced
+series' boxes are built when picked, the last two kept), every texture uploaded, all sounds
+downloaded (decoded on the first tap), portraits of every owned figure and every recycler card,
+and shaders compiled. The figure inside each sealed box is drawn when the box arrives and preloaded
 while it waits, so opening goes straight into the build-up; its case portrait shaders are
 compiled with an off-screen target bound (portraits skip tone mapping, a different shader
 variant) and the portrait renders at the next idle moment. Picking a series always drops its
@@ -423,3 +475,250 @@ props and figures pick up soft sky shading), a warm sun whose single 2048 shadow
 plaza and both stations (trees, stalls, props, the box and figures cast; figures self-shadow),
 light haze fog and dimmed lantern glows. The box rests on the pedestal; its contact shadow and
 glow planes lie between the two so they never cut across the box walls.
+
+## Deferred: gravity-driven gear (2026-10-31)
+
+Deferred at the user's request. Do not start a physics implementation or rebuild
+collectibles for it until requested. Some rope-hung ornaments use physics-driven
+bones rather than ordinary animation tracks. Both our fork and the upstream
+wow.export M2 loader currently skip PFID (external physics) and PFDC (embedded
+physics); playing or freezing an animation cannot reproduce that simulation.
+This is a possible cause of rigid dangling parts, not a diagnosis for every item.
+The `.phys.obj` collision export is not this simulation data.
+
+Research references:
+
+- [Upstream M2 loader](https://github.com/Kruithne/wow.export/blob/main/src/js/3D/loaders/M2Loader.js)
+- [PHYS research and hanging-gear examples](https://www.wowmodding.net/files/file/133-phys-template-mop-and-wod/)
+- [Elune M2 source](https://github.com/elune-m2/addon) and
+  [physics documentation](https://elune-m2.github.io/documentation.html#physics).
+
+Elune documents importing embedded/external physics versions 0–6 and previewing
+bone-driven bodies/joints in Blender. This is a candidate, not a tested dependency;
+its preview uses Blender's solver and does not promise WoW-identical motion.
+A future experiment should extract one real affected weapon, retain its rig,
+place it in the final held/sheathed orientation, fix its anchor, settle the dangling
+parts, and bake the resulting geometry before our normal compression. A mid-swing
+snapshot instead requires simulating the preceding movement. Test both orientations,
+attachment stability and collisions, and compare against the game. No browser
+physics is needed for a static result. Do not infer which bones should sag simply
+from their names. Inspect tool compatibility and license before integrating code.
+
+## Secret Series 000 — prepared, models deferred (2026-10-31)
+
+Update: the owner subsequently authorized a render gallery. Local review batch
+`E:/Projektit/wow.export/worker/data/series/secret-000-review-001/` contains all
+sixteen models from the saved 12:17 UTC snapshots. Valopallo uses EmoteRude (73),
+variation 0, at exactly 53 ms with weapons sheathed. All sixteen compressed
+models passed decoded validation with zero errors or warnings (12,308,704 bytes
+total, 330,088–1,833,384 bytes each). The local gallery and decoded render inputs
+are in `.codex-runtime/figurine-research/series-000/review-001/`. This is a review
+batch only; the website catalog remains unreleased. The earlier preparation
+notes below describe the pre-export state.
+
+Review flags: the Blender sheets show rectangular effect surfaces on Tonzidan
+and visible red effect planes on Syöpä, including after approximating the
+website's additive materials. Compare these in the website renderer before
+attributing them to export data or approving the batch. Geometry validation is
+not visual sign-off. Front/rear PNG sheets and `index.html` are in the review
+folder; the local review server uses port 3019.
+
+The canonical roster and future exporter recipe is
+`frontend/src/data/figurines/community-000.json`. It contains exactly the sixteen
+requested EU characters, in requested order: nine on Kazzak and seven on Outland.
+All sixteen resolved through the development Armory endpoint. Frozen appearance
+snapshots are local-only in `.codex-runtime/figurine-research/series-000/<id>.json`;
+the manifest records class/race, lookup timestamp and reference image. No model
+exports, silhouettes or character renders were generated.
+
+After the owner logged into all sixteen characters, their appearances were
+refreshed on 2026-10-31 at 12:17 UTC. The new local batch is
+`.codex-runtime/figurine-research/series-000/refresh-2026-10-31T12-17-41-646Z/`.
+Each `imports/<id>.json` is a raw Battle.net appearance response, not a native
+desktop import file. Use `wow-export/<Name>-<Realm>.json` with the desktop
+Import JSON / Import Character buttons. These version-2 files contain race/model
+IDs, model-specific customization choices, equipment and appearance modifiers.
+All sixteen passed the actual direct JSON import handler with a simulated UI;
+model mappings and choices were checked against cached game tables. No visual
+preview was performed. `snapshots/` preserves the full lab responses; `jobs/`
+contains validated future worker inputs outside any watched queue. The batch
+also includes the matching series recipe and a README with the pose table.
+Importing appearance alone does not apply the recipe's pose or weapon placement.
+All sixteen profiles report logins on the refresh date. Earlier snapshots remain
+intact. No exports or renders were performed during this refresh.
+
+The manifest is compatible with wow.export's `validateSeries`; extra authoring
+metadata is ignored by that validator. Emote timestamps and weapon placement are
+provisional until the target models' animations can be checked. Preserve the
+standing rule: non-Evoker Dracthyr use visage unless explicitly overridden.
+
+The barrel at world x=11.3, z=-2.1, beside the right of the collection case, is the
+hidden interaction. It selects an amber Series 000 box on the pedestal. The box
+remains sealed and says coming soon until real models are registered. There is no
+shop entry, announcement, draw-pool entry, or keyboard shop shortcut for
+this series. Its collection shelf is hidden until the first Series 000 box is
+opened and a figure is added to the collection. Selecting the barrel/box alone
+does not unlock it. Once unlocked, the full sixteen-slot shelf appears at the
+very top, above Series 001; uncollected figures keep the usual silhouettes.
+The cabinet updates immediately without resetting the reveal or camera. The
+existing session collection restores the unlock on reload (any owned quality
+counts), and the recycler preserves the last copy. Unreleased series never
+unlock a shelf, even if stale collection data mentions them. The target is tied to one barrel instance, not every barrel; foreground
+scenery/stations block the pick. This is an Easter egg, not an access-control boundary.
+
+When model generation is requested later:
+
+1. Copy the recipe to a new authoring batch ID before invoking
+   `E:/Projektit/wow.export/worker/build-series.mjs`; do not run the builder now.
+   Choose whether to replay the saved appearances or refresh them intentionally.
+2. Verify the emotes exist and sample times fit each model; render and review
+   transmog, attachments, feet, capes, effects, and ground placement.
+3. Compress at the approved improved texture quality, validate, copy the reviewed
+   models into `frontend/public/figurines/community-000/`, and bake silhouettes.
+4. Register the real catalog for opening/collection while retaining its hidden
+   distribution. Supply its real keys, models and silhouettes to the world and
+   mark it released. The existing collection-shelf policy then unlocks its top
+   shelf after the first opening. Never add it to the normal shop or public
+   announced series as a side effect of release.
+
+Preparation verification: 37 figurine tests, targeted ESLint, TypeScript, and the
+exporter's recipe/job validators pass. Browser check on `http://localhost:3000/collectibles`:
+tapping the chosen broken barrel selects Series 000, Enter leaves it sealed, and
+the collection keeps its normal 001–005 shelves. No model jobs were queued.
+
+Secret-shelf regression checks cover first ownership at all qualities, session
+restoration, unknown/zero-count entries, unreleased data, shelf ordering across
+cases, and safe cabinet replacement without disposing shared box/portrait assets.
+
+## Series 000 armor and weapon repair review (2026-10-31)
+
+The latest local review batch is
+`E:/Projektit/wow.export/worker/data/series/secret-000-repair-001/`.
+All 16 compressed GLBs rebuilt successfully with zero export warnings and zero
+validation warnings; total size is 16,169,292 bytes. Tonzidan is 2,674,732 bytes
+because its masked weapon effects are now included. Improved texture quality is
+retained. The front/back review gallery is in
+`.codex-runtime/figurine-research/series-000/repair/`, served locally on port 3019.
+The previous review batch remains available on disk for comparison.
+
+Root causes and fixes in the wow.export fork:
+
+- A single candidate in ComponentTextureFileData bypassed gender/class filtering.
+  Some classic female chest pieces therefore received a male-only lower-torso
+  panel. Apply the normal filter even to a single candidate, and skip a region
+  when no compatible texture exists. Röiza, Valopallo, Valotettu and Röi were
+  checked in the frontend lab after rebuilding.
+- Base clothing layers 13 (top) and 14 (bottom) were both enabled globally.
+  The new default `chrIncludeBaseClothing: "auto"` evaluates chest and legs
+  independently. Visible armor suppresses that region's underwear; hidden or
+  empty slots retain it. Existing explicit true/false settings remain supported.
+  In a desktop installation with saved preferences, choose **Underwear → Auto
+  (per armor slot)**. Dalarian's rebuilt layers were checked in the lab.
+- Tonzidan and Syöpä use two-texture M2 effects, while equipment export retained
+  only the first texture. The posed GLB path now bakes the supported Mod_Mod and
+  Mod_Mod2x combinations using both UV sets, texture transforms and opacity.
+  Their opaque rectangular sheets are gone in the frontend review. This is a
+  static texture bake, not a complete implementation of animated or
+  view-dependent WoW shaders; future unfamiliar effect types still need review.
+
+Röiza now uses EmoteFlex (82), variation 0, 39 ms, sheathed. Öitä uses Ready1H
+(26), variation 0, 700 ms, held. Valopallo retains EmoteRude (73), 53 ms,
+sheathed. The canonical community-000 recipe contains these changes.
+
+The optimized effect bake was verified by rebuilding both affected weapons in
+`secret-000-effect-check-001`: compressed model SHA-256 hashes exactly match the
+initial repair batch. Export duration changed from 424,684 to 29,011 ms for
+Tonzidan and 19,883 to 6,232 ms for Syöpä (excluding worker startup/compression).
+Exporter regression coverage includes gender-only regions, independent underwear
+rules, both texture combiners, UV transforms and overlapping effect faces.
+Series 000 is still unreleased; these files were not registered in the website
+catalog or copied into public assets.
+
+## Series 000 enabled in the local collectibles world (2026-10-31)
+
+The repaired batch `secret-000-repair-001` is now registered in
+`frontend/src/data/figurines/community-000.json`, with all sixteen compressed
+GLBs in `frontend/public/figurines/community-000/` and a freshly baked silhouette
+atlas. Each catalog entry records its byte size and SHA-256. `RELEASED_SERIES`
+includes the secret figures for draws, inspection and the recycler;
+`FIGURINE_SERIES` remains the public shop roster. No shop entry, announcement or
+number-key shortcut was added for Series 000. Its repaired files retain the
+approved texture quality, including Tonzidan's 2.67 MB GLB.
+
+A printed amber Series 000 box now sits inside the marked broken barrel beside
+the collection cabinet. A measured cavity anchor in barrel.glb (-0.022, 0.296,
+-0.088) positions it inside the upright barrel; whole-mesh bounds incorrectly
+include fallen staves outside it. The world box is scaled to 65% to clear the
+inward broken wood, with its centre at about y=0.315 and its lid at y=0.53.
+The broken opening faces away from the plaza. Both the box and that barrel can select the
+series; nearer props still block selection. Its print is reused for the newly
+unlocked shelf and recycler output. The shelf stays hidden until the first
+secret figure is received, then appears above Series 001 with all sixteen slots.
+The game uses the existing session collection persistence.
+
+Play verification: selecting the visible barrel box brought Series 000 to the
+pedestal, opening it revealed Valopallo, and its shelf immediately appeared at
+the top with 1/16 collected. Targeted tests verify asset hashes/sizes, bilingual
+race/class labels, public-shop exclusion, picking/occlusion and shelf unlocks.
+TypeScript and targeted ESLint pass. This is a local website change, not a
+production deployment; the earlier deferred/review-only notes above are history.
+
+The browser play check also confirmed that reloading retains Series 000's top
+shelf and 1/16 count, and clicking the owned Valopallo opens the normal figure
+viewer. The pre-opening shelf had no Series 000 row. Twenty targeted figurine
+checks pass, including both maintained locales and every shipped model hash.
+
+## Lightforged rune export repair (2026-10-31)
+
+Valotettu's white forehead rectangle came from the body exporter retaining only
+the first input of a two-texture `Combiners_Mod_Mod` material. Body submesh 88
+uses the rune atlas twice, with distinct UVs and a scrolling first-layer transform.
+The static-pose exporter now bakes supported fixed-texture body effects through
+the same mask/UV-transform baker as equipment. The rune remains visible; it is
+not removed or replaced with a character-specific transparency workaround.
+
+`secret-000-face-repair-002` replaces only Valotettu's shipped GLB (998,992 bytes),
+with an updated catalog hash and cache-versioned URL. It is byte-identical to the
+visually reviewed repair. glTF validation reports zero errors and warnings.
+The lab comparison against the original export confirms the white square is gone.
+Other shader families, replacement-texture body effects and animated desktop
+exports retain their prior behavior; this fix does not promise complete WoW shader parity.
+
+Draenei and Lightforged Draenei labels exist in both English and Finnish, following
+the existing convention of English in-game race names. The catalog regression
+check now covers race/class labels for all three released series, not only Series 000.
+
+Valotettu's subsequent pose update is `secret-000-valotettu-rude-001`:
+EmoteRude (73), variation 0, 53 ms, weapons sheathed. The 998,672-byte GLB,
+catalog hash/cache version and Series 000 silhouette atlas are updated together.
+The forehead rune fix remains in this export; validation has zero errors/warnings.
+
+Timing clarification: the intended value was wow.export **frame 53**, not 53 ms.
+The final batch is `secret-000-valotettu-rude-frame53-001`, EmoteRude at 883 ms
+(rounded from `53 / floor(4.667 * 60) * 4667`), weapons sheathed. The shipped
+999,264-byte model and silhouette atlas replace the earlier 53 ms version.
+
+`secret-000-bow-rude-001` updates three more Series 000 poses: Röi uses AttackBow
+(46) at 100 ms with the bow drawn, Jousivakio uses ReadyBow (29) at 700 ms with
+the bow drawn, and Syöpä uses EmoteRude (73) at frame 53 (883 ms), weapon sheathed.
+All three were inspected in the frontend lab. Their GLBs, catalog pose metadata,
+hashes/cache versions and the shelf silhouette atlas are updated together.
+
+`secret-000-ready-talk-001` replaces three Series 000 poses using their saved
+Armory appearances, with variation 0 throughout:
+
+| Character | Animation | wow.export frame | Baked time (ms) | Weapons |
+|---|---|---:|---:|---|
+| Röiza | Ready2H (27) | 46 | 776 | Held |
+| Tonzidan | Ready1H (26) | 21 | 350 | Held |
+| Valopallo | EmoteTalkQuestion (65) | 58 | 967 | Sheathed |
+
+Frame conversion matches the desktop viewer's 60 fps slider:
+`round(frame / floor(durationMs / 1000 * 60) * durationMs)`. The three GLBs,
+catalog metadata/cache versions and shelf silhouettes are updated together.
+Decoded GLB validation reports zero errors and warnings for all three; the
+Series 000 catalog/asset checks pass. All three poses and weapon states were
+visually checked in the frontend lab. Authoring inputs and desktop appearance
+imports are in `.codex-runtime/figurine-research/series-000/ready-talk/`.
+Desktop appearance imports do not set the pose or weapon state automatically;
+use the table above. The worker inputs in `jobs/` include both settings.

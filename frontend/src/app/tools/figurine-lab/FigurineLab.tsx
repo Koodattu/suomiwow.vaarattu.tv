@@ -5,12 +5,15 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import type { LabCharacter } from "@/lib/figurine-lab";
+import { RELEASED_SERIES, figureKey, findFigure } from "@/lib/figurine-series";
+import { QUALITIES, isQuality, type FigurineQuality } from "@/lib/figurine-collection";
 import styles from "./figurine-lab.module.css";
 import BlindBox from "./BlindBox";
 
 const FigurineStage = dynamic(() => import("./FigurineStage"), { ssr: false });
 const ERROR_KEYS = ["invalidInput", "notFound", "rateLimited", "credentialsMissing", "upstreamFailed"] as const;
 type ErrorKey = typeof ERROR_KEYS[number];
+const MODEL_SERIES = [...RELEASED_SERIES].sort((a, b) => a.number - b.number);
 
 export default function FigurineLab() {
   const t = useTranslations("figurineLab");
@@ -20,18 +23,45 @@ export default function FigurineLab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [selectedModel, setSelectedModel] = useState("");
+  const [quality, setQuality] = useState<FigurineQuality>("standard");
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelError, setModelError] = useState(false);
+  const modelRequest = useRef<AbortController | null>(null);
   const [boxMode, setBoxMode] = useState(false);
   const [open, setOpen] = useState(false);
   const [rotate, setRotate] = useState(true);
   const [imageFailed, setImageFailed] = useState(false);
   const request = useRef<AbortController | null>(null);
-  useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => () => { request.current?.abort(); modelRequest.current?.abort(); }, []);
+
+  function importFiles(next: File[]) {
+    modelRequest.current?.abort();
+    setSelectedModel(""); setModelLoading(false); setModelError(false); setOpen(false); setFiles(next);
+  }
+
+  async function selectModel(key: string) {
+    importFiles([]);
+    const selected = findFigure(key);
+    if (!selected) return;
+    const controller = new AbortController(); modelRequest.current = controller;
+    setSelectedModel(key); setModelLoading(true); setBoxMode(false);
+    try {
+      const response = await fetch(selected.character.model, { signal: controller.signal });
+      if (!response.ok) throw new Error("Model unavailable");
+      const blob = await response.blob();
+      if (blob.size !== selected.character.bytes) throw new Error("Incomplete model");
+      if (!controller.signal.aborted) setFiles([new File([blob], `${selected.character.name}-${selected.character.realm}.glb`)]);
+    } catch {
+      if (!controller.signal.aborted) { setModelError(true); setSelectedModel(""); }
+    } finally { if (!controller.signal.aborted) setModelLoading(false); }
+  }
 
   async function lookup(event: FormEvent) {
     event.preventDefault();
     request.current?.abort();
     const controller = new AbortController(); request.current = controller;
-    setBusy(true); setError(null); setCharacter(null); setFiles([]); setImageFailed(false); setOpen(false);
+    setBusy(true); setError(null); setCharacter(null); importFiles([]); setImageFailed(false);
     try {
       const response = await fetch(`/api/figurine-lab/character?${new URLSearchParams({ name, realm })}`, { signal: controller.signal });
       const result = await response.json();
@@ -72,16 +102,31 @@ export default function FigurineLab() {
       </section>
       <section className={styles.viewer} aria-labelledby="viewer-title">
         <div className={styles.panelHeading}><span className={styles.step}>02</span><h2 id="viewer-title">{t("viewerTitle")}</h2><span className={styles.tag}>{t("threeTag")}</span></div>
+        <div className={styles.modelPicker}>
+          <label htmlFor="workbench-model">{t("bundledModel")}</label>
+          <select id="workbench-model" value={selectedModel} onChange={(event) => { void selectModel(event.target.value); }}>
+            <option value="">{t("chooseBundledModel")}</option>
+            {MODEL_SERIES.map((entry) => <optgroup key={entry.id} label={t("seriesName", { number: String(entry.number).padStart(3, "0") })}>
+              {entry.characters.map((figure) => <option key={figure.id} value={figureKey(entry.id, figure.id)}>{figure.name} — {figure.realm} · {t(`races.${figure.raceKey}`)} · {t(`classes.${figure.classKey}`)}</option>)}
+            </optgroup>)}
+          </select>
+          <label htmlFor="workbench-finish">{t("previewFinish")}</label>
+          <select id="workbench-finish" value={quality} onChange={(event) => { if (isQuality(event.target.value)) setQuality(event.target.value); }}>
+            {QUALITIES.map((finish) => <option key={finish} value={finish}>{t(`quality.${finish}`)}</option>)}
+          </select>
+          {modelLoading && <p role="status">{t("modelLoading")}</p>}
+          {modelError && <p role="alert">{t("bundledModelError")}</p>}
+        </div>
         <div className={styles.toolbar}>
           <div className={styles.segmented}><button type="button" aria-pressed={!boxMode} onClick={() => setBoxMode(false)}>{t("figureMode")}</button><button type="button" aria-pressed={boxMode} onClick={() => setBoxMode(true)}>{t("boxMode")}</button></div>
           <label className={styles.check}><input type="checkbox" checked={rotate} onChange={(event) => setRotate(event.target.checked)} />{t("rotate")}</label>
         </div>
-        <FigurineStage files={files} boxMode={boxMode} open={open} rotate={rotate} labels={{ loading: t("modelLoading"), ready: t("modelReady"), empty: t("modelEmpty"), error: t("modelError"), webgl: t("webglError"), box: t("boxStatus"), boxTitle: t("boxTitle"), boxSubtitle: t("boxSubtitle") }} />
+        <FigurineStage files={files} quality={quality} boxMode={boxMode} open={open} rotate={rotate} labels={{ loading: t("modelLoading"), ready: t("modelReady"), empty: t("modelEmpty"), error: t("modelError"), webgl: t("webglError"), box: t("boxStatus"), boxTitle: t("boxTitle"), boxSubtitle: t("boxSubtitle") }} />
         <div className={styles.viewerActions}>
-          <label className={styles.fileButton}>{t("importModel")}<input type="file" multiple accept=".glb,.gltf,.bin,.png,.jpg,.jpeg,.webp" onChange={(event) => { setFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} /></label>
-          <label className={styles.fileButton}>{t("importFolder")}<input type="file" multiple {...{ webkitdirectory: "" }} onChange={(event) => { setFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} /></label>
+          <label className={styles.fileButton}>{t("importModel")}<input type="file" multiple accept=".glb,.gltf,.bin,.png,.jpg,.jpeg,.webp" onChange={(event) => { importFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} /></label>
+          <label className={styles.fileButton}>{t("importFolder")}<input type="file" multiple {...{ webkitdirectory: "" }} onChange={(event) => { importFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} /></label>
           {boxMode && <button type="button" className={styles.primary} onClick={() => setOpen(!open)}>{t(open ? "closeBox" : "openBox")}</button>}
-          {files.length > 0 && <button type="button" onClick={() => setFiles([])}>{t("clearModel")}</button>}
+          {(files.length > 0 || selectedModel) && <button type="button" onClick={() => importFiles([])}>{t("clearModel")}</button>}
         </div>
         <p className={styles.help}>{t(boxMode ? "boxHint" : "modelHint")}</p>
         <p className={styles.fine}>{t("localFilesNote")}</p>
