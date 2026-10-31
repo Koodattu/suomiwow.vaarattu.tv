@@ -125,10 +125,15 @@ function ribbon(context: CanvasRenderingContext2D, cx: number, cy: number, w: nu
 function face(width: number, height: number, envMap: THREE.Texture, paint: (print: Print, sheet: Sheet) => void, density = PX) {
   // Paint at full scale and let the canvas transform shrink it, so layouts stay resolution-independent.
   const w = Math.round(width * density), h = Math.round(height * density), full = { w: Math.round(width * PX), h: Math.round(height * PX) };
-  const colorCanvas = canvas(w, h), finishCanvas = canvas(w, h);
+  // Foil/roughness/bump masks need less detail than the printed text and silhouettes.
+  // Keep artwork resolution intact; cap only the shared finish mask.
+  const finishDensity = Math.min(density, 250);
+  const fw = Math.round(width * finishDensity), fh = Math.round(height * finishDensity);
+  const colorCanvas = canvas(w, h), finishCanvas = canvas(fw, fh);
   const print = { color: colorCanvas.getContext("2d")!, finish: finishCanvas.getContext("2d")!, w, h };
   const draw = (sheet: Sheet) => {
-    for (const context of [print.color, print.finish]) context.setTransform(w / full.w, 0, 0, h / full.h, 0, 0);
+    print.color.setTransform(w / full.w, 0, 0, h / full.h, 0, 0);
+    print.finish.setTransform(fw / full.w, 0, 0, fh / full.h, 0, 0);
     print.finish.fillStyle = PAPER; print.finish.fillRect(0, 0, full.w, full.h); paint({ ...print, ...full }, sheet);
   };
   draw(null);

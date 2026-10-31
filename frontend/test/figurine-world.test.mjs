@@ -47,25 +47,39 @@ test("each box rolls 1% galaxy, 10% golden and 89% standard", () => {
   for (const bad of [-0.1, 1, Number.NaN]) assert.throws(() => rollQuality(bad));
 });
 
-test("the recycler makes a box from three spare copies, trades three of a kind up, and never takes a last copy", () => {
+test("the recycler turns three spare copies into a box and never takes a last copy", () => {
   const collection = parseCollection(JSON.stringify({ "s1:a": { standard: 4 }, "s1:b": { standard: 1, golden: 1 }, "s2:c": { standard: 2 }, "s2:d": { galaxy: 3 }, "s1:e": { standard: 1 } }));
   // The board lists every quality of each figure owned more than once, in catalog order.
   assert.deepEqual(trayGroups(collection, ["s1:a", "s1:b", "s2:c", "s2:d", "s1:e"]).map(({ key, quality, count }) => `${key}/${quality}/${count}`), ["s1:a/standard/4", "s1:b/standard/1", "s1:b/golden/1", "s2:c/standard/2", "s2:d/galaxy/3"]);
   assert.equal(spare(collection, [{ key: "s1:a", quality: "standard" }], { key: "s1:a", quality: "standard" }), 3);
-  assert.deepEqual(machineOutcome([{ key: "s1:a", quality: "standard" }], collection), { kind: "incomplete" });
+  assert.deepEqual(machineOutcome("recycler", [{ key: "s1:a", quality: "standard" }], collection), { kind: "incomplete" });
+  // Three of a kind are just three copies here: it never trades up.
   const three = Array.from({ length: 3 }, () => ({ key: "s1:a", quality: "standard" }));
-  const upgrade = machineOutcome(three, collection);
-  assert.deepEqual(upgrade, { kind: "upgrade", key: "s1:a", from: "standard", quality: "golden" });
-  assert.deepEqual(machineChanges(three, upgrade), [...three.map(({ key, quality }) => ({ key, quality, delta: -1 })), { key: "s1:a", quality: "golden", delta: 1 }]);
-  // Galaxy is the top: three galaxies just recycle, which here would give away the last of them.
-  assert.deepEqual(machineOutcome(Array.from({ length: 3 }, () => ({ key: "s2:d", quality: "galaxy" })), collection), { kind: "keep", key: "s2:d" });
+  assert.deepEqual(machineOutcome("recycler", three, collection), { kind: "box", series: "s1" });
+  assert.deepEqual(machineOutcome("recycler", Array.from({ length: 3 }, () => ({ key: "s2:d", quality: "galaxy" })), collection), { kind: "keep", key: "s2:d" });
   // Mixed copies make a box of the series most of them came from.
   const mixed = [{ key: "s2:c", quality: "standard" }, { key: "s1:a", quality: "standard" }, { key: "s1:a", quality: "standard" }];
-  assert.deepEqual(machineOutcome(mixed, collection), { kind: "box", series: "s1" });
+  assert.deepEqual(machineOutcome("recycler", mixed, collection), { kind: "box", series: "s1" });
   assert.deepEqual(machineChanges(mixed, { kind: "box", series: "s1" }), mixed.map(({ key, quality }) => ({ key, quality, delta: -1 })));
   // Both of s1:b's copies would leave none.
-  assert.deepEqual(machineOutcome([{ key: "s1:b", quality: "standard" }, { key: "s1:b", quality: "golden" }, { key: "s1:a", quality: "standard" }], collection), { kind: "keep", key: "s1:b" });
+  assert.deepEqual(machineOutcome("recycler", [{ key: "s1:b", quality: "standard" }, { key: "s1:b", quality: "golden" }, { key: "s1:a", quality: "standard" }], collection), { kind: "keep", key: "s1:b" });
   assert.deepEqual(machineChanges(three, { kind: "keep", key: "s1:a" }), []);
+});
+
+test("the forge trades three of a kind up one quality, and only those", () => {
+  const collection = parseCollection(JSON.stringify({ "s1:a": { standard: 4, golden: 2 }, "s2:c": { standard: 2 }, "s2:d": { galaxy: 3 }, "s1:e": { golden: 3 } }));
+  // Its board holds only what it can work on: three or more at a quality that can still go up.
+  assert.deepEqual(trayGroups(collection, ["s1:a", "s2:c", "s2:d", "s1:e"], "forge").map(({ key, quality, count }) => `${key}/${quality}/${count}`), ["s1:a/standard/4", "s1:e/golden/3"]);
+  const three = Array.from({ length: 3 }, () => ({ key: "s1:a", quality: "standard" }));
+  const upgrade = machineOutcome("forge", three, collection);
+  assert.deepEqual(upgrade, { kind: "upgrade", key: "s1:a", from: "standard", quality: "golden" });
+  assert.deepEqual(machineChanges(three, upgrade), [...three.map(({ key, quality }) => ({ key, quality, delta: -1 })), { key: "s1:a", quality: "golden", delta: 1 }]);
+  // The last three copies may go: the figure stays, one quality up.
+  assert.equal(machineOutcome("forge", Array.from({ length: 3 }, () => ({ key: "s1:e", quality: "golden" })), collection).kind, "upgrade");
+  assert.deepEqual(machineOutcome("forge", Array.from({ length: 3 }, () => ({ key: "s2:d", quality: "galaxy" })), collection), { kind: "mismatch" });
+  assert.deepEqual(machineOutcome("forge", [...three.slice(0, 2), { key: "s1:a", quality: "golden" }], collection), { kind: "mismatch" });
+  assert.deepEqual(machineOutcome("forge", Array.from({ length: 3 }, () => ({ key: "s2:c", quality: "standard" })), collection), { kind: "mismatch" });
+  assert.deepEqual(machineOutcome("forge", three.slice(0, 2), collection), { kind: "incomplete" });
 });
 
 test("both series have unique figures, translations, silhouettes and class sounds, and the world textures exist", async () => {

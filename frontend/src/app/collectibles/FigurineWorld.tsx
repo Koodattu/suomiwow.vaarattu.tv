@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
 import { createFigurineFileCache } from "@/lib/figurine-cache";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
-import { MACHINE_SLOTS, addToCollection, bestQuality, changeCollection, copiesOf, emptyCollection, machineChanges, machineOutcome, readCollection, rollQuality, spare, subscribeCollection, trayGroups, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
+import { MACHINE_SLOTS, addToCollection, bestQuality, changeCollection, copiesOf, emptyCollection, machineChanges, machineOutcome, readCollection, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, RELEASED_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
 import type { Outpost, StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
 import type { MachinePick } from "@/lib/figurine-machine";
@@ -18,9 +18,10 @@ import SoundMenu from "./SoundMenu";
 const FigurineStage = dynamic(() => import("@/app/tools/figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
 // Where "back" leads: stations return to the centre (to whichever of its views they were left from).
-const PARENT: Record<WorldView, WorldView | null> = { shop: "opening", gallery: "opening", machine: "opening", opening: null, viewer: "opening" };
+const PARENT: Record<WorldView, WorldView | null> = { shop: "opening", gallery: "opening", recycler: "opening", forge: "opening", opening: null, viewer: "opening" };
 const atCentre = (view: WorldView) => view === "opening" || view === "viewer";
-const STATION_VIEWS: WorldView[] = ["shop", "gallery", "machine"];
+const STATION_VIEWS: WorldView[] = ["shop", "gallery", "recycler", "forge"];
+const isMachine = (view: WorldView): view is FigurineMachine => view === "recycler" || view === "forge";
 // Every series in shop order: released ones first, then the announced ones.
 const ALL_SERIES = [...FIGURINE_SERIES.map((entry) => entry.id), ...UPCOMING_SERIES.map((entry) => entry.id)];
 const CATALOG_ORDER = RELEASED_SERIES.flatMap((entry) => entry.characters.map((character) => figureKey(entry.id, character.id)));
@@ -149,45 +150,57 @@ export default function FigurineWorld() {
     setInspected({ key, quality: finish ?? bestQuality(collection[key]) ?? "standard" }); setUpgraded(null); setView("viewer");
   }
 
-  // The recycler: load three copies from the board, pull the lever, and the machine makes a box
-  // of the series most of them came from, or trades three of a kind up a quality.
-  const [slots, setSlots] = useState<MachineItem[]>([]);
-  const [machineRun, setMachineRun] = useState<{ run: number; output: StageMachine["output"]; outcome: MachineOutcome | null }>({ run: 0, output: null, outcome: null });
-  const outcome = useMemo(() => machineOutcome(slots, collection), [slots, collection]);
+  // Two machines take three figures each. The recycler grinds any three spare copies into a box of
+  // the series most of them came from; the forge trades three of a kind up a quality.
+  const [slots, setSlots] = useState<Record<FigurineMachine, MachineItem[]>>({ recycler: [], forge: [] });
+  type MachineRun = { run: number; output: StageMachine["output"]; outcome: MachineOutcome | null };
+  const [machineRuns, setMachineRuns] = useState<Record<FigurineMachine, MachineRun>>({ recycler: { run: 0, output: null, outcome: null }, forge: { run: 0, output: null, outcome: null } });
+  const outcomes = useMemo(() => ({ recycler: machineOutcome("recycler", slots.recycler, collection), forge: machineOutcome("forge", slots.forge, collection) }), [slots, collection]);
   const nameOf = useCallback((key: string) => findFigure(key)?.character.name ?? key, []);
-  function operateMachine(pick: MachinePick) {
+  function operateMachine(kind: FigurineMachine, pick: MachinePick) {
     unlockFigurineAudio();
+    const loaded = slots[kind], outcome = outcomes[kind];
+    const load = (next: MachineItem[]) => setSlots((current) => ({ ...current, [kind]: next }));
+    // The forge works on three of one kind, so a card places all three at once.
     if (pick.kind === "tray") {
-      if (slots.length < MACHINE_SLOTS && spare(collection, slots, pick) > 0) setSlots([...slots, { key: pick.key, quality: pick.quality }]);
-    } else if (pick.kind === "slot") setSlots(slots.filter((_, index) => index !== pick.index));
-    else if ((outcome.kind === "box" || outcome.kind === "upgrade") && changeCollection(machineChanges(slots, outcome))) {
-      setMachineRun({
-        run: machineRun.run + 1, outcome,
+      const item = { key: pick.key, quality: pick.quality };
+      if (kind === "forge") { if (spare(collection, [], item) >= MACHINE_SLOTS) load(Array.from({ length: MACHINE_SLOTS }, () => item)); }
+      else if (loaded.length < MACHINE_SLOTS && spare(collection, loaded, item) > 0) load([...loaded, item]);
+    } else if (pick.kind === "slot") load(kind === "forge" ? [] : loaded.filter((_, index) => index !== pick.index));
+    else if ((outcome.kind === "box" || outcome.kind === "upgrade") && changeCollection(machineChanges(loaded, outcome))) {
+      setMachineRuns((current) => ({ ...current, [kind]: {
+        run: current[kind].run + 1, outcome,
         output: outcome.kind === "box" ? { kind: "box", series: outcome.series } : { kind: "figure", key: outcome.key, quality: outcome.quality, name: nameOf(outcome.key) },
-      });
-      setSlots([]);
+      } }));
+      load([]);
     }
   }
-  function machineDone() {
-    const made = machineRun.outcome;
-    if (viewRef.current !== "machine" || !made) return;
+  function machineDone(kind: FigurineMachine) {
+    const made = machineRuns[kind].outcome;
+    if (viewRef.current !== kind || !made) return;
     if (made.kind === "box") pickSeries(made.series);
     else if (made.kind === "upgrade") { inspect(made.key, made.quality); setUpgraded({ key: made.key, quality: made.quality }); }
   }
   const qualityName = (finish: FigurineQuality) => t(`quality.${finish}`);
-  const machine: StageMachine = useMemo(() => {
-    const display = outcome.kind === "box" ? { title: t("machineBox"), detail: t("seriesName", { number: pad(seriesNumber(outcome.series)) }) }
-      : outcome.kind === "upgrade" ? { title: t("machineUpgrade"), detail: `${nameOf(outcome.key)} → ${t(`quality.${outcome.quality}`)}` }
-      : outcome.kind === "keep" ? { title: t("machineKeep"), detail: nameOf(outcome.key) }
-      : { title: t("machineLoad"), detail: `${slots.length} / ${MACHINE_SLOTS}` };
-    return {
-      ...display, ready: outcome.kind === "box" || outcome.kind === "upgrade", run: machineRun.run, output: machineRun.output,
-      tray: trayGroups(collection, CATALOG_ORDER).map((group) => ({ key: group.key, quality: group.quality, name: nameOf(group.key), spare: spare(collection, slots, group) })),
-      slots: slots.map((slot) => ({ ...slot, name: nameOf(slot.key) })),
+  const machines: Record<FigurineMachine, StageMachine> = useMemo(() => {
+    const view = (kind: FigurineMachine): StageMachine => {
+      const outcome = outcomes[kind], loaded = slots[kind];
+      const display = outcome.kind === "box" ? { title: t("machineBox"), detail: t("seriesName", { number: pad(seriesNumber(outcome.series)) }) }
+        : outcome.kind === "upgrade" ? { title: t("machineUpgrade"), detail: `${nameOf(outcome.key)} → ${t(`quality.${outcome.quality}`)}` }
+        : outcome.kind === "keep" ? { title: t("machineKeep"), detail: nameOf(outcome.key) }
+        : outcome.kind === "mismatch" ? { title: t("forgeMismatch"), detail: "" }
+        : { title: t(kind === "forge" ? "forgeLoad" : "machineLoad"), detail: `${loaded.length} / ${MACHINE_SLOTS}` };
+      return {
+        ...display, ready: outcome.kind === "box" || outcome.kind === "upgrade", run: machineRuns[kind].run, output: machineRuns[kind].output,
+        accent: outcome.kind === "upgrade" ? outcome.quality : undefined,
+        tray: trayGroups(collection, CATALOG_ORDER, kind).map((group) => ({ key: group.key, quality: group.quality, name: nameOf(group.key), spare: spare(collection, loaded, group) })),
+        slots: loaded.map((slot) => ({ ...slot, name: nameOf(slot.key) })),
+      };
     };
-  }, [collection, slots, outcome, machineRun, nameOf, t]);
+    return { recycler: view("recycler"), forge: view("forge") };
+  }, [collection, slots, outcomes, machineRuns, nameOf, t]);
 
-  // Navigation is in the world; the keyboard mirrors it: Esc back, S shop, C collection, M recycler,
+  // Navigation is in the world; the keyboard mirrors it: Esc back, S shop, C collection, M recycler, U forge,
   // number keys pick a series, Enter opens the sealed box.
   const onKey = useRef<(event: KeyboardEvent) => void>(() => {});
   useEffect(() => {
@@ -197,7 +210,8 @@ export default function FigurineWorld() {
       if (key === "escape" || key === "backspace") back();
       else if (atCentre(view) && key === "s") navigate("shop");
       else if (atCentre(view) && key === "c") navigate("gallery");
-      else if (atCentre(view) && key === "m") navigate("machine");
+      else if (atCentre(view) && key === "m") navigate("recycler");
+      else if (atCentre(view) && key === "u") navigate("forge");
       else if (view === "shop" && /^[1-9]$/.test(key) && ALL_SERIES[Number(key) - 1]) pickSeries(ALL_SERIES[Number(key) - 1]);
       else if (view === "opening" && state.phase === "sealed" && series && !webglUnavailable && (key === "enter" || key === " ") && !(event.target instanceof Element && event.target.closest("button, a"))) { event.preventDefault(); open(); }
     };
@@ -239,7 +253,7 @@ export default function FigurineWorld() {
     <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
       interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
-      machine={machine} onMachine={operateMachine} onMachineDone={machineDone} onComingSoon={setSoon}
+      machines={machines} onMachine={operateMachine} onMachineDone={machineDone} onComingSoon={setSoon}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={(key) => inspect(key)} onHoverFigure={setHovered}
       onStatus={(status) => {
         setWebglUnavailable(status === "webgl");
@@ -267,15 +281,15 @@ export default function FigurineWorld() {
             {qualityBadge(inspected.quality)}
             <h1>{viewing.character.name}</h1><p>{label(viewing.character)}</p><p className={styles.showcaseHint}>{t("inspectFigure")}</p>
           </> : (view === "gallery" || (view === "opening" && state.phase === "sealed")) && hoveredFigure ? <p className={styles.worldHint}>{collection[hovered!] ? hoveredFigure.character.name : t("notCollected")}</p>
-          : view === "gallery" || view === "shop" || view === "machine" ? null
+          : !atCentre(view) ? null
           : <span className={styles.srOnly}>{t(state.phase === "loading" ? "drawLoading" : state.phase === "opening" ? "drawOpening" : "mysteryTitle")}</span>}
       </div>
       {view === "opening" && state.phase === "sealed" && <p className={styles.worldHint}>{series ? t("pullToOpen") : `${t("seriesName", { number: pad(seriesNumber(seriesId)) })} · ${t("comingSoon")}`}</p>}
       {view === "opening" && state.phase === "error" && <div className={styles.drawActions}>
         <button ref={action} className={styles.primary} onClick={() => { unlockFigurineAudio(); setFiles([]); dispatch({ type: "retry" }); }}>{t("retryBox")}</button>
       </div>}
-      {view === "machine" && <p className={styles.showcaseHint}>{machine.tray.length ? t("machineHint") : t("machineEmpty")}</p>}
-      {(view === "shop" || view === "gallery" || view === "machine") && <p className={styles.showcaseHint}>{t("tapAwayHint")}</p>}
+      {isMachine(view) && <p className={styles.showcaseHint}>{t(machines[view].tray.length ? (view === "forge" ? "forgeHint" : "machineHint") : (view === "forge" ? "forgeEmpty" : "machineEmpty"))}</p>}
+      {!atCentre(view) && <p className={styles.showcaseHint}>{t("tapAwayHint")}</p>}
       {view === "viewer" && (!files.length || filesFor !== wanted?.model) && <p className={styles.showcaseHint}>{t("worldLoading")}</p>}
     </div>
   </main>;

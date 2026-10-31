@@ -108,9 +108,11 @@ export function subscribeCollection(listener: () => void): () => void {
 }
 export const emptyCollection = () => EMPTY;
 
-// The recycler: three figures go in. Three copies of one figure at one quality trade up to the
-// next quality; any other three become a blind box, as long as one copy of every figure stays.
+// Two machines take three figures each. The recycler turns any three spare copies into a blind
+// box, as long as one copy of every figure stays; the trade-up forge turns three copies of one
+// figure at one quality into a single copy at the next quality.
 export const MACHINE_SLOTS = 3;
+export type FigurineMachine = "recycler" | "forge";
 export type MachineItem = { key: string; quality: FigurineQuality };
 export type MachineOutcome =
   | { kind: "incomplete" }
@@ -118,26 +120,33 @@ export type MachineOutcome =
   | { kind: "box"; series: string }
   | { kind: "upgrade"; key: string; from: FigurineQuality; quality: FigurineQuality }
   // Recycling these would give away the last copy of `key`.
-  | { kind: "keep"; key: string };
+  | { kind: "keep"; key: string }
+  // The forge only works on three of a kind below the top quality.
+  | { kind: "mismatch" };
 
-// What the tray offers: each quality of every figure owned more than once, in catalog order.
-export function trayGroups(collection: FigurineCollection, order: readonly string[]): (MachineItem & { count: number })[] {
+// What each machine's board offers, in catalog order. The recycler shows each quality of every
+// figure owned more than once; the forge shows each quality held three times that can still go up.
+export function trayGroups(collection: FigurineCollection, order: readonly string[], machine: FigurineMachine = "recycler"): (MachineItem & { count: number })[] {
   const rank = new Map(order.map((key, index) => [key, index]));
   return Object.entries(collection)
-    .filter(([, copies]) => copiesOf(copies) > 1)
+    .filter(([, copies]) => machine === "forge" || copiesOf(copies) > 1)
     .sort(([a], [b]) => (rank.get(a) ?? Infinity) - (rank.get(b) ?? Infinity) || a.localeCompare(b))
-    .flatMap(([key, copies]) => QUALITIES.filter((quality) => copies[quality]).map((quality) => ({ key, quality, count: copies[quality]! })));
+    .flatMap(([key, copies]) => QUALITIES.filter((quality) => machine === "forge" ? (copies[quality] ?? 0) >= MACHINE_SLOTS && nextQuality(quality) : copies[quality])
+      .map((quality) => ({ key, quality, count: copies[quality]! })));
 }
 
 const same = (a: MachineItem, b: MachineItem) => a.key === b.key && a.quality === b.quality;
-// Copies of `item` still in the tray once the loaded ones are taken out.
+// Copies of `item` still on the board once the loaded ones are taken out.
 export const spare = (collection: FigurineCollection, slots: readonly MachineItem[], item: MachineItem) =>
   (collection[item.key]?.[item.quality] ?? 0) - slots.filter((slot) => same(slot, item)).length;
 
-export function machineOutcome(slots: readonly MachineItem[], collection: FigurineCollection): MachineOutcome {
+export function machineOutcome(machine: FigurineMachine, slots: readonly MachineItem[], collection: FigurineCollection): MachineOutcome {
   if (slots.length < MACHINE_SLOTS) return { kind: "incomplete" };
-  const [first] = slots, upgrade = nextQuality(first.quality);
-  if (upgrade && slots.every((slot) => same(slot, first))) return { kind: "upgrade", key: first.key, from: first.quality, quality: upgrade };
+  const [first] = slots;
+  if (machine === "forge") {
+    const upgrade = nextQuality(first.quality);
+    return upgrade && slots.every((slot) => same(slot, first)) && spare(collection, slots, first) >= 0 ? { kind: "upgrade", key: first.key, from: first.quality, quality: upgrade } : { kind: "mismatch" };
+  }
   for (const { key } of slots) if (slots.filter((slot) => slot.key === key).length >= copiesOf(collection[key])) return { kind: "keep", key };
   const votes = new Map<string, number>();
   for (const { key } of slots) { const series = key.split(":")[0]; votes.set(series, (votes.get(series) ?? 0) + 1); }
@@ -152,4 +161,3 @@ export function machineChanges(slots: readonly MachineItem[], outcome: MachineOu
   if (outcome.kind === "upgrade") changes.push({ key: outcome.key, quality: outcome.quality, delta: 1 });
   return changes;
 }
-

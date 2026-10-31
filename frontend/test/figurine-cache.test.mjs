@@ -72,3 +72,22 @@ test("evicting a box preserves the shared reflection texture and frees its own r
   disposeFigurineObject(root, new Set([reflection]));
   assert.deepEqual(disposed.sort(), ["geometry", "material", "print"]);
 });
+
+test("KTX2 budgets use device-transcoded mip payloads and count shared maps once", () => {
+  const map = new THREE.CompressedTexture([
+    { data: new Uint8Array(64), width: 8, height: 8 },
+    { data: new Uint8Array(16), width: 4, height: 4 },
+    { data: new Uint8Array(16), width: 2, height: 2 },
+    { data: new Uint8Array(16), width: 1, height: 1 },
+  ], 8, 8, THREE.RGBA_BPTC_Format);
+  const geometry = new THREE.BufferGeometry();
+  const material = new THREE.MeshStandardMaterial({ map, emissiveMap: map });
+  const root = new THREE.Group(); root.add(new THREE.Mesh(geometry, material), new THREE.Mesh(geometry, material));
+  assert.equal(figurineResourceBytes(root), 112);
+});
+
+test("uncompressed data textures without generated mipmaps count their actual payload", () => {
+  const map = new THREE.DataTexture(new Uint16Array(16), 2, 2, THREE.RGBAFormat, THREE.HalfFloatType);
+  const root = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ map }));
+  assert.equal(figurineResourceBytes(root), 32);
+});

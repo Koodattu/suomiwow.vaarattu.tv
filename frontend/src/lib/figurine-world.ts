@@ -1,23 +1,33 @@
 import * as THREE from "three";
-import { buildForest, forestLayout, marketLayout, swayMaterial } from "@/lib/figurine-forest";
+import { LAMP_ANGLES, buildForest, forestLayout, marketLayout, swayMaterial } from "@/lib/figurine-forest";
 
-// The collectibles world: a painted sky bubble over a stone plaza, with the opening pedestal
-// at the centre and stations round it: the shop to the left, the collection case to the right,
-// the recycler and the (not yet open) trading post behind, the hall of fame off to the left.
+// The collectibles world: a painted sky bubble over a stone plaza, with the opening pedestal at
+// the centre and six stations in a ring round it. Seen from home (the camera starts at +z), the
+// shop and the collection case flank the box at the back, the recycler and the trade-up forge
+// stand to either side, and the (not yet open) trading post and hall of fame are behind the camera.
 // The centre (the pedestal, with a box or an inspected figure) is home; the others are stations.
-export type WorldView = "shop" | "opening" | "gallery" | "viewer" | "machine";
+export type WorldView = "shop" | "opening" | "gallery" | "viewer" | "recycler" | "forge";
 // Stations that are built but not open yet: tapping one only says so.
 export type Outpost = "trading" | "fame";
-// Shop and case are set wide and angled toward the hub camera, so neither shot catches the
-// pedestal; the stations behind face the centre and show either side of the box from home.
-const facing = (x: number, z: number) => ({ position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(-x, -z) });
-export const STATIONS = {
-  shop: { position: new THREE.Vector3(-7.6, 0, -5.2), rotation: 0.45 },
-  gallery: { position: new THREE.Vector3(7.6, 0, -5.2), rotation: -0.45 },
-  machine: facing(-4.6, -11),
-  trading: facing(4.6, -11),
-  fame: facing(-12, 1.9),
+export type Station = "shop" | "gallery" | "recycler" | "forge" | Outpost;
+// A station at `angle` degrees round the plaza (0 toward the home camera, positive toward +x).
+// None faces the centre exactly: each turns toward a point beside the pedestal, so its shot
+// (which backs off a long way on narrow screens) passes the box instead of looking through it.
+export const STATION_RADIUS = 13;
+const ringed = (angle: number, aim: [number, number]) => {
+  const radians = THREE.MathUtils.degToRad(angle), x = Math.sin(radians) * STATION_RADIUS, z = Math.cos(radians) * STATION_RADIUS;
+  return { angle, position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(aim[0] - x, aim[1] - z) };
 };
+export const STATIONS: Record<Station, { angle: number; position: THREE.Vector3; rotation: number }> = {
+  shop: ringed(-145, [-3, 2]),
+  gallery: ringed(145, [3, 2]),
+  recycler: ringed(-90, [0, 3.5]),
+  forge: ringed(90, [0, 3.5]),
+  trading: ringed(-35, [-3, -2]),
+  fame: ringed(35, [3, -2]),
+};
+// The views that are stations (everything but the two at the centre).
+export const isStation = (view: WorldView): view is Exclude<WorldView, "opening" | "viewer"> => view !== "opening" && view !== "viewer";
 // Classic game textures (Elwynn cobbles and grass, sky layers) exported with the local wow.export
 // worker; the painted fallbacks show until they load. Provenance: /figurines/world/source.json.
 export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", grass: "/figurines/world/grass.png", dirt: "/figurines/world/dirt.png", clouds: "/figurines/world/clouds.jpg" };
@@ -194,8 +204,8 @@ export function buildWorld(scene: THREE.Scene, { onSky }: { onSky?: () => void }
   halo.addColorStop(0, "rgba(255,214,150,1)"); halo.addColorStop(0.3, "rgba(255,190,110,.4)"); halo.addColorStop(1, "rgba(255,170,90,0)");
   glowCanvas[1].fillStyle = halo; glowCanvas[1].fillRect(0, 0, 64, 64);
   const glowMap = textureFrom(glowCanvas[0]);
-  for (let i = 0; i < 10; i++) {
-    const angle = (i + 0.5) / 10 * Math.PI * 2, radius = PLAZA_RADIUS - 0.8;
+  for (const angle of LAMP_ANGLES) {
+    const radius = PLAZA_RADIUS - 0.8;
     // Lit lanterns read faintly in daylight.
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.position.set(Math.sin(angle) * radius, LAMP_HEAD, Math.cos(angle) * radius); glow.scale.setScalar(1.8); group.add(glow);
@@ -204,7 +214,7 @@ export function buildWorld(scene: THREE.Scene, { onSky }: { onSky?: () => void }
 }
 
 // Places a station group in the world.
-export function placeStation(scene: THREE.Scene, station: keyof typeof STATIONS) {
+export function placeStation(scene: THREE.Scene, station: Station) {
   const group = new THREE.Group();
   group.position.copy(STATIONS[station].position); group.rotation.y = STATIONS[station].rotation;
   scene.add(group);
@@ -216,16 +226,17 @@ export function placeStation(scene: THREE.Scene, station: keyof typeof STATIONS)
 export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, aspect = 16 / 9) {
   const pose = (target: THREE.Vector3, offset: THREE.Vector3, scale = framing) => ({ target, position: offset.multiplyScalar(scale).add(target) });
   // Stations back off until their full width fits the screen (36° vertical field of view).
-  const station = (name: keyof typeof STATIONS, offset: THREE.Vector3, height: number, width: number) => {
+  const station = (name: Station, offset: THREE.Vector3, height: number, width: number) => {
     const { position, rotation } = STATIONS[name];
     const target = new THREE.Vector3(0, height, 0).add(position);
     const fit = width / 2 / (Math.tan(THREE.MathUtils.degToRad(18)) * aspect) / offset.length();
-    return pose(target, offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation), THREE.MathUtils.clamp(fit, framing, 2.3));
+    return pose(target, offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation), THREE.MathUtils.clamp(fit, framing, 2.9));
   };
   switch (view) {
     case "shop": return station("shop", new THREE.Vector3(0, 1.3, 9.4), 2.45, 6.6);
     case "gallery": return station("gallery", new THREE.Vector3(0, 0.9, 9.2), 2.5, 5);
-    case "machine": return station("machine", new THREE.Vector3(0, 1.3, 7.6), 1.65, 6.4);
+    case "recycler": return station("recycler", new THREE.Vector3(0, 1.3, 7.6), 1.65, 6.4);
+    case "forge": return station("forge", new THREE.Vector3(0, 1.3, 7.6), 1.65, 6.4);
     default: return pose(home.target.clone(), home.offset.clone());
   }
 }

@@ -366,9 +366,13 @@ Blender renders do not reproduce the viewer's additive effects exactly.
 pedestal, seen head-on with the shop and the case at either side, holding either a sealed box
 (opening) or an inspected figure (viewer). Both share one camera, so swapping between a box
 and a figure never moves it, and returning from a station lands where the camera was left.
-The stations are the shop, the collection case and the recycler; the camera flies there and
-back in under a second. The trading post and the hall of fame already stand at the plaza
-(`figurine-outposts.ts`) but are not open: tapping one only says "coming soon".
+Six stations stand in a ring round the pedestal (`STATIONS` in `figurine-world.ts`, all 13
+units out): the shop and the collection case flank the box at the back, the recycler and the
+trade-up forge stand to the left and right, and the trading post and hall of fame are on the
+home camera's side. The camera flies to a station and back in under a second. None faces the
+centre exactly: each turns toward a point beside the pedestal, so its shot (which backs off a
+long way on a phone) passes the box rather than looking through it. The trading post and the
+hall of fame (`figurine-outposts.ts`) are not open: tapping one only says "coming soon".
 There are no labels and no buttons: tap a station to go there, a series' boxes to get a box,
 an owned figure to inspect it, and empty ground or the station you are at to come back. From
 home, boxes and figures can be tapped straight in the background stations. A picked box drops
@@ -382,8 +386,8 @@ the case and the wheel zooms in close. Auto-rotation is slow, stops while you ho
 and eases back in 2.5 s after you let go. Hovered figures in the case get a soft halo and keep
 their size. Station shots back off until the station's width fits the
 screen, so phones see the whole stall; when that pulls a shot back past the pedestal, the box
-steps aside. Keyboard: Esc back, S shop, C collection, M recycler, 1-9 pick a series (in the
-shop), Enter opens the sealed box. The figure's name and details appear as it
+steps aside. Keyboard: Esc back, S shop, C collection, M recycler, U trade-up forge, 1-9 pick
+a series (in the shop), Enter opens the sealed box. The figure's name and details appear as it
 lands. The only button is the sound toggle.
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
@@ -408,7 +412,7 @@ their colour and labelled "coming soon". Missing figures are faint frosted outli
 colour is the figure's finest quality, and spare copies show as a count beside it. A
 completed series' shelf turns gold.
 
-### Qualities, recycler and trade-up
+### Qualities, recycler and trade-up forge
 
 Every box rolls a quality with its figure (`rollQuality`, `figurine-collection.ts`):
 standard (89 %), golden (10 %, 1 in 10) or galaxy (1 %, 1 in 100). The
@@ -417,16 +421,26 @@ metal with the paint's light and shade kept as engraving, galaxy a screen-fixed 
 twinkling stars and a violet rim. Both reflect a neutral studio environment, not the green sky.
 The reveal and viewer show a quality badge; the case shows each figure in its finest quality.
 
-The recycler (`figurine-machine.ts`) is a gnomish machine with a pegboard of every figure
-owned more than once (one card per quality, with its spare count). Tap a card to load a copy
-into one of three slots, tap a loaded card to take it back, and pull the lever. The display
-says what the three will make: three copies of one figure at one quality trade up to the next
-quality (the figure is shown on the pedestal afterwards); any other three make a blind box of
-the series most of them came from (it pops out of the chute, then drops on the pedestal). It
-refuses to recycle the last copy of any figure. The rules are pure functions in
-`figurine-collection.ts` (`trayGroups`, `machineOutcome`, `machineChanges`) and the
-collection changes as one all-or-nothing set. There are no box limits yet, so a recycled box is
-just another box.
+Two machines (`figurine-machine.ts`) take three figures each. They share a kit: a pegboard of
+cards (one per figure and quality, with its spare count), three slots, a display that says what
+the three will make (and holds it while the machine runs), and a trigger.
+
+- The recycler is a gnomish grinder. Its board holds every figure owned more than once. Tap a
+  card to load a copy, tap a loaded card to take it back, and pull the lever: the cards drop
+  into the hopper, toothed rollers chew them up and spit shreds, the machine shakes and clanks,
+  and a blind box of the series most of the three came from slides out of the chute (then drops
+  on the pedestal). It refuses to take the last copy of any figure, and never trades up.
+- The trade-up forge is an anvil on a stone plinth before a rune stele. Its board holds only
+  what it can work on: a figure held three times at a quality below galaxy. Tapping a card sets
+  three copies in the cradles round the rune circle (tap one to clear them), and tapping the
+  trip hammer runs it: the three fly onto the anvil, the hammer strikes three times with sparks,
+  and the figure rises in a pillar of light one quality up, then is shown on the pedestal with
+  "Traded up!". The runes glow in the colour of the quality it will make. It may use the last
+  three copies, since the figure stays in the collection.
+
+The rules are pure functions in `figurine-collection.ts` (`trayGroups`, `machineOutcome`,
+`machineChanges`, each taking the machine) and the collection changes as one all-or-nothing
+set. There are no box limits yet, so a recycled box is just another box.
 
 The collection is session-only (`sessionStorage`, `figurine-collection.ts`): figure key to
 copies per quality; nothing is sent anywhere. The first prototype's counts (key
@@ -446,7 +460,9 @@ worker's model job (`kind: "models"`, `{ models: [{ name, file }] }`; provenance
 `source-models.json`). They were optimized with `worker/optimizer` after stripping their
 skeletons: the site draws them as static instanced meshes, and quantizing a skinned mesh
 moves its scale into the inverse bind matrices. Placement is seeded in
-`frontend/src/lib/figurine-forest.ts`; the camera side of the ring stays open. The grass
+`frontend/src/lib/figurine-forest.ts`; the woods close all the way round, leaving only the
+path and a lane where the opening shot flies in from behind the home camera. Lamp posts stand
+in the gaps between the stations. The grass
 and cobbles blend in Elwynn dirt through painted masks (a worn rim and a path into the
 woods). Where the path leaves the plaza is a small market (`marketLayout`): a human tent, the
 Duskwood wagon, a signpost, crates, barrels and produce tables. No faction banners: the
@@ -456,13 +472,14 @@ Station props came from a second model job (`station-models-001`; provenance und
 `stations` in `source-models.json`, loaded through `figurine-props.ts`): the Tinker Town
 gear that spins on the recycler, a gnome exhaust pipe, work lamp, pistons, bucket and tool; a
 Duskwood shop counter and gnomish postbox for the trading post; a notice board and podium for
-the hall of fame. Candidates looked at and left out: the Gnomeregan gnome machine and broken
+the hall of fame. The forge's anvil, trip hammer, stele and crystals are built in code, since
+the hammer is the forge's trigger; it borrows the gnome bucket and tool. Candidates looked at and left out: the Gnomeregan gnome machine and broken
 machine, hut machinery, hazard light, steel plate, goblin weathervane and orc wanted poster.
 
 Loading happens once, behind a start-up screen: scenery and station models, every released
 series' pedestal box (built up front and swapped on series change, never rebuilt; announced
 series' boxes are built when picked, the last two kept), every texture uploaded, all sounds
-downloaded (decoded on the first tap), portraits of every owned figure and every recycler card,
+downloaded (decoded on the first tap), portraits of every owned figure and every machine card,
 and shaders compiled. The figure inside each sealed box is drawn when the box arrives and preloaded
 while it waits, so opening goes straight into the build-up; its case portrait shaders are
 compiled with an off-screen target bound (portraits skip tone mapping, a different shader

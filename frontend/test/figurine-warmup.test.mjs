@@ -1,7 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as THREE from "three";
-import { warmFigurineScene } from "../src/lib/figurine-warmup.ts";
+import { uploadFigurineTextures, warmFigurineScene } from "../src/lib/figurine-warmup.ts";
+
+test("uploads yield between work slices, deduplicate shared maps, and cancel before the next slice", async (t) => {
+  const previous = globalThis.requestAnimationFrame;
+  t.after(() => { if (previous === undefined) delete globalThis.requestAnimationFrame; else globalThis.requestAnimationFrame = previous; });
+  const frames = []; let now = 0, active = true;
+  globalThis.requestAnimationFrame = (callback) => { frames.push(callback); return frames.length; };
+  t.mock.method(performance, "now", () => now);
+  const maps = Array.from({ length: 5 }, () => new THREE.Texture());
+  const scene = new THREE.Scene();
+  for (const map of maps) scene.add(new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ map, emissiveMap: map })));
+  const uploaded = [];
+  const loading = uploadFigurineTextures({ initTexture(map) { uploaded.push(map); now += 2; } }, scene, () => active);
+  assert.equal(uploaded.length, 0, "allow the loading UI to paint first");
+  frames.shift()(); await Promise.resolve();
+  assert.deepEqual(uploaded, maps.slice(0, 2));
+  active = false; frames.shift()();
+  assert.equal(await loading, false);
+  assert.deepEqual(uploaded, maps.slice(0, 2), "disposed/replaced assets must not be uploaded later");
+});
 
 function fixture() {
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera();

@@ -18,9 +18,9 @@ export function disposeFigurineObject(root: THREE.Object3D, retainedTextures: Re
   geometries.forEach((geometry) => geometry.dispose());
 }
 
-/** Decoded texture storage (including mipmaps) and geometry, not the compressed GLB size. */
+/** Resident texture payload and geometry; excludes driver overhead and render targets. */
 export function figurineResourceBytes(root: THREE.Object3D) {
-  const textures = new Set<THREE.Texture["source"]>(), buffers = new Set<ArrayBufferLike>();
+  const textures = new Map<THREE.Texture["source"], THREE.Texture>(), buffers = new Set<ArrayBufferLike>();
   root.traverse((object) => {
     const mesh = object as THREE.Mesh;
     if (!mesh.isMesh) return;
@@ -30,12 +30,18 @@ export function figurineResourceBytes(root: THREE.Object3D) {
       buffers.add(array.buffer);
     }
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material])
-      for (const value of Object.values(material)) if (value?.isTexture) textures.add(value.source);
+      for (const value of Object.values(material)) if (value?.isTexture) textures.set(value.source, value);
   });
   return [...buffers].reduce((sum, buffer) => sum + buffer.byteLength, 0)
-    + [...textures].reduce((sum, source) => {
-      const image = source.data as { width?: number; height?: number } | null;
-      return sum + (image?.width ?? 0) * (image?.height ?? 0) * 4 * 4 / 3;
+    + [...textures.values()].reduce((sum, texture) => {
+      // KTX2 has already been transcoded for this device. Count actual block payloads,
+      // including all supplied mip levels, rather than treating them as RGBA pixels.
+      if ((texture as THREE.CompressedTexture).isCompressedTexture) {
+        return sum + texture.mipmaps.reduce((bytes, mip) => bytes + (mip as THREE.CompressedTexture["mipmaps"][number]).data.byteLength, 0);
+      }
+      const image = texture.source.data as { width?: number; height?: number; data?: ArrayBufferView } | null;
+      const base = image?.data?.byteLength ?? (image?.width ?? 0) * (image?.height ?? 0) * 4;
+      return sum + base * (texture.generateMipmaps ? 4 / 3 : 1);
     }, 0);
 }
 

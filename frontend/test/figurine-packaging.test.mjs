@@ -15,6 +15,20 @@ function canvas() {
   return { getContext: () => context };
 }
 
+test("close-up box artwork keeps its detail while finish masks have a smaller memory budget", (t) => {
+  const previous = globalThis.document;
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
+  globalThis.document = { createElement: canvas };
+  const design = { labels: { ...PACKAGING_FALLBACK, title: "Archive", subtitle: "Series" }, lineup: [], theme: PACKAGING_THEMES.amethyst };
+  const prints = createBoxPrints(design, new Texture());
+  assert.deepEqual([prints.front.map.image.width, prints.front.map.image.height], [1025, 1375]);
+  assert.deepEqual([prints.front.roughnessMap.image.width, prints.front.roughnessMap.image.height], [513, 688]);
+  assert.equal(prints.front.roughnessMap, prints.front.metalnessMap);
+  assert.equal(prints.front.roughnessMap, prints.front.bumpMap);
+  const shelf = createBoxPrints(design, new Texture(), 150);
+  assert.deepEqual([shelf.front.map.image.width, shelf.front.roughnessMap.image.width], [308, 308]);
+});
+
 test("packaging readiness waits for the final silhouette repaint", async (t) => {
   const previous = { document: globalThis.document, Image: globalThis.Image };
   t.after(() => {

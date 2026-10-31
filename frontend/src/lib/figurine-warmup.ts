@@ -1,5 +1,26 @@
 import type * as THREE from "three";
 
+/** Upload in short CPU slices so cold loads cannot monopolize the animation thread. */
+export async function uploadFigurineTextures(renderer: Pick<THREE.WebGLRenderer, "initTexture">, root: THREE.Object3D, current: () => boolean) {
+  const textures = new Set<THREE.Texture>();
+  root.traverse((object) => {
+    const material = (object as THREE.Mesh).material;
+    for (const entry of material ? [material].flat() : [])
+      for (const value of Object.values(entry)) if (value?.isTexture) textures.add(value);
+  });
+  let sliceStart = -Infinity;
+  for (const texture of textures) {
+    if (!current()) return false;
+    if (performance.now() - sliceStart >= 4) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (!current()) return false;
+      sliceStart = performance.now();
+    }
+    renderer.initTexture(texture);
+  }
+  return current();
+}
+
 /** Exercise the first draw (including geometry and shadow programs) before a reveal is ready. */
 export async function warmFigurineScene(
   renderer: THREE.WebGLRenderer,
