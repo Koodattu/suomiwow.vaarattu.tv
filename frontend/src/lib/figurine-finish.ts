@@ -53,8 +53,8 @@ function finishMaterial(source: THREE.Material, quality: Exclude<FigurineQuality
     const golden = quality === "golden";
     const material = new THREE.MeshStandardMaterial({ ...shared,
       color: golden ? 0xffbe35 : 0xffffff,
-      metalness: golden ? 0.85 : 0.15, roughness: golden ? 0.33 : 0.45,
-      envMapIntensity: golden ? 0.8 : 0.35, emissive: golden ? 0x000000 : 0xffffff,
+      metalness: golden ? 0.95 : 0.15, roughness: golden ? 0.2 : 0.38,
+      envMapIntensity: golden ? 1.1 : 0.25, emissive: golden ? 0x000000 : 0xffffff,
     });
     material.onBeforeCompile = (shader) => {
       shader.fragmentShader = shader.fragmentShader.replace("#include <map_fragment>", `${DETAIL}
@@ -64,24 +64,26 @@ function finishMaterial(source: THREE.Material, quality: Exclude<FigurineQuality
           diffuseColor.rgb *= armorShade;
         ` : `
           vec2 sky = isOrthographic ? vViewPosition.xy * 1.1 : vViewPosition.xy / max( vViewPosition.z, 0.1 ) * 7.0;
-          vec3 galaxyColor = finishGalaxy( sky, finishTime );
-          diffuseColor.rgb = vec3( 0.12, 0.055, 0.25 ) * armorShade;
+          // More cloud structure across the figure; its colour comes from the moving sky.
+          vec3 galaxyColor = finishGalaxy( sky * 1.35, finishTime );
+          diffuseColor.rgb = ( vec3( 0.015, 0.02, 0.045 ) + galaxyColor * 0.22 ) * armorShade;
         `}`);
       if (golden) {
-        // Dark painted seams stay matte so reflections cannot wash out their detail.
+        // Polish the raised highlights while keeping dark painted seams relatively matte.
         shader.fragmentShader = shader.fragmentShader.replace("#include <roughnessmap_fragment>", `
           #include <roughnessmap_fragment>
-          roughnessFactor = mix( 0.65, 0.33, detail );`);
+          roughnessFactor = mix( 0.55, 0.18, smoothstep( 0.15, 0.85, detail ) );`);
       } else {
         shader.uniforms.finishTime = FINISH_TIME;
         shader.fragmentShader = `${GALAXY}\n${shader.fragmentShader}`
           .replace("#include <emissivemap_fragment>", `
             float rim = pow( 1.0 - abs( dot( normal, normalize( vViewPosition ) ) ), 3.0 );
-            totalEmissiveRadiance = galaxyColor * 0.95 * armorShade
+            // Let the nebula and stars remain visible in dark armour without losing its contrast.
+            totalEmissiveRadiance = galaxyColor * 1.8 * ( 0.18 + 0.82 * armorShade )
               + rim * vec3( 0.55, 0.45, 1.0 ) * 0.3 * armorShade;`);
       }
     };
-    material.customProgramCacheKey = () => `figurine-lab-grayscale-armor-${quality}`;
+    material.customProgramCacheKey = () => `figurine-lab-polished-armor-${quality}`;
     return material;
   }
   if (quality === "golden") {
