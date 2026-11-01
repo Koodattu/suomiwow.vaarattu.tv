@@ -154,20 +154,28 @@
         "pond": "Fishing pond"
       },
       "collection": {
-        "figures": "Figures",
-        "showcase": "Showcase",
         "owned": "{got}/{total} collected",
         "locked": "Not collected yet",
         "acquired": "Acquired {date}",
-        "inspect": "Inspect in 3D",
-        "place": "Place in showcase",
-        "remove": "Remove from showcase",
-        "onSpot": "On spot {number}",
-        "showcaseHint": "Your showcase stands on the 16 numbered plinths round the plaza. Pick a figure, then a spot.",
-        "emptySpot": "Empty",
-        "pickSpot": "Choose a spot for {name}",
+        "inspect": "View on the pedestal",
         "upcoming": "Series {number} · coming soon",
-        "secret": "Secret series"
+        "secret": "Secret series",
+        "search": "Search your figures",
+        "ownedOnly": "Owned only",
+        "favorites": "Favourites",
+        "onDisplay": "{count}/{total} on display",
+        "favoritesHint": "Star a figure to make it a favourite. Your first 16 favourites stand in the display cabinet and around the world.",
+        "dragHint": "Drag to reorder: the order is the display's, 1 to 16.",
+        "notOnDisplay": "Favourites past 16 wait off display",
+        "star": "Add {name} to favourites",
+        "unstar": "Remove {name} from favourites",
+        "displayed": "On display · #{number}",
+        "favorite": "Favourite",
+        "addFavorite": "Add to favourites",
+        "moveEarlier": "← Earlier",
+        "moveLater": "Later →",
+        "finish": "Shown as",
+        "spares": "{count, plural, one {# spare copy} other {# spare copies}} for the recycler or the forge"
       },
       "picker": {
         "recycler": "Pick three spare copies",
@@ -181,9 +189,9 @@
         "body": "A free box every day. Come back days in a row: the seventh day's crate also guarantees a golden roll.",
         "day": "Day {day}",
         "open": "Open today's crate",
-        "opened": "Opened. Come back tomorrow for day {day}.",
         "got": "Day {day}: {reward}",
-        "day7": "Golden roll"
+        "day7": "Golden roll",
+        "next": "Day {day}'s crate opens {time}"
       },
       "wheel": {
         "body": "One free spin a day.",
@@ -196,8 +204,10 @@
           "galaxy": "a galaxy boost",
           "figure": "a random figure"
         },
-        "spun": "Spun for today. The wheel turns again tomorrow.",
-        "won": "You won {prize}"
+        "wonLabel": "You won",
+        "free": "One free spin today",
+        "spinning": "Spinning…",
+        "next": "The wheel turns again {time}"
       },
       "mail": {
         "body": "Send a figure to a guildmate, with a note.",
@@ -230,7 +240,9 @@
           "fish3": "Catch 3 fish",
           "crates5": "Open 5 daily crates"
         },
-        "claimed": "Claimed"
+        "claimed": "Claimed",
+        "ready": "{count, plural, one {# reward ready to claim} other {# rewards ready to claim}}",
+        "resets": "resets {time}"
       },
       "feed": {
         "body": "The newest golden and galaxy pulls.",
@@ -268,15 +280,34 @@
         "body": "Trade figures with other players: offer yours, ask for theirs, and both accept."
       },
       "pond": {
-        "body": "The day's first cast brings up a box and a figure. After that, fish for fun.",
         "cast": "Cast",
         "castAgain": "Cast again",
-        "dailyReady": "Today's first cast is waiting.",
-        "daily": "Today's catch: a box and {name}!",
-        "fish": "{name}, {weight} lb",
-        "best": "Your biggest yet!",
-        "caught": "Fish caught: {count}",
-        "tally": "Fish caught: {count} · Biggest: {best} lb"
+        "strike": "Strike!",
+        "phase": {
+          "idle": "The line is in",
+          "cast": "Casting…",
+          "wait": "Waiting for a bite",
+          "bite": "Bite!"
+        },
+        "how": {
+          "idle": "Tap the rod to cast.",
+          "cast": "There it goes.",
+          "wait": "Leave the little nibbles. When the bobber plunges, tap it.",
+          "bite": "Tap the bobber now!"
+        },
+        "missed": "Too slow: it got away.",
+        "spooked": "Too soon: you scared it off.",
+        "prizeCatch": "Prize catch",
+        "weight": "{weight} lb",
+        "newKind": "New to your log!",
+        "best": "Your biggest of its kind yet!",
+        "prizes": "Today's prize catches",
+        "prize": {
+          "box": "A box",
+          "figure": "A figure"
+        },
+        "prizesDone": "All three landed. The fish keep biting.",
+        "log": "Fish log"
       },
       "rewards": {
         "boxes": "{count, plural, one {# box} other {# boxes}}",
@@ -288,7 +319,11 @@
       }
     },
     "tradedUp": "Traded up!",
-    "quality": { "standard": "Standard", "golden": "Golden", "galaxy": "Galaxy" },
+    "quality": {
+      "standard": "Standard",
+      "golden": "Golden",
+      "galaxy": "Galaxy"
+    },
     "soundOn": "Sound on",
     "soundOff": "Sound off",
     "showcaseHint": "A character worth collecting.",
@@ -300,7 +335,8 @@
     "galleryScroll": "Scroll into view to load the figure",
     "galleryRetry": "Reload model",
     "weaponsHeld": "Weapons in hand",
-    "weaponsSheathed": "Weapons sheathed"
+    "weaponsSheathed": "Weapons sheathed",
+    "openAnother": "Open another"
   },
   "horseRace": {
     "label": "Race through the final two bosses",

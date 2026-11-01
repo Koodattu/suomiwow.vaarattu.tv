@@ -18,7 +18,8 @@ registerHooks({
   },
 });
 const { FIGURINE_SERIES, UPCOMING_SERIES, SECRET_SERIES, RELEASED_SERIES, findFigure, TOTAL_FIGURES } = await import("../src/lib/figurine-series.ts");
-const { buildForest, marketLayout } = await import("../src/lib/figurine-forest.ts");
+const { buildForest, marketLayout, SECRET_BARREL } = await import("../src/lib/figurine-forest.ts");
+const { STATIONS, viewPose } = await import("../src/lib/figurine-world.ts");
 const { collectionShelves, parseCollection } = await import("../src/lib/figurine-collection.ts");
 
 test("a first secret figure unlocks the top shelf and normal shelves keep their order", () => {
@@ -77,7 +78,9 @@ test("only the marked barrel instance reveals Series 000 and foreground props bl
   const spots = marketLayout().filter(({ model }) => model === "barrel");
   assert.equal(spots.filter(({ secretSeries }) => secretSeries).length, 1);
   const secret = spots.find(({ secretSeries }) => secretSeries);
-  assert.deepEqual([secret.x, secret.z, secret.secretSeries], [19.4, -10.8, "community-000"]);
+  assert.deepEqual([secret.x, secret.z, secret.secretSeries], [SECRET_BARREL.x, SECRET_BARREL.z, "community-000"]);
+  // On the pond's far bank, beyond the water and its reeds.
+  assert.ok(STATIONS.pond.position.distanceTo(new THREE.Vector3(secret.x, 0, secret.z)) > 4.9);
   const scene = new THREE.Scene(), forest = buildForest(scene, spots);
   await forest.ready;
   scene.updateMatrixWorld(true);
@@ -118,6 +121,9 @@ test("the concealed box uses the measured cavity rather than bounds skewed by fa
   assert.ok(box.position.distanceTo(expected) < 1e-6);
   assert.equal(box.scale.x, .65);
   assert.ok(box.position.y + 0.33 * box.scale.y < 0.6, "box lid stays well below the tall rim");
+  // The broken side is turned toward the pond's camera, the one view that can find it.
   const opening = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), spot.yaw);
-  assert.ok(opening.dot(new THREE.Vector3(spot.x, 0, spot.z).normalize()) > 0.99);
+  const home = { offset: new THREE.Vector3(0.6, 2.1, 9.6), target: new THREE.Vector3(0, 1.5, 0) };
+  const camera = viewPose("pond", 1, home, 16 / 9).position.setY(0);
+  assert.ok(opening.dot(camera.sub(new THREE.Vector3(spot.x, 0, spot.z)).normalize()) > 0.95);
 });

@@ -2,46 +2,48 @@ import * as THREE from "three";
 import type { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { buildForest, forestLayout, marketLayout, swayMaterial, type Keep } from "@/lib/figurine-forest";
 
-// The collectibles world: a painted sky bubble over a forest clearing. A small cobbled square holds
-// the opening pedestal at its centre; worn dirt paths lead off it to the clearing's corners, where
-// the facilities stand in little neighbourhoods among the trees, the way a market village's would:
-// the market at the back (the shop, the trading post, the mailbox, the daily crate by the wagon),
-// a tinkers' yard to the west (the recycler and the forge), a scholars' corner to the east (the
-// collection, the scrying ball, the quest board), the fair to the south-west (the lucky wheel, the
-// leaderboards and the hall of fame) and the fishing pond down its own path to the south-east.
-// Nothing is signposted: each facility is its props, there to be found and tapped. The showcase's
-// figures stand about the world at sixteen spots of their own.
+// The collectibles world: a painted sky bubble over a forest clearing. A cobbled square holds the
+// opening pedestal at its centre, and what a player uses every day stands round its edge, a few
+// steps away: the shop and the collection's display cabinet at the back, the quest board and the
+// daily crate to the left, the lucky wheel to the right. Worn dirt paths lead on between them to
+// the rest, further out among the trees: the market lane behind (the trading post and the
+// mailbox), a tinkers' yard to the west (the recycler and the forge), the scrying ball behind the
+// cabinet, the hall of fame and the leaderboards to the east, and the fishing pond down its own
+// path to the south-east. Nothing is signposted: each facility is its props, there to be found and
+// tapped. The showcase's figures stand about the world at sixteen spots of their own.
 // The centre (the pedestal, with a box or an inspected figure) is home; the others are stations.
 export type Station = "shop" | "gallery" | "recycler" | "forge" | "crate" | "wheel" | "mail" | "quests" | "feed" | "fame" | "leaderboard" | "trading" | "pond";
 export type WorldView = Station | "opening" | "viewer";
 // The views that are stations (everything but the two at the centre).
 export const isStation = (view: WorldView): view is Station => view !== "opening" && view !== "viewer";
 // The cobbled square, and the clearing round it that the woods leave open.
-export const COBBLE_RADIUS = 10.5, PLAZA_RADIUS = 21;
+export const COBBLE_RADIUS = 11.2, PLAZA_RADIUS = 21;
 // Each station: where it stands (\`at\`, x and z; +z is toward the home camera) and the point it
 // faces (\`face\`, default the centre: most face their path or the square), its footprint (\`width\`
 // along its front, \`back\`/\`front\` behind and before its origin, for the camera's occlusion
-// test), and its shot: camera height and distance, target height, and the width that must fit.
-type StationSpec = { at: [number, number]; face?: [number, number]; width: number; back: number; front: number; shot: { height: number; distance: number; target: number; fit: number } };
+// test), and its shot: camera height and distance, target height, the width that must fit, and
+// how far (times its distance) it may back off to fit it.
+type StationSpec = { at: [number, number]; face?: [number, number]; width: number; back: number; front: number; shot: { height: number; distance: number; target: number; fit: number; reach?: number } };
 const big = (fit: number) => ({ height: 1.2, distance: 6.8, target: 1.6, fit });
 const small = (fit: number, target = 1.3) => ({ height: 1.1, distance: 6.6, target, fit });
 export const STATION_SPECS: Record<Station, StationSpec> = {
-  // The market, along the north path.
-  shop: { at: [-6.6, -13.6], face: [0, -7], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
-  trading: { at: [5.6, -14.6], face: [0, -10], width: 4, back: -0.6, front: 0.9, shot: big(4.6) },
-  mail: { at: [3, -19.8], face: [-2, -18.6], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
-  crate: { at: [10.4, -19.6], face: [4, -15], width: 2.4, back: -0.8, front: 0.9, shot: small(3.2, 1) },
-  // The tinkers' yard, off the west path.
-  recycler: { at: [-16, -4.8], face: [-9, -1.5], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
-  forge: { at: [-16.4, 4.6], face: [-9, 1.5], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
-  // The scholars' corner, off the east path.
-  gallery: { at: [15.4, -7.4], face: [8, -3], width: 3.6, back: -1, front: 1, shot: small(4.4, 1.5) },
-  feed: { at: [18.6, -0.6], face: [11, 0], width: 2.6, back: -0.6, front: 0.8, shot: small(3.4, 1.4) },
-  quests: { at: [15.8, 6], face: [9, 2], width: 3, back: -0.6, front: 0.9, shot: small(4, 1.5) },
-  // The fair, to the south-west.
-  wheel: { at: [-11.4, 11.6], face: [-5, 6], width: 3, back: -0.6, front: 0.8, shot: small(3.8, 1.6) },
-  leaderboard: { at: [-5.4, 16.6], face: [-2, 9], width: 3, back: -0.8, front: 0.9, shot: small(4, 1.5) },
-  fame: { at: [2.2, 17.6], face: [1, 9], width: 3.4, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
+  // Round the square's edge: the everyday things.
+  shop: { at: [-6.8, -12.2], face: [0, -6], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
+  gallery: { at: [7, -11.8], face: [0, -5.5], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
+  quests: { at: [-12.8, -3.6], face: [0, -1.5], width: 3, back: -0.6, front: 0.9, shot: small(4, 1.5) },
+  crate: { at: [-11.8, 5], face: [0, 1.5], width: 2.4, back: -0.8, front: 0.9, shot: small(3.2, 1) },
+  wheel: { at: [12.8, -3.4], face: [0, -1.5], width: 3, back: -0.6, front: 0.8, shot: small(3.8, 1.6) },
+  // Further out. The market lane behind the shop and the cabinet.
+  trading: { at: [-2.6, -21.4], face: [0, -12], width: 4, back: -0.6, front: 0.9, shot: big(4.6) },
+  mail: { at: [4.6, -21], face: [1.2, -15], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
+  // The scrying ball, behind the cabinet among the trees.
+  feed: { at: [16.6, -13.2], face: [8, -6], width: 2.6, back: -0.6, front: 0.8, shot: small(3.4, 1.4) },
+  // The tinkers' yard, down the west path.
+  recycler: { at: [-20.6, -2.6], face: [-11, -0.6], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
+  forge: { at: [-19.8, 4.2], face: [-11, 1.8], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
+  // The hall of fame and the leaderboards, down the east path.
+  fame: { at: [20.4, 2.6], face: [11, 1.4], width: 3.4, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
+  leaderboard: { at: [18.6, 9.6], face: [10, 4.6], width: 3, back: -0.8, front: 0.9, shot: small(4, 1.5) },
   // Down its own path to the south-east, where the trees open onto the water.
   pond: { at: [13.6, 19.4], face: [7, 10], width: 6, back: -3, front: 3, shot: { height: 2.4, distance: 8.5, target: 0.6, fit: 8.5 } },
 };
@@ -51,23 +53,23 @@ export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([n
 })) as Record<Station, { position: THREE.Vector3; rotation: number }>;
 // The worn paths off the square, as points along their middles.
 export const PATHS: [number, number][][] = [
-  [[0, -9.5], [0.6, -13.5], [-0.4, -18], [0.8, -23], [2.4, -30], [3.6, -40]],
-  [[-9.6, 0.4], [-12.6, -0.4], [-15.8, 0.2], [-19.6, 0.8]],
-  [[9.6, -1.4], [12.8, -2], [16.4, -1.6], [20.4, -1.2]],
-  [[7.2, 7.6], [9.4, 11], [11, 14.6]],
-  [[-7.4, 7.4], [-9.4, 9.8]],
-  [[-1.6, 10.2], [-2.6, 13.6]],
+  [[0, -10.4], [0.6, -14.5], [0.2, -18.5], [1, -23.5], [2.4, -30], [3.6, -40]],
+  [[-11, 0.6], [-14.2, 0.4], [-17.2, 0.8], [-21.4, 0.9], [-26, 1.6]],
+  [[11, 1.2], [14.2, 2.4], [17.4, 3.6], [19.6, 6]],
+  [[10.2, -8.2], [12.8, -10.4], [15.2, -11.6]],
+  [[7.6, 8], [9.6, 11.4], [11, 14.6]],
 ];
-// Trodden ground round each neighbourhood.
-export const PATCHES: [number, number, number][] = [[0, -16.5, 5.5], [-15.2, 0, 4.4], [16, -1, 4.6], [-7.6, 14.6, 4.8], [12.4, 17.6, 3.6]];
-// Where the showcase's figures stand, by slot (1-16): browsing at the market, about the yard and
-// the scholars' corner, at the fair, on the pond's bank. Each looks roughly toward the square.
+// Trodden ground round each neighbourhood out among the trees.
+export const PATCHES: [number, number, number][] = [[1, -21, 5.4], [-19.6, 0.8, 4.6], [19, 5.6, 4.8], [16, -12.6, 3], [12.4, 17.6, 3.6]];
+// Where the showcase's figures stand, by slot (1-16): about the square between the stalls, down
+// the paths, at the market, in the yard, by the hall and on the pond's bank. Each looks roughly
+// toward the square.
 export const STATUE_SPOTS = ([
-  [-2.6, -12.6], [4.6, -10.6], [-0.6, -25.8], [7.4, -22.2], [-12.4, -7.6], [-12.6, 7.2], [-20.2, -0.4], [9.8, -8.6],
-  [19.8, 3.6], [20.2, -5.4], [-8.4, 14.2], [-1.4, 19.8], [6.4, 15.6], [16.8, 14.6], [17.6, 22.2], [-16.6, 14.4],
+  [-2.4, -11.2], [3.2, -10.8], [-10.6, -8.6], [14.2, -8.6], [-8.2, -5.6], [8.8, 7.2], [-5.2, 0.2], [5, 0.8],
+  [-2.2, -24.6], [6.8, -25.4], [-17.4, -8.6], [-15.6, 6.8], [15.6, -0.6], [14.6, 4.2], [8.2, 17.2], [-11.4, -15.6],
 ] as [number, number][]).map(([x, z], index) => ({ number: index + 1, position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(-x, -z) + Math.sin(index * 2.4) * 0.5 }));
 // Lamp posts along the paths.
-export const LAMP_SPOTS: [number, number][] = [[2.2, -9], [-2.4, -17.2], [-12.4, 1.4], [12.6, 0.6], [9.6, 9.2], [-6.6, 9.8], [-10.8, -14.6], [14.2, -14.2]];
+export const LAMP_SPOTS: [number, number][] = [[-1.4, -9.8], [-4.2, -16.8], [-14.6, 4.6], [12.6, 0], [9.2, 9.8], [-16.8, -5.8], [10.4, -6.6], [-9.4, 9.4]];
 // Classic game textures (Elwynn cobbles and grass, sky layers) exported with the local wow.export
 // worker; the painted fallbacks show until they load. Provenance: /figurines/world/source.json.
 export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", grass: "/figurines/world/grass.png", dirt: "/figurines/world/dirt.png", clouds: "/figurines/world/clouds.jpg" };
@@ -294,6 +296,6 @@ export function viewPose(view: WorldView, framing: number, home: { offset: THREE
   if (!isStation(view)) return { target: home.target.clone(), position: home.offset.clone().multiplyScalar(framing).add(home.target) };
   const { position, rotation } = STATIONS[view], { shot } = STATION_SPECS[view];
   const offset = new THREE.Vector3(0, shot.height, shot.distance), target = new THREE.Vector3(0, shot.target, 0).add(position);
-  const fit = THREE.MathUtils.clamp(shot.fit / 2 / (Math.tan(THREE.MathUtils.degToRad(18)) * aspect) / offset.length(), framing, 2.9);
+  const fit = THREE.MathUtils.clamp(shot.fit / 2 / (Math.tan(THREE.MathUtils.degToRad(18)) * aspect) / offset.length(), framing, Math.max(framing, shot.reach ?? 2.9));
   return { target, position: offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation).multiplyScalar(fit).add(target) };
 }

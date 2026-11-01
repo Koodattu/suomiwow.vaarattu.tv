@@ -164,29 +164,33 @@ export function machineChanges(slots: readonly MachineItem[], outcome: MachineOu
 
 // Records kept beside the collection, session-only like it: when each figure was first acquired at
 // each quality (the museum), the newest golden and galaxy pulls (the feed), counters for quests,
-// the sixteen showcase slots (whose figures stand about the world), the day's crate, spin and
-// catch, the quests' periods, and rewards earned but not yet used.
+// the favourites (in the player's order; the first sixteen stand in the display cabinet and about
+// the world), the day's crate, spin and catches, the fish caught, the quests' periods, and rewards
+// earned but not yet used.
 export type PullSource = "box" | "forge" | "wheel" | "pond";
 export type FeedEntry = { key: string; quality: FigurineQuality; at: string; source: PullSource };
 export const STAT_NAMES = ["opened", "recycled", "tradedUp", "spins", "fish", "galaxy", "crates"] as const;
 export type FigurineStats = Record<(typeof STAT_NAMES)[number], number>;
 // Rewards: boxes banked for when boxes are limited, and a boost the next box opened rolls at least.
 export type Boons = { boxes: number; boost: FigurineQuality | null };
-// The day each daily thing was last done (local "YYYY-MM-DD"), and the crate's streak (1-7).
-export type Daily = { crate: string | null; streak: number; spin: string | null; catch: string | null };
+// The day each daily thing was last done (local "YYYY-MM-DD"), the crate's streak (1-7), and how
+// many of that day's prize catches have been landed.
+export type Daily = { crate: string | null; streak: number; spin: string | null; catch: string | null; caught: number };
+// The fish log: per species, how many, the heaviest, and how many came up golden or galaxy.
+export type FishLog = Readonly<Record<string, { count: number; best: number; golden: number; galaxy: number }>>;
 export type QuestPeriod = "daily" | "weekly" | "monthly";
 // Each period's quests count from the stats as they were when the period began.
 export type QuestState = Record<QuestPeriod, { key: string; base: FigurineStats; claimed: string[] }>;
 export type FigurineRecords = {
-  acquired: Readonly<Record<string, string>>; feed: readonly FeedEntry[]; stats: FigurineStats; showcase: readonly (MachineItem | null)[];
-  boons: Boons; daily: Daily; quests: QuestState | null; catches: { best: number };
+  acquired: Readonly<Record<string, string>>; feed: readonly FeedEntry[]; stats: FigurineStats; favorites: readonly MachineItem[];
+  boons: Boons; daily: Daily; quests: QuestState | null; fish: FishLog;
 };
 export const SHOWCASE_SLOTS = 16, FEED_LENGTH = 10;
 export const RECORDS_KEY = "suomiwow-figurine-records-v1";
 const ZERO_STATS = Object.freeze(Object.fromEntries(STAT_NAMES.map((name) => [name, 0]))) as FigurineStats;
 const EMPTY_RECORDS: FigurineRecords = Object.freeze({
-  acquired: {}, feed: [], stats: ZERO_STATS, showcase: Array(SHOWCASE_SLOTS).fill(null),
-  boons: { boxes: 0, boost: null }, daily: { crate: null, streak: 0, spin: null, catch: null }, quests: null, catches: { best: 0 },
+  acquired: {}, feed: [], stats: ZERO_STATS, favorites: [],
+  boons: { boxes: 0, boost: null }, daily: { crate: null, streak: 0, spin: null, catch: null, caught: 0 }, quests: null, fish: {},
 });
 let cachedRecords: FigurineRecords | null = null;
 const FIGURE_KEY = /^[a-z0-9-]+:[a-z0-9-]+$/;
@@ -204,14 +208,21 @@ export function parseRecords(raw: string | null): FigurineRecords {
     const acquired = Object.fromEntries(Object.entries(value.acquired ?? {}).filter(([id, at]) => { const [key, quality] = id.split("|"); return FIGURE_KEY.test(key) && isQuality(quality) && isDate(at); })) as Record<string, string>;
     const sources: PullSource[] = ["box", "forge", "wheel", "pond"];
     const feed = (Array.isArray(value.feed) ? value.feed : []).filter((entry: FeedEntry) => isItem(entry) && isDate(entry.at) && sources.includes(entry.source)).slice(0, FEED_LENGTH);
-    const showcase = Array.from({ length: SHOWCASE_SLOTS }, (_, index) => isItem(value.showcase?.[index]) ? { key: value.showcase[index].key, quality: value.showcase[index].quality } : null);
+    // Favourites, once each; older records kept sixteen fixed showcase slots, read in slot order.
+    const favorites: MachineItem[] = [];
+    for (const entry of Array.isArray(value.favorites) ? value.favorites : Array.isArray(value.showcase) ? value.showcase : [])
+      if (isItem(entry) && !favorites.some(({ key }) => key === entry.key)) favorites.push({ key: entry.key, quality: entry.quality });
+    const fish = Object.fromEntries(Object.entries(value.fish ?? {}).filter(([id]) => fishOf(id)).map(([id, entry]) => {
+      const log = (entry ?? {}) as Record<string, unknown>, best = Number(log.best);
+      return [id, { count: whole(log.count), best: Number.isFinite(best) ? Math.max(0, best) : 0, golden: whole(log.golden), galaxy: whole(log.galaxy) }];
+    }));
     const boons = { boxes: whole(value.boons?.boxes), boost: isQuality(value.boons?.boost) && value.boons.boost !== "standard" ? value.boons.boost : null };
-    const daily = { crate: isDay(value.daily?.crate) ? value.daily.crate : null, streak: Math.min(7, whole(value.daily?.streak)), spin: isDay(value.daily?.spin) ? value.daily.spin : null, catch: isDay(value.daily?.catch) ? value.daily.catch : null };
+    const daily = { crate: isDay(value.daily?.crate) ? value.daily.crate : null, streak: Math.min(7, whole(value.daily?.streak)), spin: isDay(value.daily?.spin) ? value.daily.spin : null, catch: isDay(value.daily?.catch) ? value.daily.catch : null, caught: Math.min(DAILY_CATCHES.length, whole(value.daily?.caught)) };
     const period = (entry: { key?: unknown; base?: unknown; claimed?: unknown } | undefined) => entry && typeof entry.key === "string"
       ? { key: entry.key, base: statsOf(entry.base), claimed: Array.isArray(entry.claimed) ? entry.claimed.filter((id): id is string => typeof id === "string") : [] } : null;
     const periods = value.quests && { daily: period(value.quests.daily), weekly: period(value.quests.weekly), monthly: period(value.quests.monthly) };
     const quests = periods && periods.daily && periods.weekly && periods.monthly ? periods as QuestState : null;
-    return { acquired, feed, stats: statsOf(value.stats), showcase, boons, daily, quests, catches: { best: Number.isFinite(value.catches?.best) ? Math.max(0, value.catches.best) : 0 } };
+    return { acquired, feed, stats: statsOf(value.stats), favorites, boons, daily, quests, fish };
   } catch { return EMPTY_RECORDS; }
 }
 export function readRecords(store: Store | null = sessionStore()): FigurineRecords {
@@ -247,25 +258,39 @@ export function recordPull({ key, quality }: MachineItem, source: PullSource, no
 export function recordRecycle(store: Store | null = sessionStore()) {
   updateRecords((records) => ({ ...records, stats: bump(records.stats, { recycled: 1 }) }), store);
 }
-// Puts a figure on a showcase slot (or clears it with null). A figure stands on one spot only:
-// placing it again moves it.
-export function setShowcaseSlot(slot: number, item: MachineItem | null, store: Store | null = sessionStore()) {
-  if (!Number.isSafeInteger(slot) || slot < 0 || slot >= SHOWCASE_SLOTS || (item && !isItem(item))) return false;
-  updateRecords((records) => {
-    const showcase = records.showcase.map((entry) => entry && item && entry.key === item.key ? null : entry);
-    showcase[slot] = item && { key: item.key, quality: item.quality };
-    return { ...records, showcase };
-  }, store);
+// Stars a figure (at the given finish), or unstars it. New favourites join the end of the list.
+export function toggleFavorite(item: MachineItem, store: Store | null = sessionStore()) {
+  if (!isItem(item)) return false;
+  updateRecords((records) => ({ ...records, favorites: records.favorites.some(({ key }) => key === item.key)
+    ? records.favorites.filter(({ key }) => key !== item.key) : [...records.favorites, { key: item.key, quality: item.quality }] }), store);
   return true;
 }
-// What a showcase slot shows now: its figure at the stored quality, or at the finest still owned,
-// or nothing once no copy is left.
+// Moves a favourite to another place in the list (dragged there, or moved a step).
+export function moveFavorite(key: string, to: number, store: Store | null = sessionStore()) {
+  updateRecords((records) => {
+    const from = records.favorites.findIndex((entry) => entry.key === key);
+    if (from < 0 || !Number.isFinite(to)) return records;
+    const favorites = [...records.favorites], [moved] = favorites.splice(from, 1);
+    favorites.splice(Math.max(0, Math.min(favorites.length, Math.round(to))), 0, moved);
+    return { ...records, favorites };
+  }, store);
+}
+// Which finish a favourite shows.
+export function setFavoriteQuality(key: string, quality: FigurineQuality, store: Store | null = sessionStore()) {
+  if (!isQuality(quality)) return;
+  updateRecords((records) => ({ ...records, favorites: records.favorites.map((entry) => entry.key === key ? { key, quality } : entry) }), store);
+}
+// What a favourite shows now: its chosen finish, or the finest still owned, or nothing once no
+// copy is left.
 export function showcaseFigure(entry: MachineItem | null, collection: FigurineCollection): MachineItem | null {
   if (!entry) return null;
   if (collection[entry.key]?.[entry.quality]) return entry;
   const best = bestQuality(collection[entry.key]);
   return best ? { key: entry.key, quality: best } : null;
 }
+// The display: the first sixteen favourites still owned, in order.
+export const showcaseOf = (favorites: readonly MachineItem[], collection: FigurineCollection) =>
+  favorites.map((entry) => showcaseFigure(entry, collection)).filter((entry): entry is MachineItem => !!entry).slice(0, SHOWCASE_SLOTS);
 
 // Days, weeks and months in the player's own time zone.
 const pad2 = (value: number) => String(value).padStart(2, "0");
@@ -323,27 +348,57 @@ export function spinWheel(random: number, now = new Date(), store: Store | null 
   return { segment, reward };
 }
 
-// The fishing pond: the day's first cast lands a box and a figure; after that, fish, for fun.
-// Classic Azeroth catches, smallest to largest (pounds).
+// The fishing pond. Cast, wait for the bite, hook it in time. The day's first three catches are
+// prizes (a box, a figure, a box); after that the pond gives fish, and now and then a boot. Bigger
+// fish are rarer; any catch can come up golden or, rarely, galaxy. Classic Azeroth catches,
+// smallest to largest: `weight` in pounds, `length` how long one shows in the world (units),
+// `odds` how often it bites against the others.
+export const DAILY_CATCHES: readonly Reward[] = [{ boxes: 1 }, { figure: true }, { boxes: 1 }];
 export const FISH = [
-  { name: "Raw Brilliant Smallfish", weight: [0.2, 0.6] }, { name: "Raw Longjaw Mud Snapper", weight: [0.5, 1.4] }, { name: "Raw Bristle Whisker Catfish", weight: [1, 2.6] },
-  { name: "Oily Blackmouth", weight: [1.2, 3] }, { name: "Firefin Snapper", weight: [1.5, 3.4] }, { name: "Raw Rainbow Fin Albacore", weight: [2, 4.5] },
-  { name: "Raw Spotted Yellowtail", weight: [3, 6] }, { name: "Stonescale Eel", weight: [4, 8] }, { name: "Deviate Fish", weight: [1, 5] }, { name: "Raw Whitescale Salmon", weight: [6, 12] },
-] as const;
-export type Catch = { kind: "daily"; reward: Reward } | { kind: "fish"; fish: number; weight: number; best: boolean };
-export const dailyCatchReady = ({ daily }: FigurineRecords, now = new Date()) => daily.catch !== dayKey(now);
-export function castLine(random: () => number, now = new Date(), store: Store | null = sessionStore()): Catch {
-  const records = readRecords(store);
-  if (dailyCatchReady(records, now)) {
-    const reward: Reward = { boxes: 1, figure: true };
-    updateRecords((current) => ({ ...current, daily: { ...current.daily, catch: dayKey(now) }, stats: bump(current.stats, { fish: 1 }) }), store);
-    return { kind: "daily", reward };
+  { id: "smallfish", name: "Brilliant Smallfish", weight: [0.2, 0.6], length: 0.28, odds: 20 },
+  { id: "mudsnapper", name: "Longjaw Mud Snapper", weight: [0.5, 1.4], length: 0.36, odds: 18 },
+  { id: "catfish", name: "Bristle Whisker Catfish", weight: [1, 2.6], length: 0.46, odds: 15 },
+  { id: "blackmouth", name: "Oily Blackmouth", weight: [1.2, 3], length: 0.48, odds: 13 },
+  { id: "firefin", name: "Firefin Snapper", weight: [1.5, 3.4], length: 0.5, odds: 11 },
+  { id: "deviate", name: "Deviate Fish", weight: [1, 5], length: 0.52, odds: 8 },
+  { id: "yellowtail", name: "Spotted Yellowtail", weight: [3, 6], length: 0.62, odds: 7 },
+  { id: "eel", name: "Stonescale Eel", weight: [4, 8], length: 0.9, odds: 5 },
+  { id: "salmon", name: "Whitescale Salmon", weight: [6, 12], length: 0.8, odds: 4 },
+  { id: "mightfish", name: "Mightfish", weight: [18, 40], length: 1.3, odds: 1.5 },
+  { id: "boot", name: "Soggy Boot", weight: [1.8, 2.6], length: 0.36, odds: 6, junk: true },
+] as const satisfies readonly { id: string; name: string; weight: readonly [number, number]; length: number; odds: number; junk?: boolean }[];
+export type FishId = (typeof FISH)[number]["id"];
+export const fishOf = (id: string) => FISH.find((entry) => entry.id === id);
+// What is on the line: rolled when the line goes out, landed only if it is hooked in time.
+export type CatchRoll = { kind: "daily"; index: number; reward: Reward } | { kind: "fish"; fish: FishId; weight: number; quality: FigurineQuality };
+// A landed catch: a fish also says if it was the heaviest of its kind yet, or the first.
+export type Catch = Extract<CatchRoll, { kind: "daily" }> | (Extract<CatchRoll, { kind: "fish" }> & { best: boolean; first: boolean });
+export const dailyCatchesLeft = ({ daily }: FigurineRecords, now = new Date()) => DAILY_CATCHES.length - (daily.catch === dayKey(now) ? daily.caught : 0);
+export function rollCatch(records: FigurineRecords, random: () => number, now = new Date()): CatchRoll {
+  const left = dailyCatchesLeft(records, now);
+  if (left > 0) { const index = DAILY_CATCHES.length - left; return { kind: "daily", index, reward: DAILY_CATCHES[index] }; }
+  let pick = random() * FISH.reduce((total, { odds }) => total + odds, 0);
+  const fish = FISH.find(({ odds }) => (pick -= odds) < 0) ?? FISH[0], [low, high] = fish.weight;
+  // The heavy end of each kind's range is rarer.
+  const weight = Math.round((low + (high - low) * random() ** 1.6) * 10) / 10;
+  const finish = random(), quality: FigurineQuality = finish < 0.012 ? "galaxy" : finish < 0.072 ? "golden" : "standard";
+  return { kind: "fish", fish: fish.id, weight, quality };
+}
+// Lands what was hooked: a prize counts toward the day's three; a fish goes in the log.
+export function landCatch(roll: CatchRoll, now = new Date(), store: Store | null = sessionStore()): Catch {
+  const today = dayKey(now);
+  if (roll.kind === "daily") {
+    updateRecords((current) => ({ ...current, daily: { ...current.daily, catch: today, caught: (current.daily.catch === today ? current.daily.caught : 0) + 1 }, stats: bump(current.stats, { fish: 1 }) }), store);
+    return roll;
   }
-  // Bigger fish are rarer: the square of a roll leans the pick toward the small end.
-  const fish = Math.min(FISH.length - 1, Math.floor(random() ** 2 * FISH.length)), [low, high] = FISH[fish].weight;
-  const weight = Math.round((low + (high - low) * random()) * 10) / 10, best = weight > records.catches.best;
-  updateRecords((current) => ({ ...current, catches: { best: Math.max(current.catches.best, weight) }, stats: bump(current.stats, { fish: 1 }) }), store);
-  return { kind: "fish", fish, weight, best };
+  const before = readRecords(store).fish[roll.fish];
+  updateRecords((current) => {
+    const log = current.fish[roll.fish] ?? { count: 0, best: 0, golden: 0, galaxy: 0 };
+    return { ...current, stats: bump(current.stats, { fish: 1 }), fish: { ...current.fish, [roll.fish]: {
+      count: log.count + 1, best: Math.max(log.best, roll.weight), golden: log.golden + (roll.quality === "golden" ? 1 : 0), galaxy: log.galaxy + (roll.quality === "galaxy" ? 1 : 0),
+    } } };
+  }, store);
+  return { ...roll, best: !before || roll.weight > before.best, first: !before };
 }
 
 // Using a boost: the next box opened rolls at least this quality.

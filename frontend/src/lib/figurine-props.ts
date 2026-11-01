@@ -48,10 +48,26 @@ export const STATION_PROPS = {
   fish: "/figurines/world/models/fish-red.glb",
   signTackle: "/figurines/world/models/sign-tackle.glb",
   fishingBox: "/figurines/world/models/fishing-box.glb",
+  // The pond's tackle and what it gives up: a rod (its butt and reel at +z), a feathered bobber,
+  // and the catches, lying on their sides as dockside doodads do.
+  fishingRod: "/figurines/world/models/fishing-pole.glb",
+  bobber: "/figurines/world/models/fishing-bobber.glb",
+  boot: "/figurines/world/models/boot-junk.glb",
+  fishGreen: "/figurines/world/models/fish-dead-green.glb",
+  fishOrange: "/figurines/world/models/fish-dead-orange.glb",
+  fishBlue: "/figurines/world/models/fish-dead-blue.glb",
+  fishPurple: "/figurines/world/models/fish-dead-purple.glb",
+  fishGold: "/figurines/world/models/fish-uldum-1.glb",
+  fishPale: "/figurines/world/models/fish-uldum-2.glb",
+  fishPink: "/figurines/world/models/fish-uldum-3.glb",
+  fishBig: "/figurines/world/models/fish-uldum-4.glb",
+  fishEel: "/figurines/world/models/fish-draenor-1.glb",
+  fishSpiny: "/figurines/world/models/fish-draenor-3.glb",
 } as const;
 export type StationProp = keyof typeof STATION_PROPS;
 export type PlaceProp = ReturnType<typeof propPlacer>;
-type Placement = { height: number; x?: number; y?: number; z?: number; yaw?: number; shadow?: boolean };
+// `height` sizes a prop by its height; `length`, if given, by its longest level extent instead.
+type Placement = { height: number; length?: number; x?: number; y?: number; z?: number; yaw?: number; shadow?: boolean };
 
 // One placer per scene: each prop file loads once and is shared by its copies, and is disposed
 // with that scene (never reused by another, whose teardown would free it).
@@ -61,7 +77,7 @@ export function propPlacer(ktx2Loader?: KTX2Loader) {
   const cache = new Map<StationProp, Promise<THREE.Object3D | null>>();
   // Places a prop scaled to `height`, standing at (x, y, z) and turned by `yaw` (game models face +x).
   // The group exists at once and fills in when the file arrives; a missing file leaves it empty.
-  return (parent: THREE.Object3D, prop: StationProp, { height, x = 0, y = 0, z = 0, yaw = 0, shadow = true }: Placement) => {
+  return (parent: THREE.Object3D, prop: StationProp, { height, length, x = 0, y = 0, z = 0, yaw = 0, shadow = true }: Placement) => {
     const group = new THREE.Group(); group.position.set(x, y, z); group.rotation.y = yaw; parent.add(group);
     let source = cache.get(prop);
     if (!source) {
@@ -71,7 +87,8 @@ export function propPlacer(ktx2Loader?: KTX2Loader) {
     const ready = source.then((model) => {
       if (!model) return group;
       const copy = model.clone(true), bounds = new THREE.Box3().setFromObject(copy);
-      const scale = height / Math.max(bounds.max.y - bounds.min.y, 1e-3), centre = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3()), centre = bounds.getCenter(new THREE.Vector3());
+      const scale = length ? length / Math.max(size.x, size.z, 1e-3) : height / Math.max(size.y, 1e-3);
       copy.scale.setScalar(scale); copy.position.set(-centre.x * scale, -bounds.min.y * scale, -centre.z * scale);
       copy.traverse((object) => { if (object instanceof THREE.Mesh) object.castShadow = object.receiveShadow = shadow; });
       group.add(copy);

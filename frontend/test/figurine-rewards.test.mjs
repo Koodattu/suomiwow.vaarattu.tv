@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FISH, QUESTS, WHEEL, boostedQuality, castLine, claimQuest, crateState, dayKey, grantReward, openCrate, parseRecords, questBoard, readRecords, recordPull, spinWheel, startQuestPeriods, weekKey, wheelSegment } from "../src/lib/figurine-collection.ts";
+import { FISH, QUESTS, WHEEL, boostedQuality, claimQuest, dailyCatchesLeft, fishOf, landCatch, moveFavorite, rollCatch, setFavoriteQuality, showcaseOf, toggleFavorite, crateState, dayKey, grantReward, openCrate, parseRecords, questBoard, readRecords, recordPull, spinWheel, startQuestPeriods, weekKey, wheelSegment } from "../src/lib/figurine-collection.ts";
 
 const store = () => { const data = new Map(); return { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 const day = (date, hour = 12) => new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
@@ -35,16 +35,51 @@ test("the wheel spins once a day and lands by weight on its eight segments", () 
   assert.throws(() => wheelSegment(1));
 });
 
-test("the day's first cast lands a box and a figure, then fish of fair weights", () => {
-  const memory = store(), random = () => 0.5;
-  assert.deepEqual(castLine(random, day("2026-11-01"), memory), { kind: "daily", reward: { boxes: 1, figure: true } });
-  const fish = castLine(random, day("2026-11-01", 13), memory);
-  assert.equal(fish.kind, "fish");
-  const [low, high] = FISH[fish.fish].weight;
-  assert.ok(fish.weight >= low && fish.weight <= high && fish.best);
-  assert.equal(castLine(random, day("2026-11-01", 14), memory).best, false);
-  assert.equal(readRecords(memory).stats.fish, 3);
-  assert.equal(castLine(random, day("2026-11-02"), memory).kind, "daily");
+test("the day's first three catches are a box, a figure and a box, then fish of fair weights; a missed hook lands nothing", () => {
+  const memory = store(), now = day("2026-11-01"), random = () => 0.5;
+  const prizes = [];
+  for (let i = 0; i < 3; i++) {
+    const roll = rollCatch(readRecords(memory), random, now);
+    // Rolling alone (the line went out, the fish got away) changes nothing.
+    assert.deepEqual(rollCatch(readRecords(memory), random, now), roll);
+    prizes.push(landCatch(roll, now, memory).reward);
+  }
+  assert.deepEqual(prizes, [{ boxes: 1 }, { figure: true }, { boxes: 1 }]);
+  assert.equal(dailyCatchesLeft(readRecords(memory), now), 0);
+  const roll = rollCatch(readRecords(memory), random, now), caught = landCatch(roll, now, memory);
+  assert.equal(caught.kind, "fish");
+  const [low, high] = fishOf(caught.fish).weight;
+  assert.ok(caught.weight >= low && caught.weight <= high && caught.best && caught.first);
+  const again = landCatch(roll, now, memory);
+  assert.deepEqual([again.best, again.first], [false, false]);
+  assert.deepEqual(readRecords(memory).fish[caught.fish], { count: 2, best: caught.weight, golden: 0, galaxy: 0 });
+  assert.equal(readRecords(memory).stats.fish, 5);
+  assert.equal(dailyCatchesLeft(readRecords(memory), day("2026-11-02")), 3, "a new day brings three more");
+  // Ten fish and a boot; rarer finishes come from the low end of the finish roll.
+  assert.equal(FISH.filter((entry) => !entry.junk).length, 10);
+  const rolls = [0.99, 0.5, 0.05];
+  const golden = rollCatch(readRecords(memory), () => rolls.shift() ?? 0.5, now);
+  assert.equal(golden.quality, "golden");
+  assert.equal(golden.fish, "boot");
+});
+
+test("favourites keep their order; the first sixteen still owned make the display", () => {
+  const memory = store(), keys = Array.from({ length: 18 }, (_, i) => `s1:f${i}`);
+  for (const key of keys) toggleFavorite({ key, quality: "standard" }, memory);
+  moveFavorite("s1:f17", 0, memory);
+  assert.deepEqual(readRecords(memory).favorites.slice(0, 2).map(({ key }) => key), ["s1:f17", "s1:f0"]);
+  toggleFavorite({ key: "s1:f0", quality: "standard" }, memory);
+  assert.equal(readRecords(memory).favorites.length, 17);
+  setFavoriteQuality("s1:f17", "golden", memory);
+  const owned = Object.fromEntries(keys.map((key) => [key, { standard: 1 }]));
+  delete owned["s1:f1"];
+  const shown = showcaseOf(readRecords(memory).favorites, owned);
+  assert.equal(shown.length, 16);
+  assert.deepEqual(shown[0], { key: "s1:f17", quality: "standard" }, "an unowned finish falls back to the best owned");
+  assert.ok(!shown.some(({ key }) => key === "s1:f1"), "a figure no longer owned leaves the display");
+  // Older records' fixed slots become favourites in slot order.
+  const legacy = parseRecords(JSON.stringify({ showcase: [null, { key: "s1:b", quality: "golden" }, { key: "s1:a", quality: "standard" }] }));
+  assert.deepEqual(legacy.favorites, [{ key: "s1:b", quality: "golden" }, { key: "s1:a", quality: "standard" }]);
 });
 
 test("quests count from their period's start, claim once for banked boxes, and turn over", () => {
@@ -73,6 +108,6 @@ test("boosts lift a roll, never lower it; periods use local days and ISO weeks; 
   assert.equal(weekKey(day("2026-11-01")), "2026-W44");
   const parsed = parseRecords(JSON.stringify({ boons: { boxes: -2, boost: "standard" }, daily: { crate: "nope", streak: 40 }, stats: { opened: "x", fish: 4 } }));
   assert.deepEqual(parsed.boons, { boxes: 0, boost: null });
-  assert.deepEqual(parsed.daily, { crate: null, streak: 7, spin: null, catch: null });
+  assert.deepEqual(parsed.daily, { crate: null, streak: 7, spin: null, catch: null, caught: 0 });
   assert.equal(parsed.stats.opened, 0); assert.equal(parsed.stats.fish, 4);
 });

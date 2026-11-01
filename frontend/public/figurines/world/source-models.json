@@ -199,7 +199,9 @@
   "facilities": {
     "ids": [
       "facility-models-001",
-      "facility-models-002"
+      "facility-models-002",
+      "fish-models-001",
+      "boot-models-001"
     ],
     "build": {
       "Region": "eu",
@@ -393,6 +395,84 @@
         "file": "world/expansion02/doodads/dalaran/dalaran_bookcase_01.m2",
         "fileDataID": 242994,
         "bytes": 524480
+      },
+      {
+        "name": "fish-dead-blue",
+        "file": "world/azeroth/bootybay/passivedoodad/deadfish/fishdeadblue.m2",
+        "fileDataID": 189085,
+        "bytes": 6504
+      },
+      {
+        "name": "fish-dead-green",
+        "file": "world/azeroth/bootybay/passivedoodad/deadfish/fishdeadgreen.m2",
+        "fileDataID": 189086,
+        "bytes": 6752
+      },
+      {
+        "name": "fish-dead-orange",
+        "file": "world/azeroth/bootybay/passivedoodad/deadfish/fishdeadorange.m2",
+        "fileDataID": 189087,
+        "bytes": 6480
+      },
+      {
+        "name": "fish-dead-purple",
+        "file": "world/azeroth/bootybay/passivedoodad/deadfish/fishdeadpurple.m2",
+        "fileDataID": 189088,
+        "bytes": 6632
+      },
+      {
+        "name": "fish-uldum-1",
+        "file": "world/expansion03/doodads/uldum/fish/uldum_fish_01.m2",
+        "fileDataID": 426065,
+        "bytes": 16132
+      },
+      {
+        "name": "fish-uldum-2",
+        "file": "world/expansion03/doodads/uldum/fish/uldum_fish_02.m2",
+        "fileDataID": 426066,
+        "bytes": 16112
+      },
+      {
+        "name": "fish-uldum-3",
+        "file": "world/expansion03/doodads/uldum/fish/uldum_fish_03.m2",
+        "fileDataID": 426045,
+        "bytes": 16160
+      },
+      {
+        "name": "fish-uldum-4",
+        "file": "world/expansion03/doodads/uldum/fish/uldum_fish_04.m2",
+        "fileDataID": 426067,
+        "bytes": 16116
+      },
+      {
+        "name": "fish-draenor-1",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_draenorfish01.m2",
+        "fileDataID": 984413,
+        "bytes": 19152
+      },
+      {
+        "name": "fish-draenor-3",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_draenorfish03.m2",
+        "fileDataID": 984417,
+        "bytes": 11360
+      },
+      {
+        "name": "fishing-bobber",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_bobber01.m2",
+        "fileDataID": 984204,
+        "bytes": 5104
+      },
+      {
+        "name": "fishing-pole",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_pole01.m2",
+        "fileDataID": 984242,
+        "bytes": 35184
+      },
+      {
+        "name": "boot-junk",
+        "file": "world/expansion05/doodads/human/doodads/6hu_salvageyard_junkboot01.m2",
+        "fileDataID": 955699,
+        "bytes": 23140
       }
     ]
   }

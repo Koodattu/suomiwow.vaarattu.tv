@@ -154,20 +154,28 @@
         "pond": "Kalalampi"
       },
       "collection": {
-        "figures": "Hahmot",
-        "showcase": "Vitriini",
         "owned": "{got}/{total} kerätty",
         "locked": "Ei vielä kerätty",
         "acquired": "Saatu {date}",
-        "inspect": "Katso 3D:nä",
-        "place": "Aseta vitriiniin",
-        "remove": "Poista vitriinistä",
-        "onSpot": "Paikalla {number}",
-        "showcaseHint": "Vitriinisi seisoo aukion 16 numeroidulla jalustalla. Valitse hahmo ja sitten paikka.",
-        "emptySpot": "Tyhjä",
-        "pickSpot": "Valitse paikka hahmolle {name}",
+        "inspect": "Katso jalustalla",
         "upcoming": "Sarja {number} · tulossa",
-        "secret": "Salainen sarja"
+        "secret": "Salainen sarja",
+        "search": "Hae hahmojasi",
+        "ownedOnly": "Vain omat",
+        "favorites": "Suosikit",
+        "onDisplay": "{count}/{total} esillä",
+        "favoritesHint": "Merkitse hahmo tähdellä suosikiksi. 16 ensimmäistä suosikkia seisovat vitriinissä ja ympäri maailmaa.",
+        "dragHint": "Raahaa järjestykseen: järjestys on vitriinin, 1–16.",
+        "notOnDisplay": "16:n jälkeiset suosikit odottavat vitriinin ulkopuolella",
+        "star": "Lisää {name} suosikkeihin",
+        "unstar": "Poista {name} suosikeista",
+        "displayed": "Esillä · #{number}",
+        "favorite": "Suosikki",
+        "addFavorite": "Lisää suosikkeihin",
+        "moveEarlier": "← Aiemmaksi",
+        "moveLater": "Myöhemmäksi →",
+        "finish": "Näytetään",
+        "spares": "{count, plural, one {# ylimääräinen kappale} other {# ylimääräistä kappaletta}} kierrättimelle tai ahjolle"
       },
       "picker": {
         "recycler": "Valitse kolme ylimääräistä",
@@ -181,9 +189,9 @@
         "body": "Ilmainen laatikko joka päivä. Tule päivittäin: seitsemännen päivän arkku takaa myös kultaheiton.",
         "day": "Päivä {day}",
         "open": "Avaa päivän arkku",
-        "opened": "Avattu. Tule huomenna päivälle {day}.",
         "got": "Päivä {day}: {reward}",
-        "day7": "Kultaheitto"
+        "day7": "Kultaheitto",
+        "next": "Päivän {day} arkku aukeaa {time}"
       },
       "wheel": {
         "body": "Yksi ilmainen pyöräytys päivässä.",
@@ -196,8 +204,10 @@
           "galaxy": "galaksitehostus",
           "figure": "satunnainen hahmo"
         },
-        "spun": "Pyöräytetty tänään. Pyörä pyörii taas huomenna.",
-        "won": "Voitit: {prize}"
+        "wonLabel": "Voitit",
+        "free": "Yksi ilmainen pyöräytys tänään",
+        "spinning": "Pyörii…",
+        "next": "Pyörä pyörii taas {time}"
       },
       "mail": {
         "body": "Lähetä hahmo kiltakaverille viestin kera.",
@@ -230,7 +240,9 @@
           "fish3": "Nappaa 3 kalaa",
           "crates5": "Avaa 5 päivän arkkua"
         },
-        "claimed": "Lunastettu"
+        "claimed": "Lunastettu",
+        "ready": "{count, plural, one {# palkinto lunastettavissa} other {# palkintoa lunastettavissa}}",
+        "resets": "nollautuu {time}"
       },
       "feed": {
         "body": "Tuoreimmat kulta- ja galaksivedot.",
@@ -268,15 +280,34 @@
         "body": "Vaihda hahmoja muiden pelaajien kanssa: tarjoa omaasi, pyydä heidän omaansa, ja molemmat hyväksyvät."
       },
       "pond": {
-        "body": "Päivän ensimmäinen heitto nostaa laatikon ja hahmon. Sen jälkeen voit kalastaa huvikseen.",
         "cast": "Heitä",
         "castAgain": "Heitä uudelleen",
-        "dailyReady": "Päivän ensimmäinen heitto odottaa.",
-        "daily": "Päivän saalis: laatikko ja {name}!",
-        "fish": "{name}, {weight} lb",
-        "best": "Suurin tähän asti!",
-        "caught": "Kaloja: {count}",
-        "tally": "Kaloja: {count} · Suurin: {best} lb"
+        "strike": "Vedä!",
+        "phase": {
+          "idle": "Siima on sisällä",
+          "cast": "Heitetään…",
+          "wait": "Odotetaan tärppiä",
+          "bite": "Tärppi!"
+        },
+        "how": {
+          "idle": "Napauta onkea heittääksesi.",
+          "cast": "Sinne menee.",
+          "wait": "Anna pienten nykäisyjen olla. Kun koho sukeltaa, napauta sitä.",
+          "bite": "Napauta kohoa nyt!"
+        },
+        "missed": "Liian hidas: se pääsi karkuun.",
+        "spooked": "Liian aikaisin: säikäytit sen.",
+        "prizeCatch": "Palkintosaalis",
+        "weight": "{weight} lb",
+        "newKind": "Uusi kalakirjaan!",
+        "best": "Lajinsa suurin tähän asti!",
+        "prizes": "Päivän palkintosaaliit",
+        "prize": {
+          "box": "Laatikko",
+          "figure": "Hahmo"
+        },
+        "prizesDone": "Kaikki kolme saatu. Kalat syövät yhä.",
+        "log": "Kalakirja"
       },
       "rewards": {
         "boxes": "{count, plural, one {# laatikko} other {# laatikkoa}}",
@@ -288,7 +319,11 @@
       }
     },
     "tradedUp": "Paranneltu!",
-    "quality": { "standard": "Perus", "golden": "Kulta", "galaxy": "Galaksi" },
+    "quality": {
+      "standard": "Perus",
+      "golden": "Kulta",
+      "galaxy": "Galaksi"
+    },
     "soundOn": "Äänet päällä",
     "soundOff": "Äänet pois",
     "showcaseHint": "Hahmo, joka ansaitsee paikkansa kokoelmassa.",
@@ -300,7 +335,8 @@
     "galleryScroll": "Vieritä figuuri näkyviin ladataksesi sen",
     "galleryRetry": "Lataa malli uudelleen",
     "weaponsHeld": "Aseet kädessä",
-    "weaponsSheathed": "Aseet kannossa"
+    "weaponsSheathed": "Aseet kannossa",
+    "openAnother": "Avaa toinen"
   },
   "horseRace": {
     "label": "Kilpailu kahden viimeisen pomon läpi",

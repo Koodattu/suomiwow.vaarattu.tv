@@ -21,8 +21,13 @@ const inside = (name, point, margin = 0) => {
   return Math.abs(local.x) < spec.width / 2 + margin && local.z > spec.back - margin && local.z < spec.front + margin;
 };
 
-test("thirteen stations stand in neighbourhoods about the square, each turned toward it", () => {
+test("the everyday stations ring the square; the rest stand further out, each turned toward it", () => {
   assert.equal(stations.length, 13);
+  const core = ["shop", "gallery", "quests", "crate", "wheel"];
+  for (const [name, { position }] of stations) {
+    if (core.includes(name)) assert.ok(position.length() < 14.5, `${name} is too far from the square`);
+    else assert.ok(position.length() > 18, `${name} crowds the square`);
+  }
   for (const [name, { position, rotation }] of stations) {
     const facing = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
     assert.ok(facing.dot(position.clone().negate().normalize()) > 0.3, `${name} turns its back on the square`);
@@ -34,6 +39,25 @@ test("thirteen stations stand in neighbourhoods about the square, each turned to
     for (const x of [-spec.width / 2, spec.width / 2]) for (const z of [spec.back, spec.front]) {
       const corner = new THREE.Vector3(x, 0, z).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation).add(position);
       assert.ok(!inside(a, corner, 0.3), `${b} crowds ${a}`);
+    }
+  }
+});
+
+test("nothing tall stands in the line from a station's camera to it", () => {
+  const home = { offset: new THREE.Vector3(0.6, 2.1, 9.6), target: new THREE.Vector3(0, 1.5, 0) };
+  // Lamps, figures and trees, with how far from the line each must keep.
+  const tall = [
+    ...LAMP_SPOTS.map(([x, z]) => ({ what: `the lamp at ${x},${z}`, point: new THREE.Vector3(x, 0, z), clear: 0.5 })),
+    ...STATUE_SPOTS.map(({ number, position }) => ({ what: `figure ${number}`, point: position, clear: 0.7 })),
+    ...groveLayout().filter(({ model }) => model === "tree" || model === "bareTree").map(({ x, z }) => ({ what: `the tree at ${x},${z}`, point: new THREE.Vector3(x, 0, z), clear: 1.2 })),
+  ];
+  for (const [aspect, framing] of [[16 / 9, 1], [9 / 19.5, 1.5]]) for (const [name, { position }] of stations) {
+    const camera = viewPose(name, framing, home, aspect).position.setY(0), length = camera.distanceTo(position), layout = aspect < 1 ? "phone" : "wide";
+    for (let step = 1; step < 40; step++) {
+      const point = position.clone().lerp(camera, step / 40);
+      if (point.distanceTo(position) <= STATION_SPECS[name].front + 0.5) continue;
+      for (const [other] of stations) if (other !== name) assert.ok(!inside(other, point, 0.2), `${other} blocks ${name}'s shot (${layout}, ${(step / 40 * length).toFixed(1)} out)`);
+      for (const { what, point: at, clear } of tall) assert.ok(at.distanceTo(point) > clear, `${what} blocks ${name}'s shot (${layout}, ${(step / 40 * length).toFixed(1)} out)`);
     }
   }
 });

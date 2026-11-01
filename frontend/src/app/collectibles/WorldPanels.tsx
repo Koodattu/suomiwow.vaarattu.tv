@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { FISH, QUALITIES, SHOWCASE_SLOTS, acquiredId, bestQuality, canSpin, copiesOf, crateReward, crateState, dailyCatchReady, questBoard, showcaseFigure, type Catch, type FigurineCollection, type FigurineQuality, type FigurineRecords, type MachineItem, type Reward } from "@/lib/figurine-collection";
+import { DAILY_CATCHES, FISH, acquiredId, bestQuality, canSpin, crateReward, crateState, dailyCatchesLeft, fishOf, questBoard, type Catch, type FigurineCollection, type FigurineQuality, type FigurineRecords, type MachineItem, type QuestPeriod, type Reward } from "@/lib/figurine-collection";
 import { findFigure } from "@/lib/figurine-series";
-import { portraitStyle } from "@/lib/figurine-portraits";
 import type { Station } from "@/lib/figurine-world";
+import type { CastResult } from "@/lib/figurine-facilities";
+import Portrait from "./Portrait";
+import CollectionCatalogue, { type CatalogueActions } from "./CollectionCatalogue";
 import styles from "./world-panels.module.css";
 
 // The world's panels: what a station offers once the camera is there. Lists are images (baked
@@ -14,39 +16,37 @@ import styles from "./world-panels.module.css";
 export type PanelSeries = { id: string; number: string; released: boolean; hidden?: boolean; keys: string[] };
 export type MachinePanel = { kind: "recycler" | "forge"; slots: MachineItem[]; groups: (MachineItem & { spare: number })[]; onPick: (item: MachineItem) => void; onClear: () => void };
 // What a station's last action brought, shown once its animation has played.
-export type PanelResult = { station: "crate"; day: number; reward: Reward } | { station: "wheel"; reward: Reward; figure?: MachineItem } | { station: "pond"; caught: Catch; figure?: MachineItem };
+export type PanelResult = { station: "crate"; day: number; reward: Reward } | { station: "wheel"; reward: Reward; figure?: MachineItem }
+  | { station: "pond"; caught: Catch; figure?: MachineItem } | { station: "pond"; missed: Exclude<CastResult, "caught"> };
+// Where the line is: being cast, waiting (nibbles come and go), or bitten.
+export type LinePhase = "cast" | "wait" | "bite";
 // The daily stations' actions, and whether one is playing now.
-export type PanelActions = { busy: boolean; result: PanelResult | null; now: Date; onCrate: () => void; onSpin: () => void; onCast: () => void; onClaim: (id: string) => void };
-type Props = {
-  view: Station; collection: FigurineCollection; records: FigurineRecords; series: PanelSeries[];
-  onClose: () => void; onInspect: (key: string, quality: FigurineQuality) => void; onShowcase: (slot: number, item: MachineItem | null) => void;
-  machine?: MachinePanel; actions: PanelActions;
+export type PanelActions = {
+  busy: boolean; result: PanelResult | null; now: Date; line: LinePhase | null;
+  onCrate: () => void; onSpin: () => void; onCast: () => void; onHook: () => void; onClaim: (id: string) => void;
 };
-
-// A figure's baked portrait, finished like its quality: gold toned, or a nebula through its outline.
-export function Portrait({ figureKey, quality, locked = false, className }: { figureKey: string; quality?: FigurineQuality | null; locked?: boolean; className?: string }) {
-  const found = findFigure(figureKey);
-  if (!found) return <span className={`${styles.portrait} ${className ?? ""}`} />;
-  const sprite = portraitStyle(found.series.id, found.series.characters.indexOf(found.character), found.series.characters.length);
-  const vars = { ...sprite, "--sprite": sprite.backgroundImage, "--size": sprite.backgroundSize, "--pos": sprite.backgroundPosition } as CSSProperties;
-  return <span className={`${styles.portrait} ${className ?? ""}`} style={vars} data-quality={locked ? undefined : quality ?? undefined} data-locked={locked} role="img" aria-label={found.character.name} />;
-}
+type Props = CatalogueActions & {
+  view: Station; collection: FigurineCollection; records: FigurineRecords; series: PanelSeries[];
+  onClose: () => void; machine?: MachinePanel; actions: PanelActions;
+};
+// Each fish's colour in the log, after its game model.
+const FISH_COLOR: Record<string, string> = {
+  smallfish: "#7fc65a", mudsnapper: "#e39a5a", catfish: "#b9c8a4", blackmouth: "#6b8fd0", firefin: "#e2683a",
+  deviate: "#9a7ae0", yellowtail: "#e8c060", eel: "#4a8fe0", salmon: "#e8a0a8", mightfish: "#79b04a", boot: "#8a6a48",
+};
 
 export default function WorldPanel(props: Props) {
   const t = useTranslations("figurineLab.world");
   const { view, onClose, machine } = props;
   if (view === "shop") return null;
   const title = machine ? t(`picker.${machine.kind}`) : t(`stations.${view as Exclude<Station, "shop" | "recycler" | "forge">}`);
-  return <aside className={styles.panel} data-wide={view === "gallery"} aria-label={title}>
+  return <aside className={styles.panel} data-wide={view === "gallery" ? "catalogue" : undefined} aria-label={title}>
     <header className={styles.head}>
       <h2>{title}</h2>
       <button type="button" className={styles.close} onClick={onClose} aria-label={t("close")}>×</button>
     </header>
-    <div className={styles.body}>
-      {machine ? <MachinePicker {...props} machine={machine} />
-        : view === "gallery" ? <CollectionPanel {...props} />
-        : <Placeholder {...props} />}
-    </div>
+    {view === "gallery" ? <CollectionCatalogue {...props} />
+      : <div className={styles.body}>{machine ? <MachinePicker {...props} machine={machine} /> : <Station {...props} />}</div>}
   </aside>;
 }
 
@@ -58,78 +58,6 @@ function SeriesChips({ series, value, onChange, all }: { series: PanelSeries[]; 
       {entry.hidden ? "★ " : ""}{t("seriesName", { number: entry.number })}
     </button>)}
   </div>;
-}
-
-function CollectionPanel({ collection, records, series, onInspect, onShowcase }: Props) {
-  const t = useTranslations("figurineLab");
-  const format = useFormatter();
-  const [tab, setTab] = useState<"figures" | "showcase">("figures");
-  const [seriesId, setSeriesId] = useState<string>(series.find((entry) => entry.released)?.id ?? series[0]?.id);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [placing, setPlacing] = useState<MachineItem | null>(null);
-  const shown = series.find((entry) => entry.id === seriesId) ?? series[0];
-  const figure = selected ? findFigure(selected) : null;
-  const best = selected ? bestQuality(collection[selected]) : null;
-  const spotOf = (key: string) => records.showcase.findIndex((entry) => entry?.key === key);
-  const date = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
-  const got = shown ? shown.keys.filter((key) => collection[key]).length : 0;
-
-  return <>
-    <div className={styles.tabs} role="tablist">
-      {(["figures", "showcase"] as const).map((name) => <button key={name} type="button" role="tab" aria-selected={tab === name} onClick={() => { setTab(name); setPlacing(null); }}>{t(`world.collection.${name}`)}</button>)}
-    </div>
-    {tab === "figures" ? <>
-      <SeriesChips series={series} value={seriesId} onChange={(id) => { if (id) { setSeriesId(id); setSelected(null); } }} />
-      {shown && !shown.released ? <p className={styles.note}>{t("world.collection.upcoming", { number: shown.number })}</p> : <>
-        <p className={styles.meta}>{shown?.hidden ? `${t("world.collection.secret")} · ` : ""}{t("world.collection.owned", { got, total: shown?.keys.length ?? 0 })}</p>
-        <div className={styles.grid}>
-          {shown?.keys.map((key) => {
-            const owned = bestQuality(collection[key]);
-            return <button key={key} type="button" className={styles.card} aria-pressed={selected === key} onClick={() => setSelected(key)}>
-              <Portrait figureKey={key} quality={owned} locked={!owned} />
-              <span className={styles.name}>{owned ? findFigure(key)?.character.name : "?"}</span>
-              {owned && <span className={styles.count}>×{copiesOf(collection[key])}</span>}
-              {spotOf(key) >= 0 && <span className={styles.spot}>{spotOf(key) + 1}</span>}
-            </button>;
-          })}
-        </div>
-        {figure && selected && <div className={styles.detail}>
-          <Portrait figureKey={selected} quality={best} locked={!best} className={styles.detailPortrait} />
-          <div>
-            <h3>{best ? figure.character.name : t("world.collection.locked")}</h3>
-            {best ? <>
-              <ul className={styles.qualities}>
-                {QUALITIES.filter((quality) => collection[selected]?.[quality]).map((quality) => <li key={quality} data-quality={quality}>
-                  <b>{t(`quality.${quality}`)} ×{collection[selected]![quality]}</b>
-                  {records.acquired[acquiredId(selected, quality)] && <span>{t("world.collection.acquired", { date: date(records.acquired[acquiredId(selected, quality)]) })}</span>}
-                </li>)}
-              </ul>
-              <div className={styles.actions}>
-                <button type="button" onClick={() => onInspect(selected, best)}>{t("world.collection.inspect")}</button>
-                {spotOf(selected) >= 0
-                  ? <button type="button" onClick={() => onShowcase(spotOf(selected), null)}>{t("world.collection.remove")} ({spotOf(selected) + 1})</button>
-                  : <button type="button" onClick={() => { setPlacing({ key: selected, quality: best }); setTab("showcase"); }}>{t("world.collection.place")}</button>}
-              </div>
-            </> : null}
-          </div>
-        </div>}
-      </>}
-    </> : <>
-      <p className={styles.note}>{placing ? t("world.collection.pickSpot", { name: findFigure(placing.key)?.character.name ?? "" }) : t("world.collection.showcaseHint")}</p>
-      <div className={styles.showcase}>
-        {Array.from({ length: SHOWCASE_SLOTS }, (_, slot) => {
-          const entry = showcaseFigure(records.showcase[slot], collection);
-          return <button key={slot} type="button" className={styles.slot} data-placing={!!placing} onClick={() => {
-            if (placing) { onShowcase(slot, placing); setPlacing(null); }
-            else if (entry) { setTab("figures"); setSeriesId(entry.key.split(":")[0]); setSelected(entry.key); }
-          }}>
-            {entry ? <Portrait figureKey={entry.key} quality={entry.quality} /> : <span className={styles.empty}>{t("world.collection.emptySpot")}</span>}
-            <span className={styles.slotNumber}>{slot + 1}</span>
-          </button>;
-        })}
-      </div>
-    </>}
-  </>;
 }
 
 function MachinePicker({ machine, series }: Props & { machine: MachinePanel }) {
@@ -153,7 +81,6 @@ function MachinePicker({ machine, series }: Props & { machine: MachinePanel }) {
   </>;
 }
 
-// Stations not open yet: what they will do, and a look at it with what this session already knows.
 // A reward in words: boxes banked, a boost, a figure.
 function useRewardText() {
   const t = useTranslations("figurineLab");
@@ -163,8 +90,22 @@ function useRewardText() {
     figure ? t("world.rewards.figure", { name: findFigure(figure.key)?.character.name ?? "" }) : null,
   ].filter(Boolean).join(" · ");
 }
+// When each period turns over: local midnight, next Monday, the first of next month.
+function nextTurn(period: QuestPeriod, now: Date) {
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  if (period === "daily") return midnight;
+  if (period === "weekly") return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 8 - (now.getDay() || 7));
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+}
+// What an action brought, as a card with a figure's portrait when one came.
+function ResultCard({ children, figure, tone }: { children: ReactNode; figure?: MachineItem; tone?: "miss" | FigurineQuality }) {
+  return <div className={styles.result} data-tone={tone}>
+    {figure && <Portrait figureKey={figure.key} quality={figure.quality} className={styles.resultPortrait} />}
+    <div>{children}</div>
+  </div>;
+}
 
-function Placeholder({ view, collection, records, series, actions }: Props) {
+function Station({ view, collection, records, series, actions }: Props) {
   const rewardText = useRewardText();
   const { busy, result, now } = actions;
   const shown = result && result.station === view && !busy ? result : null;
@@ -175,19 +116,23 @@ function Placeholder({ view, collection, records, series, actions }: Props) {
   const complete = useMemo(() => series.some((entry) => entry.released && entry.keys.length && entry.keys.every((key) => collection[key])), [series, collection]);
   const soon = <button type="button" className={styles.primary} disabled>{t("comingSoon")}</button>;
   const firstAt = (quality: FigurineQuality) => Object.entries(records.acquired).filter(([id]) => id.endsWith(`|${quality}`)).map(([, at]) => at).sort()[0];
-  const date = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
+  const date = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium", timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  const until = (period: QuestPeriod) => format.relativeTime(nextTurn(period, now), now);
   if (view === "crate") {
-    const state = crateState(records, now);
+    const state = crateState(records, now), done = state.ready ? state.day - 1 : state.day;
     return <>
       <p className={styles.note}>{t("world.crate.body")}</p>
-      <ol className={styles.streak}>{Array.from({ length: 7 }, (_, index) => {
-        const day = index + 1, opened = state.ready ? day < state.day : day <= state.day;
-        return <li key={day} data-done={opened} data-today={state.ready && day === state.day}>{t("world.crate.day", { day })}{day === 7 && <small>{t("world.crate.day7")}</small>}</li>;
+      <ol className={styles.track} style={{ "--done": done / 6 } as CSSProperties}>{Array.from({ length: 7 }, (_, index) => {
+        const day = index + 1;
+        return <li key={day} data-done={day <= done} data-today={state.ready && day === state.day} data-final={day === 7}>
+          <span className={styles.coin}>{day <= done ? "✓" : day === 7 ? "★" : day}</span>
+          <small>{day === 7 ? t("world.crate.day7") : t("world.crate.day", { day })}</small>
+        </li>;
       })}</ol>
-      {shown?.station === "crate" && <p className={styles.result}>{t("world.crate.got", { day: shown.day, reward: rewardText(shown.reward) })}</p>}
+      {shown?.station === "crate" && <ResultCard tone={shown.reward.boost}><b>{t("world.crate.got", { day: shown.day, reward: rewardText(shown.reward) })}</b></ResultCard>}
       {state.ready
-        ? <button type="button" className={styles.primary} disabled={busy} onClick={actions.onCrate}>{t("world.crate.open")} · {rewardText(crateReward(state.day))}</button>
-        : <p className={styles.meta}>{t("world.crate.opened", { day: state.day >= 7 ? 1 : state.day + 1 })}</p>}
+        ? <button type="button" className={styles.cta} disabled={busy} onClick={actions.onCrate}>{t("world.crate.open")}<span>{rewardText(crateReward(state.day))}</span></button>
+        : <p className={styles.wait}>{t("world.crate.next", { day: state.day >= 7 ? 1 : state.day + 1, time: until("daily") })}</p>}
       <Boons records={records} />
     </>;
   }
@@ -195,9 +140,10 @@ function Placeholder({ view, collection, records, series, actions }: Props) {
     const ready = canSpin(records, now);
     return <>
       <p className={styles.note}>{t("world.wheel.body")}</p>
-      <ul className={styles.prizes}>{(["box1", "box2", "box3", "golden", "galaxy", "figure"] as const).map((prize) => <li key={prize} data-prize={prize}>{t(`world.wheel.prizes.${prize}`)}</li>)}</ul>
-      {shown?.station === "wheel" && <p className={styles.result}>{t("world.wheel.won", { prize: rewardText(shown.reward, shown.figure) })}</p>}
-      {ready ? <button type="button" className={styles.primary} disabled={busy} onClick={actions.onSpin}>{t("world.wheel.spin")}</button> : <p className={styles.meta}>{busy ? "…" : t("world.wheel.spun")}</p>}
+      <ul className={styles.prizes}>{(["box1", "box2", "box3", "golden", "galaxy", "figure"] as const).map((prize) => <li key={prize} data-prize={prize}><i />{t(`world.wheel.prizes.${prize}`)}</li>)}</ul>
+      {shown?.station === "wheel" && <ResultCard figure={shown.figure} tone={shown.reward.boost ?? shown.figure?.quality}><span>{t("world.wheel.wonLabel")}</span><b>{rewardText(shown.reward, shown.figure)}</b></ResultCard>}
+      {ready ? <button type="button" className={styles.cta} disabled={busy} onClick={actions.onSpin}>{t("world.wheel.spin")}<span>{t("world.wheel.free")}</span></button>
+        : <p className={styles.wait}>{busy ? t("world.wheel.spinning") : t("world.wheel.next", { time: until("daily") })}</p>}
       <Boons records={records} />
     </>;
   }
@@ -209,17 +155,21 @@ function Placeholder({ view, collection, records, series, actions }: Props) {
     <button type="submit" className={styles.primary} disabled>{t("world.mail.send")} · {t("comingSoon")}</button>
   </form>;
   if (view === "quests") {
-    const board = questBoard(records, complete, now);
+    const board = questBoard(records, complete, now), ready = board.filter((quest) => quest.done && !quest.claimed).length;
     return <>
       <p className={styles.note}>{t("world.quests.body")}</p>
+      {ready > 0 && <p className={styles.ready}>{t("world.quests.ready", { count: ready })}</p>}
       {(["daily", "weekly", "monthly"] as const).map((period) => <section key={period} className={styles.quests}>
-        <h3>{t(`world.quests.${period}`)}</h3>
-        {board.filter((quest) => quest.period === period).map((quest) => <div key={quest.id} className={styles.quest} data-done={quest.done}>
-          <span>{t(`world.quests.items.${quest.id}`)}</span>
-          {quest.claimed ? <em className={styles.claimed}>{t("world.quests.claimed")}</em>
-            : quest.done ? <button type="button" className={styles.claim} onClick={() => actions.onClaim(quest.id)}>{t("world.quests.claim")}</button>
-            : <span className={styles.bar}><i style={{ width: `${quest.progress / quest.goal * 100}%` }} /></span>}
-          <small>{quest.progress}/{quest.goal} · {t("world.quests.reward", { count: quest.reward })}</small>
+        <header><h3>{t(`world.quests.${period}`)}</h3><span>{t("world.quests.resets", { time: until(period) })}</span></header>
+        {board.filter((quest) => quest.period === period).map((quest) => <div key={quest.id} className={styles.quest} data-done={quest.done} data-claimed={quest.claimed}>
+          <div className={styles.questText}>
+            <span>{t(`world.quests.items.${quest.id}`)}</span>
+            <span className={styles.bar}><i style={{ width: `${quest.progress / quest.goal * 100}%` }} /></span>
+            <small>{quest.progress}/{quest.goal}</small>
+          </div>
+          {quest.claimed ? <em className={styles.claimed}>✓ {t("world.quests.claimed")}</em>
+            : quest.done ? <button type="button" className={styles.claim} onClick={() => actions.onClaim(quest.id)}>{t("world.quests.claim")}<span>{t("world.quests.reward", { count: quest.reward })}</span></button>
+            : <span className={styles.rewardChip}>{t("world.quests.reward", { count: quest.reward })}</span>}
         </div>)}
       </section>)}
       <Boons records={records} />
@@ -249,19 +199,52 @@ function Placeholder({ view, collection, records, series, actions }: Props) {
       <li key={id}><span>{t(`world.leaderboard.items.${id}`)}</span><b>{t("world.leaderboard.you")} · {value}</b></li>)}</ul>
     <p className={styles.meta}>{t("world.leaderboard.signIn")}</p>
   </>;
-  if (view === "pond") {
-    const daily = dailyCatchReady(records, now);
-    return <>
-      <p className={styles.note}>{t("world.pond.body")}</p>
-      {daily && <p className={styles.meta}>{t("world.pond.dailyReady")}</p>}
-      {shown?.station === "pond" && <p className={styles.result}>{shown.caught.kind === "daily"
-        ? t("world.pond.daily", { name: shown.figure ? findFigure(shown.figure.key)?.character.name ?? "" : "" })
-        : <>{t("world.pond.fish", { name: FISH[shown.caught.fish].name, weight: shown.caught.weight })}{shown.caught.best && <b> · {t("world.pond.best")}</b>}</>}</p>}
-      <button type="button" className={styles.primary} disabled={busy} onClick={actions.onCast}>{t(result?.station === "pond" ? "world.pond.castAgain" : "world.pond.cast")}</button>
-      {records.stats.fish > 0 && <p className={styles.meta}>{records.catches.best > 0 ? t("world.pond.tally", { count: records.stats.fish, best: records.catches.best }) : t("world.pond.caught", { count: records.stats.fish })}</p>}
-    </>;
-  }
+  if (view === "pond") return <Pond records={records} actions={actions} shown={shown?.station === "pond" ? shown : null} />;
   return <><p className={styles.note}>{t("world.trading.body")}</p>{soon}</>;
+}
+
+// The fishing pond: what the line is doing and what to do about it, the day's three prize
+// catches, what came up last, and the log of every kind caught.
+function Pond({ records, actions, shown }: { records: FigurineRecords; actions: PanelActions; shown: Extract<PanelResult, { station: "pond" }> | null }) {
+  const t = useTranslations("figurineLab");
+  const { line, now } = actions, left = dailyCatchesLeft(records, now);
+  const caughtToday = DAILY_CATCHES.length - left;
+  const prize = (reward: Reward) => reward.figure ? "figure" : "box";
+  return <>
+    <div className={styles.line} data-phase={line ?? "idle"} aria-live="polite">
+      <b>{t(`world.pond.phase.${line ?? "idle"}`)}</b>
+      <span>{t(`world.pond.how.${line ?? "idle"}`)}</span>
+    </div>
+    {line ? <button type="button" className={styles.cta} data-strike={line === "bite"} disabled={line === "cast"} onClick={actions.onHook}>{t("world.pond.strike")}</button>
+      : <button type="button" className={styles.cta} disabled={actions.busy} onClick={actions.onCast}>{t(shown ? "world.pond.castAgain" : "world.pond.cast")}</button>}
+    {shown && ("missed" in shown
+      ? <ResultCard tone="miss"><b>{t(`world.pond.${shown.missed}`)}</b></ResultCard>
+      : shown.caught.kind === "daily"
+        ? <ResultCard figure={shown.figure}><span>{t("world.pond.prizeCatch")}</span><b>{shown.figure ? t("world.rewards.figure", { name: findFigure(shown.figure.key)?.character.name ?? "" }) : t("world.rewards.boxes", { count: shown.caught.reward.boxes ?? 1 })}</b></ResultCard>
+        : <ResultCard tone={shown.caught.quality}>
+          <span className={styles.fishName}><i style={{ "--fish": FISH_COLOR[shown.caught.fish] } as CSSProperties} />{fishOf(shown.caught.fish)?.name}</span>
+          <b>{t("world.pond.weight", { weight: shown.caught.weight })}{shown.caught.quality !== "standard" && <em data-quality={shown.caught.quality}> · {t(`quality.${shown.caught.quality}`)}</em>}</b>
+          {(shown.caught.first || shown.caught.best) && <small>{t(shown.caught.first ? "world.pond.newKind" : "world.pond.best")}</small>}
+        </ResultCard>)}
+    <section className={styles.prizeCatches}>
+      <h3>{t("world.pond.prizes")}</h3>
+      <ol>{DAILY_CATCHES.map((reward, index) => <li key={index} data-done={index < caughtToday} data-next={index === caughtToday}>
+        <span>{index < caughtToday ? "✓" : prize(reward) === "figure" ? "?" : "▣"}</span>{t(`world.pond.prize.${prize(reward)}`)}
+      </li>)}</ol>
+      {left === 0 && <p className={styles.meta}>{t("world.pond.prizesDone")}</p>}
+    </section>
+    <section className={styles.fishLog}>
+      <h3>{t("world.pond.log")} <span>{FISH.filter((entry) => records.fish[entry.id]).length}/{FISH.length}</span></h3>
+      <ul>{FISH.map((entry) => {
+        const log = records.fish[entry.id];
+        return <li key={entry.id} data-caught={!!log}>
+          <i style={{ "--fish": log ? FISH_COLOR[entry.id] : "#3a3f48" } as CSSProperties} />
+          <span>{log ? entry.name : "???"}</span>
+          {log && <small>×{log.count} · {t("world.pond.weight", { weight: log.best })}{log.golden > 0 && <em data-quality="golden"> ★{log.golden}</em>}{log.galaxy > 0 && <em data-quality="galaxy"> ✦{log.galaxy}</em>}</small>}
+        </li>;
+      })}</ul>
+    </section>
+  </>;
 }
 
 function Boons({ records }: { records: FigurineRecords }) {

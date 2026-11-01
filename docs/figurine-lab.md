@@ -368,46 +368,71 @@ camera, so swapping between a box and a figure never moves it, and returning fro
 where the camera was left. The opening shot flies in from far out and plays to its end before
 the world takes any input (taps, drags or keys).
 
-The world is a forest clearing laid out like a market village (`figurine-world.ts`). A small
-cobbled square with a ragged edge holds the pedestal; worn dirt paths (`PATHS`) lead off it to
-neighbourhoods among the trees, each standing on its own trodden ground (`PATCHES`): the market at
-the back (the shop, the trading post, the mailbox, and the daily crate by the wagon), a tinkers'
-yard to the west (the recycler and the forge), a scholars' corner to the east (the collection,
-the scrying ball, the quest board), the fair to the south-west (the lucky wheel, the leaderboards
-and the hall of fame), and the fishing pond down its own path to the south-east. Each station has
-a position and a point it faces (`STATION_SPECS`), mostly its path or the square. Trees, bushes
-and rocks stand between the neighbourhoods (`groveLayout` in `figurine-forest.ts`); the woods keep
-clear of every station and path. Nothing is signposted: each facility is its game props
+The world is a forest clearing round a cobbled square (`figurine-world.ts`). What a player uses
+every day stands round the square's ragged edge, a few steps from the pedestal and facing it: the
+shop and the collection's display cabinet at the back, the quest board and the daily crate to the
+left, the lucky wheel to the right. Worn dirt paths (`PATHS`) lead on between them to the rest,
+further out among the trees on their own trodden ground (`PATCHES`): the market lane behind the
+shop (the trading post and the mailbox, with a tent, a wagon and produce tables), the scrying ball
+behind the cabinet, the tinkers' yard down the west path (the recycler and the forge), the hall of
+fame and the leaderboards down the east path, and the fishing pond down its own path to the
+south-east. Each station has a position and a point it faces (`STATION_SPECS`). Trees, bushes and
+rocks stand between them (`groveLayout` in `figurine-forest.ts`); the woods keep clear of every
+station and path. Nothing is signposted: each facility is its game props
 (`figurine-facilities.ts`), there to be found. Pointing at one names it in the HUD; tapping one
-flies the camera there and opens its panel (`WorldPanels.tsx`), docked right on wide screens or
-as a bottom sheet on phones, with the station framed beside or above it. Tap empty ground, the
-panel's close button or Esc to come back. Keyboard: S shop, C collection, M recycler, U trade-up
-forge, Q quests, W lucky wheel, F fishing pond, D daily crate, 1-9 pick a series (in the shop),
-Enter opens the sealed box. `test/figurine-layout.test.mjs` checks that no station, figure, lamp,
-tree or market prop stands in another station or in its camera's line of sight (wide enough for
-a phone's backed-off shot).
+flies the camera there and opens its panel (`WorldPanels.tsx`), docked right on wide screens or as
+a bottom sheet on phones, with the station framed in the space beside or above it. Tap empty
+ground, the panel's close button or Esc to come back. Keyboard: S shop, C collection, M recycler,
+U trade-up forge, Q quests, W lucky wheel, F fishing pond (Space casts and strikes there), D daily
+crate, 1-9 pick a series (in the shop), Enter opens the sealed box.
+`test/figurine-layout.test.mjs` checks that the everyday stations stand within reach of the
+square and the rest further out, and that no station, figure, lamp, tree or market prop stands in
+another station or in the line from its camera, on a wide screen or a phone's backed-off shot.
+
+The secret Series 000 box hides in a broken barrel washed up in the reeds on the fishing pond's
+far bank (`SECRET_BARREL` in `figurine-forest.ts`), its broken side turned toward the pond's
+camera: the one view that can find it.
+
+In the shop, the sealed box opens by pulling its tape. Once five boxes have been opened that way,
+an "Open box" button opens it without the tape, and after every opening "Open another" drops a new
+box of the same series onto the pedestal.
 
 Working stations: the shop, the collection, the recycler and the forge, and the daily ones
 (rules in `figurine-collection.ts`, tested in `test/figurine-rewards.test.mjs`; days, weeks and
 months go by the player's own clock):
 
 - The daily crate: open it once a day for a box. Days in a row build a streak to seven, shown on
-  the board above it; the seventh day's crate also guarantees a golden roll, then it starts over.
-  A missed day starts over too. The chest hops and bursts with gold.
+  the board above it and as coins on a track in its panel; the seventh day's crate also
+  guarantees a golden roll, then it starts over. A missed day starts over too. The chest hops and
+  bursts with gold. The panel says when the next crate opens.
 - The lucky wheel: one spin a day. It turns five times and stops on one of eight weighted prizes
-  (1, 2 or 3 boxes, a golden or a rare galaxy boost, or a random figure).
-- The fishing pond: the day's first cast brings up a box and a random figure; after that, casts
-  land classic Azeroth fish of fair weights, with a running count and the biggest catch. The rod
-  casts, the bobber plops, dips at the bite, and the catch leaps out.
+  (1, 2 or 3 boxes, a golden or a rare galaxy boost, or a random figure); the panel lists them in
+  their segments' colours.
+- The fishing pond: tap the rod resting on the dock (or the water) to cast. The bobber plops and
+  bobs; a fish may nibble (small dips: leave them); then it bites, the bobber plunges, and a tap
+  on the bobber or the water within about a second hooks it. Too soon scares the fish off; too
+  late and it is gone, and nothing is landed either way. The day's first three catches are prizes
+  (a box, a figure, a box: a wrapped gift or a little chest leaps out); after that the pond gives
+  ten kinds of classic Azeroth fish, from the Brilliant Smallfish to the rare Mightfish, and now
+  and then a Soggy Boot, each of a fair weight for its kind and sometimes golden or, rarely,
+  galaxy. The catch leaps from the water to hang over the dock, sized by its kind and weight. The
+  panel's fish log keeps, per kind, how many, the heaviest and the golden and galaxy ones.
+  The catch is rolled as the line goes out (`rollCatch`) and recorded only when hooked
+  (`landCatch`). Fish, bobber, rod and boot models are wow.export doodad exports (WebP textures
+  for now: see the open item below).
 - The quest giver: daily, weekly and monthly quests (open boxes, recycle, trade up, spin, fish,
-  open crates, pull a galaxy, complete a series), counted from each period's start; a finished
-  quest is claimed for boxes.
+  open crates, pull a galaxy, complete a series), counted from each period's start, each period
+  showing when it resets; a finished quest is claimed for boxes.
 
 A reward lands once its animation has played. Boxes are banked (shown in the HUD and the panels)
 for when boxes become limited; a boost lifts the next box opened to at least that quality, and is
 spent by it. A figure prize joins the collection and, when golden or galaxy, the pull feed. Still
 placeholders: the trading post, the gifting post, the hall of fame and the leaderboards (they need
 the collection on the server and Discord sign-in) and the latest pulls (this session's own).
+
+Open item: the 13 fishing models (`fish-*.glb`, `fishing-*.glb`, `boot-junk.glb`) still carry
+WebP textures, because no KTX2 encoder was installed when they were added; the KTX2 check in
+`test/figurine-ktx.test.mjs` fails on them until they are converted like the other world models.
 
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
@@ -416,31 +441,40 @@ prints their box in the same scheme around it. They fill the shop greyed, can be
 dropped on the pedestal (full colour there, so the print can be seen) and shaken, but the
 tape never comes off.
 
-### Shop, collection and showcase
+### Shop, collection and display
 
 The shop is a stepped riser on the stall's counter: one box per series, five to a step,
 series 001 front left. Each step rises more than a box is tall, so every step's price tag
 (number and collected count, or "coming soon") shows over the boxes in front. Twenty series
 fill four steps.
 
-The collection is a bookcase and the collector's book; its panel is the collection itself, as
-images rather than models so it stays quick at hundreds of figures: per series (a found secret
-series first, then the released ones, then the announced ones), a grid of portraits, missing
-figures as silhouettes, golden ones gold-toned and galaxy ones with a nebula through their
-outline. A figure's card shows its copies per quality and when each was first acquired, opens
-it in 3D on the pedestal, and places it in the showcase. The portraits are baked sheets per
-series (`public/figurines/<series>/portraits.webp`, 280×360 cells, catalog order) made by
-`node frontend/scripts/bake-figurine-portraits.mjs`: it serves a page that renders every model
-in a browser and saves the sheet back. Re-bake after a model or pose changes and bump
-`PORTRAIT_VERSION` in `figurine-portraits.ts`.
+The collection is a tall glass-fronted display cabinet at the back of the square: four by four lit
+cubbies, each with a round stand and a brass number plate. Its panel is a catalogue, docked wide
+on desktop (`CollectionCatalogue.tsx`) with the cabinet framed beside it, and full screen on a
+phone. Favourites come first, then every series in full (a found secret series first, then the
+released ones, then the announced ones as a line each), owned figures as portraits finished like
+their best quality, missing ones as silhouettes. A search box and an "owned only" switch filter
+the series. Each owned figure has a star: starred, it joins the end of the favourites. The
+favourites are in the player's order; drag one to reorder (the whole card with a mouse, its grip
+on touch), or move it a step from the inspector. Picking a figure shows it in the inspector
+beside the list (over it, on a phone): a large portrait, its realm, race and class, its place on
+display, which of its owned finishes it shows there, its copies per quality with the date each
+was first acquired, its spare copies, and a button that views it in 3D on the pedestal.
 
-The showcase holds sixteen figures. Each stands in the world at its own spot (`STATUE_SPOTS`):
-browsing at the market, about the yard and the scholars' corner, at the fair, on the pond's bank.
-They are full size (the same body height as on the pedestal), with their quality's finish and
-their idle animation when the model has one, each started at its own point so neighbours never
-move in step, and load one at a time (`figurine-statues.ts`).
-A figure is on one spot only; placing it again moves it, and a spot whose figure is no longer
-owned at that quality shows the finest copy left, or nothing.
+The portraits are baked sheets per series (`public/figurines/<series>/portraits.webp`, 280×360
+cells, catalog order) made by `node frontend/scripts/bake-figurine-portraits.mjs`: it serves a
+page that renders every model in a browser and saves the sheet back. Re-bake after a model or pose
+changes and bump `PORTRAIT_VERSION` in `figurine-portraits.ts`.
+
+The first sixteen favourites still owned are the display (`showcaseOf`). Each stands in the
+cabinet's cubby of its number as a small copy, posed at a moment of its idle, and in the world at
+its own spot (`STATUE_SPOTS`): about the square between the stalls, down the paths, at the
+market, in the yard, by the hall and on the pond's bank. Those are full size (the same body height
+as on the pedestal), with their finish and their idle animation when the model has one, each
+started at its own point so neighbours never move in step, and load one at a time
+(`figurine-statues.ts`; the cabinet copy shares the figure's geometry and textures). A favourite
+no longer owned at its chosen finish shows the finest copy left, or leaves the display. Older
+records' sixteen fixed showcase slots are read as favourites in slot order.
 
 Every figure is sized by its body, not its whole model (`figurineBodyBounds` in
 `figurine-materials.ts`): items are exported as their own parts (`Head_Item…`, `Main-hand_Item…`,
@@ -450,7 +484,8 @@ pedestal, in the portraits and in the showcase; sitting or crouching poses stay 
 
 The session's records (`readRecords` in `figurine-collection.ts`, `sessionStorage` like the
 collection) keep the first acquisition of each figure at each quality, the pull feed, counters
-for quests (boxes opened, recycles, trade-ups) and the showcase.
+for quests, the favourites, the daily crate, spin and prize catches, the fish log, the quests'
+periods and the banked rewards.
 
 ### Qualities, recycler and trade-up forge
 

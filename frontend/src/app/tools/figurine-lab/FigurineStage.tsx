@@ -18,7 +18,7 @@ import { PACKAGING_FALLBACK, PACKAGING_THEMES, BOX_SIZE, createBoxPrints, buildB
 import { STATIONS, STATION_SPECS, WORLD_FOG, buildWorld, isStation, placeStation, viewPose, type Station, type WorldView } from "@/lib/figurine-world";
 import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
 import { buildForge, buildRecycler, type MachineCue, type MachinePick } from "@/lib/figurine-machine";
-import { buildFacility, type ActionCue, type Facility, type FacilityAction } from "@/lib/figurine-facilities";
+import { buildFacility, type ActionCue, type CastResult, type Facility, type FacilityAction } from "@/lib/figurine-facilities";
 import { buildStatues } from "@/lib/figurine-statues";
 import { portraitAtlas } from "@/lib/figurine-portraits";
 import { propPlacer } from "@/lib/figurine-props";
@@ -85,7 +85,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, panelWidth = 420 }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -138,23 +138,31 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onIntroDone?: () => void;
   // World mode: the station under the pointer, to name it; null when none.
   onHoverStation?: (station: Station | null) => void;
-  // World mode: a facility acting something out (a new `run` plays it); onActionDone(run) when it ends.
+  // World mode: a facility acting something out (a new `run` plays it); onActionCue(run, cue) at its
+  // moments (the pond's bite, say), onActionDone(run, result) when it ends.
   action?: { run: number; station: Facility; action: FacilityAction } | null;
-  onActionDone?: (run: number) => void;
+  onActionDone?: (run: number, result?: CastResult) => void;
+  onActionCue?: (run: number, cue: ActionCue) => void;
+  // World mode: a tap passed on to an acting facility (a new `n` pokes it once).
+  poke?: { n: number; station: Facility; kind: "hook" } | null;
+  // World mode: a working part of the facility the camera is at was tapped (the pond's rod, bobber or water).
+  onFacilityPart?: (station: Station, part: string) => void;
+  // World mode: how wide the docked panel is on wide screens, so stations slide clear of it.
+  panelWidth?: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked });
-  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked]);
+  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, panelWidth });
+  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, panelWidth }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, panelWidth]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error" | "webgl">("empty");
   const [filename, setFilename] = useState("");
-  const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone });
-  useEffect(() => { callbacks.current = { onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone }; });
+  const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone, onActionCue, onFacilityPart });
+  useEffect(() => { callbacks.current = { onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone, onActionCue, onFacilityPart }; });
   // The packaging is rebuilt only when its printed text changes, not on every new labels object.
   const packagingKey = JSON.stringify(labels.packaging ?? null), lineupKey = lineup.join("|");
   const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series), machinesRef = useRef(machines);
   useEffect(() => { labelsRef.current = labels; lineupRef.current = lineup; silhouettesRef.current = silhouettes; worldRef.current = world; seriesRef.current = series; machinesRef.current = machines; });
   // Lets later prop changes reach the running scene without rebuilding the renderer.
-  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void } | null>(null);
+  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: { n: number; station: Facility; kind: "hook" }) => void } | null>(null);
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
@@ -278,7 +286,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, { placeProp, envMap: environment }) }] : []) : [];
     // The showcase's statues load their figures like the pedestal does, one at a time.
     const statueLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
-    const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: (url) => statueLoader.loadAsync(url) }) : null;
+    const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: (url) => statueLoader.loadAsync(url), cubbies: facilities.find((facility) => facility.kind === "gallery")?.cubbies }) : null;
     // Machine cards show the baked portrait sheets.
     const portraitCards = portraitAtlas();
     // Camera occlusion hides station meshes, but must not change the scene's light count:
@@ -325,8 +333,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const found = entry && figureOf(entry.key);
       return found?.url && entry ? { url: found.url, quality: entry.quality } : null;
     }));
-    // The last facility action played, so a re-render never plays it twice.
-    let actedRun = 0;
+    // The last facility action played and poke passed on, so a re-render never repeats one.
+    let actedRun = 0, pokedRun = 0;
     // Each machine shows its cards with their portraits and plays new runs.
     const machineRuns: Record<FigurineMachine, number> = { recycler: machinesRef.current?.recycler?.run ?? 0, forge: machinesRef.current?.forge?.run ?? 0 };
     const machineCue = (kind: FigurineMachine) => (cue: MachineCue) => {
@@ -658,12 +666,20 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         const facility = facilities.find((entry) => entry.kind === station);
         const sound = (cue: ActionCue) => {
           if (cue === "tick") playFigurineCue("tap", { intensity: 0.35 });
-          else if (cue === "splash" || cue === "bite") playFigurineCue("drop", { intensity: cue === "bite" ? 0.4 : 0.7 });
+          else if (cue === "nibble") playFigurineCue("tap", { intensity: 0.2 });
+          else if (cue === "splash" || cue === "bite") { playFigurineCue("drop", { intensity: cue === "bite" ? 0.9 : 0.6 }); if (cue === "bite") playFigurineCue("rattle", { intensity: 0.5 }); }
+          else if (cue === "escape") playFigurineCue("drop", { intensity: 0.25 });
           else if (cue === "catch") { playFigurineCue("whoosh"); playFigurineCue("sparkle"); }
           else { playFigurineCue("burst", { intensity: 0.6 }); playFigurineCue("sparkle"); }
+          callbacks.current.onActionCue?.(run, cue);
         };
-        const done = () => callbacks.current.onActionDone?.(run);
+        const done = (result?: CastResult) => callbacks.current.onActionDone?.(run, result);
         if (facility) facility.act(next, sound, done); else done();
+      },
+      poke: ({ n, station, kind }) => {
+        if (n === pokedRun) return;
+        pokedRun = n;
+        facilities.find((entry) => entry.kind === station)?.poke(kind);
       },
     };
     if (worldSetup) { setCollection(worldSetup.collection); setShowcase(worldSetup.showcase); facilities.forEach((facility) => facility.setStreak(worldSetup.streak.opened, worldSetup.streak.today)); }
@@ -729,7 +745,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const peelable = () => tappable() && !state.current.locked;
     // The world is the interface: tap a station to go there, a series to open it, an owned figure
     // to inspect it, and empty ground or sky to step back. The target must match on release.
-    type Pick = { kind: "station"; view: WorldView } | { kind: "series"; id: string } | { kind: "machine"; machine: FigurineMachine; pick: MachinePick } | { kind: "back" };
+    type Pick = { kind: "station"; view: WorldView } | { kind: "series"; id: string } | { kind: "machine"; machine: FigurineMachine; pick: MachinePick } | { kind: "part"; station: Station; part: string } | { kind: "back" };
     let press: { x: number; y: number; pick: Pick | null; yaw: number; pitch: number; panX: number; panY: number } | null = null;
     // Station shots: the shop turns a little (yaw, pitch); the collection pans across (panX, panY). Both zoom.
     const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }, lookTarget = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
@@ -781,6 +797,12 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         const part = raycaster.intersectObjects(machine?.picks ?? [], false).find(({ object }) => object.userData.machine);
         if (part) return machine?.running ? null : { kind: "machine", machine: station, pick: part.object.userData.machine };
         if (machine?.running) return null;
+      }
+      // At the pond, anything of it is fishing tackle: the rod casts, the bobber or water strikes.
+      if (station === "pond" && view === "pond") {
+        let part: string | undefined;
+        for (let object: THREE.Object3D | null = hit.object; object && !part; object = object.parent) part = object.userData.part;
+        return { kind: "part", station, part: part ?? "water" };
       }
       // Tapping the station you are at (off its items) steps back to the hub.
       if (station === view) return { kind: "back" };
@@ -865,6 +887,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           else if (pick.kind === "back") callbacks.current.onBack?.();
           else if (pick.kind === "series") { playFigurineCue("ready"); callbacks.current.onPickSeries?.(pick.id); }
           else if (pick.kind === "machine") { playFigurineCue("tap"); callbacks.current.onMachine?.(pick.machine, pick.pick); }
+          else if (pick.kind === "part") callbacks.current.onFacilityPart?.(pick.station, pick.part);
         }
         press = null;
         return;
@@ -892,16 +915,20 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     renderer.domElement.addEventListener("pointerleave", onPointerLeave);
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
     const homeTarget = controls.target.clone();
+    // The station panel's size (world-panels.module.css): docked right, or a bottom sheet below this width.
+    const PANEL_SHEET_WIDTH = 700;
+    // The share of the screen a docked panel covers on wide screens (all stations but the shop have one).
+    const panelShare = (view: WorldView) => { const width = renderer.domElement.clientWidth; return isStation(view) && view !== "shop" && width > PANEL_SHEET_WIDTH ? Math.min(state.current.panelWidth + 16, width * 0.7) / width : 0; };
+    // A station is framed to fit beside its panel, not behind it.
+    const shotAspect = (view: WorldView) => camera.aspect * Math.max(0.3, 1 - panelShare(view));
     // Camera director: flies between station poses; the opening view keeps its own cinematic camera.
     let flight: { from: THREE.Vector3; fromTarget: THREE.Vector3; t: number } | null = null;
     let currentView: WorldView = state.current.view, displayClock = 0;
     if (immersive && currentView !== "opening") {
-      const start = viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, camera.aspect);
+      const start = viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, shotAspect(currentView));
       camera.position.copy(start.position); controls.target.copy(start.target);
     }
     const FLIGHT_SECONDS = 0.95, INTRO_SECONDS = 3;
-    // The station panel's size (world-panels.module.css): docked right, or a bottom sheet below this width.
-    const PANEL_WIDTH = 420, PANEL_SHEET_WIDTH = 700;
     // Opening shot, once the loader lifts: from wide, high and centred, the camera zooms in while
     // drifting right, settling just right of head-on; auto-rotation carries the drift on.
     // Any press ends it where it is and hands the camera to the user.
@@ -1154,7 +1181,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       }
       for (const key of ["yaw", "pitch", "zoom", "panX", "panY"] as const) look[key] = THREE.MathUtils.damp(look[key], lookTarget[key], 9, delta);
       const destination = !immersive ? null : (currentView === "opening" || currentView === "viewer") && centreShot
-        ? { position: centreShot.position.clone(), target: centreShot.target.clone() } : viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, camera.aspect);
+        ? { position: centreShot.position.clone(), target: centreShot.target.clone() } : viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, shotAspect(currentView));
       if (destination && currentView !== "opening" && currentView !== "viewer") {
         // The look-around turns the shot about its target: yaw around up, pitch around the shot's right.
         const offset = destination.position.clone().sub(destination.target);
@@ -1168,7 +1195,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         if (currentView !== "shop") {
           const element = renderer.domElement, visibleH = 2 * offset.length() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
           if (element.clientWidth > PANEL_SHEET_WIDTH) {
-            const side = screen.set(offset.z, 0, -offset.x).normalize().multiplyScalar(Math.min(PANEL_WIDTH + 16, element.clientWidth * 0.5) / 2 / element.clientWidth * visibleH * camera.aspect);
+            const side = screen.set(offset.z, 0, -offset.x).normalize().multiplyScalar(panelShare(currentView) / 2 * visibleH * camera.aspect);
             destination.target.add(side); destination.position.add(side);
           } else {
             const lift = Math.min(0.52 * element.clientHeight, element.clientHeight) / 2 / element.clientHeight * visibleH;
@@ -1245,6 +1272,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   const streakOpened = world?.streak.opened, streakToday = world?.streak.today;
   useEffect(() => { if (streakOpened !== undefined) api.current?.setStreak(streakOpened, streakToday ?? null); }, [streakOpened, streakToday]);
   useEffect(() => { if (action) api.current?.act(action); }, [action]);
+  useEffect(() => { if (poke) api.current?.poke(poke); }, [poke]);
   useEffect(() => { if (machines) api.current?.setMachines(machines); }, [machines]);
 
   return <div className={`${styles.stageWrap} ${immersive ? styles.immersiveStage : ""} ${gallery ? styles.galleryStage : ""}`}>
