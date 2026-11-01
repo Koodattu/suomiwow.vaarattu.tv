@@ -133,8 +133,197 @@
     "machineKeep": "Säilytä yksi",
     "machineHint": "Napauta tuplaa ladataksesi · Vedä vivusta",
     "machineEmpty": "Tuplasi näkyvät täällä",
+    "stationRecycler": "Kierrätin",
+    "stationForge": "Jalostusahjo",
+    "forgeLoad": "Aseta 3 samaa",
+    "forgeMismatch": "Kolme samaa",
+    "forgeHint": "Napauta hahmoa asettaaksesi kolme · Iske vasaralla",
+    "forgeEmpty": "Kerää 3 samaa hahmoa samaa laatua jalostaaksesi sen",
+    "world": {
+      "close": "Sulje",
+      "stations": {
+        "gallery": "Kokoelma",
+        "crate": "Päivän arkku",
+        "wheel": "Onnenpyörä",
+        "mail": "Lahjaposti",
+        "quests": "Tehtävänantaja",
+        "feed": "Tuoreimmat vedot",
+        "fame": "Kunniagalleria",
+        "leaderboard": "Tulostaulut",
+        "trading": "Vaihtopiste",
+        "pond": "Kalalampi"
+      },
+      "collection": {
+        "owned": "{got}/{total} kerätty",
+        "locked": "Ei vielä kerätty",
+        "acquired": "Saatu {date}",
+        "inspect": "Katso jalustalla",
+        "upcoming": "Sarja {number} · tulossa",
+        "secret": "Salainen sarja",
+        "search": "Hae hahmojasi",
+        "ownedOnly": "Vain omat",
+        "favorites": "Suosikit",
+        "onDisplay": "{count}/{total} esillä",
+        "favoritesHint": "Merkitse hahmo tähdellä suosikiksi. 16 ensimmäistä suosikkia seisovat vitriinissä ja ympäri maailmaa.",
+        "dragHint": "Raahaa järjestykseen: järjestys on vitriinin, 1–16.",
+        "notOnDisplay": "16:n jälkeiset suosikit odottavat vitriinin ulkopuolella",
+        "star": "Lisää {name} suosikkeihin",
+        "unstar": "Poista {name} suosikeista",
+        "displayed": "Esillä · #{number}",
+        "favorite": "Suosikki",
+        "addFavorite": "Lisää suosikkeihin",
+        "moveEarlier": "← Aiemmaksi",
+        "moveLater": "Myöhemmäksi →",
+        "finish": "Näytetään",
+        "spares": "{count, plural, one {# ylimääräinen kappale} other {# ylimääräistä kappaletta}} kierrättimelle tai ahjolle"
+      },
+      "picker": {
+        "recycler": "Valitse kolme ylimääräistä",
+        "forge": "Valitse jalostettava hahmo",
+        "all": "Kaikki",
+        "spare": "{count} ylimääräistä",
+        "loaded": "{count}/3 ladattu",
+        "clear": "Tyhjennä"
+      },
+      "crate": {
+        "body": "Ilmainen laatikko joka päivä. Tule päivittäin: seitsemännen päivän arkku takaa myös kultaheiton.",
+        "day": "Päivä {day}",
+        "open": "Avaa päivän arkku",
+        "got": "Päivä {day}: {reward}",
+        "day7": "Kultaheitto",
+        "next": "Päivän {day} arkku aukeaa {time}"
+      },
+      "wheel": {
+        "body": "Yksi ilmainen pyöräytys päivässä.",
+        "spin": "Pyöräytä",
+        "prizes": {
+          "box1": "+1 laatikko",
+          "box2": "+2 laatikkoa",
+          "box3": "+3 laatikkoa",
+          "golden": "kultatehostus",
+          "galaxy": "galaksitehostus",
+          "figure": "satunnainen hahmo"
+        },
+        "wonLabel": "Voitit",
+        "free": "Yksi ilmainen pyöräytys tänään",
+        "spinning": "Pyörii…",
+        "next": "Pyörä pyörii taas {time}"
+      },
+      "mail": {
+        "body": "Lähetä hahmo kiltakaverille viestin kera.",
+        "figure": "Hahmo",
+        "choose": "Valitse hahmo",
+        "recipient": "Vastaanottaja",
+        "recipientPlaceholder": "Discord-nimi",
+        "message": "Viesti",
+        "messagePlaceholder": "Pieni lahja sinulle",
+        "send": "Lähetä lahja"
+      },
+      "quests": {
+        "body": "Päivä-, viikko- ja kuukausitehtäviä. Suorita ne saadaksesi lisää laatikoita.",
+        "daily": "Päivä",
+        "weekly": "Viikko",
+        "monthly": "Kuukausi",
+        "reward": "{count, plural, one {+# laatikko} other {+# laatikkoa}}",
+        "claim": "Lunasta",
+        "items": {
+          "open3": "Avaa 3 laatikkoa",
+          "recycle1": "Käytä kierrätintä",
+          "tradeUp1": "Jalosta hahmo",
+          "open20": "Avaa 20 laatikkoa",
+          "recycle5": "Kierrätä 5 kertaa",
+          "tradeUp3": "Jalosta 3 kertaa",
+          "open60": "Avaa 60 laatikkoa",
+          "galaxy": "Vedä galaksihahmo",
+          "series": "Täydennä sarja",
+          "spin1": "Pyöräytä onnenpyörää",
+          "fish3": "Nappaa 3 kalaa",
+          "crates5": "Avaa 5 päivän arkkua"
+        },
+        "claimed": "Lunastettu",
+        "ready": "{count, plural, one {# palkinto lunastettavissa} other {# palkintoa lunastettavissa}}",
+        "resets": "nollautuu {time}"
+      },
+      "feed": {
+        "body": "Tuoreimmat kulta- ja galaksivedot.",
+        "empty": "Ei vielä kulta- tai galaksivetoja. Jatka avaamista!",
+        "you": "Sinä",
+        "fromBox": "laatikosta",
+        "fromForge": "jalostettu",
+        "fromWheel": "onnenpyörästä",
+        "fromPond": "lammesta"
+      },
+      "fame": {
+        "body": "Ensimmäiset keräilijät kussakin virstanpylväässä: nimi, kuva ja päivä.",
+        "items": {
+          "galaxy": "Ensimmäinen galaksihahmo",
+          "complete": "Ensimmäinen täysi sarja",
+          "secret": "Ensimmäinen sarjan 000 löytäjä",
+          "goldenSeries": "Ensimmäinen kokonaan kultainen sarja"
+        },
+        "unclaimed": "Vapaana",
+        "yours": "Sinä · {date}",
+        "signIn": "Koko killan ensimmäiset tulevat Discord-kirjautumisen myötä."
+      },
+      "leaderboard": {
+        "body": "Kuka on kerännyt eniten.",
+        "items": {
+          "unique": "Kerätyt hahmot",
+          "galaxy": "Galaksihahmot",
+          "golden": "Kultahahmot",
+          "opened": "Avatut laatikot"
+        },
+        "you": "Sinä",
+        "signIn": "Killan tulostaulut tulevat Discord-kirjautumisen myötä."
+      },
+      "trading": {
+        "body": "Vaihda hahmoja muiden pelaajien kanssa: tarjoa omaasi, pyydä heidän omaansa, ja molemmat hyväksyvät."
+      },
+      "pond": {
+        "cast": "Heitä",
+        "castAgain": "Heitä uudelleen",
+        "strike": "Vedä!",
+        "phase": {
+          "idle": "Siima on sisällä",
+          "cast": "Heitetään…",
+          "wait": "Odotetaan tärppiä",
+          "bite": "Tärppi!"
+        },
+        "how": {
+          "idle": "Napauta onkea heittääksesi.",
+          "cast": "Sinne menee.",
+          "wait": "Anna pienten nykäisyjen olla. Kun koho sukeltaa, napauta sitä.",
+          "bite": "Napauta kohoa nyt!"
+        },
+        "missed": "Liian hidas: se pääsi karkuun.",
+        "spooked": "Liian aikaisin: säikäytit sen.",
+        "prizeCatch": "Palkintosaalis",
+        "weight": "{weight} lb",
+        "newKind": "Uusi kalakirjaan!",
+        "best": "Lajinsa suurin tähän asti!",
+        "prizes": "Päivän palkintosaaliit",
+        "prize": {
+          "box": "Laatikko",
+          "figure": "Hahmo"
+        },
+        "prizesDone": "Kaikki kolme saatu. Kalat syövät yhä.",
+        "log": "Kalakirja"
+      },
+      "rewards": {
+        "boxes": "{count, plural, one {# laatikko} other {# laatikkoa}}",
+        "boost": "{quality}-tehostus",
+        "figure": "{name} liittyy kokoelmaasi",
+        "banked": "Laatikoita säästössä ×{count}",
+        "boostNext": "Seuraava laatikko: vähintään {quality}",
+        "bankedHint": "Säästetyt laatikot ovat sitä varten, kun laatikoita rajoitetaan."
+      }
+    },
     "tradedUp": "Paranneltu!",
-    "quality": { "standard": "Perus", "golden": "Kulta", "galaxy": "Galaksi" },
+    "quality": {
+      "standard": "Perus",
+      "golden": "Kulta",
+      "galaxy": "Galaksi"
+    },
     "soundOn": "Äänet päällä",
     "soundOff": "Äänet pois",
     "showcaseHint": "Hahmo, joka ansaitsee paikkansa kokoelmassa.",
@@ -146,7 +335,8 @@
     "galleryScroll": "Vieritä figuuri näkyviin ladataksesi sen",
     "galleryRetry": "Lataa malli uudelleen",
     "weaponsHeld": "Aseet kädessä",
-    "weaponsSheathed": "Aseet kannossa"
+    "weaponsSheathed": "Aseet kannossa",
+    "openAnother": "Avaa toinen"
   },
   "horseRace": {
     "label": "Kilpailu kahden viimeisen pomon läpi",

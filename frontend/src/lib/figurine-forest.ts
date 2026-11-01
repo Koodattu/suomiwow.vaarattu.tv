@@ -1,13 +1,15 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import type { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { restoreFigurineMaterials } from "@/lib/figurine-materials";
 
 // The clearing around the plaza: Elwynn Forest doodads exported with the local wow.export worker
 // (provenance: /figurines/world/source-models.json), scattered from a fixed seed and drawn as one
-// instanced mesh per model part. The camera side stays open so the hub shot is never blocked.
+// instanced mesh per model part. The woods close all the way round; only a lane stays open where
+// the opening shot flies in from far out behind the home camera.
 // Bump MODEL_VERSION when the files change: browsers keep the old ones otherwise.
-const MODEL_VERSION = 2;
+const MODEL_VERSION = 3;
 export const FOREST_MODELS = {
   tree: "/figurines/world/models/tree-canopy-02.glb",
   bareTree: "/figurines/world/models/tree-canopyless-01.glb",
@@ -43,9 +45,11 @@ const CASTERS = new Set<ForestModel>(["tree", "bareTree", "bush", "stump", "hays
 // WoW models face +x; this yaw turns one at (x, z) toward the plaza centre.
 const facingCentre = (x: number, z: number) => Math.atan2(z, -x);
 
-// A small Elwynn market where the path leaves the plaza: a tent and a wagon flanking it, a
-// signpost at the entrance (no faction banners: the market takes no side), stock piled by the stall and the case, and two tables
-// of produce at the front corners.
+// The market lane behind the shop: a tent with a stall of produce, a wagon, a signpost up the
+// lane (no faction banners: the market takes no side), stock by the trading post and in the
+// tinkers' yard, and hay at the edge of the trees. A barrel washed up in the reeds on the far bank
+// of the fishing pond hides the secret series' box, its broken side turned toward the pond's view.
+export const SECRET_BARREL = { x: 17.2, z: 23.8, toward: [9.4, 12.6] as [number, number] };
 export function marketLayout(): Placement[] {
   const at = (model: ForestModel, x: number, z: number, extra: Partial<Placement> = {}): Placement => ({ model, x, z, yaw: facingCentre(x, z), size: 0.5, ...extra });
   const table = (x: number, z: number) => {
@@ -54,54 +58,79 @@ export function marketLayout(): Placement[] {
     const on = (model: ForestModel, along: number, across: number, size = 0.5) => at(model, x + along * c + across * s, z - along * s + across * c, { y: top, yaw: yaw + across * 2, size });
     return [at("table", x, z), on("cheese", 0.35, -0.9), on("cheese", 0.1, -0.55, 0.9), on("bread", -0.3, 0.1), on("bread", -0.2, 0.4, 0.2), on("fruit", 0.2, 0.75), on("lantern", -0.4, -1.3)];
   };
+  // The broken opening faces local -z; turn it toward the pond's camera.
+  const [tx, tz] = SECRET_BARREL.toward;
   return [
-    at("tent", -5.6, -18.2), at("wagon", 6.4, -18.4),
-    at("signpost", 2.6, -15.6, { yaw: 2.2 }), at("crate", -5.2, -14.2, { yaw: 0.5 }), at("barrel", 5.4, -14.5),
-    at("crate", -11, -2.2, { yaw: 0.3 }), at("crate", -11.7, -1.3, { yaw: -0.2, size: 0.2 }), at("crate", -11.1, -2.1, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -10.6, -0.6),
-    // The broken opening faces local -z; turn it outward from the plaza.
-    at("barrel", 11.3, -2.1, { yaw: Math.atan2(-11.3, 2.1), secretSeries: "community-000" }), at("barrel", 11.9, -1), at("crate", 11.1, -0.2, { yaw: 1.1 }),
-    ...table(-10.6, 4.6), ...table(10.9, 4.2),
+    at("tent", -10.4, -22.8), at("wagon", 12.8, -21.6, { yaw: 2.6 }), at("signpost", -1.8, -27.4, { yaw: 1.2 }),
+    at("crate", -6.8, -23.6, { yaw: 0.5 }), at("crate", -7.4, -22.8, { yaw: -0.3, size: 0.2 }), at("barrel", 8.6, -24.6),
+    at("haystack", -17.2, -15.6, { yaw: 0.8, size: 0.4 }), at("haystack", -18.2, -13.8, { yaw: 2.1, size: 0.7 }),
+    // Stock behind the tinkers' yard.
+    at("crate", -24.6, -6.4, { yaw: 0.3 }), at("crate", -25.2, -5.4, { yaw: -0.2, size: 0.2 }), at("crate", -24.7, -6.3, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -23.6, -7.6),
+    at("barrel", SECRET_BARREL.x, SECRET_BARREL.z, { yaw: Math.atan2(SECRET_BARREL.x - tx, SECRET_BARREL.z - tz), secretSeries: "community-000" }),
+    ...table(-13.4, -18.6), ...table(9.2, -27.4),
   ];
 }
 // True if (x, z) is clear of the market's footprints.
 const clearOf = (spots: Placement[], x: number, z: number) => spots.every((spot) => Math.hypot(spot.x - x, spot.z - z) > (spot.model === "tent" || spot.model === "wagon" ? 6 : 2));
+// Trees, bushes and rocks inside the clearing: between the stalls round the square and out
+// between the neighbourhoods, so the facilities stand among woods rather than round an empty ring.
+export function groveLayout(): Placement[] {
+  const tree = (x: number, z: number, size: number, model: ForestModel = "tree"): Placement => ({ model, x, z, yaw: x * 1.7 + z, size });
+  const low = (model: ForestModel, x: number, z: number, size = 0.5): Placement => ({ model, x, z, yaw: x * 2.3 - z, size });
+  return [
+    tree(-14.4, -10.8, 0.15), tree(12.8, -17.4, 0.3), tree(-16.8, 11.6, 0.35), tree(22.6, -6.4, 0.3, "bareTree"), tree(-8.6, 16.4, 0.2),
+    tree(-22.4, -12.4, 0.5), tree(4.2, -28.6, 0.4), tree(-19.8, 17.6, 0.15, "bareTree"), tree(23.6, 14.6, 0.45), tree(-7.4, -19.4, 0.05, "bareTree"),
+    low("bush", -12.4, -7.8, 0.7), low("bushSmall", -16, -7.4), low("bush", 11.2, -14.6, 0.4), low("bushSmall", 16.8, -4.6, 0.3),
+    low("bush", -15.2, 9.2, 0.5), low("rock", -6.8, 13.6, 0.6), low("rockSmall", -6, 14.4), low("bush", 6.4, 16.2, 0.8),
+    low("stump", 18.8, -9.6, 0.4), low("rock", -22.8, 7.6, 0.5), low("bushSmall", 1.6, -19.4, 0.2), low("rock", 21.4, -1.4, 0.4),
+    low("bush", 3.4, -14.4, 0.3), low("bushSmall", -2.8, -15.6, 0.6), low("stump", -13.6, 12.6, 0.2), low("bush", 15.6, 12.8, 0.5),
+  ];
+}
+// Open ground the woods keep clear of: every station, and the paths.
+export type Keep = [number, number, number];
 
 const seeded = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 // Angle 0 points at the hub camera (+z); the forest path leaves the plaza at angle π.
-const OPEN_FRONT = 0.78, PATH_ANGLE = Math.PI, PATH_HALF = 0.13;
+const PATH_ANGLE = Math.PI, PATH_HALF = 0.13;
+// The opening shot starts 2.6 times as far out as the home camera and swings in from up to 0.35 rad
+// round: nothing tall stands in that lane short of its starting point. The fishing pond lies in it.
+const LANE = { from: -0.15, to: 0.6, radius: 29 };
+export const POND = { x: 13.6, z: 19.4, radius: 4.2 };
+const nearPond = (x: number, z: number) => Math.hypot(x - POND.x, z - POND.z) < POND.radius + 3.5;
+const inLane = (angle: number, radius: number) => radius < LANE.radius && Math.atan2(Math.sin(angle), Math.cos(angle)) > LANE.from && Math.atan2(Math.sin(angle), Math.cos(angle)) < LANE.to;
 const angularGap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 
-export function forestLayout(plazaRadius: number, seed = 11, market: Placement[] = []): Placement[] {
+export function forestLayout(plazaRadius: number, seed = 11, market: Placement[] = [], lamps: [number, number][] = [], keep: Keep[] = []): Placement[] {
+  const kept = (x: number, z: number) => keep.some(([kx, kz, radius]) => Math.hypot(x - kx, z - kz) < radius);
   const next = seeded(seed), placements: Placement[] = [];
-  const ring = (count: number, inner: number, outer: number, models: ForestModel[], open: number, path = PATH_HALF) => {
+  const ring = (count: number, inner: number, outer: number, models: ForestModel[], lane: boolean, path = PATH_HALF) => {
     for (let i = 0; i < count; i++) {
       // Even spread around the ring with jitter, so there are no bald patches.
       const angle = (i + next() * 0.8) / count * Math.PI * 2, radius = inner + next() * (outer - inner);
       const x = Math.sin(angle) * radius, z = Math.cos(angle) * radius, model = models[Math.floor(next() * models.length)], yaw = next() * Math.PI * 2, size = next();
-      if (angularGap(angle, 0) < open || angularGap(angle, PATH_ANGLE) < path * (20 / radius) || !clearOf(market, x, z)) continue;
+      if ((lane && inLane(angle, radius)) || angularGap(angle, PATH_ANGLE) < path * (20 / radius) || !clearOf(market, x, z) || nearPond(x, z) || kept(x, z)) continue;
       placements.push({ model, x, z, yaw, size });
     }
   };
-  ring(24, plazaRadius + 8, plazaRadius + 13, ["tree", "tree", "tree", "bareTree"], OPEN_FRONT);
-  ring(32, plazaRadius + 15, plazaRadius + 24, ["tree", "tree", "bareTree"], OPEN_FRONT * 0.7);
-  ring(30, plazaRadius + 0.8, plazaRadius + 5, ["bush", "bush", "bushSmall", "rock", "rockSmall"], OPEN_FRONT * 0.75, PATH_HALF * 1.6);
-  ring(8, plazaRadius + 2, plazaRadius + 6, ["stump", "rock"], OPEN_FRONT, PATH_HALF * 2);
+  // Low growth never blocks the flight, which passes well above it.
+  ring(36, plazaRadius + 8, plazaRadius + 13, ["tree", "tree", "tree", "bareTree"], true);
+  ring(48, plazaRadius + 15, plazaRadius + 24, ["tree", "tree", "bareTree"], true);
+  // The far woods, fading into the haze toward the painted treeline.
+  ring(64, plazaRadius + 27, plazaRadius + 48, ["tree", "tree", "tree", "bareTree"], false, PATH_HALF * 0.5);
+  ring(56, plazaRadius + 0.8, plazaRadius + 5, ["bush", "bush", "bushSmall", "rock", "rockSmall"], false, PATH_HALF * 1.6);
+  ring(14, plazaRadius + 2, plazaRadius + 6, ["stump", "rock"], false, PATH_HALF * 2);
   placements.push(...market);
-  // Hay by the shop side of the clearing.
-  for (const [angle, radius] of [[-1.15, plazaRadius + 1.6], [-1.32, plazaRadius + 2.4]]) placements.push({ model: "haystack", x: Math.sin(angle) * radius, z: Math.cos(angle) * radius, yaw: next() * 6.28, size: next() });
-  // Lamp posts around the plaza rim.
-  for (let i = 0; i < 10; i++) {
-    const angle = (i + 0.5) / 10 * Math.PI * 2, radius = plazaRadius - 0.8;
-    placements.push({ model: "lamp", x: Math.sin(angle) * radius, z: Math.cos(angle) * radius, yaw: -angle + Math.PI, size: 0.5 });
-  }
+  placements.push(...groveLayout());
+  for (const [x, z] of lamps) placements.push({ model: "lamp", x, z, yaw: facingCentre(x, z) + Math.PI / 2, size: 0.5 });
   return placements;
 }
 
 // Loads each model once and draws all its placements as instances. Resolves with the lamp
 // heads in world space, for the glow sprites.
-export function buildForest(parent: THREE.Object3D, placements: Placement[], onSway?: (material: THREE.Material) => void) {
+export function buildForest(parent: THREE.Object3D, placements: Placement[], onSway?: (material: THREE.Material) => void, ktx2Loader?: KTX2Loader) {
   const group = new THREE.Group(); parent.add(group);
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  if (ktx2Loader) loader.setKTX2Loader(ktx2Loader);
   const matrix = new THREE.Matrix4(), place = new THREE.Matrix4(), quaternion = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
   const byModel = new Map<ForestModel, Placement[]>();
   placements.forEach((placement) => byModel.set(placement.model, [...(byModel.get(placement.model) ?? []), placement]));

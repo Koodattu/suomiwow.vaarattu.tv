@@ -125,11 +125,17 @@ export function buildShop(parent: THREE.Group, { series, envMap, labels }: { ser
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture(glowCanvas[0]), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
     glow.position.set(0, BOX.h / 2, 0.1); glow.scale.set(1.1, 1.1, 1); stack.add(glow);
     const pick = new THREE.Mesh(pickGeometry, hidden); pick.position.y = BOX.h / 2 - 0.1; pick.userData.series = entry.id; stack.add(pick); picks.push(pick);
-    return { id: entry.id, lift, glow, paint, hover: 0, boxes: [boxMesh], faces, released: entry.released, stop: prints.stop };
+    // Baked prints attach their maps once transcoded, after the greyed copies were cloned.
+    const ready = entry.released ? prints.ready : prints.ready.then(() => faces.forEach((face, index) => {
+      const copy = face as THREE.MeshStandardMaterial, source = printed[index] as THREE.MeshStandardMaterial;
+      copy.map = source.map; copy.roughnessMap = source.roughnessMap; copy.metalnessMap = source.metalnessMap; copy.bumpMap = source.bumpMap; copy.needsUpdate = true;
+    }));
+    return { id: entry.id, lift, glow, paint, hover: 0, boxes: [boxMesh], faces, released: entry.released, ready, stop: prints.stop };
   });
 
   return {
     picks, frame,
+    ready: Promise.all(stacks.map((stack) => stack.ready)),
     boxes: new Map(stacks.map((stack) => [stack.id, stack.boxes])),
     // A copy of a series' shop box, for the case's shelf ends and the recycler's chute.
     boxCopy(id: string) {

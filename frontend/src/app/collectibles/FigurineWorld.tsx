@@ -6,20 +6,32 @@ import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
+import { createFigurineFileCache } from "@/lib/figurine-cache";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
-import { MACHINE_SLOTS, addToCollection, bestQuality, changeCollection, copiesOf, emptyCollection, machineChanges, machineOutcome, readCollection, rollQuality, spare, subscribeCollection, trayGroups, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
+import { MACHINE_SLOTS, addToCollection, boostedQuality, claimQuest, crateState, fishOf, grantReward, landCatch, moveFavorite, openCrate, rollCatch, setFavoriteQuality, showcaseOf, spendBoost, spinWheel, startQuestPeriods, toggleFavorite, type CatchRoll, type PullSource, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, RELEASED_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
-import type { Outpost, StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
+import type { StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
 import type { MachinePick } from "@/lib/figurine-machine";
+import { isStation, type Station } from "@/lib/figurine-world";
+import WorldPanel, { type LinePhase, type PanelResult, type PanelSeries } from "./WorldPanels";
+import type { ActionCue, CastResult, CatchVisual, FacilityAction } from "@/lib/figurine-facilities";
+import panelStyles from "./world-panels.module.css";
 import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
 import SoundMenu from "./SoundMenu";
 
 const FigurineStage = dynamic(() => import("@/app/tools/figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
 // Where "back" leads: stations return to the centre (to whichever of its views they were left from).
-const PARENT: Record<WorldView, WorldView | null> = { shop: "opening", gallery: "opening", machine: "opening", opening: null, viewer: "opening" };
+const parentOf = (view: WorldView): WorldView | null => view === "opening" ? null : "opening";
 const atCentre = (view: WorldView) => view === "opening" || view === "viewer";
-const STATION_VIEWS: WorldView[] = ["shop", "gallery", "machine"];
+// Keys for the daily stations, beside S, C, M and U.
+const STATION_KEYS: Record<string, Station> = { q: "quests", w: "wheel", f: "pond", d: "crate" };
+// After this many boxes opened by hand, a button can open one without pulling the tape.
+const QUICK_OPEN_AFTER = 5;
+// The collection's catalogue docks wide on desktop; the other panels narrow.
+const catalogueWidth = (viewport: number) => Math.min(900, viewport * 0.6);
+
+const isMachine = (view: WorldView): view is FigurineMachine => view === "recycler" || view === "forge";
 // Every series in shop order: released ones first, then the announced ones.
 const ALL_SERIES = [...FIGURINE_SERIES.map((entry) => entry.id), ...UPCOMING_SERIES.map((entry) => entry.id)];
 const CATALOG_ORDER = RELEASED_SERIES.flatMap((entry) => entry.characters.map((character) => figureKey(entry.id, character.id)));
@@ -42,6 +54,19 @@ export default function FigurineWorld() {
   // Stations remember which centre view they were entered from.
   const [origin, setOrigin] = useState<Partial<Record<WorldView, WorldView>>>({});
   const collection = useSyncExternalStore(subscribeCollection, readCollection, emptyCollection);
+  const records = useSyncExternalStore(subscribeCollection, readRecords, emptyRecords);
+  // The opening shot plays to its end before the keyboard can move the camera.
+  const [introDone, setIntroDone] = useState(false);
+  // Stations carry no signs: the one under the pointer is named in the HUD.
+  const [pointed, setPointed] = useState<Station | null>(null);
+  // The viewport's width, for the docked panel's.
+  const [viewport, setViewport] = useState(1280);
+  useEffect(() => { const measure = () => setViewport(window.innerWidth); measure(); window.addEventListener("resize", measure); return () => window.removeEventListener("resize", measure); }, []);
+  const panelWidth = view === "gallery" ? catalogueWidth(viewport) : 420;
+  // The clock the daily things go by, ticking each minute so a new day shows without a reload.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 60000); return () => window.clearInterval(timer); }, []);
+  const stationName = (station: Station) => station === "shop" ? t("navShop") : station === "recycler" ? t("stationRecycler") : station === "forge" ? t("stationForge") : t(`world.stations.${station}`);
   const action = useRef<HTMLButtonElement>(null);
   const viewRef = useRef(view);
   useEffect(() => { viewRef.current = view; }, [view]);
@@ -53,7 +78,7 @@ export default function FigurineWorld() {
   const [draw, setDraw] = useState<{ series: string; round: number; index: number; quality: FigurineQuality } | null>(null);
   useEffect(() => {
     const drawing = RELEASED_SERIES.find((entry) => entry.id === seriesId);
-    if (state.phase === "sealed" && drawing) setDraw((current) => current?.series === seriesId && current.round === state.round ? current : { series: seriesId, round: state.round, index: chooseFigure(drawing.characters.length, Math.random()), quality: rollQuality(Math.random()) });
+    if (state.phase === "sealed" && drawing) setDraw((current) => current?.series === seriesId && current.round === state.round ? current : { series: seriesId, round: state.round, index: chooseFigure(drawing.characters.length, Math.random()), quality: boostedQuality(rollQuality(Math.random()), readRecords().boons.boost) });
   }, [seriesId, state.round, state.phase]);
   const currentDraw = series && draw?.series === seriesId && draw.round === state.round ? draw : null;
   const sealedDraw = currentDraw?.index ?? null;
@@ -64,57 +89,59 @@ export default function FigurineWorld() {
   const quality: FigurineQuality = view === "viewer" ? inspected?.quality ?? "standard" : currentDraw?.quality ?? "standard";
   const [model, setModel] = useState<"idle" | "loading" | "ready" | "failed">("idle");
   const [refetch, setRefetch] = useState(0);
-  // Recently fetched figure files, so stepping into the viewer and back does not download again.
-  const fetched = useRef(new Map<string, File>());
+  // Download the finite catalog once. Keep compressed files, rather than all decoded GPU textures.
+  const fetched = useRef<ReturnType<typeof createFigurineFileCache> | null>(null);
+  const [fileProgress, setFileProgress] = useState(0);
+  useEffect(() => {
+    const cache = createFigurineFileCache(); fetched.current = cache;
+    const characters = RELEASED_SERIES.flatMap((entry) => entry.characters);
+    let next = 0, completed = 0, cancelled = false;
+    const worker = async () => {
+      while (!cancelled && next < characters.length) {
+        const character = characters[next++];
+        try { await cache.get(character.model, character.bytes); } catch { /* Selection retries failed downloads. */ }
+        if (!cancelled) setFileProgress(++completed / characters.length);
+      }
+    };
+    void Promise.all(Array.from({ length: 4 }, worker));
+    return () => { cancelled = true; cache.dispose(); if (fetched.current === cache) fetched.current = null; };
+  }, []);
   useEffect(() => {
     if (!wanted) { setFiles([]); setFilesFor(null); setModel("idle"); return; }
-    const remembered = fetched.current.get(wanted.model);
-    if (remembered) { setFiles([remembered]); setFilesFor(wanted.model); setModel("loading"); return; }
-    const controller = new AbortController();
+    let cancelled = false;
     setModel("loading");
     const fail = () => { setModel("failed"); if (viewRef.current !== "viewer") dispatch({ type: "failed" }); };
-    const timeout = window.setTimeout(() => { fail(); controller.abort(); }, 30_000);
     void (async () => {
       try {
-        const response = await fetch(wanted.model, { signal: controller.signal });
-        if (!response.ok) throw new Error("Model unavailable");
-        const blob = await response.blob();
-        if (blob.size !== wanted.bytes) throw new Error("Incomplete model");
-        if (controller.signal.aborted) return;
-        const file = new File([blob], "collectible.glb");
-        fetched.current.set(wanted.model, file);
-        if (fetched.current.size > 6) fetched.current.delete(fetched.current.keys().next().value!);
+        const file = await fetched.current!.get(wanted.model, wanted.bytes);
+        if (cancelled) return;
         setFiles([file]); setFilesFor(wanted.model);
-      } catch { if (!controller.signal.aborted) fail(); }
-      finally { window.clearTimeout(timeout); }
+      } catch { if (!cancelled) fail(); }
     })();
-    return () => { window.clearTimeout(timeout); controller.abort(); };
+    return () => { cancelled = true; };
   }, [wanted, state.round, refetch]);
 
-  // Start-up loading: the stage's scenery, boxes, portraits and shaders, every sound, and the first box's figure.
+  // Start-up loading: scenery, box prints, portraits, sounds, all compressed figures, and the first prepared figure.
   const [stageProgress, setStageProgress] = useState(0), [stageLoaded, setStageLoaded] = useState(false), [audioProgress, setAudioProgress] = useState(0);
   useEffect(() => { void prefetchFigurineAudio([...new Set(FIGURINE_SERIES.flatMap((entry) => entry.characters.map((character) => character.classKey)))], ALL_QUIPS.map(({ file }) => file), setAudioProgress).then(() => setAudioProgress(1)); }, []);
   const figureSettled = model === "ready" || model === "failed" || (sealedDraw === null && view !== "viewer");
-  const loaded = stageLoaded && audioProgress >= 1 && figureSettled;
+  const loaded = stageLoaded && audioProgress >= 1 && fileProgress >= 1 && figureSettled;
   const [revealedWorld, setRevealedWorld] = useState(false);
   useEffect(() => { if (loaded || webglUnavailable) setRevealedWorld(true); }, [loaded, webglUnavailable]);
-  const progress = Math.round(100 * (0.6 * stageProgress + 0.25 * audioProgress + 0.15 * (figureSettled ? 1 : 0)));
+  const progress = Math.round(100 * (0.4 * stageProgress + 0.25 * audioProgress + 0.2 * fileProgress + 0.15 * (figureSettled ? 1 : 0)));
   // Each series pick drops its box onto the pedestal again.
   const [arrival, setArrival] = useState(0);
-  // A tapped station that is not open yet says so for a moment.
-  const [soon, setSoon] = useState<Outpost | null>(null);
-  useEffect(() => { if (!soon) return; const timer = window.setTimeout(() => setSoon(null), 2400); return () => window.clearTimeout(timer); }, [soon]);
 
   const navigate = useCallback((next: WorldView) => {
     unlockFigurineAudio();
     // Leaving a finished opening clears the pedestal for the next box.
     if (next !== "opening" && (state.phase === "revealed" || state.phase === "error")) { setOpened(null); dispatch({ type: "reset" }); }
     if (next !== "viewer") { setInspected(null); setUpgraded(null); }
-    setHovered(null); setSoon(null);
-    if (STATION_VIEWS.includes(next) && atCentre(view)) setOrigin((current) => ({ ...current, [next]: view }));
+    setHovered(null);
+    if (isStation(next) && atCentre(view)) setOrigin((current) => ({ ...current, [next]: view }));
     setView(next);
   }, [state.phase, view]);
-  const back = useCallback(() => { const parent = origin[view] ?? PARENT[view]; if (parent && state.phase !== "loading" && state.phase !== "opening") navigate(parent); }, [view, state.phase, navigate, origin]);
+  const back = useCallback(() => { const parent = origin[view] ?? parentOf(view); if (parent && state.phase !== "loading" && state.phase !== "opening") navigate(parent); }, [view, state.phase, navigate, origin]);
   useEffect(() => { action.current?.focus({ preventScroll: true }); }, [view, state.phase, state.round]);
 
   function pickSeries(id: string) {
@@ -128,13 +155,15 @@ export default function FigurineWorld() {
     const selected = sealedDraw ?? chooseFigure(series.characters.length, Math.random());
     preloadFigurineSignature(series.characters[selected].classKey, figureQuip(figureKey(series.id, series.characters[selected].id))?.file);
     if (model === "failed") setRefetch((current) => current + 1);
-    dispatch({ type: "open", selected, ready: sealedDraw !== null && model === "ready" });
+    dispatch({ type: "open", selected, ready: sealedDraw !== null && model === "ready" && filesFor === wanted?.model });
   }
   function revealed() {
     dispatch({ type: "revealed" });
     if (series && drawn) {
       const key = figureKey(series.id, drawn.id), finish = currentDraw?.quality ?? "standard";
-      addToCollection(key, finish);
+      addToCollection(key, finish); recordPull({ key, quality: finish }, "box");
+      // A boost lifts one box: the one just opened.
+      if (readRecords().boons.boost) spendBoost();
       setOpened({ key, count: copiesOf(readCollection()[key]), quality: finish });
     }
   }
@@ -143,57 +172,150 @@ export default function FigurineWorld() {
     setInspected({ key, quality: finish ?? bestQuality(collection[key]) ?? "standard" }); setUpgraded(null); setView("viewer");
   }
 
-  // The recycler: load three copies from the board, pull the lever, and the machine makes a box
-  // of the series most of them came from, or trades three of a kind up a quality.
-  const [slots, setSlots] = useState<MachineItem[]>([]);
-  const [machineRun, setMachineRun] = useState<{ run: number; output: StageMachine["output"]; outcome: MachineOutcome | null }>({ run: 0, output: null, outcome: null });
-  const outcome = useMemo(() => machineOutcome(slots, collection), [slots, collection]);
+  // Two machines take three figures each. The recycler grinds any three spare copies into a box of
+  // the series most of them came from; the forge trades three of a kind up a quality.
+  const [slots, setSlots] = useState<Record<FigurineMachine, MachineItem[]>>({ recycler: [], forge: [] });
+  type MachineRun = { run: number; output: StageMachine["output"]; outcome: MachineOutcome | null };
+  const [machineRuns, setMachineRuns] = useState<Record<FigurineMachine, MachineRun>>({ recycler: { run: 0, output: null, outcome: null }, forge: { run: 0, output: null, outcome: null } });
+  const outcomes = useMemo(() => ({ recycler: machineOutcome("recycler", slots.recycler, collection), forge: machineOutcome("forge", slots.forge, collection) }), [slots, collection]);
   const nameOf = useCallback((key: string) => findFigure(key)?.character.name ?? key, []);
-  function operateMachine(pick: MachinePick) {
+
+  // The daily stations. Each action plays in the world first (the crate bursts, the wheel spins, the
+  // line is cast); what it brought shows, and a prize figure joins the collection, once it has.
+  const [facilityAction, setFacilityAction] = useState<{ run: number; station: "crate" | "wheel" | "pond"; action: FacilityAction } | null>(null);
+  // A cast carries what is on the line (and the figure, for the figure prize) until it is hooked or lost.
+  const [pending, setPending] = useState<{ run: number; result: PanelResult | null; source?: PullSource; roll?: CatchRoll; figure?: MachineItem } | null>(null);
+  const [line, setLine] = useState<LinePhase | null>(null);
+  const [poke, setPoke] = useState<{ n: number; station: "pond"; kind: "hook" } | null>(null);
+  const [result, setResult] = useState<PanelResult | null>(null);
+  const busy = !!pending;
+  // A prize figure: any figure of a released series, at a rolled quality.
+  const prizeFigure = (): MachineItem => {
+    const drawn = FIGURINE_SERIES[Math.floor(Math.random() * FIGURINE_SERIES.length)], character = drawn.characters[chooseFigure(drawn.characters.length, Math.random())];
+    return { key: figureKey(drawn.id, character.id), quality: rollQuality(Math.random()) };
+  };
+  const act = (station: "crate" | "wheel" | "pond", next: FacilityAction, outcome: PanelResult | null, source?: PullSource, extra: { roll?: CatchRoll; figure?: MachineItem } = {}) => {
     unlockFigurineAudio();
-    if (pick.kind === "tray") {
-      if (slots.length < MACHINE_SLOTS && spare(collection, slots, pick) > 0) setSlots([...slots, { key: pick.key, quality: pick.quality }]);
-    } else if (pick.kind === "slot") setSlots(slots.filter((_, index) => index !== pick.index));
-    else if ((outcome.kind === "box" || outcome.kind === "upgrade") && changeCollection(machineChanges(slots, outcome))) {
-      setMachineRun({
-        run: machineRun.run + 1, outcome,
+    const run = (facilityAction?.run ?? 0) + 1;
+    setFacilityAction({ run, station, action: next }); setPending({ run, result: outcome, source, ...extra }); setResult(null);
+  };
+  function actionDone(run: number, cast?: CastResult) {
+    if (!pending || pending.run !== run) return;
+    let outcome = pending.result;
+    // A cast lands its catch only if it was hooked in time.
+    if (pending.roll) {
+      setLine(null);
+      if (cast !== "caught") { setResult({ station: "pond", missed: cast ?? "missed" }); setPending(null); return; }
+      outcome = { station: "pond", caught: landCatch(pending.roll, new Date()), figure: pending.figure };
+    }
+    if (!outcome) { setPending(null); return; }
+    const figure = "figure" in outcome ? outcome.figure : undefined;
+    const reward = outcome.station === "pond" ? ("caught" in outcome && outcome.caught.kind === "daily" ? outcome.caught.reward : null) : outcome.reward;
+    if (reward) grantReward(reward);
+    if (figure && pending.source) { addToCollection(figure.key, figure.quality); recordPull(figure, pending.source); }
+    setResult(outcome); setPending(null);
+  }
+  // The line's progress, from the pond's own cues.
+  function actionCue(run: number, cue: ActionCue) {
+    if (!pending?.roll || pending.run !== run) return;
+    if (cue === "splash") setLine("wait");
+    else if (cue === "bite") setLine("bite");
+    else if (cue === "escape") setLine(null);
+  }
+  // Cast: what is on the line is rolled now (a fish's size from its weight), landed only if hooked.
+  function cast() {
+    if (pending) return;
+    const roll = rollCatch(readRecords(), Math.random, now);
+    const figure = roll.kind === "daily" && roll.reward.figure ? prizeFigure() : undefined;
+    let visual: CatchVisual = roll.kind === "daily" ? { kind: figure ? "figure" : "box" } : { kind: "box" };
+    if (roll.kind === "fish") {
+      const kind = fishOf(roll.fish)!, [low, high] = kind.weight;
+      visual = { kind: "fish", fish: roll.fish, quality: roll.quality, length: kind.length * (0.85 + 0.3 * (roll.weight - low) / Math.max(0.1, high - low)) };
+    }
+    act("pond", { kind: "cast", catch: visual }, null, "pond", { roll, figure });
+    setLine("cast");
+  }
+  const hook = () => { if (pending?.roll) setPoke((current) => ({ n: (current?.n ?? 0) + 1, station: "pond", kind: "hook" })); };
+  // A tap on the pond (its rod, bobber or water): cast when the line is in, strike when it is out.
+  const fishTap = () => { unlockFigurineAudio(); if (pending?.roll) hook(); else cast(); };
+  const crate = crateState(records, now);
+  const streak = useMemo(() => ({ opened: crate.ready ? crate.day - 1 : crate.day, today: crate.ready ? crate.day : null }), [crate.ready, crate.day]);
+  const completeSeries = FIGURINE_SERIES.some((entry) => entry.characters.every((character) => collection[figureKey(entry.id, character.id)]));
+  const panelActions = {
+    busy, result, now,
+    onCrate: () => { const opened = openCrate(now); if (opened) act("crate", { kind: "open" }, { station: "crate", ...opened }); },
+    onSpin: () => {
+      const spun = spinWheel(Math.random(), now);
+      if (spun) act("wheel", { kind: "spin", segment: spun.segment }, { station: "wheel", reward: spun.reward, figure: spun.reward.figure ? prizeFigure() : undefined }, "wheel");
+    },
+    line, onCast: cast, onHook: hook,
+    onClaim: (id: string) => { unlockFigurineAudio(); claimQuest(id, completeSeries, now); },
+  };
+  // Quests count from the start of the session, and each new day, week or month from its turn.
+  useEffect(() => { startQuestPeriods(now); }, [now]);
+  const loadSlots = (kind: FigurineMachine, next: MachineItem[]) => setSlots((current) => ({ ...current, [kind]: next }));
+  // A card chosen in the picker. The forge works on three of one kind, so it places all three at once.
+  function pickCard(kind: FigurineMachine, item: MachineItem) {
+    unlockFigurineAudio();
+    const loaded = slots[kind];
+    if (kind === "forge") { if (spare(collection, [], item) >= MACHINE_SLOTS) loadSlots(kind, Array.from({ length: MACHINE_SLOTS }, () => item)); }
+    else if (loaded.length < MACHINE_SLOTS && spare(collection, loaded, item) > 0) loadSlots(kind, [...loaded, item]);
+  }
+  function operateMachine(kind: FigurineMachine, pick: MachinePick) {
+    unlockFigurineAudio();
+    const loaded = slots[kind], outcome = outcomes[kind], load = (next: MachineItem[]) => loadSlots(kind, next);
+    if (pick.kind === "slot") load(kind === "forge" ? [] : loaded.filter((_, index) => index !== pick.index));
+    else if ((outcome.kind === "box" || outcome.kind === "upgrade") && changeCollection(machineChanges(loaded, outcome))) {
+      if (outcome.kind === "upgrade") recordPull({ key: outcome.key, quality: outcome.quality }, "forge"); else recordRecycle();
+      setMachineRuns((current) => ({ ...current, [kind]: {
+        run: current[kind].run + 1, outcome,
         output: outcome.kind === "box" ? { kind: "box", series: outcome.series } : { kind: "figure", key: outcome.key, quality: outcome.quality, name: nameOf(outcome.key) },
-      });
-      setSlots([]);
+      } }));
+      load([]);
     }
   }
-  function machineDone() {
-    const made = machineRun.outcome;
-    if (viewRef.current !== "machine" || !made) return;
+  function machineDone(kind: FigurineMachine) {
+    const made = machineRuns[kind].outcome;
+    if (viewRef.current !== kind || !made) return;
     if (made.kind === "box") pickSeries(made.series);
     else if (made.kind === "upgrade") { inspect(made.key, made.quality); setUpgraded({ key: made.key, quality: made.quality }); }
   }
   const qualityName = (finish: FigurineQuality) => t(`quality.${finish}`);
-  const machine: StageMachine = useMemo(() => {
-    const display = outcome.kind === "box" ? { title: t("machineBox"), detail: t("seriesName", { number: pad(seriesNumber(outcome.series)) }) }
-      : outcome.kind === "upgrade" ? { title: t("machineUpgrade"), detail: `${nameOf(outcome.key)} → ${t(`quality.${outcome.quality}`)}` }
-      : outcome.kind === "keep" ? { title: t("machineKeep"), detail: nameOf(outcome.key) }
-      : { title: t("machineLoad"), detail: `${slots.length} / ${MACHINE_SLOTS}` };
-    return {
-      ...display, ready: outcome.kind === "box" || outcome.kind === "upgrade", run: machineRun.run, output: machineRun.output,
-      tray: trayGroups(collection, CATALOG_ORDER).map((group) => ({ key: group.key, quality: group.quality, name: nameOf(group.key), spare: spare(collection, slots, group) })),
-      slots: slots.map((slot) => ({ ...slot, name: nameOf(slot.key) })),
+  const machines: Record<FigurineMachine, StageMachine> = useMemo(() => {
+    const view = (kind: FigurineMachine): StageMachine => {
+      const outcome = outcomes[kind], loaded = slots[kind];
+      const display = outcome.kind === "box" ? { title: t("machineBox"), detail: t("seriesName", { number: pad(seriesNumber(outcome.series)) }) }
+        : outcome.kind === "upgrade" ? { title: t("machineUpgrade"), detail: `${nameOf(outcome.key)} → ${t(`quality.${outcome.quality}`)}` }
+        : outcome.kind === "keep" ? { title: t("machineKeep"), detail: nameOf(outcome.key) }
+        : outcome.kind === "mismatch" ? { title: t("forgeMismatch"), detail: "" }
+        : { title: t(kind === "forge" ? "forgeLoad" : "machineLoad"), detail: `${loaded.length} / ${MACHINE_SLOTS}` };
+      return {
+        ...display, ready: outcome.kind === "box" || outcome.kind === "upgrade", run: machineRuns[kind].run, output: machineRuns[kind].output,
+        accent: outcome.kind === "upgrade" ? outcome.quality : undefined,
+        slots: loaded.map((slot) => ({ ...slot, name: nameOf(slot.key) })),
+      };
     };
-  }, [collection, slots, outcome, machineRun, nameOf, t]);
+    return { recycler: view("recycler"), forge: view("forge") };
+  }, [slots, outcomes, machineRuns, nameOf, t]);
 
-  // Navigation is in the world; the keyboard mirrors it: Esc back, S shop, C collection, M recycler,
+  // Navigation is in the world; the keyboard mirrors it: Esc back, S shop, C collection, M recycler, U forge,
   // number keys pick a series, Enter opens the sealed box.
   const onKey = useRef<(event: KeyboardEvent) => void>(() => {});
   useEffect(() => {
     onKey.current = (event) => {
-      if (event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement) return;
+      if (!revealedWorld || !introDone || event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement) return;
       const key = event.key.toLowerCase();
+      if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
       if (key === "escape" || key === "backspace") back();
       else if (atCentre(view) && key === "s") navigate("shop");
       else if (atCentre(view) && key === "c") navigate("gallery");
-      else if (atCentre(view) && key === "m") navigate("machine");
+      else if (atCentre(view) && key === "m") navigate("recycler");
+      else if (atCentre(view) && key === "u") navigate("forge");
+      else if (atCentre(view) && STATION_KEYS[key]) navigate(STATION_KEYS[key]);
       else if (view === "shop" && /^[1-9]$/.test(key) && ALL_SERIES[Number(key) - 1]) pickSeries(ALL_SERIES[Number(key) - 1]);
       else if (view === "opening" && state.phase === "sealed" && series && !webglUnavailable && (key === "enter" || key === " ") && !(event.target instanceof Element && event.target.closest("button, a"))) { event.preventDefault(); open(); }
+      // At the pond, Space casts, and strikes once the line is out.
+      else if (view === "pond" && key === " " && !(event.target instanceof Element && event.target.closest("button, a"))) { event.preventDefault(); fishTap(); }
     };
   });
   useEffect(() => {
@@ -216,9 +338,19 @@ export default function FigurineWorld() {
     labels: {
       sign: t("navShop"), series: (number) => t("seriesName", { number }),
       collected: (owned, total) => t("seriesCollected", { got: owned, total }), comingSoon: t("comingSoon"),
-      trading: t("stationTrading"), fame: t("stationFame"),
     },
-  }), [collection, t]);
+    showcase: showcaseOf(records.favorites, collection),
+    streak,
+  }), [collection, records.favorites, streak, t]);
+  // The collection lists released series, a secret one once found, then the announced ones.
+  const panelSeries: PanelSeries[] = useMemo(() => [...collectionShelves(world.series, collection).filter((entry) => entry.released), ...world.series.filter((entry) => !entry.hidden && !entry.released)]
+    .map(({ id, number, released, hidden, keys }) => ({ id, number, released, hidden, keys })), [world.series, collection]);
+  const machineKind = isMachine(view) ? view : null;
+  const machinePanel = machineKind ? {
+    kind: machineKind, slots: slots[machineKind],
+    groups: trayGroups(collection, CATALOG_ORDER, machineKind).map((group) => ({ key: group.key, quality: group.quality, spare: machineKind === "forge" ? group.count : spare(collection, slots[machineKind], group) })),
+    onPick: (item: MachineItem) => pickCard(machineKind, item), onClear: () => loadSlots(machineKind, []),
+  } : undefined;
   const boxCount = series?.characters.length ?? 16;
   const packaging = useMemo(() => ({ blind: t("boxBlind"), collect: t("boxCollect", { count: boxCount }), contents: t("boxContents"), openHere: t("boxOpenHere") }), [t, boxCount]);
   const label = (figure: FigurineCharacter) => `${figure.realm} · ${t(`races.${figure.raceKey}`)} · ${t(`classes.${figure.classKey}`)}`;
@@ -231,44 +363,58 @@ export default function FigurineWorld() {
     </Link>
     <SoundMenu />
     <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
-      interactive={view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
+      interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
-      machine={machine} onMachine={operateMachine} onMachineDone={machineDone} onComingSoon={setSoon}
+      machines={machines} onMachine={operateMachine} onMachineDone={machineDone} onIntroDone={() => setIntroDone(true)} onHoverStation={setPointed} action={facilityAction} onActionDone={actionDone} onActionCue={actionCue} poke={poke} panelWidth={panelWidth}
+      onFacilityPart={(station) => { if (station === "pond") fishTap(); }}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={(key) => inspect(key)} onHoverFigure={setHovered}
       onStatus={(status) => {
         setWebglUnavailable(status === "webgl");
-        if (status === "ready") { setModel("ready"); dispatch({ type: "loaded" }); }
+        if (status === "loading") setModel("loading");
+        else if (status === "ready") { setModel("ready"); dispatch({ type: "loaded" }); }
         else if (status === "error" || status === "webgl") { setModel("failed"); if (view !== "viewer") dispatch({ type: "failed" }); }
       }}
       onProgress={setStageProgress} onLoaded={() => setStageLoaded(true)} arrival={arrival}
       onRevealed={revealed} signature={drawn?.classKey} quip={drawn && series ? figureQuip(figureKey(series.id, drawn.id)) : undefined}
       labels={{ loading: t("modelLoading"), ready: t("modelReady"), empty: t("modelEmpty"), error: t("modelError"), webgl: t("webglError"), box: t("boxStatus"), boxTitle: t("boxTitle"), boxSubtitle: t("boxSubtitle"), series: t("navCollection"), packaging }} />
+    {(records.boons.boxes > 0 || records.boons.boost) && revealedWorld && <p className={panelStyles.hudBoons}>
+      {records.boons.boxes > 0 && <span>{t("world.rewards.banked", { count: records.boons.boxes })}</span>}
+      {records.boons.boost && <span data-quality={records.boons.boost}>{t("world.rewards.boostNext", { quality: t(`quality.${records.boons.boost}`) })}</span>}
+    </p>}
+    {isStation(view) && view !== "shop" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back} actions={panelActions}
+      onInspect={(key, finish) => inspect(key, finish)} machine={machinePanel}
+      onFavorite={(item) => { unlockFigurineAudio(); toggleFavorite(item); }} onMoveFavorite={(key, to) => moveFavorite(key, to)} onFavoriteQuality={(key, finish) => setFavoriteQuality(key, finish)} />}
     <div className={styles.worldLoader} data-done={revealedWorld} role="status" aria-hidden={revealedWorld}>
       <span>{t("worldPreparing")}</span>
       <div className={styles.worldLoaderBar}><i style={{ width: `${progress}%` }} /></div>
     </div>
     <div className={styles.showcaseHud}>
       <div className={styles.revealIdentity} aria-live="polite" aria-atomic="true">
-        {soon ? <p className={styles.worldHint}>{t(soon === "trading" ? "stationTrading" : "stationFame")} · {t("comingSoon")}</p>
-          : view === "opening" && state.phase === "revealed" && drawn ? <>
+        {view === "opening" && state.phase === "revealed" && drawn ? <>
             {opened && <span className={styles.newBadge}>{opened.count === 1 ? t("newFigure") : t("duplicateFigure", { count: opened.count })}</span>}
             {opened && qualityBadge(opened.quality)}
             <h1>{drawn.name}</h1><p>{label(drawn)}</p>
           </> : view === "opening" && state.phase === "error" ? <><h1>{t("drawErrorTitle")}</h1><p>{t(webglUnavailable ? "webglError" : "drawError")}</p></>
+          : pointed && pointed !== view && !(view === "opening" && state.phase !== "sealed") ? <p className={styles.worldHint}>{stationName(pointed)}</p>
           : view === "viewer" && viewing && inspected ? <>
             {upgraded && <span className={styles.newBadge}>{t("tradedUp")}</span>}
             {qualityBadge(inspected.quality)}
             <h1>{viewing.character.name}</h1><p>{label(viewing.character)}</p><p className={styles.showcaseHint}>{t("inspectFigure")}</p>
           </> : (view === "gallery" || (view === "opening" && state.phase === "sealed")) && hoveredFigure ? <p className={styles.worldHint}>{collection[hovered!] ? hoveredFigure.character.name : t("notCollected")}</p>
-          : view === "gallery" || view === "shop" || view === "machine" ? null
+          : !atCentre(view) ? null
           : <span className={styles.srOnly}>{t(state.phase === "loading" ? "drawLoading" : state.phase === "opening" ? "drawOpening" : "mysteryTitle")}</span>}
       </div>
       {view === "opening" && state.phase === "sealed" && <p className={styles.worldHint}>{series ? t("pullToOpen") : `${t("seriesName", { number: pad(seriesNumber(seriesId)) })} · ${t("comingSoon")}`}</p>}
+      {view === "opening" && state.phase === "sealed" && series && introDone && records.stats.opened >= QUICK_OPEN_AFTER && !webglUnavailable && <div className={styles.drawActions}>
+        <button ref={action} className={styles.primary} onClick={open}>{t("openBox")}</button>
+      </div>}
+      {view === "opening" && state.phase === "revealed" && series && <div className={styles.drawActions}>
+        <button ref={action} className={styles.primary} onClick={() => pickSeries(seriesId)}>{t("openAnother")}</button>
+      </div>}
       {view === "opening" && state.phase === "error" && <div className={styles.drawActions}>
         <button ref={action} className={styles.primary} onClick={() => { unlockFigurineAudio(); setFiles([]); dispatch({ type: "retry" }); }}>{t("retryBox")}</button>
       </div>}
-      {view === "machine" && <p className={styles.showcaseHint}>{machine.tray.length ? t("machineHint") : t("machineEmpty")}</p>}
-      {(view === "shop" || view === "gallery" || view === "machine") && <p className={styles.showcaseHint}>{t("tapAwayHint")}</p>}
+      {view === "shop" && <p className={styles.showcaseHint}>{t("tapAwayHint")}</p>}
       {view === "viewer" && (!files.length || filesFor !== wanted?.model) && <p className={styles.showcaseHint}>{t("worldLoading")}</p>}
     </div>
   </main>;

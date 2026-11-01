@@ -159,8 +159,8 @@ Blizzard OAuth credentials remain server-side in the existing environment
 (falling back to `backend/.env` locally); neither secrets nor tokens reach the browser.
 
 Imported files stay in the browser. One GLB/glTF root and up to 150 MB of files are
-accepted; remote resources are rejected. Meshopt/WebP are supported, Draco/KTX2
-are not configured.
+accepted; remote resources are rejected. Meshopt, WebP and KTX2 are supported;
+Draco is not configured. KTX2 uses the self-hosted Three.js r186 transcoder.
 
 Run from the repository root:
 
@@ -362,29 +362,78 @@ Blender renders do not reproduce the viewer's additive effects exactly.
 
 ## Collectibles world
 
-`/collectibles` is one 3D scene with a home and stations round it. Home is the centre: the
-pedestal, seen head-on with the shop and the case at either side, holding either a sealed box
-(opening) or an inspected figure (viewer). Both share one camera, so swapping between a box
-and a figure never moves it, and returning from a station lands where the camera was left.
-The stations are the shop, the collection case and the recycler; the camera flies there and
-back in under a second. The trading post and the hall of fame already stand at the plaza
-(`figurine-outposts.ts`) but are not open: tapping one only says "coming soon".
-There are no labels and no buttons: tap a station to go there, a series' boxes to get a box,
-an owned figure to inspect it, and empty ground or the station you are at to come back. From
-home, boxes and figures can be tapped straight in the background stations. A picked box drops
-onto the pedestal with its thud, timed to land as the camera arrives. After a reveal, the next
-box comes from the shop. Hovered stacks, stations and figures get an outer glow
-(`figurine-glow.ts`: an additive back-face shell for props, a blurred-alpha halo for figure
-cards). At home the camera orbits all the way round (left or middle drag) and zooms; the shop and the
-case hide while the camera is close to them or behind them, so the orbit never clips into
-them. In the shop the middle button turns the shot; in the collection dragging pans across
-the case and the wheel zooms in close. Auto-rotation is slow, stops while you hold the camera
-and eases back in 2.5 s after you let go. Hovered figures in the case get a soft halo and keep
-their size. Station shots back off until the station's width fits the
-screen, so phones see the whole stall; when that pulls a shot back past the pedestal, the box
-steps aside. Keyboard: Esc back, S shop, C collection, M recycler, 1-9 pick a series (in the
-shop), Enter opens the sealed box. The figure's name and details appear as it
-lands. The only button is the sound toggle.
+`/collectibles` is one 3D scene with a home and stations about it. Home is the centre: the
+pedestal, holding either a sealed box (opening) or an inspected figure (viewer). Both share one
+camera, so swapping between a box and a figure never moves it, and returning from a station lands
+where the camera was left. The opening shot flies in from far out and plays to its end before
+the world takes any input (taps, drags or keys).
+
+The world is a forest clearing round a cobbled square (`figurine-world.ts`). What a player uses
+every day stands round the square's ragged edge, a few steps from the pedestal and facing it: the
+shop and the collection's display cabinet at the back, the quest board and the daily crate to the
+left, the lucky wheel to the right. Worn dirt paths (`PATHS`) lead on between them to the rest,
+further out among the trees on their own trodden ground (`PATCHES`): the market lane behind the
+shop (the trading post and the mailbox, with a tent, a wagon and produce tables), the scrying ball
+behind the cabinet, the tinkers' yard down the west path (the recycler and the forge), the hall of
+fame and the leaderboards down the east path, and the fishing pond down its own path to the
+south-east. Each station has a position and a point it faces (`STATION_SPECS`). Trees, bushes and
+rocks stand between them (`groveLayout` in `figurine-forest.ts`); the woods keep clear of every
+station and path. Nothing is signposted: each facility is its game props
+(`figurine-facilities.ts`), there to be found. Pointing at one names it in the HUD; tapping one
+flies the camera there and opens its panel (`WorldPanels.tsx`), docked right on wide screens or as
+a bottom sheet on phones, with the station framed in the space beside or above it. Tap empty
+ground, the panel's close button or Esc to come back. Keyboard: S shop, C collection, M recycler,
+U trade-up forge, Q quests, W lucky wheel, F fishing pond (Space casts and strikes there), D daily
+crate, 1-9 pick a series (in the shop), Enter opens the sealed box.
+`test/figurine-layout.test.mjs` checks that the everyday stations stand within reach of the
+square and the rest further out, and that no station, figure, lamp, tree or market prop stands in
+another station or in the line from its camera, on a wide screen or a phone's backed-off shot.
+
+The secret Series 000 box hides in a broken barrel washed up in the reeds on the fishing pond's
+far bank (`SECRET_BARREL` in `figurine-forest.ts`), its broken side turned toward the pond's
+camera: the one view that can find it.
+
+In the shop, the sealed box opens by pulling its tape. Once five boxes have been opened that way,
+an "Open box" button opens it without the tape, and after every opening "Open another" drops a new
+box of the same series onto the pedestal.
+
+Working stations: the shop, the collection, the recycler and the forge, and the daily ones
+(rules in `figurine-collection.ts`, tested in `test/figurine-rewards.test.mjs`; days, weeks and
+months go by the player's own clock):
+
+- The daily crate: open it once a day for a box. Days in a row build a streak to seven, shown on
+  the board above it and as coins on a track in its panel; the seventh day's crate also
+  guarantees a golden roll, then it starts over. A missed day starts over too. The chest hops and
+  bursts with gold. The panel says when the next crate opens.
+- The lucky wheel: one spin a day. It turns five times and stops on one of eight weighted prizes
+  (1, 2 or 3 boxes, a golden or a rare galaxy boost, or a random figure); the panel lists them in
+  their segments' colours.
+- The fishing pond: tap the rod resting on the dock (or the water) to cast. The bobber plops and
+  bobs; a fish may nibble (small dips: leave them); then it bites, the bobber plunges, and a tap
+  on the bobber or the water within about a second hooks it. Too soon scares the fish off; too
+  late and it is gone, and nothing is landed either way. The day's first three catches are prizes
+  (a box, a figure, a box: a wrapped gift or a little chest leaps out); after that the pond gives
+  ten kinds of classic Azeroth fish, from the Brilliant Smallfish to the rare Mightfish, and now
+  and then a Soggy Boot, each of a fair weight for its kind and sometimes golden or, rarely,
+  galaxy. The catch leaps from the water to hang over the dock, sized by its kind and weight. The
+  panel's fish log keeps, per kind, how many, the heaviest and the golden and galaxy ones.
+  The catch is rolled as the line goes out (`rollCatch`) and recorded only when hooked
+  (`landCatch`). Fish, bobber, rod and boot models are wow.export doodad exports (WebP textures
+  for now: see the open item below).
+- The quest giver: daily, weekly and monthly quests (open boxes, recycle, trade up, spin, fish,
+  open crates, pull a galaxy, complete a series), counted from each period's start, each period
+  showing when it resets; a finished quest is claimed for boxes.
+
+A reward lands once its animation has played. Boxes are banked (shown in the HUD and the panels)
+for when boxes become limited; a boost lifts the next box opened to at least that quality, and is
+spent by it. A figure prize joins the collection and, when golden or galaxy, the pull feed. Still
+placeholders: the trading post, the gifting post, the hall of fame and the leaderboards (they need
+the collection on the server and Discord sign-in) and the latest pulls (this session's own).
+
+Open item: the 13 fishing models (`fish-*.glb`, `fishing-*.glb`, `boot-junk.glb`) still carry
+WebP textures, because no KTX2 encoder was installed when they were added; the KTX2 check in
+`test/figurine-ktx.test.mjs` fails on them until they are converted like the other world models.
+
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
 Announced series (`UPCOMING_SERIES`, 003–020) have no figures yet, only a hue: `seriesTheme`
@@ -392,23 +441,53 @@ prints their box in the same scheme around it. They fill the shop greyed, can be
 dropped on the pedestal (full colour there, so the print can be seen) and shaken, but the
 tape never comes off.
 
-### Shop and case at scale
+### Shop, collection and display
 
 The shop is a stepped riser on the stall's counter: one box per series, five to a step,
 series 001 front left. Each step rises more than a box is tall, so every step's price tag
 (number and collected count, or "coming soon") shows over the boxes in front. Twenty series
 fill four steps.
 
-The collection is glass display cases, one shelf per series and five shelves to a case, side
-by side as series grow (pan across them). Each shelf has its series' box at the left end and
-sixteen figures on round bases in two staggered rows, the back row on a clear riser; only a
-card's middle takes taps so the rows never steal each other's taps. The case shows every
-released series and fills its last case with the next announced ones, on shelves washed in
-their colour and labelled "coming soon". Missing figures are faint frosted outlines; a base's
-colour is the figure's finest quality, and spare copies show as a count beside it. A
-completed series' shelf turns gold.
+The collection is a tall glass-fronted display cabinet at the back of the square: four by four lit
+cubbies, each with a round stand and a brass number plate. Its panel is a catalogue, docked wide
+on desktop (`CollectionCatalogue.tsx`) with the cabinet framed beside it, and full screen on a
+phone. Favourites come first, then every series in full (a found secret series first, then the
+released ones, then the announced ones as a line each), owned figures as portraits finished like
+their best quality, missing ones as silhouettes. A search box and an "owned only" switch filter
+the series. Each owned figure has a star: starred, it joins the end of the favourites. The
+favourites are in the player's order; drag one to reorder (the whole card with a mouse, its grip
+on touch), or move it a step from the inspector. Picking a figure shows it in the inspector
+beside the list (over it, on a phone): a large portrait, its realm, race and class, its place on
+display, which of its owned finishes it shows there, its copies per quality with the date each
+was first acquired, its spare copies, and a button that views it in 3D on the pedestal.
 
-### Qualities, recycler and trade-up
+The portraits are baked sheets per series (`public/figurines/<series>/portraits.webp`, 280×360
+cells, catalog order) made by `node frontend/scripts/bake-figurine-portraits.mjs`: it serves a
+page that renders every model in a browser and saves the sheet back. Re-bake after a model or pose
+changes and bump `PORTRAIT_VERSION` in `figurine-portraits.ts`.
+
+The first sixteen favourites still owned are the display (`showcaseOf`). Each stands in the
+cabinet's cubby of its number as a small copy, posed at a moment of its idle, and in the world at
+its own spot (`STATUE_SPOTS`): about the square between the stalls, down the paths, at the
+market, in the yard, by the hall and on the pond's bank. Those are full size (the same body height
+as on the pedestal), with their finish and their idle animation when the model has one, each
+started at its own point so neighbours never move in step, and load one at a time
+(`figurine-statues.ts`; the cabinet copy shares the figure's geometry and textures). A favourite
+no longer owned at its chosen finish shows the finest copy left, or leaves the display. Older
+records' sixteen fixed showcase slots are read as favourites in slot order.
+
+Every figure is sized by its body, not its whole model (`figurineBodyBounds` in
+`figurine-materials.ts`): items are exported as their own parts (`Head_Item…`, `Main-hand_Item…`,
+`Back_Item…`), and staffs, wings, plumes and their effects reach out by very different amounts,
+so bounds-based sizing made bodies differ in size. Bodies now stand the same height on the
+pedestal, in the portraits and in the showcase; sitting or crouching poses stay shorter.
+
+The session's records (`readRecords` in `figurine-collection.ts`, `sessionStorage` like the
+collection) keep the first acquisition of each figure at each quality, the pull feed, counters
+for quests, the favourites, the daily crate, spin and prize catches, the fish log, the quests'
+periods and the banked rewards.
+
+### Qualities, recycler and trade-up forge
 
 Every box rolls a quality with its figure (`rollQuality`, `figurine-collection.ts`):
 standard (89 %), golden (10 %, 1 in 10) or galaxy (1 %, 1 in 100). The
@@ -417,16 +496,27 @@ metal with the paint's light and shade kept as engraving, galaxy a screen-fixed 
 twinkling stars and a violet rim. Both reflect a neutral studio environment, not the green sky.
 The reveal and viewer show a quality badge; the case shows each figure in its finest quality.
 
-The recycler (`figurine-machine.ts`) is a gnomish machine with a pegboard of every figure
-owned more than once (one card per quality, with its spare count). Tap a card to load a copy
-into one of three slots, tap a loaded card to take it back, and pull the lever. The display
-says what the three will make: three copies of one figure at one quality trade up to the next
-quality (the figure is shown on the pedestal afterwards); any other three make a blind box of
-the series most of them came from (it pops out of the chute, then drops on the pedestal). It
-refuses to recycle the last copy of any figure. The rules are pure functions in
-`figurine-collection.ts` (`trayGroups`, `machineOutcome`, `machineChanges`) and the
-collection changes as one all-or-nothing set. There are no box limits yet, so a recycled box is
-just another box.
+Two machines (`figurine-machine.ts`) take three figures each: three card slots, a display that
+says what the three will make (and holds it while the machine runs), and a trigger. Their cards
+are picked in the station panel, a portrait grid of what the machine can take (filter by
+series), and fly into the slots.
+
+- The recycler is a gnomish grinder. Its picker lists every figure owned more than once. Pick a
+  card to load a copy, tap a loaded card to take it back, and pull the lever: the cards drop
+  into the hopper, toothed rollers chew them up and spit shreds, the machine shakes and clanks,
+  and a blind box of the series most of the three came from slides out of the chute (then drops
+  on the pedestal). It refuses to take the last copy of any figure, and never trades up.
+- The trade-up forge is an anvil on a stone plinth before a rune stele. Its picker lists only
+  what it can work on: a figure held three times at a quality below galaxy. Tapping a card sets
+  three copies in the cradles round the rune circle (tap one to clear them), and tapping the
+  trip hammer runs it: the three fly onto the anvil, the hammer strikes three times with sparks,
+  and the figure rises in a pillar of light one quality up, then is shown on the pedestal with
+  "Traded up!". The runes glow in the colour of the quality it will make. It may use the last
+  three copies, since the figure stays in the collection.
+
+The rules are pure functions in `figurine-collection.ts` (`trayGroups`, `machineOutcome`,
+`machineChanges`, each taking the machine) and the collection changes as one all-or-nothing
+set. There are no box limits yet, so a recycled box is just another box.
 
 The collection is session-only (`sessionStorage`, `figurine-collection.ts`): figure key to
 copies per quality; nothing is sent anywhere. The first prototype's counts (key
@@ -446,7 +536,9 @@ worker's model job (`kind: "models"`, `{ models: [{ name, file }] }`; provenance
 `source-models.json`). They were optimized with `worker/optimizer` after stripping their
 skeletons: the site draws them as static instanced meshes, and quantizing a skinned mesh
 moves its scale into the inverse bind matrices. Placement is seeded in
-`frontend/src/lib/figurine-forest.ts`; the camera side of the ring stays open. The grass
+`frontend/src/lib/figurine-forest.ts`; the woods close all the way round, leaving only the
+path and a lane where the opening shot flies in from behind the home camera. Lamp posts stand
+in the gaps between the stations. The grass
 and cobbles blend in Elwynn dirt through painted masks (a worn rim and a path into the
 woods). Where the path leaves the plaza is a small market (`marketLayout`): a human tent, the
 Duskwood wagon, a signpost, crates, barrels and produce tables. No faction banners: the
@@ -456,17 +548,28 @@ Station props came from a second model job (`station-models-001`; provenance und
 `stations` in `source-models.json`, loaded through `figurine-props.ts`): the Tinker Town
 gear that spins on the recycler, a gnome exhaust pipe, work lamp, pistons, bucket and tool; a
 Duskwood shop counter and gnomish postbox for the trading post; a notice board and podium for
-the hall of fame. Candidates looked at and left out: the Gnomeregan gnome machine and broken
+the hall of fame. The forge's anvil, trip hammer, stele and crystals are built in code, since
+the hammer is the forge's trigger; it borrows the gnome bucket and tool. Candidates looked at and left out: the Gnomeregan gnome machine and broken
 machine, hut machinery, hazard light, steel plate, goblin weathervane and orc wanted poster.
+
+The facilities' props came from a search and two export jobs (`facility-search-001`,
+`facility-models-001/002`; provenance under `facilities` in `source-models.json`): a chest and gold
+piles for the daily crate; the Booty Bay goblin statue and a fireworks barrel by the wheel; the human
+postbox and wrapped gifts; wanted posters and a map scroll for the quest giver; the Dalaran crystal
+ball on a Karazhan pedestal; the Elwynn lion, a trophy and a museum plaque; a Ghostlands obelisk
+and silver and bronze plaques; the Dalaran bookcase and a large book; and a rowboat, reeds, lily
+pads, a fish rack, a fishing chair, a fishing crate and a leaping fish for the pond. Left out: the
+Northshire abbey bell (exports as its rope only), the fishing pole (a bare line), the Elwynn small
+dock (posts only), the alliance chest (faction colours) and the shop signs (the world is unsigned).
+The wheel, the podium, the dock, the rod and the "!" over the quest board are built in code.
 
 Loading happens once, behind a start-up screen: scenery and station models, every released
 series' pedestal box (built up front and swapped on series change, never rebuilt; announced
 series' boxes are built when picked, the last two kept), every texture uploaded, all sounds
-downloaded (decoded on the first tap), portraits of every owned figure and every recycler card,
-and shaders compiled. The figure inside each sealed box is drawn when the box arrives and preloaded
-while it waits, so opening goes straight into the build-up; its case portrait shaders are
-compiled with an off-screen target bound (portraits skip tone mapping, a different shader
-variant) and the portrait renders at the next idle moment. Picking a series always drops its
+downloaded (decoded on the first tap), and shaders compiled. Nothing is rendered for lists: the
+collection and the machines' cards use the baked portrait sheets. The showcase's figures load after
+the start, one at a time. The figure inside each sealed box is drawn when the box arrives and
+preloaded while it waits, so opening goes straight into the build-up. Picking a series always drops its
 box onto the pedestal with the thud once the camera arrives. Hovering the tape lights the
 tape; hovering the rest of the box outlines the box.
 
@@ -814,3 +917,84 @@ both catalog cache versions and silhouette sheets were refreshed. The 17 tests
 in `figurine-box`, `figurine-secret` and `figurine-series-002` passed. Models were
 opened individually in the local figurine lab; review screenshots are saved
 alongside the frame records. The worker stopped after completing the batch.
+
+## Runtime texture conversion (2026-10-31)
+
+The 48 catalog figures, one retained unused figure and 63 world models now use
+embedded KTX2 ETC1S textures (qlevel 255, clevel 2, full mip chains). Conversion
+uses original PNG exports at the existing runtime dimensions, rather than
+recompressing WebP. Geometry, poses, attachment transforms and animation bytes
+remain unchanged. Catalog hashes and world model URL versions invalidate old
+downloads. Röidy and Kahvishock retain the reviewed quality, with approved
+download budgets of 3.5 MB and 3.1 MB respectively.
+
+`scripts/convert-figurine-assets.mjs <exporter-root> <toktx.exe> <work-directory>`
+backs up the inputs and prepares validated outputs. Add `--apply` to install
+them after checking that source assets and catalogs have not changed. It needs
+the original exporter results and the exporter's existing optimizer dependencies.
+
+The 2026-11-01 follow-up covers all 127 public GLBs: 49 community figures,
+two retained prototype figures and 76 world models. It converts the 13 new fishing
+props and both prototypes from original PNG exports, retaining runtime dimensions
+and ETC1S quality 255. All 34 converted image payloads have full mip chains;
+non-image buffers remain byte-identical. Prototype catalog hashes and the prop
+URL version were refreshed. The close-up box artwork remains UASTC.
+
+The converter now scans current served GLBs, backs up only models needing
+conversion and skips existing ETC1S payloads. Use a fresh work directory for each
+batch. It discovers world export jobs and matches material names, rejecting
+ambiguous sources. After applying world conversions, bump the affected loader's
+URL version (`PROP_VERSION` or `MODEL_VERSION`). Run
+`node --test test/figurine-ktx.test.mjs` from `frontend` after importing models;
+the check scans every public GLB, including prototypes and newly added folders.
+
+Boxes use baked artwork for Series 000, 001 and 002, plus one shared gray design
+for unreleased series. English and Finnish produce eight localized designs.
+The shelf tier uses small textures; the close-up artwork is repainted at twice
+the source density and encoded at 2048 × 2048, with 1024 × 1024 finish masks.
+Close-up textures use UASTC quality 2 with Zstd level 9; shelves remain ETC1S.
+ETC1S introduced visible blocks along the close-up foil and emboss mask edges,
+even at 2K. A same-camera, same-lighting comparison against the source PNG
+confirmed that UASTC preserves those edges substantially better. The compressed
+GPU footprint stays the same on an 8-bpp target; download sizes increase.
+All baked images use power-of-two dimensions so every compressed
+mip uploads correctly in WebGL. Odd canvas dimensions caused black boxes on the
+BC7 path even though the KTX2 files themselves were valid.
+
+Run `scripts/bake-figurine-boxes.mjs <toktx.exe> <work-directory>` from `frontend`,
+then open `http://localhost:3220/` in Chrome. The complete bake updates
+`src/data/figurines/packaging.json`; filenames are content hashes. Re-bake when
+artwork, silhouettes, rosters, labels or themes change. Only matching designs use
+the bake; custom import-lab designs retain the canvas painter. The scene cache
+shares textures between boxes and attaches them after the KTX2 loader callback,
+with reference-counted disposal and a canvas fallback on loading failure.
+
+The active 48 figures total 60.95 MiB downloaded, versus 48.43 MiB before. Their
+estimated texture payload including mips falls from 1631.53 MiB RGBA8 to
+407.90 MiB with an 8-bpp compressed target. These are whole-library estimates,
+not simultaneously resident textures or measured driver allocations. Runtime
+caches continue to bound residency instead of loading the whole library.
+
+`scripts/audit-figurine-scale.mjs` verifies body-based fitting, excluding attached
+weapons and accessories. As of 2026-11-01, the reveal, village figures and cabinet
+miniatures share race/form proportions instead of equalizing everyone to 2.3 units.
+`FIGURE_BODY_HEIGHTS` in `figurine-materials.ts` defines visual display targets,
+not canonical lore measurements: dwarf 1.3, human 1.85, night elf 2.1, tauren 2.3.
+The export's scene name identifies its visible body type, including separate
+dracthyr visage/dragon forms and the cat form. Unknown custom imports retain
+the neutral 2.3-unit target. Body proportions, support anchors and authored poses
+are preserved; the 3.1-unit footprint cap still applies. The 48-model audit gives
+body heights from 1.1 to 2.3 units, with none currently limited by width.
+These targets normalize posed body bounds; they do not reconstruct neutral
+standing anatomy from a crouched or leaning export.
+
+The height table covers all 26 playable races in the
+[Blizzard race roster](https://worldofwarcraft.blizzard.com/en-gb/game/races),
+including races without catalog figures. Male and female export variants share
+one target per race. Internal model names `scourge` and `harronir` identify Undead
+and Haranir. The added targets are Gnome/Mechagnome 0.95, Goblin 1.05, Earthen
+1.45, Undead 1.8, Mag'har Orc 2.0, Worgen/Nightborne 2.1, Troll/Kul Tiran 2.15,
+and Zandalari Troll 2.2. These remain visual proportions rather than lore heights.
+The material tests keep an independent roster and exercise both body variants
+with standard and HD scene names, preventing a missing race from silently
+passing through the fallback. No model or texture re-export is required.

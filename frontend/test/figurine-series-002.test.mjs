@@ -9,7 +9,8 @@ test("upcoming box 2 contains 16 distinct characters and intact posed models at 
   const first = await readCatalog("community-001");
   assert.equal(series.releaseState, "upcoming");
   assert.equal(series.compression.maxTextureSize, 2048);
-  assert.equal(series.compression.quality, 89);
+  assert.equal(series.compression.codec, "ETC1S");
+  assert.equal(series.compression.qlevel, 255);
   assert.equal(series.characters.length, 16);
   assert.equal(new Set(series.characters.map((c) => `${c.name}/${c.realm}`)).size, 16);
   for (const id of ["ajotettu", "eppugrip", "zetabeach", "np", "zetacmi", "hirvihotline", "tonza", "thrusbard", "jampton", "morinicar", "mightyhuu"]) {
@@ -41,7 +42,7 @@ test("upcoming box 2 contains 16 distinct characters and intact posed models at 
   for (const entry of series.characters) {
     const modelUrl = new URL(entry.model, "https://figurines.test");
     assert.match(modelUrl.pathname, /^\/figurines\/community-002\/[a-z-]+\.glb$/);
-    assert.equal(modelUrl.search, ["community-pose-update-002", "community-pose-update-004"].includes(entry.authoringSeries) ? `?v=${entry.sha256.slice(0, 12)}` : "");
+    assert.equal(modelUrl.search, `?v=${entry.sha256.slice(0, 12)}`);
     assert.ok(entry.pose.timeMs >= 0 && entry.pose.timeMs < entry.pose.durationMs, entry.id);
     const bytes = await readFile(new URL(`../public${entry.model}`, import.meta.url));
     // Box 2 deliberately retains full texture quality, including larger Dracthyr.

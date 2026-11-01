@@ -133,8 +133,197 @@
     "machineKeep": "Keep one",
     "machineHint": "Tap a duplicate to load it · Pull the lever",
     "machineEmpty": "Your duplicates show up here",
+    "stationRecycler": "Recycler",
+    "stationForge": "Trade-up forge",
+    "forgeLoad": "Place 3 of a kind",
+    "forgeMismatch": "Three of a kind",
+    "forgeHint": "Tap a figure to place three · Strike with the hammer",
+    "forgeEmpty": "Own 3 of one figure at the same quality to trade it up",
+    "world": {
+      "close": "Close",
+      "stations": {
+        "gallery": "Collection",
+        "crate": "Daily crate",
+        "wheel": "Lucky wheel",
+        "mail": "Gifting post",
+        "quests": "Quest giver",
+        "feed": "Latest pulls",
+        "fame": "Hall of fame",
+        "leaderboard": "Leaderboards",
+        "trading": "Trading post",
+        "pond": "Fishing pond"
+      },
+      "collection": {
+        "owned": "{got}/{total} collected",
+        "locked": "Not collected yet",
+        "acquired": "Acquired {date}",
+        "inspect": "View on the pedestal",
+        "upcoming": "Series {number} · coming soon",
+        "secret": "Secret series",
+        "search": "Search your figures",
+        "ownedOnly": "Owned only",
+        "favorites": "Favourites",
+        "onDisplay": "{count}/{total} on display",
+        "favoritesHint": "Star a figure to make it a favourite. Your first 16 favourites stand in the display cabinet and around the world.",
+        "dragHint": "Drag to reorder: the order is the display's, 1 to 16.",
+        "notOnDisplay": "Favourites past 16 wait off display",
+        "star": "Add {name} to favourites",
+        "unstar": "Remove {name} from favourites",
+        "displayed": "On display · #{number}",
+        "favorite": "Favourite",
+        "addFavorite": "Add to favourites",
+        "moveEarlier": "← Earlier",
+        "moveLater": "Later →",
+        "finish": "Shown as",
+        "spares": "{count, plural, one {# spare copy} other {# spare copies}} for the recycler or the forge"
+      },
+      "picker": {
+        "recycler": "Pick three spare copies",
+        "forge": "Pick a figure to trade up",
+        "all": "All",
+        "spare": "{count} spare",
+        "loaded": "{count}/3 loaded",
+        "clear": "Clear"
+      },
+      "crate": {
+        "body": "A free box every day. Come back days in a row: the seventh day's crate also guarantees a golden roll.",
+        "day": "Day {day}",
+        "open": "Open today's crate",
+        "got": "Day {day}: {reward}",
+        "day7": "Golden roll",
+        "next": "Day {day}'s crate opens {time}"
+      },
+      "wheel": {
+        "body": "One free spin a day.",
+        "spin": "Spin",
+        "prizes": {
+          "box1": "+1 box",
+          "box2": "+2 boxes",
+          "box3": "+3 boxes",
+          "golden": "a golden boost",
+          "galaxy": "a galaxy boost",
+          "figure": "a random figure"
+        },
+        "wonLabel": "You won",
+        "free": "One free spin today",
+        "spinning": "Spinning…",
+        "next": "The wheel turns again {time}"
+      },
+      "mail": {
+        "body": "Send a figure to a guildmate, with a note.",
+        "figure": "Figure",
+        "choose": "Choose a figure",
+        "recipient": "To",
+        "recipientPlaceholder": "Discord name",
+        "message": "Message",
+        "messagePlaceholder": "A little something for you",
+        "send": "Send gift"
+      },
+      "quests": {
+        "body": "Daily, weekly and monthly quests. Finish them for more boxes.",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "reward": "{count, plural, one {+# box} other {+# boxes}}",
+        "claim": "Claim",
+        "items": {
+          "open3": "Open 3 boxes",
+          "recycle1": "Use the recycler",
+          "tradeUp1": "Trade up a figure",
+          "open20": "Open 20 boxes",
+          "recycle5": "Recycle 5 times",
+          "tradeUp3": "Trade up 3 times",
+          "open60": "Open 60 boxes",
+          "galaxy": "Pull a galaxy figure",
+          "series": "Complete a series",
+          "spin1": "Spin the wheel",
+          "fish3": "Catch 3 fish",
+          "crates5": "Open 5 daily crates"
+        },
+        "claimed": "Claimed",
+        "ready": "{count, plural, one {# reward ready to claim} other {# rewards ready to claim}}",
+        "resets": "resets {time}"
+      },
+      "feed": {
+        "body": "The newest golden and galaxy pulls.",
+        "empty": "No golden or galaxy pulls yet. Keep opening!",
+        "you": "You",
+        "fromBox": "from a box",
+        "fromForge": "traded up",
+        "fromWheel": "from the wheel",
+        "fromPond": "from the pond"
+      },
+      "fame": {
+        "body": "The first collectors to reach each milestone, with their name, picture and date.",
+        "items": {
+          "galaxy": "First galaxy figure",
+          "complete": "First complete series",
+          "secret": "First to find Series 000",
+          "goldenSeries": "First all-golden series"
+        },
+        "unclaimed": "Unclaimed",
+        "yours": "You · {date}",
+        "signIn": "Guild-wide firsts arrive with Discord sign-in."
+      },
+      "leaderboard": {
+        "body": "Who has collected the most.",
+        "items": {
+          "unique": "Figures collected",
+          "galaxy": "Galaxy figures",
+          "golden": "Golden figures",
+          "opened": "Boxes opened"
+        },
+        "you": "You",
+        "signIn": "Guild boards arrive with Discord sign-in."
+      },
+      "trading": {
+        "body": "Trade figures with other players: offer yours, ask for theirs, and both accept."
+      },
+      "pond": {
+        "cast": "Cast",
+        "castAgain": "Cast again",
+        "strike": "Strike!",
+        "phase": {
+          "idle": "The line is in",
+          "cast": "Casting…",
+          "wait": "Waiting for a bite",
+          "bite": "Bite!"
+        },
+        "how": {
+          "idle": "Tap the rod to cast.",
+          "cast": "There it goes.",
+          "wait": "Leave the little nibbles. When the bobber plunges, tap it.",
+          "bite": "Tap the bobber now!"
+        },
+        "missed": "Too slow: it got away.",
+        "spooked": "Too soon: you scared it off.",
+        "prizeCatch": "Prize catch",
+        "weight": "{weight} lb",
+        "newKind": "New to your log!",
+        "best": "Your biggest of its kind yet!",
+        "prizes": "Today's prize catches",
+        "prize": {
+          "box": "A box",
+          "figure": "A figure"
+        },
+        "prizesDone": "All three landed. The fish keep biting.",
+        "log": "Fish log"
+      },
+      "rewards": {
+        "boxes": "{count, plural, one {# box} other {# boxes}}",
+        "boost": "{quality} boost",
+        "figure": "{name} joins your collection",
+        "banked": "Boxes banked ×{count}",
+        "boostNext": "Next box: {quality} or better",
+        "bankedHint": "Banked boxes are for when boxes become limited."
+      }
+    },
     "tradedUp": "Traded up!",
-    "quality": { "standard": "Standard", "golden": "Golden", "galaxy": "Galaxy" },
+    "quality": {
+      "standard": "Standard",
+      "golden": "Golden",
+      "galaxy": "Galaxy"
+    },
     "soundOn": "Sound on",
     "soundOff": "Sound off",
     "showcaseHint": "A character worth collecting.",
@@ -146,7 +335,8 @@
     "galleryScroll": "Scroll into view to load the figure",
     "galleryRetry": "Reload model",
     "weaponsHeld": "Weapons in hand",
-    "weaponsSheathed": "Weapons sheathed"
+    "weaponsSheathed": "Weapons sheathed",
+    "openAnother": "Open another"
   },
   "horseRace": {
     "label": "Race through the final two bosses",

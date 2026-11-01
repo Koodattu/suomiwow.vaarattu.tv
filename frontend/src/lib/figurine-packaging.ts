@@ -122,13 +122,18 @@ function ribbon(context: CanvasRenderingContext2D, cx: number, cy: number, w: nu
   context.closePath(); context.fill();
 }
 
-function face(width: number, height: number, envMap: THREE.Texture, paint: (print: Print, sheet: Sheet) => void, density = PX) {
+function face(width: number, height: number, envMap: THREE.Texture, paint: (print: Print, sheet: Sheet) => void, density = PX, finishDensityCap = 250) {
   // Paint at full scale and let the canvas transform shrink it, so layouts stay resolution-independent.
   const w = Math.round(width * density), h = Math.round(height * density), full = { w: Math.round(width * PX), h: Math.round(height * PX) };
-  const colorCanvas = canvas(w, h), finishCanvas = canvas(w, h);
+  // Foil/roughness/bump masks need less detail than the printed text and silhouettes.
+  // Keep artwork resolution intact; cap only the shared finish mask.
+  const finishDensity = Math.min(density, finishDensityCap);
+  const fw = Math.round(width * finishDensity), fh = Math.round(height * finishDensity);
+  const colorCanvas = canvas(w, h), finishCanvas = canvas(fw, fh);
   const print = { color: colorCanvas.getContext("2d")!, finish: finishCanvas.getContext("2d")!, w, h };
   const draw = (sheet: Sheet) => {
-    for (const context of [print.color, print.finish]) context.setTransform(w / full.w, 0, 0, h / full.h, 0, 0);
+    print.color.setTransform(w / full.w, 0, 0, h / full.h, 0, 0);
+    print.finish.setTransform(fw / full.w, 0, 0, fh / full.h, 0, 0);
     print.finish.fillStyle = PAPER; print.finish.fillRect(0, 0, full.w, full.h); paint({ ...print, ...full }, sheet);
   };
   draw(null);
@@ -248,7 +253,7 @@ function interior(title: string) {
   return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.85 });
 }
 
-function tapeTexture(label: string) {
+export function tapeTexture(label: string) {
   const element = canvas(256, 1200), context = element.getContext("2d")!;
   // Printed rainbow foil under the iridescent coat so the tape reads as holographic from every angle.
   const rainbow = context.createLinearGradient(0, 0, 256, 1200);
@@ -278,7 +283,7 @@ export type TearTape = {
 };
 const TAPE_SEGMENTS = 56, TAPE_TAB = 0.06;
 // Holographic tear tape: up the front, over the lid edge and across the top.
-function tearTape(parent: THREE.Group, { depth, height, bottom, lid, label, envMap }: { depth: number; height: number; bottom: number; lid: number; label: string; envMap: THREE.Texture }): TearTape {
+function tearTape(parent: THREE.Group, { depth, height, bottom, lid, label, envMap, map = tapeTexture(label) }: { depth: number; height: number; bottom: number; lid: number; label: string; envMap: THREE.Texture; map?: THREE.Texture | null }): TearTape {
   const w = 0.27, z = depth / 2 + 0.01, y0 = bottom + height - 0.92, yTop = bottom + height + lid + 0.004, across = 0.55;
   const rise = yTop - y0, length = rise + across;
   const at = (u: number, out: THREE.Vector3) => u < rise ? out.set(0, y0 + u, z) : out.set(0, yTop, z - (u - rise));
@@ -293,7 +298,6 @@ function tearTape(parent: THREE.Group, { depth, height, bottom, lid, label, envM
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
-  const map = tapeTexture(label);
   const material = new THREE.MeshPhysicalMaterial({ map, side: THREE.DoubleSide, transparent: true, metalness: 0.35, roughness: 0.28, iridescence: 1, iridescenceIOR: 2.1, iridescenceThicknessRange: [120, 900], clearcoat: 1, clearcoatRoughness: 0.1, envMap, envMapIntensity: 1.2, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const group = new THREE.Group(); parent.add(group);
   const mesh = new THREE.Mesh(geometry, material); mesh.frustumCulled = false; mesh.renderOrder = 2; group.add(mesh);
@@ -387,29 +391,68 @@ export type BlindBoxParts = {
   // Transparent from the start so fading the box never forces a shader recompile.
   materials: THREE.Material[];
   thickness: number;
+  ready: Promise<void>;
   // Cancels a pending silhouette repaint.
   stop: () => void;
 };
 
-export type BoxDesign = { labels: PackagingLabels; lineup: string[]; theme: PackagingTheme; silhouettes?: string };
+export type BakedBoxTextures = { maps: Record<string, THREE.Texture>; ready: Promise<void>; stop: () => void };
+export type BoxDesign = { labels: PackagingLabels; lineup: string[]; theme: PackagingTheme; silhouettes?: string; baked?: (density: number) => BakedBoxTextures };
+/** All unreleased slots borrow one neutral design; their shelf labels carry the series number. */
+export const unreleasedBoxDesign = (labels: PackagingLabels): BoxDesign => ({ labels, lineup: Array(16).fill("?"), theme: {
+  number: "???", deep: ["#343943", "#1c2129"], back: ["#292e37", "#171b23"], side: ["#303640", "#1b2028"], lid: ["#343b45", "#242a33"],
+  accent: "150,160,175", glow: "#a0a8b5", glowSoft: "#858e9c", glowBright: "#bbc2cc", window: "rgba(15,18,24,.55)",
+  pale: "#c2c8d0", paler: "#d4d8df", muted: "#8f98a6", ink: "#20252d", edge: 0x242a33,
+} });
+export type BoxPrints = { front: THREE.MeshStandardMaterial; back: THREE.MeshStandardMaterial; left: THREE.MeshStandardMaterial; right: THREE.MeshStandardMaterial; lid: THREE.MeshStandardMaterial; edge: THREE.MeshStandardMaterial; inside: THREE.MeshStandardMaterial; seal?: THREE.Texture; ready: Promise<void>; stop: () => void };
+// A content-derived key avoids accidentally serving another locale or roster's artwork.
+export const boxPrintKey = ({ labels, lineup, theme }: BoxDesign) => JSON.stringify([labels.title, labels.subtitle, labels.blind, labels.collect, labels.contents, labels.openHere, lineup, theme]);
 export const BOX_SIZE = { width: 2.05, depth: 1.8, height: 2.75 };
 
 // The five printed faces plus card edge and interior. `density` is canvas pixels per world unit.
-export function createBoxPrints({ labels, lineup, theme, silhouettes }: BoxDesign, envMap: THREE.Texture, density = PX) {
+export function createBoxPrints(design: BoxDesign, envMap: THREE.Texture, density = PX, finishDensityCap = 250): BoxPrints {
+  const { labels, lineup, theme, silhouettes } = design;
+  if (design.baked) {
+    const textures = design.baked(density), { maps } = textures;
+    const face = () => new THREE.MeshStandardMaterial({ bumpScale: 1.4, roughness: 1, metalness: 1, envMap, envMapIntensity: 1.1 });
+    const result: BoxPrints = { front: face(), back: face(), left: face(), right: face(), lid: face(), edge: new THREE.MeshStandardMaterial({ color: theme.edge, roughness: 0.6 }), inside: new THREE.MeshStandardMaterial({ roughness: 0.85 }), ready: textures.ready, stop: textures.stop };
+    let stopped = false, fallback: BoxPrints | undefined;
+    result.stop = () => { stopped = true; textures.stop(); fallback?.stop(); };
+    // Baked maps arrive from the transcoder, so they are attached once all of them have loaded.
+    result.ready = textures.ready.then(() => {
+      if (stopped) return;
+      for (const name of ["front", "back", "left", "right", "lid"] as const) {
+        const material = result[name], finish = maps[`${name}-finish`];
+        material.map = maps[`${name}-color`]; material.roughnessMap = material.metalnessMap = material.bumpMap = finish; material.needsUpdate = true;
+      }
+      result.inside.map = maps.inside; result.inside.needsUpdate = true; result.seal = maps.seal;
+    }, async () => {
+      if (stopped) return;
+      // A transient image failure must not leave the whole world's loading screen stuck.
+      textures.stop(); fallback = createBoxPrints({ ...design, baked: undefined }, envMap, density);
+      for (const name of ["front", "back", "left", "right", "lid", "inside", "edge"] as const) {
+        const { transparent, opacity } = result[name];
+        result[name].copy(fallback[name]); result[name].transparent = transparent; result[name].opacity = opacity; result[name].needsUpdate = true; fallback[name].dispose();
+      }
+      await fallback.ready;
+    });
+    return result;
+  }
   const { width, depth, height } = BOX_SIZE;
   const edge = new THREE.MeshStandardMaterial({ color: theme.edge, roughness: 0.6 });
   const inside = interior(labels.title);
   const members = lineup.map((_, index) => index), half = Math.ceil(members.length / 2);
   const printed = [front(labels, lineup.length, theme), back(labels, lineup, theme), side(labels, members.slice(0, half), theme), side(labels, members.slice(half), theme), lid(labels, theme)]
-    .map((paint, index) => face(index === 4 ? width : index > 1 ? depth : width, index === 4 ? depth : height, envMap, paint, density));
+    .map((paint, index) => face(index === 4 ? width : index > 1 ? depth : width, index === 4 ? depth : height, envMap, paint, density, finishDensityCap));
   const [front_, back_, left, right, top] = printed.map(({ material }) => material);
   let cancelled = false;
+  let ready = Promise.resolve();
   // The print is repainted with the baked silhouette sheet once it loads.
   if (silhouettes) {
     const sheet = new Image(); sheet.src = silhouettes;
-    sheet.decode().then(() => { if (!cancelled) printed.slice(0, 4).forEach(({ repaint }) => repaint(sheet)); }, () => undefined);
+    ready = sheet.decode().then(() => { if (!cancelled) printed.slice(0, 4).forEach(({ repaint }) => repaint(sheet)); }, () => undefined);
   }
-  return { front: front_, back: back_, left, right, lid: top, edge, inside, stop: () => { cancelled = true; } };
+  return { front: front_, back: back_, left, right, lid: top, edge, inside, ready, stop: () => { cancelled = true; } };
 }
 
 // Builds the box inside `parent`. Walls hinge on their bottom edges (front, back, left, right).
@@ -437,8 +480,17 @@ export function buildBlindBox(parent: THREE.Group, { bottom, design, envMap }: {
   const lidPivot = new THREE.Group(); parent.add(lidPivot);
   const lidMesh = new THREE.Mesh(new THREE.BoxGeometry(width + 0.012, t, depth + 0.012), [edge, edge, lidPrint, inside, edge, edge]);
   lidMesh.position.set(0, t / 2, depth / 2); lidPivot.add(lidMesh);
-  const tape = tearTape(parent, { depth, height, bottom, lid: t, label: labels.openHere, envMap });
+  const tape = tearTape(parent, { depth, height, bottom, lid: t, label: labels.openHere, envMap, map: design.baked ? null : undefined });
   const materials = [edge, inside, frontPrint, backPrint, leftPrint, rightPrint, lidPrint];
   materials.forEach((material) => { material.transparent = true; });
-  return { walls, lidPivot, tape, thickness: t, meshes: [...walls.map(({ mesh }) => mesh), floor, lidMesh], materials, stop: prints.stop };
+  let stopped = false;
+  const ready = prints.ready.then(() => {
+    // Baked boxes print their seal only once it has loaded, or paint it if the bake failed.
+    if (!stopped && design.baked) {
+      const map = prints.seal ?? tapeTexture(labels.openHere); tape.material.map = map;
+      tape.material.emissiveMap = map;
+      tape.material.needsUpdate = true;
+    }
+  });
+  return { walls, lidPivot, tape, thickness: t, meshes: [...walls.map(({ mesh }) => mesh), floor, lidMesh], materials, ready, stop: () => { stopped = true; prints.stop(); } };
 }

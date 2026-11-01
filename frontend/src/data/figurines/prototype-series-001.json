@@ -1,5 +1,6 @@
 {
   "id": "prototype-series-001",
+  "authoringSeries": "sample-series-001",
   "build": "12.1.5.70575",
   "createdAt": "2026-10-29T19:51:54.910Z",
   "characters": [
@@ -18,9 +19,9 @@
       "characterClass": "Mage",
       "fetchedAt": "2026-10-29T19:51:55.268Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/29/52192285-main-raw.png",
-      "model": "/figurines/prototype-series-001/melice.glb",
-      "bytes": 1095832,
-      "sha256": "29ca88909c4b2e19c39316a25b73760afca529e66da3e3d42a6e3afcb25f096e",
+      "model": "/figurines/prototype-series-001/melice.glb?v=2ccf574cf3b5",
+      "bytes": 1167176,
+      "sha256": "2ccf574cf3b5e8dd252a61bb318fd74e24716ba266a3fe670fb83eb5ffbff63b",
       "state": "prototype-reviewed",
       "warnings": [
         "Failed to override texture: fileDataID does not exist in root: undefined"
@@ -45,9 +46,9 @@
       "characterClass": "Warrior",
       "fetchedAt": "2026-10-29T19:51:55.446Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/khadgar/106/4652138-main-raw.png",
-      "model": "/figurines/prototype-series-001/vesipuhveli.glb",
-      "bytes": 595508,
-      "sha256": "4d4cc7030628a20795093ff2c44b5e38780ac788e7d381fc4966b55d3c65139a",
+      "model": "/figurines/prototype-series-001/vesipuhveli.glb?v=4d8d8b7a9591",
+      "bytes": 762628,
+      "sha256": "4d8d8b7a9591577f3c070650bb2a33de79e6d25de2e4b2e0ea2d6d31920dc778",
       "state": "prototype-reviewed",
       "warnings": [],
       "validationWarnings": 0,
@@ -55,5 +56,14 @@
       "raceKey": "tauren",
       "classKey": "warrior"
     }
-  ]
+  ],
+  "compression": {
+    "geometry": "EXT_meshopt_compression",
+    "textures": "KHR_texture_basisu",
+    "codec": "ETC1S",
+    "maxTextureSize": 2048,
+    "qlevel": 255,
+    "clevel": 2,
+    "mipmaps": true
+  }
 }

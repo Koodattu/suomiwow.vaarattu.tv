@@ -4,59 +4,52 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
+import { boxTextureCache } from "@/lib/figurine-box-assets";
+import { unreleasedBoxDesign } from "@/lib/figurine-packaging";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { resolveModelResource } from "@/lib/figurine-lab";
 import { CHARGE_CUES, CHARGE_SECONDS, ENTRANCE_CUES, HITSTOP_SECONDS, LAND_AT, REVEAL_CUES, cuesBetween, figurineCharge, figurineEntrance, figurineReveal, type FigurineCue } from "@/lib/figurine-reveal";
 import { playFigurineCue, startFigurineLoop, unlockFigurineAudio } from "@/lib/figurine-audio";
-import { figurineSupport, restoreFigurineMaterials } from "@/lib/figurine-materials";
-import { PACKAGING_FALLBACK, PACKAGING_THEMES, SILHOUETTE, BOX_SIZE, createBoxPrints, buildBlindBox, seriesTheme, type BlindBoxParts, type BoxDesign, type PackagingLabels } from "@/lib/figurine-packaging";
-import { STATIONS, buildWorld, placeStation, viewPose, type Outpost, type WorldView } from "@/lib/figurine-world";
+import { figurineBodyBounds, figurineScale, figurineSupport, restoreFigurineMaterials } from "@/lib/figurine-materials";
+import { PACKAGING_FALLBACK, PACKAGING_THEMES, BOX_SIZE, createBoxPrints, buildBlindBox, seriesTheme, type BlindBoxParts, type BoxDesign, type PackagingLabels } from "@/lib/figurine-packaging";
+import { STATIONS, STATION_SPECS, WORLD_FOG, buildWorld, isStation, placeStation, viewPose, type Station, type WorldView } from "@/lib/figurine-world";
 import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
-import { buildCase, type CaseLabels } from "@/lib/figurine-case";
-import { buildMachine, type MachinePick } from "@/lib/figurine-machine";
-import { buildOutpost } from "@/lib/figurine-outposts";
+import { buildForge, buildRecycler, type MachineCue, type MachinePick } from "@/lib/figurine-machine";
+import { buildFacility, type ActionCue, type CastResult, type Facility, type FacilityAction } from "@/lib/figurine-facilities";
+import { buildStatues } from "@/lib/figurine-statues";
+import { portraitAtlas } from "@/lib/figurine-portraits";
 import { propPlacer } from "@/lib/figurine-props";
 import { FINISH_TIME, applyFinish, releaseFinishes } from "@/lib/figurine-finish";
-import { collectionShelves, bestQuality, copiesOf, type FigurineCollection, type FigurineQuality } from "@/lib/figurine-collection";
+import { type FigurineCollection, type FigurineMachine, type FigurineQuality } from "@/lib/figurine-collection";
 import { buildPedestal, PEDESTAL_TOP } from "@/lib/figurine-pedestal";
 import { hoverOutline } from "@/lib/figurine-glow";
-import { warmFigurineScene } from "@/lib/figurine-warmup";
+import { uploadFigurineTextures, warmFigurineScene } from "@/lib/figurine-warmup";
+import { createFigurineResourceCache, disposeFigurineObject as disposeObject, figurineResourceBytes } from "@/lib/figurine-cache";
 import styles from "./figurine-lab.module.css";
 
-export type { Outpost, WorldView };
-// One series as the world shows it: its box, its step in the shop and its shelf in the case.
+export type { Station, WorldView };
+// One series as the world shows it: its box and its step in the shop.
 // Announced series have no figures yet and print in a colour from their hue.
 export type StageSeries = { id: string; number: string; theme?: keyof typeof PACKAGING_THEMES; hue?: number; hidden?: boolean; released: boolean; silhouettes?: string; keys: string[]; names: string[]; models: string[] };
 export type StageWorld = {
   series: StageSeries[]; collection: FigurineCollection;
-  labels: ShopLabels & CaseLabels & { trading: string; fame: string };
+  labels: ShopLabels;
+  // The showcase: the figure on each numbered statue spot round the plaza, or null.
+  showcase: ({ key: string; quality: FigurineQuality } | null)[];
+  // The daily crate's streak: days opened, and today's day while it is still to open.
+  streak: { opened: number; today: number | null };
 };
-// The recycler as the page drives it: the board's spare copies, the loaded slots, the display,
-// and each run (a new `run` number plays it, making `output`).
+// A machine (the recycler or the forge) as the page drives it: the loaded slots, the display, and
+// each run (a new `run` number plays it, making `output`).
 type MachineEntry = { key: string; quality: FigurineQuality; name: string };
 export type StageMachine = {
-  tray: (MachineEntry & { spare: number })[]; slots: MachineEntry[]; title: string; detail: string; ready: boolean;
+  slots: MachineEntry[]; title: string; detail: string; ready: boolean; accent?: FigurineQuality;
   run: number; output: { kind: "box"; series: string } | ({ kind: "figure" } & MachineEntry) | null;
 };
-const portraitId = (key: string, quality: FigurineQuality) => `${key}|${quality}`;
 type StageLabels = { loading: string; ready: string; empty: string; error: string; webgl: string; box: string; boxTitle: string; boxSubtitle: string; series?: string; packaging?: Omit<PackagingLabels, "title" | "subtitle"> };
-
-function disposeObject(root: THREE.Object3D) {
-  const textures = new Set<THREE.Texture>();
-  const materials = new Set<THREE.Material>();
-  root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.Points) && !(object instanceof THREE.Sprite)) return;
-    if (!(object instanceof THREE.Sprite)) object.geometry.dispose();
-    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
-      materials.add(material);
-      for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value);
-    }
-  });
-  textures.forEach((texture) => { texture.dispose(); if (typeof ImageBitmap !== "undefined" && texture.image instanceof ImageBitmap) texture.image.close(); });
-  materials.forEach((material) => material.dispose());
-}
 
 // Small procedural textures for the light effects. Glow maps are painted light-on-black, then
 // their brightness becomes alpha: the canvas is transparent above the floor, and opaque black
@@ -92,7 +85,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machine, onMachine, onMachineDone, onComingSoon }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, panelWidth = 420 }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -121,7 +114,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onBoxTap?: () => void;
   onStatus?: (status: "loading" | "ready" | "empty" | "error" | "webgl") => void;
   onRevealed?: () => void;
-  // World mode: start-up loading (scenery, every series' box, owned figures' portraits, shaders).
+  // World mode: start-up loading (scenery, station props, every series' box, shaders).
   onLoaded?: () => void;
   onProgress?: (fraction: number) => void;
   // Bumped each time a series is picked: the box drops onto the pedestal again once the camera arrives.
@@ -138,36 +131,50 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   quality?: FigurineQuality;
   // World mode: an announced series' box, which shakes but never opens.
   locked?: boolean;
-  machine?: StageMachine;
-  onMachine?: (pick: MachinePick) => void;
-  onMachineDone?: () => void;
-  onComingSoon?: (outpost: Outpost) => void;
+  machines?: Partial<Record<FigurineMachine, StageMachine>>;
+  onMachine?: (machine: FigurineMachine, pick: MachinePick) => void;
+  onMachineDone?: (machine: FigurineMachine) => void;
+  // World mode: the opening shot has landed and the world takes input.
+  onIntroDone?: () => void;
+  // World mode: the station under the pointer, to name it; null when none.
+  onHoverStation?: (station: Station | null) => void;
+  // World mode: a facility acting something out (a new `run` plays it); onActionCue(run, cue) at its
+  // moments (the pond's bite, say), onActionDone(run, result) when it ends.
+  action?: { run: number; station: Facility; action: FacilityAction } | null;
+  onActionDone?: (run: number, result?: CastResult) => void;
+  onActionCue?: (run: number, cue: ActionCue) => void;
+  // World mode: a tap passed on to an acting facility (a new `n` pokes it once).
+  poke?: { n: number; station: Facility; kind: "hook" } | null;
+  // World mode: a working part of the facility the camera is at was tapped (the pond's rod, bobber or water).
+  onFacilityPart?: (station: Station, part: string) => void;
+  // World mode: how wide the docked panel is on wide screens, so stations slide clear of it.
+  panelWidth?: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked });
-  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked]);
+  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, panelWidth });
+  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, panelWidth }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, panelWidth]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error" | "webgl">("empty");
   const [filename, setFilename] = useState("");
-  const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onComingSoon });
-  useEffect(() => { callbacks.current = { onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onComingSoon }; });
-  useEffect(() => { callbacks.current.onStatus?.(status); }, [status]);
+  const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone, onActionCue, onFacilityPart });
+  useEffect(() => { callbacks.current = { onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone, onActionCue, onFacilityPart }; });
   // The packaging is rebuilt only when its printed text changes, not on every new labels object.
   const packagingKey = JSON.stringify(labels.packaging ?? null), lineupKey = lineup.join("|");
-  const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series), machineRef = useRef(machine);
-  useEffect(() => { labelsRef.current = labels; lineupRef.current = lineup; silhouettesRef.current = silhouettes; worldRef.current = world; seriesRef.current = series; machineRef.current = machine; });
+  const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series), machinesRef = useRef(machines);
+  useEffect(() => { labelsRef.current = labels; lineupRef.current = lineup; silhouettesRef.current = silhouettes; worldRef.current = world; seriesRef.current = series; machinesRef.current = machines; });
   // Lets later prop changes reach the running scene without rebuilding the renderer.
-  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachine: (machine: StageMachine) => void } | null>(null);
+  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: { n: number; station: Facility; kind: "hook" }) => void } | null>(null);
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
-  useEffect(() => { filesRef.current = files; loaderState.current?.load(files); }, [files]);
+  useEffect(() => { filesRef.current = files; loaderState.current?.load(files); }, [files, quality]);
 
   useEffect(() => {
     const element = host.current;
     if (!element) return;
+    const reportStatus = (value: typeof status) => { setStatus(value); callbacks.current.onStatus?.(value); };
     let renderer: THREE.WebGLRenderer;
     try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
-    catch { queueMicrotask(() => setStatus("webgl")); return; }
+    catch { queueMicrotask(() => reportStatus("webgl")); return; }
     const maxPixelRatio = Math.min(window.devicePixelRatio, 1.5);
     let pixelRatio = maxPixelRatio;
     renderer.setPixelRatio(pixelRatio);
@@ -178,6 +185,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const exposure = 1.25;
     renderer.toneMappingExposure = exposure;
     element.appendChild(renderer.domElement);
+    let worldGpuReady = !immersive;
+    const ktx2Loader = new KTX2Loader().setTranscoderPath("/figurines/basis/r186/").setWorkerLimit(2).detectSupport(renderer);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(36, 1, 0.4, 140);
     // The world's home shot faces the pedestal head-on, with the shop and the case at either side.
@@ -205,7 +214,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     keyLight.castShadow = immersive;
     if (immersive) keyLight.target.position.set(0, 0, -2);
     keyLight.shadow.mapSize.set(2048, 2048); keyLight.shadow.radius = 4; keyLight.shadow.bias = -0.0005; keyLight.shadow.normalBias = 0.035;
-    Object.assign(keyLight.shadow.camera, { left: -17, right: 17, top: 17, bottom: -17, near: 5, far: 75 });
+    Object.assign(keyLight.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 5, far: 90 });
     const rim = new THREE.DirectionalLight(immersive ? 0xa9cfff : 0x69bbff, immersive ? 1 : 3); rim.position.set(-4, 4, -3); scene.add(rim);
     // Image-based fill from the painted sky shades every prop and figure without extra lights.
     let skyLight: THREE.WebGLRenderTarget | null = null;
@@ -214,10 +223,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const generator = new THREE.PMREMGenerator(renderer), skyScene = new THREE.Scene();
       skyScene.add(new THREE.Mesh(scenery.sky.geometry, scenery.sky.material));
       const next = generator.fromScene(skyScene, 0, 0.1, 100); generator.dispose();
-      skyLight?.dispose(); skyLight = next; scene.environment = portraitScene.environment = next.texture;
+      skyLight?.dispose(); skyLight = next; scene.environment = next.texture;
     };
-    const scenery = immersive ? buildWorld(scene, { onSky: updateSkyLight }) : null;
-    if (immersive) { scene.fog = new THREE.FogExp2(0xc3d5e6, 0.0115); scene.environmentIntensity = 0.55; }
+    const scenery = immersive ? buildWorld(scene, { onSky: updateSkyLight, ktx2Loader }) : null;
+    if (immersive) { scene.fog = new THREE.FogExp2(WORLD_FOG.color, WORLD_FOG.density); scene.environmentIntensity = 0.55; }
     const modelRoot = new THREE.Group(); scene.add(modelRoot);
     const box = new THREE.Group(); scene.add(box);
     // The box rests just on the pedestal top; its idle float only ever lifts it.
@@ -225,20 +234,24 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // Neutral studio reflections for the foil and holographic seal only, so figure lighting is unchanged.
     const pmrem = new THREE.PMREMGenerator(renderer);
     const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; pmrem.dispose();
+    const sharedTextures = new Set([environment]);
+    const boxTextures = boxTextureCache(ktx2Loader, sharedTextures);
     const pedestal = buildPedestal(scene, { envMap: environment, title: labels.boxTitle, series: labels.series ?? "Series 001", count: lineupRef.current.length || 16 });
     // Box designs: the selected series' box on the pedestal, and every series' boxes in the shop.
     const packagingLabels = (): PackagingLabels => ({ title: labelsRef.current.boxTitle, subtitle: labelsRef.current.boxSubtitle, ...PACKAGING_FALLBACK, ...labelsRef.current.packaging });
     const paletteOf = (entry?: StageSeries) => entry && !entry.theme ? seriesTheme(Number(entry.number), entry.hue ?? 0) : PACKAGING_THEMES[entry?.theme ?? "amethyst"];
-    const designOf = (entry?: StageSeries): BoxDesign => ({
+    const designOf = (entry?: StageSeries): BoxDesign => boxTextures.design(entry && !entry.released ? unreleasedBoxDesign(packagingLabels()) : {
       labels: packagingLabels(), theme: paletteOf(entry),
       lineup: entry?.names ?? lineupRef.current, silhouettes: entry ? entry.silhouettes : silhouettesRef.current,
     });
     const selectedSeries = () => worldRef.current?.series.find((entry) => entry.id === seriesRef.current);
     let spin = 0;
     const worldSetup = immersive ? worldRef.current : undefined;
-    const shopGroup = immersive ? placeStation(scene, "shop") : null, caseGroup = immersive ? placeStation(scene, "gallery") : null;
-    const machineGroup = immersive ? placeStation(scene, "machine") : null;
-    const outpostGroups = { trading: immersive ? placeStation(scene, "trading") : null, fame: immersive ? placeStation(scene, "fame") : null };
+    // Every station has its group in the world: the shop, the two machines, and the facilities.
+    const groups = Object.fromEntries((Object.keys(STATIONS) as Station[]).map((name) => [name, immersive ? placeStation(scene, name) : null])) as Record<Station, THREE.Group | null>;
+    const shopGroup = groups.shop;
+    const machineGroups: Record<FigurineMachine, THREE.Group | null> = { recycler: groups.recycler, forge: groups.forge };
+    const FACILITIES: Facility[] = ["gallery", "crate", "wheel", "mail", "quests", "feed", "fame", "leaderboard", "trading", "pond"];
     const accentOf = (entry: StageSeries) => paletteOf(entry).glow;
     const publicSeries = worldSetup?.series.filter((entry) => !entry.hidden) ?? [];
     const shop = shopGroup && worldSetup?.series.length ? buildShop(shopGroup, {
@@ -261,28 +274,28 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const copy = new THREE.Mesh(source.geometry, source.material); copy.castShadow = true;
       return copy;
     };
-    // Secret shelves unlock only after an opening adds a figure to the collection.
-    let shelved = collectionShelves(worldSetup?.series ?? [], worldSetup?.collection ?? {});
-    const caseContents = new THREE.Group(); caseGroup?.add(caseContents);
-    const makeCase = () => caseGroup && worldSetup && shelved.length ? buildCase(caseContents, {
-      series: shelved.map((entry) => ({ id: entry.id, number: entry.number, accent: accentOf(entry), silhouettes: entry.silhouettes, keys: entry.keys, released: entry.released, box: boxCopy(entry.id) })),
-      labels: worldSetup.labels, envMap: environment,
-    }) : null;
-    let cabinet = makeCase();
     // Station props load with the scenery; the start-up loader waits for them too.
     const propsReady: Promise<unknown>[] = [];
-    const placeProps = propPlacer();
+    const placeProps = propPlacer(ktx2Loader);
     const placeProp: typeof placeProps = (...args) => { const placed = placeProps(...args); propsReady.push(placed.ready); return placed; };
-    const recycler = machineGroup && worldSetup ? buildMachine(machineGroup, { envMap: environment, placeProp }) : null;
-    const outposts = worldSetup ? (["trading", "fame"] as const).map((kind) => outpostGroups[kind] && { kind, ...buildOutpost(outpostGroups[kind]!, kind, { placeProp, title: worldSetup.labels[kind], soon: worldSetup.labels.comingSoon }) }).filter((entry) => !!entry) : [];
+    const builders = { recycler: buildRecycler, forge: buildForge };
+    const stationMachines = Object.fromEntries((["recycler", "forge"] as const).map((kind) => {
+      const group = machineGroups[kind];
+      return [kind, group && worldSetup ? builders[kind](group, { envMap: environment, placeProp }) : null];
+    })) as Record<FigurineMachine, ReturnType<typeof buildRecycler> | null>;
+    const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, { placeProp, envMap: environment }) }] : []) : [];
+    // The showcase's statues load their figures like the pedestal does, one at a time.
+    const statueLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
+    const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: (url) => statueLoader.loadAsync(url), cubbies: facilities.find((facility) => facility.kind === "gallery")?.cubbies }) : null;
+    // Machine cards show the baked portrait sheets.
+    const portraitCards = portraitAtlas();
     // Camera occlusion hides station meshes, but must not change the scene's light count:
     // removing a light recompiles every lit material during the opening camera sweep.
     const stationLights: THREE.Light[] = [];
-    [caseGroup, machineGroup].forEach((group) => group?.traverse((object) => { if (object instanceof THREE.Light) stationLights.push(object); }));
+    [machineGroups.recycler, machineGroups.forge].forEach((group) => group?.traverse((object) => { if (object instanceof THREE.Light) stationLights.push(object); }));
     stationLights.forEach((light) => scene.attach(light));
     // Stations glow faintly under the pointer; their own textures light up, so prints stay legible.
-    type Station = "shop" | "gallery" | "machine" | Outpost;
-    const stationGroups: [THREE.Group | null, Station][] = [[shopGroup, "shop"], [caseGroup, "gallery"], [machineGroup, "machine"], [outpostGroups.trading, "trading"], [outpostGroups.fame, "fame"]];
+    const stationGroups = Object.entries(groups).map(([name, group]) => [group, name]) as [THREE.Group | null, Station][];
     const glowing = new Map<Station, THREE.MeshStandardMaterial[]>();
     for (const [group, view] of stationGroups) {
       const materials = new Set<THREE.MeshStandardMaterial>();
@@ -294,169 +307,97 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       materials.forEach((material) => { material.emissiveMap = material.map; material.emissive.set(0xffe2b8); material.emissiveIntensity = 0; });
       glowing.set(view, [...materials]);
     }
-    const stationGlow: Record<Station | "opening", number> = { shop: 0, gallery: 0, machine: 0, trading: 0, fame: 0, opening: 0 };
+    const stationGlow = Object.fromEntries([...Object.keys(STATIONS), "opening"].map((name) => [name, 0])) as Record<Station | "opening", number>;
     // Outer glows on hover: each series' boxes, each station's frame, and the pedestal with its box.
     const GOLD_GLOW = 0xffcf7a;
     const stackOutlines = new Map([...(shop?.boxes ?? [])].map(([id, meshes]) => { const entry = worldSetup?.series.find((candidate) => candidate.id === id); return [id, hoverOutline(meshes, entry?.released ? accentOf(entry) : 0xb8b0a4, 0.025)]; }));
     const stationOutlines: Partial<Record<Station, ReturnType<typeof hoverOutline>>> = {
-      ...(shop && { shop: hoverOutline(shop.frame, GOLD_GLOW, 0.035) }), ...(cabinet && { gallery: hoverOutline(cabinet.frame, GOLD_GLOW, 0.035) }),
-      ...(recycler && { machine: hoverOutline(recycler.frame, GOLD_GLOW, 0.035) }),
-      ...Object.fromEntries(outposts.map((outpost) => [outpost.kind, hoverOutline(outpost.frame, GOLD_GLOW, 0.03)])),
+      ...(shop && { shop: hoverOutline(shop.frame, GOLD_GLOW, 0.035) }),
+      ...Object.fromEntries((["recycler", "forge"] as const).flatMap((kind) => stationMachines[kind] ? [[kind, hoverOutline(stationMachines[kind].frame, GOLD_GLOW, 0.035)]] : [])),
     };
+    // Facilities are mostly game props: their outlines wrap them once they have loaded.
+    facilities.forEach((facility) => void facility.ready.then((meshes) => { if (!disposed) stationOutlines[facility.kind] = hoverOutline(meshes, GOLD_GLOW, 0.03); }));
     const pedestalOutline = immersive ? hoverOutline([pedestal.body], GOLD_GLOW, 0.035) : null;
     let boxOutline: ReturnType<typeof hoverOutline> | null = null;
-    // Portraits of owned figures for the case, rendered once per figure into small targets.
-    const portraits = new Map<string, THREE.WebGLRenderTarget>();
-    const portraitScene = new THREE.Scene();
-    portraitScene.add(new THREE.HemisphereLight(0xe0efff, 0x333048, 3));
-    const portraitKey = new THREE.DirectionalLight(0xffe2b0, 4); portraitKey.position.set(4, 6, 5); portraitScene.add(portraitKey);
-    const portraitCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 60); portraitCamera.position.set(0, 1.5, 20);
-    const solid = new THREE.Box3(), part = new THREE.Box3();
+    // Shaders compile against a 1×1 target while the scene warms up.
     const compileTarget = new THREE.WebGLRenderTarget(1, 1); compileTarget.texture.colorSpace = THREE.SRGBColorSpace;
-    const capture = (object: THREE.Object3D, id: string) => {
-      const target = new THREE.WebGLRenderTarget(Math.round(432 * SILHOUETTE.w / SILHOUETTE.h), 432, { samples: 4 }); target.texture.colorSpace = THREE.SRGBColorSpace;
-      const parent = object.parent, alpha = renderer.getClearAlpha();
-      portraitScene.add(object);
-      // Matches scripts/bake-figurine-silhouettes.mjs: solid surfaces only, 6 px headroom and side margins per cell.
-      object.updateMatrixWorld(true); solid.makeEmpty();
-      object.traverse((mesh) => {
-        if (!(mesh instanceof THREE.Mesh) || !mesh.visible) return;
-        const materials: THREE.Material[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        if (materials.some((material) => material.blending !== THREE.NormalBlending)) return;
-        if (mesh instanceof THREE.SkinnedMesh) { mesh.computeBoundingBox(); part.copy(mesh.boundingBox!); }
-        else { mesh.geometry.computeBoundingBox(); part.copy(mesh.geometry.boundingBox!); }
-        solid.union(part.applyMatrix4(mesh.matrixWorld));
-      });
-      if (solid.isEmpty()) solid.setFromObject(object);
-      const { w: cellW, h: cellH } = SILHOUETTE;
-      let frameH = (solid.max.y - PEDESTAL_TOP) * cellH / (cellH - 6), frameW = frameH * cellW / cellH;
-      if (solid.max.x - solid.min.x > frameW * (cellW - 12) / cellW) { frameW = (solid.max.x - solid.min.x) * cellW / (cellW - 12); frameH = frameW * cellH / cellW; }
-      const centreX = (solid.min.x + solid.max.x) / 2;
-      Object.assign(portraitCamera, { left: centreX - frameW / 2, right: centreX + frameW / 2, bottom: PEDESTAL_TOP, top: PEDESTAL_TOP + frameH });
-      portraitCamera.position.set(0, 0, 20); portraitCamera.updateProjectionMatrix();
-      renderer.setRenderTarget(target); renderer.setClearAlpha(0); renderer.clear(); renderer.render(portraitScene, portraitCamera);
-      renderer.setRenderTarget(null); renderer.setClearAlpha(alpha);
-      if (parent) parent.add(object); else portraitScene.remove(object);
-      portraits.get(id)?.dispose(); portraits.set(id, target);
-      // A sealed box can prepare its portrait without revealing an uncollected figure.
-      showSlot(id.split("|")[0]);
-      if (machineView) setMachine(machineView);
-    };
-    let owned: FigurineCollection = {};
-    const portraitQueue: string[] = [];
-    let portraitBusy = false;
-    const pumpPortraits = async () => {
-      if (portraitBusy || disposed) return;
-      const id = portraitQueue.shift();
-      if (!id) return;
-      const [key, finish] = id.split("|") as [string, FigurineQuality];
+    // Where a figure is in the world's catalog: its series, its place there, and its model.
+    const figureOf = (key: string) => {
       const entry = worldRef.current?.series.find((candidate) => candidate.keys.includes(key));
-      const url = entry?.models[entry.keys.indexOf(key)];
-      if (!url || portraits.has(id)) { void pumpPortraits(); return; }
-      portraitBusy = true;
-      try {
-        const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url);
-        if (!disposed) { const figure = prepareModel(gltf.scene); applyFinish(figure, finish, environment); capture(figure, id); releaseFinishes(figure); disposeObject(figure); }
-      } catch { /* the silhouette stays until a later visit */ }
-      finally { portraitBusy = false; }
-      void pumpPortraits();
-    };
-    // A portrait is wanted: queue it unless it exists, is queued, or is the figure loading on the pedestal.
-    const want = (id: string) => {
-      if (portraits.has(id) || portraitQueue.includes(id) || (model && id === portraitId(state.current.figureKey ?? "", state.current.quality))) return;
-      portraitQueue.push(id);
-    };
-    // Each case slot shows its finest owned quality, with the count of copies.
-    const showSlot = (key: string) => {
-      const copies = owned[key], best = bestQuality(copies);
-      if (!best) { cabinet?.setSlot(key, { state: "locked" }); return; }
-      const portrait = portraits.get(portraitId(key, best));
-      cabinet?.setSlot(key, { state: portrait ? "owned" : "pending", portrait: portrait?.texture, quality: best, count: copiesOf(copies) });
-      if (!portrait) want(portraitId(key, best));
+      return entry ? { series: entry, index: entry.keys.indexOf(key), url: entry.models[entry.keys.indexOf(key)] } : null;
     };
     const setCollection = (collection: FigurineCollection) => {
-      owned = collection;
-      const nextShelves = collectionShelves(worldRef.current?.series ?? [], collection);
-      if (nextShelves.map((entry) => entry.id).join("|") !== shelved.map((entry) => entry.id).join("|")) {
-        stationOutlines.gallery?.dispose();
-        cabinet?.dispose();
-        shelved = nextShelves; cabinet = makeCase();
-        if (cabinet) stationOutlines.gallery = hoverOutline(cabinet.frame, GOLD_GLOW, 0.035);
-        // Keep the case light in the scene when camera occlusion hides the station.
-        const lights: THREE.Light[] = [], materials = new Set<THREE.MeshStandardMaterial>();
-        caseContents.traverse((object) => {
-          if (object instanceof THREE.Light) lights.push(object);
-          if (object instanceof THREE.Mesh) for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
-            if (material instanceof THREE.MeshStandardMaterial && material.map && !material.emissiveMap) {
-              material.emissiveMap = material.map; material.emissive.set(0xffe2b8); material.emissiveIntensity = 0; materials.add(material);
-            }
-          }
-        });
-        lights.forEach((light) => scene.attach(light)); glowing.set("gallery", [...materials]);
-      }
-      for (const entry of worldRef.current?.series ?? []) {
-        entry.keys.forEach(showSlot);
-        const got = entry.keys.filter((key) => collection[key]).length;
-        shop?.setCollected(entry.id, got); cabinet?.setCollected(entry.id, got);
-      }
+      for (const entry of worldRef.current?.series ?? []) shop?.setCollected(entry.id, entry.keys.filter((key) => collection[key]).length);
     };
-    // The recycler shows each card with its portrait (queued until ready) and plays new runs.
-    let machineView: StageMachine | null = null, machineRun = machineRef.current?.run ?? 0;
-    const setMachine = (next: StageMachine) => {
-      machineView = next;
-      if (!recycler) return;
+    const setShowcase = (showcase: StageWorld["showcase"]) => statues?.setShowcase(showcase.map((entry) => {
+      const found = entry && figureOf(entry.key);
+      return found?.url && entry ? { url: found.url, quality: entry.quality } : null;
+    }));
+    // The last facility action played and poke passed on, so a re-render never repeats one.
+    let actedRun = 0, pokedRun = 0;
+    // Each machine shows its cards with their portraits and plays new runs.
+    const machineRuns: Record<FigurineMachine, number> = { recycler: machinesRef.current?.recycler?.run ?? 0, forge: machinesRef.current?.forge?.run ?? 0 };
+    const machineCue = (kind: FigurineMachine) => (cue: MachineCue) => {
+      if (cue === "pull") playFigurineCue(kind === "forge" ? "whoosh" : "knock");
+      else if (cue === "clank") playFigurineCue("knock", { intensity: random(0.35, 0.7) });
+      else if (cue === "charge") playFigurineCue("rise");
+      else if (cue === "strike") { playFigurineCue("hit", { intensity: random(0.55, 0.8) }); playFigurineCue("knock", { intensity: 0.6 }); }
+      else if (cue === "drop") { playFigurineCue("drop"); playFigurineCue("rattle", { intensity: 0.5 }); }
+      else if (cue === "sparkle") { playFigurineCue("sparkle"); playFigurineCue("choir"); }
+    };
+    const setMachines = (next: Partial<Record<FigurineMachine, StageMachine>>) => {
       const card = (entry: MachineEntry) => {
-        const portrait = portraits.get(portraitId(entry.key, entry.quality));
-        if (!portrait) want(portraitId(entry.key, entry.quality));
-        return { ...entry, texture: portrait?.texture ?? null };
+        const found = figureOf(entry.key);
+        return { ...entry, texture: found ? portraitCards.texture(found.series.id, found.index, found.series.keys.length) : null };
       };
-      if (next.run !== machineRun) {
-        machineRun = next.run;
-        const made = next.output;
-        if (made) recycler.run(made.kind === "box" ? { kind: "box", box: boxCopy(made.series) } : { kind: "figure", card: card(made) }, (cue) => {
-          if (cue === "pull") playFigurineCue("knock");
-          else if (cue === "clank") playFigurineCue("knock", { intensity: random(0.35, 0.7) });
-          else if (cue === "drop") { playFigurineCue("drop"); playFigurineCue("rattle", { intensity: 0.5 }); }
-          else if (cue === "sparkle") { playFigurineCue("sparkle"); playFigurineCue("choir"); }
-          else playFigurineCue("tap");
-        }, () => callbacks.current.onMachineDone?.());
+      for (const kind of ["recycler", "forge"] as const) {
+        const machine = stationMachines[kind], view = next[kind];
+        if (!machine || !view) continue;
+        if (view.run !== machineRuns[kind]) {
+          machineRuns[kind] = view.run;
+          const made = view.output;
+          if (made) machine.run(made.kind === "box" ? { kind: "box", box: boxCopy(made.series) } : { kind: "figure", card: card(made) }, machineCue(kind), () => callbacks.current.onMachineDone?.(kind));
+        }
+        machine.set({ slots: view.slots.map(card), title: view.title, detail: view.detail, ready: view.ready, accent: view.accent });
       }
-      recycler.set({ tray: next.tray.map((entry) => ({ ...card(entry), spare: entry.spare })), slots: next.slots.map(card), title: next.title, detail: next.detail, ready: next.ready });
     };
-    // Every series' box is built once and kept: switching series swaps which one is shown, so the
-    // print textures are never repainted or re-uploaded mid-game. Print text changes rebuild them all.
-    type Packaging = { group: THREE.Group; parts: BlindBoxParts; outline: ReturnType<typeof hoverOutline> | null };
+    // Keep the selected box and two recent boxes prepared, across all series.
+    // Switching a cached series only changes visibility. Print text changes rebuild them all.
+    type Packaging = { group: THREE.Group; parts: BlindBoxParts; outline: ReturnType<typeof hoverOutline> | null; ready: boolean; warming: Promise<void> | null };
     const packagings = new Map<string, Packaging>();
     let walls!: BlindBoxParts["walls"], lidPivot!: THREE.Group, tape!: BlindBoxParts["tape"], thickness = 0;
     let boxMeshes: THREE.Mesh[] = [], packaging: THREE.Material[] = [];
     const packagingFor = (entry?: StageSeries) => {
       const key = entry?.id ?? "lab", cached = packagings.get(key);
-      if (cached) return cached;
+      if (cached) { packagings.delete(key); packagings.set(key, cached); return cached; }
       const group = new THREE.Group(); group.visible = false; box.add(group);
       const parts = buildBlindBox(group, { bottom, design: designOf(entry), envMap: environment });
       parts.tape.mesh.castShadow = immersive;
       parts.meshes.forEach((mesh) => { mesh.castShadow = immersive; });
       // The tape lights up on its own when hovered.
       parts.tape.material.emissiveMap = parts.tape.material.map; parts.tape.material.emissive.set(0xffe2a8); parts.tape.material.emissiveIntensity = 0;
-      const made = { group, parts, outline: immersive ? hoverOutline(parts.meshes, 0xffcf7a, 0.03) : null };
+      const made: Packaging = { group, parts, outline: immersive ? hoverOutline(parts.meshes, 0xffcf7a, 0.03) : null, ready: false, warming: null };
       packagings.set(key, made);
       return made;
     };
     const clearPackagings = () => {
       sheen.removeFromParent();
-      packagings.forEach(({ group, parts, outline }) => { parts.stop(); outline?.dispose(); box.remove(group); disposeObject(group); });
+      packagings.forEach(({ group, parts, outline }) => { parts.stop(); outline?.dispose(); box.remove(group); disposeObject(group, sharedTextures); });
       packagings.clear();
     };
     const mountBox = () => {
       const shown = packagingFor(selectedSeries());
-      const announced = [...packagings].filter(([id, entry]) => entry !== shown && worldRef.current?.series.some((candidate) => candidate.id === id && !candidate.released));
-      for (const [id, { group, parts, outline }] of announced.slice(0, Math.max(0, announced.length - 2))) { parts.stop(); outline?.dispose(); box.remove(group); disposeObject(group); packagings.delete(id); }
+      // The sheen belongs to the stage, not to an evicted packaging's materials/geometry.
+      sheen.removeFromParent();
+      const inactive = [...packagings].filter(([, entry]) => entry !== shown);
+      for (const [id, { group, parts, outline }] of inactive.slice(0, Math.max(0, inactive.length - 2))) { parts.stop(); outline?.dispose(); box.remove(group); disposeObject(group, sharedTextures); packagings.delete(id); }
       packagings.forEach((entry) => { entry.group.visible = entry === shown; });
       ({ walls, lidPivot, tape, thickness, meshes: boxMeshes, materials: packaging } = shown.parts);
       boxOutline = shown.outline;
       walls[0].pivot.add(sheen); sheen.position.set(0, height / 2, thickness / 2 + 0.003);
       // Force the next opacity write: this box's materials may have been left faded.
       packagingOpacity = Number.NaN;
+      return shown;
     };
     // Soft contact shadow that grounds the box, then shrinks under the figure.
     const contactMaterial = new THREE.MeshBasicMaterial({ map: radial([[0, "rgba(255,255,255,.9)"], [0.5, "rgba(255,255,255,.45)"], [1, "rgba(255,255,255,0)"]], false), color: 0x000000, transparent: true, depthWrite: false, opacity: 0 });
@@ -594,14 +535,15 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     let mixer: THREE.AnimationMixer | null = null;
     let disposed = false, generation = 0;
     const pendingUrls = new Set<string>();
-    // Restores materials, faces the camera, scales to 2.5 units and stands the figure on the disc.
+    // Restores materials, faces the camera and stands the body at its race/form height on the disc.
     const prepareModel = (root: THREE.Object3D) => {
       restoreFigurineMaterials(root);
       if (immersive || gallery) root.rotation.y = -Math.PI / 2;
       const bounds = new THREE.Box3().setFromObject(root);
       const size = bounds.getSize(new THREE.Vector3());
       if (!Number.isFinite(size.y) || size.y <= 0 || size.length() === 0) { disposeObject(root); throw new Error("Empty model"); }
-      const scale = Math.min(2.5 / size.y, 2.9 / Math.max(size.x, size.z));
+      // Accessories do not determine body height; race/form does.
+      const scale = figurineScale(figurineBodyBounds(root), root.name);
       const support = figurineSupport(root, bounds);
       root.scale.multiplyScalar(scale);
       root.position.x -= support.x * scale;
@@ -609,67 +551,100 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       root.position.y = PEDESTAL_TOP - support.y * scale;
       return root;
     };
-    let loadedFor: string | null = null, shownFinish: FigurineQuality = "standard";
-    const load = async (selected: File[]) => {
-      const loading = filesForRef.current; loadedFor = null;
-      const current = ++generation;
-      mixer?.stopAllAction(); mixer = null;
-      if (silhouette) { modelRoot.remove(silhouette); silhouette = null; }
-      if (model) { modelRoot.remove(model); releaseFinishes(model); disposeObject(model); model = null; }
-      const roots = selected.filter((file) => /\.(glb|gltf)$/i.test(file.name));
-      if (!selected.length) { setStatus("empty"); setFilename(""); return; }
-      if (roots.length !== 1 || selected.reduce((size, file) => size + file.size, 0) > 150 * 1024 * 1024) { setStatus("error"); return; }
-      setStatus("loading"); setFilename(roots[0].name);
-      const objects = new Map<string, string>();
-      const paths = selected.map((file) => (file.webkitRelativePath || file.name).replace(/\\/g, "/"));
-      selected.forEach((file, index) => { const url = URL.createObjectURL(file); objects.set(paths[index], url); pendingUrls.add(url); });
-      const manager = new THREE.LoadingManager();
-      manager.setURLModifier((url) => {
-        const resolved = resolveModelResource(url, paths);
-        if (!resolved) throw new Error("Missing or external model resource");
-        return objects.get(resolved) ?? resolved;
-      });
-      const loader = new GLTFLoader(manager).setMeshoptDecoder(MeshoptDecoder);
-      try {
-        const rootPath = paths[selected.indexOf(roots[0])];
-        const gltf = await loader.loadAsync(rootPath);
-        if (disposed || generation !== current) { disposeObject(gltf.scene); return; }
-        model = prepareModel(gltf.scene); loadedFor = loading;
-        modelRoot.add(model);
-        shownFinish = state.current.quality; applyFinish(model, shownFinish, environment);
-        displayClock = 0;
-        const textures = new Set<THREE.Texture>();
-        model.traverse((object) => {
-          if (!(object instanceof THREE.Mesh)) return;
-          const sources: THREE.Material[] = Array.isArray(object.material) ? object.material : [object.material];
-          object.castShadow = immersive && sources.every((material) => !material.transparent);
-          object.receiveShadow = immersive;
-          sources.forEach((material) => Object.values(material).forEach((value) => { if (value instanceof THREE.Texture) textures.add(value); }));
-        });
-        if (immersive) {
-          // Shares geometry with the model, so only the shared material is ever disposed separately.
-          silhouette = cloneSkinned(model);
-          silhouette.traverse((object) => {
-            if (!(object instanceof THREE.Mesh)) return;
-            const sources = Array.isArray(object.material) ? object.material : [object.material];
-            object.visible = sources.every((material: THREE.Material) => !material.transparent && material.blending === THREE.NormalBlending);
-            object.material = silhouetteMaterial; object.castShadow = false;
-          });
-          modelRoot.add(silhouette);
+    let loadedFor: string | null = null;
+    type PreparedModel = { model: THREE.Object3D; silhouette: THREE.Object3D | null; animations: THREE.AnimationClip[]; warmed: Set<FigurineQuality> };
+    const prepared = createFigurineResourceCache<PreparedModel>(192 * 1024 * 1024, (entry) => {
+      entry.model.removeFromParent(); entry.silhouette?.removeFromParent();
+      releaseFinishes(entry.model); disposeObject(entry.model);
+    });
+    let cachedModel: string | null = null;
+    // Yield between uploads and first draws so the loading/flight animation can keep rendering.
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const uploadTextures = (root: THREE.Object3D, current: () => boolean) => uploadFigurineTextures(renderer, root, current);
+    // Announced boxes keep a small cache rather than retaining twenty full-resolution print sets.
+    // Upload a newly chosen box during the camera flight, before exposing it to the render loop.
+    const preparePackaging = (entry: Packaging) => {
+      if (entry.ready) return;
+      entry.group.visible = false;
+      if (entry.warming) return;
+      const current = () => !disposed && [...packagings.values()].includes(entry);
+      entry.warming = (async () => {
+        await entry.parts.ready;
+        if (!await uploadTextures(entry.group, current)) return;
+        if (!await warmFigurineScene(renderer, scene, camera, compileTarget, current, entry.group)) return;
+        entry.ready = true;
+        entry.group.visible = packagings.get(selectedSeries()?.id ?? "lab") === entry;
+      })().catch(() => { if (current()) reportStatus("error"); }).finally(() => { entry.warming = null; });
+    };
+    let loadingTask = Promise.resolve();
+    const load = (selected: File[]) => {
+      const current = ++generation, loading = filesForRef.current, finish = state.current.quality;
+      loadedFor = null;
+      reportStatus(selected.length ? "loading" : "empty");
+      // Serialize scene preparation. A superseded request stops at its next yield and cannot
+      // replace the current figure or dispose resources another preparation is using.
+      loadingTask = loadingTask.then(async () => {
+        const valid = () => !disposed && generation === current;
+        if (!valid() || (immersive && loading !== state.current.showing)) return;
+        mixer?.stopAllAction(); mixer = null;
+        silhouette?.removeFromParent(); silhouette = null;
+        if (model) { model.removeFromParent(); if (!cachedModel) { releaseFinishes(model); disposeObject(model); } model = null; }
+        cachedModel = null;
+        const roots = selected.filter((file) => /\.(glb|gltf)$/i.test(file.name));
+        if (!selected.length) { setFilename(""); prepared.trim(null); return; }
+        if (roots.length !== 1 || selected.reduce((size, file) => size + file.size, 0) > 150 * 1024 * 1024) { reportStatus("error"); return; }
+        setFilename(roots[0].name);
+        const objects = new Map<string, string>();
+        try {
+          let entry = immersive && loading ? prepared.get(loading) : undefined;
+          if (!entry) {
+            const paths = selected.map((file) => (file.webkitRelativePath || file.name).replace(/\\/g, "/"));
+            selected.forEach((file, index) => { const url = URL.createObjectURL(file); objects.set(paths[index], url); pendingUrls.add(url); });
+            const manager = new THREE.LoadingManager();
+            manager.setURLModifier((url) => {
+              const resolved = resolveModelResource(url, paths);
+              if (!resolved) throw new Error("Missing or external model resource");
+              return objects.get(resolved) ?? resolved;
+            });
+            const gltf = await new GLTFLoader(manager).setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader).loadAsync(paths[selected.indexOf(roots[0])]);
+            if (!valid()) { disposeObject(gltf.scene); return; }
+            const figure = prepareModel(gltf.scene);
+            figure.traverse((object) => {
+              if (!(object instanceof THREE.Mesh)) return;
+              const materials = Array.isArray(object.material) ? object.material : [object.material];
+              object.castShadow = immersive && materials.every((material) => !material.transparent);
+              object.receiveShadow = immersive;
+            });
+            const shadow = immersive ? cloneSkinned(figure) : null;
+            shadow?.traverse((object) => {
+              if (!(object instanceof THREE.Mesh)) return;
+              const materials = Array.isArray(object.material) ? object.material : [object.material];
+              object.visible = materials.every((material: THREE.Material) => !material.transparent && material.blending === THREE.NormalBlending);
+              object.material = silhouetteMaterial; object.castShadow = false;
+            });
+            entry = { model: figure, silhouette: shadow, animations: gltf.animations, warmed: new Set() };
+            if (immersive && loading) prepared.set(loading, entry, figurineResourceBytes(figure));
+          }
+          model = entry.model; silhouette = entry.silhouette; cachedModel = immersive ? loading : null;
+          modelRoot.add(model); if (silhouette) modelRoot.add(silhouette);
+          applyFinish(model, finish, environment); displayClock = 0;
+          const idle = entry.animations.find((clip) => /stand|idle/i.test(clip.name));
+          if (idle) { mixer = new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
+          if (!entry.warmed.has(finish)) {
+            if (!await uploadTextures(model, valid)) return;
+            await nextFrame(); if (!valid()) return;
+            if (!await warmFigurineScene(renderer, scene, camera, compileTarget, valid, modelRoot)) return;
+            entry.warmed.add(finish);
+          }
+          if (!valid()) return;
+          loadedFor = loading;
+          reportStatus("ready");
+        } catch { if (valid()) reportStatus("error"); }
+        finally {
+          objects.forEach((url) => { URL.revokeObjectURL(url); pendingUrls.delete(url); });
+          prepared.trim(cachedModel);
         }
-        const idle = gltf.animations.find((clip) => /stand|idle/i.test(clip.name));
-        if (idle) { mixer = new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
-        // Prepare the actual first draws while sealed, including the collection portrait.
-        textures.forEach((texture) => renderer.initTexture(texture));
-        if (immersive && cabinet && loading) {
-          const entry = worldRef.current?.series.find((entry) => entry.models.includes(loading));
-          const key = entry?.keys[entry.models.indexOf(loading)];
-          if (key && !portraits.has(portraitId(key, shownFinish))) capture(model, portraitId(key, shownFinish));
-        }
-        if (!await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed && generation === current)) return;
-        setStatus("ready");
-      } catch { if (!disposed && generation === current) setStatus("error"); }
-      finally { objects.forEach((url) => { URL.revokeObjectURL(url); pendingUrls.delete(url); }); }
+      }).catch(() => { if (!disposed && generation === current) reportStatus("error"); });
     };
     // Include hidden lights as well as the materials of the reveal effects.
     const precompile = () => {
@@ -682,31 +657,45 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     updateSkyLight(); void precompile();
     api.current = {
       rebuildBox: () => { clearPackagings(); worldRef.current?.series.forEach((entry) => { if (entry.released) packagingFor(entry); }); mountBox(); void precompile(); },
-      showBox: () => mountBox(),
-      setCollection, setMachine,
+      showBox: () => preparePackaging(mountBox()),
+      setCollection, setMachines, setShowcase,
+      setStreak: (opened, today) => facilities.forEach((facility) => facility.setStreak(opened, today)),
+      act: ({ run, station, action: next }) => {
+        if (run === actedRun) return;
+        actedRun = run;
+        const facility = facilities.find((entry) => entry.kind === station);
+        const sound = (cue: ActionCue) => {
+          if (cue === "tick") playFigurineCue("tap", { intensity: 0.35 });
+          else if (cue === "nibble") playFigurineCue("tap", { intensity: 0.2 });
+          else if (cue === "splash" || cue === "bite") { playFigurineCue("drop", { intensity: cue === "bite" ? 0.9 : 0.6 }); if (cue === "bite") playFigurineCue("rattle", { intensity: 0.5 }); }
+          else if (cue === "escape") playFigurineCue("drop", { intensity: 0.25 });
+          else if (cue === "catch") { playFigurineCue("whoosh"); playFigurineCue("sparkle"); }
+          else { playFigurineCue("burst", { intensity: 0.6 }); playFigurineCue("sparkle"); }
+          callbacks.current.onActionCue?.(run, cue);
+        };
+        const done = (result?: CastResult) => callbacks.current.onActionDone?.(run, result);
+        if (facility) facility.act(next, sound, done); else done();
+      },
+      poke: ({ n, station, kind }) => {
+        if (n === pokedRun) return;
+        pokedRun = n;
+        facilities.find((entry) => entry.kind === station)?.poke(kind);
+      },
     };
-    if (worldSetup) setCollection(worldSetup.collection);
-    if (machineRef.current) setMachine(machineRef.current);
+    if (worldSetup) { setCollection(worldSetup.collection); setShowcase(worldSetup.showcase); facilities.forEach((facility) => facility.setStreak(worldSetup.streak.opened, worldSetup.streak.today)); }
+    if (machinesRef.current) setMachines(machinesRef.current);
     if (immersive && scenery) void (async () => {
-      const portraitsQueued = Math.max(1, portraitQueue.length);
-      const report = (sceneryDone: boolean) => callbacks.current.onProgress?.((sceneryDone ? 0.35 : 0) + 0.55 * (1 - portraitQueue.length / portraitsQueued));
-      report(false);
-      void pumpPortraits();
-      await scenery.ready; await Promise.all(propsReady); report(true);
-      while (!disposed && (portraitQueue.length || portraitBusy)) { report(true); await new Promise((resolve) => setTimeout(resolve, 60)); }
-      // Upload every texture now (hidden boxes included), or the first look at one stalls a frame.
-      const textures = new Set<THREE.Texture>();
-      scene.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        for (const material of Array.isArray(object.material) ? object.material : [object.material])
-          for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value);
-      });
-      textures.forEach((texture) => renderer.initTexture(texture));
+      callbacks.current.onProgress?.(0.1);
+      await scenery.ready; await Promise.all([...propsReady, shop?.ready, ...secretPrints.map((prints) => prints.ready), ...[...packagings.values()].map(({ parts }) => parts.ready)]);
+      callbacks.current.onProgress?.(0.6);
+      // Keep the loading UI responsive; the ordinary render loop must not upload
+      // the whole world implicitly before these scheduled uploads have finished.
+      if (!await uploadTextures(scene, () => !disposed)) return;
       await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed);
-      if (!disposed) { callbacks.current.onProgress?.(1); callbacks.current.onLoaded?.(); }
+      if (!disposed) { worldGpuReady = true; packagings.forEach((entry) => { entry.ready = true; }); callbacks.current.onProgress?.(1); callbacks.current.onLoaded?.(); }
     })();
-    loaderState.current = { load: (selected) => { void load(selected); } };
-    void load(filesRef.current);
+    loaderState.current = { load };
+    load(filesRef.current);
     const resize = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
       renderer.setSize(width, height); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix();
@@ -756,7 +745,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const peelable = () => tappable() && !state.current.locked;
     // The world is the interface: tap a station to go there, a series to open it, an owned figure
     // to inspect it, and empty ground or sky to step back. The target must match on release.
-    type Pick = { kind: "station"; view: WorldView } | { kind: "series"; id: string } | { kind: "figure"; key: string } | { kind: "machine"; pick: MachinePick } | { kind: "soon"; outpost: Outpost } | { kind: "back" };
+    type Pick = { kind: "station"; view: WorldView } | { kind: "series"; id: string } | { kind: "machine"; machine: FigurineMachine; pick: MachinePick } | { kind: "part"; station: Station; part: string } | { kind: "back" };
     let press: { x: number; y: number; pick: Pick | null; yaw: number; pitch: number; panX: number; panY: number } | null = null;
     // Station shots: the shop turns a little (yaw, pitch); the collection pans across (panX, panY). Both zoom.
     const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }, lookTarget = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
@@ -770,7 +759,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     };
     let looking: { id: number; x: number; y: number; yaw: number; pitch: number; panX: number; panY: number } | null = null;
     const lookLimits = () => ({ yaw: 0.35, pitch: 0.15, near: panning() ? 0.35 : 0.6, far: 1.3 });
-    const directed = () => immersive && !flight && (state.current.view === "shop" || state.current.view === "gallery" || state.current.view === "machine");
+    const directed = () => immersive && !flight && isStation(state.current.view);
     const steer = (dx: number, dy: number, from: { yaw: number; pitch: number }) => {
       const limits = lookLimits(), size = renderer.domElement;
       lookTarget.yaw = THREE.MathUtils.clamp(from.yaw - dx / size.clientWidth * 1.8, -limits.yaw, limits.yaw);
@@ -783,7 +772,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const limits = lookLimits();
       lookTarget.zoom = THREE.MathUtils.clamp(lookTarget.zoom * Math.exp(event.deltaY * 0.0012), limits.near, limits.far);
     };
-    let hoveredSeries: string | null = null, hoveredFigure: string | null = null, hoveredStation: Station | "opening" | null = null, hoveredMachine: MachinePick | null = null;
+    let hoveredSeries: string | null = null, hoveredStation: Station | "opening" | null = null, hoveredMachine: MachinePick | null = null;
     // Not while a box is mid-opening: the burst owns the camera.
     const navigable = () => !state.current.charging && (!state.current.open || notifiedReveal);
     const pickAt = (): Pick | null => {
@@ -797,28 +786,33 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const secretHit = scenery?.pickSecret(raycaster);
       if (secretHit && (!hit || secretHit.distance < hit.distance) && worldRef.current?.series.some((entry) => entry.hidden && entry.id === secretHit.id)) return { kind: "series", id: secretHit.id };
       // Empty ground steps back from a station; at the centre (home) it does nothing.
-      if (!hit) return view === "shop" || view === "gallery" || view === "machine" ? { kind: "back" } : null;
+      if (!hit) return isStation(view) ? { kind: "back" } : null;
       let station: Station | null = null;
       for (let object: THREE.Object3D | null = hit.object; object && !station; object = object.parent) station = roots.find(([root]) => root === object)?.[1] ?? null;
-      if (station === "trading" || station === "fame") return { kind: "soon", outpost: station };
       // Boxes and figures can be picked straight from the hub, not only from their station.
       if (station === "shop") { const stack = raycaster.intersectObjects(shop?.picks ?? [], false)[0]; if (stack) return { kind: "series", id: stack.object.userData.series }; }
-      if (station === "gallery") { const card = raycaster.intersectObjects(cabinet?.picks ?? [], false)[0]; if (card) return { kind: "figure", key: card.object.userData.figure }; }
-      // The recycler's cards and lever work only up close, and not while it runs.
-      if (station === "machine" && view === "machine") {
-        const part = raycaster.intersectObjects(recycler?.picks ?? [], false).find(({ object }) => object.userData.machine);
-        if (part) return recycler?.running ? null : { kind: "machine", pick: part.object.userData.machine };
-        if (recycler?.running) return null;
+      // A machine's cards and trigger work only up close, and not while it runs.
+      if ((station === "recycler" || station === "forge") && view === station) {
+        const machine = stationMachines[station];
+        const part = raycaster.intersectObjects(machine?.picks ?? [], false).find(({ object }) => object.userData.machine);
+        if (part) return machine?.running ? null : { kind: "machine", machine: station, pick: part.object.userData.machine };
+        if (machine?.running) return null;
+      }
+      // At the pond, anything of it is fishing tackle: the rod casts, the bobber or water strikes.
+      if (station === "pond" && view === "pond") {
+        let part: string | undefined;
+        for (let object: THREE.Object3D | null = hit.object; object && !part; object = object.parent) part = object.userData.part;
+        return { kind: "part", station, part: part ?? "water" };
       }
       // Tapping the station you are at (off its items) steps back to the hub.
       if (station === view) return { kind: "back" };
       return station ? { kind: "station", view: station } : null;
     };
     const samePick = (a: Pick | null, b: Pick | null) => !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
-    let figureNudge: { key: string; time: number } | null = null;
     const onPointerDown = (event: PointerEvent) => {
       if (!immersive) return;
-      if (introClock < INTRO_SECONDS && state.current.ready) { introClock = INTRO_SECONDS; controls.enabled = true; }
+      // The opening shot plays to its end: no grabs, taps or orbiting until the camera has landed.
+      if (introClock < INTRO_SECONDS) { event.stopImmediatePropagation(); return; }
       aim(event);
       if (peelable() && hits([tape.mesh, tape.hit])) {
         // Claim the gesture before OrbitControls sees it.
@@ -873,10 +867,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (event.buttons || !immersive) return;
       const pick = event.pointerType === "mouse" ? pickAt() : null;
       hoveredSeries = pick?.kind === "series" ? pick.id : null;
-      hoveredStation = pick?.kind === "station" ? pick.view as Station | "opening" : pick?.kind === "soon" ? pick.outpost : null;
+      const station = pick?.kind === "station" ? pick.view as Station | "opening" : null;
+      if (station !== hoveredStation) callbacks.current.onHoverStation?.(station === "opening" ? null : station);
+      hoveredStation = station;
       hoveredMachine = pick?.kind === "machine" ? pick.pick : null;
-      const figure = pick?.kind === "figure" ? pick.key : null;
-      if (figure !== hoveredFigure) { hoveredFigure = figure; callbacks.current.onHoverFigure?.(figure); }
       hoverTape = peelable() && event.pointerType === "mouse" && hits([tape.mesh, tape.hit]);
       hovering = hoverTape || (tappable() && event.pointerType === "mouse" && hits(boxMeshes));
       renderer.domElement.style.cursor = hovering ? "grab" : pick && pick.kind !== "back" ? "pointer" : "";
@@ -892,10 +886,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           if (pick.kind === "station") callbacks.current.onNavigate?.(pick.view);
           else if (pick.kind === "back") callbacks.current.onBack?.();
           else if (pick.kind === "series") { playFigurineCue("ready"); callbacks.current.onPickSeries?.(pick.id); }
-          else if (pick.kind === "machine") { playFigurineCue("tap"); callbacks.current.onMachine?.(pick.pick); }
-          else if (pick.kind === "soon") { playFigurineCue("stick"); callbacks.current.onComingSoon?.(pick.outpost); }
-          else if (owned[pick.key]) { playFigurineCue("sparkle"); callbacks.current.onInspect?.(pick.key); }
-          else { playFigurineCue("tap"); figureNudge = { key: pick.key, time: 0 }; }
+          else if (pick.kind === "machine") { playFigurineCue("tap"); callbacks.current.onMachine?.(pick.machine, pick.pick); }
+          else if (pick.kind === "part") callbacks.current.onFacilityPart?.(pick.station, pick.part);
         }
         press = null;
         return;
@@ -923,18 +915,24 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     renderer.domElement.addEventListener("pointerleave", onPointerLeave);
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
     const homeTarget = controls.target.clone();
+    // The station panel's size (world-panels.module.css): docked right, or a bottom sheet below this width.
+    const PANEL_SHEET_WIDTH = 700;
+    // The share of the screen a docked panel covers on wide screens (all stations but the shop have one).
+    const panelShare = (view: WorldView) => { const width = renderer.domElement.clientWidth; return isStation(view) && view !== "shop" && width > PANEL_SHEET_WIDTH ? Math.min(state.current.panelWidth + 16, width * 0.7) / width : 0; };
+    // A station is framed to fit beside its panel, not behind it.
+    const shotAspect = (view: WorldView) => camera.aspect * Math.max(0.3, 1 - panelShare(view));
     // Camera director: flies between station poses; the opening view keeps its own cinematic camera.
     let flight: { from: THREE.Vector3; fromTarget: THREE.Vector3; t: number } | null = null;
     let currentView: WorldView = state.current.view, displayClock = 0;
     if (immersive && currentView !== "opening") {
-      const start = viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, camera.aspect);
+      const start = viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, shotAspect(currentView));
       camera.position.copy(start.position); controls.target.copy(start.target);
     }
     const FLIGHT_SECONDS = 0.95, INTRO_SECONDS = 3;
     // Opening shot, once the loader lifts: from wide, high and centred, the camera zooms in while
     // drifting right, settling just right of head-on; auto-rotation carries the drift on.
     // Any press ends it where it is and hands the camera to the user.
-    let introClock = immersive && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : INTRO_SECONDS;
+    let introClock = immersive && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : INTRO_SECONDS, introNotified = false;
     let centreShot: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
     const ease = (t: number) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
     // A picked box waits out part of the camera's flight (hidden), then drops in to land as it arrives.
@@ -977,9 +975,6 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       }
       const reduced = reducedMotion.matches;
       FINISH_TIME.value = reduced ? 0 : now / 1000;
-      if (model && shownFinish !== current.quality) {
-        shownFinish = current.quality; applyFinish(model, shownFinish, environment);
-      }
       const target = current.open ? 1 : 0;
       reveal = reduced ? target : THREE.MathUtils.damp(reveal, target, 4.5, delta);
       idle += delta;
@@ -1022,7 +1017,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         const building = active && !bursting;
         const tremble = building ? build.tremble * 0.014 : 0, knock = building ? build.knock : 0;
         // A station shot from far back (narrow screens) can pass behind the pedestal: the box steps aside.
-        const station = currentView === "shop" || currentView === "gallery" || currentView === "machine" ? STATIONS[currentView].position : null;
+        const station = isStation(currentView) ? STATIONS[currentView].position : null;
         const blocking = !!station && camera.position.distanceTo(station) > station.length() - 1.5;
         box.visible = current.boxMode && dropDelay < 0 && (!bursting || motion.boxOpacity > 0.001) && !blocking;
         hover = THREE.MathUtils.damp(hover, (hovering || grab || shake) && current.interactive ? 1 : 0, 10, delta);
@@ -1149,28 +1144,27 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           contact.scale.setScalar(2.2); contactMaterial.opacity = model ? 0.45 : 0;
           beam.visible = core.visible = flash.visible = false;
         }
-        for (const [group, extent] of [[shopGroup, { x: 3.3, back: -1.1, front: 1.8 }], [caseGroup, { x: 2.4, back: -0.5, front: 0.5 }], [machineGroup, { x: 3, back: -1.2, front: 1.4 }], [outpostGroups.trading, { x: 2.6, back: -1.1, front: 1.2 }], [outpostGroups.fame, { x: 2.4, back: -1.1, front: 1.2 }]] as const) {
+        for (const [group, name] of stationGroups) {
+          const extent = { x: STATION_SPECS[name].width / 2, back: STATION_SPECS[name].back, front: STATION_SPECS[name].front };
           if (!group) continue;
           const local = group.worldToLocal(screen.copy(camera.position)), margin = 1.6;
           const near = Math.abs(local.x) < extent.x + margin && local.z > extent.back - margin && local.z < extent.front + margin && local.y < 6;
           group.visible = flight !== null || (current.view !== "opening" && current.view !== "viewer") || !(near || (local.z < extent.back && local.length() < 16));
         }
         shop?.update(hoveredSeries, delta, idle);
-        if (figureNudge) { figureNudge.time += delta; if (figureNudge.time > 0.5) figureNudge = null; }
-        cabinet?.update(hoveredFigure, delta);
+        facilities.forEach((facility) => facility.update(delta, idle));
+        if (!reduced) statues?.update(delta);
         for (const station of Object.keys(stationGlow) as (keyof typeof stationGlow)[]) stationGlow[station] = THREE.MathUtils.damp(stationGlow[station], hoveredStation === station ? 1 : 0, 9, delta);
         glowing.forEach((materials, view) => materials.forEach((material) => { material.emissiveIntensity = stationGlow[view] * 0.07; }));
         stackOutlines.forEach((outline, id) => outline.update(hoveredSeries === id ? 1 : 0, delta));
         for (const [station, outline] of Object.entries(stationOutlines)) outline.update(hoveredStation === station ? 1 : 0, delta);
-        recycler?.update(current.view === "machine" ? hoveredMachine : null, delta, idle);
+        for (const kind of ["recycler", "forge"] as const) stationMachines[kind]?.update(current.view === kind ? hoveredMachine : null, delta, idle);
         pedestalOutline?.update(hoveredStation === "opening" ? 1 : 0, delta);
         boxOutline?.update(hoveredStation === "opening" || (hovering && !hoverTape && !grab) || shake ? 1 : 0, delta);
         // An invitation to grab: it fades once the peel starts.
         tapeGlow = THREE.MathUtils.damp(tapeGlow, hoverTape && !shake && !grab ? 1 : 0, 12, delta);
         tape.material.emissiveIntensity = tapeGlow * 0.3;
         tape.glowStrength.value = tapeGlow * tape.material.opacity; tape.glow.visible = tape.glowStrength.value > 0.01;
-        if (figureNudge) cabinet?.picks.find((card) => card.userData.figure === figureNudge?.key)?.rotation.set(0, 0, Math.sin(figureNudge.time * 40) * 0.12 * (1 - figureNudge.time / 0.5));
-        if (!portraitBusy && portraitQueue.length) void pumpPortraits();
       } else {
         box.visible = current.boxMode;
         modelRoot.visible = !current.boxMode || reveal > 0.02;
@@ -1187,7 +1181,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       }
       for (const key of ["yaw", "pitch", "zoom", "panX", "panY"] as const) look[key] = THREE.MathUtils.damp(look[key], lookTarget[key], 9, delta);
       const destination = !immersive ? null : (currentView === "opening" || currentView === "viewer") && centreShot
-        ? { position: centreShot.position.clone(), target: centreShot.target.clone() } : viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, camera.aspect);
+        ? { position: centreShot.position.clone(), target: centreShot.target.clone() } : viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, shotAspect(currentView));
       if (destination && currentView !== "opening" && currentView !== "viewer") {
         // The look-around turns the shot about its target: yaw around up, pitch around the shot's right.
         const offset = destination.position.clone().sub(destination.target);
@@ -1196,6 +1190,18 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         destination.position.copy(destination.target).add(offset);
         const across = screen.set(offset.z, 0, -offset.x).normalize().multiplyScalar(look.panX);
         destination.target.add(across).y += look.panY; destination.position.add(across).y += look.panY;
+        // Stations with a panel (all but the shop) slide aside so the panel never covers them:
+        // left of a panel docked right on wide screens, above the sheet on narrow ones.
+        if (currentView !== "shop") {
+          const element = renderer.domElement, visibleH = 2 * offset.length() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+          if (element.clientWidth > PANEL_SHEET_WIDTH) {
+            const side = screen.set(offset.z, 0, -offset.x).normalize().multiplyScalar(panelShare(currentView) / 2 * visibleH * camera.aspect);
+            destination.target.add(side); destination.position.add(side);
+          } else {
+            const lift = Math.min(0.52 * element.clientHeight, element.clientHeight) / 2 / element.clientHeight * visibleH;
+            destination.target.y -= lift; destination.position.y -= lift;
+          }
+        }
       }
       if (flight && destination) {
         flight.t = reduced ? 1 : Math.min(1, flight.t + Math.min(elapsed, 0.1) / FLIGHT_SECONDS);
@@ -1212,6 +1218,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         controls.target.y = THREE.MathUtils.damp(controls.target.y, immersive ? 1.5 + (bursting ? motion.lift * 0.6 : 0) : current.boxMode && current.open ? 2.1 : 1.5, 4, delta);
       }
       const introducing = immersive && introClock < INTRO_SECONDS && currentView === "opening" && !flight;
+      if (immersive && !introNotified && introClock >= INTRO_SECONDS && current.ready) { introNotified = true; callbacks.current.onIntroDone?.(); }
       if (introducing) {
         if (current.ready) introClock += Math.min(elapsed, 0.1);
         const rest = 1 - ease(Math.min(1, introClock / INTRO_SECONDS));
@@ -1240,16 +1247,17 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       controls.update(delta); if (!reduced) mixer?.update(delta);
       const cameraShake = cinematic ? (bursting ? motion.shake : build.knock * 0.3) : 0;
       if (cameraShake > 0) camera.position.add(velocity.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(cameraShake * 0.13));
-      renderer.render(scene, camera);
+      if (worldGpuReady) renderer.render(scene, camera);
     });
     return () => {
-      disposed = true; generation++; loaderState.current = null; stopHum();
+      disposed = true; generation++; loaderState.current = null; stopHum(); ktx2Loader.dispose();
       peelSound?.stop();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown, { capture: true }); renderer.domElement.removeEventListener("pointerup", letGo);
       renderer.domElement.removeEventListener("pointercancel", letGo);
       renderer.domElement.removeEventListener("pointermove", onPointerMove); renderer.domElement.removeEventListener("pointerleave", onPointerLeave); renderer.domElement.removeEventListener("wheel", onWheel);
       renderer.setAnimationLoop(null); resize.disconnect(); skyLight?.dispose(); controls.dispose(); mixer?.stopAllAction();
-      packagings.forEach(({ parts }) => parts.stop()); releaseFinishes(modelRoot); disposeObject(scene); environment.dispose(); shop?.stop(); secretPrints.forEach((prints) => prints.stop()); portraits.forEach((target) => target.dispose()); compileTarget.dispose(); api.current = null; pendingUrls.forEach((url) => URL.revokeObjectURL(url)); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
+      prepared.dispose();
+      packagings.forEach(({ parts }) => parts.stop()); releaseFinishes(modelRoot); disposeObject(scene); environment.dispose(); shop?.stop(); secretPrints.forEach((prints) => prints.stop()); statues?.dispose(); portraitCards.dispose(); boxTextures.dispose(); compileTarget.dispose(); api.current = null; pendingUrls.forEach((url) => URL.revokeObjectURL(url)); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     };
   }, [labels.boxTitle, labels.boxSubtitle, labels.series, immersive, gallery]);
   // Another series swaps in its prebuilt box; changed print text rebuilds them. The first run of
@@ -1259,7 +1267,13 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   useEffect(() => { if (shownSeries.current !== series) { shownSeries.current = series; api.current?.showBox(); } }, [series]);
   const collection = world?.collection;
   useEffect(() => { if (collection) api.current?.setCollection(collection); }, [collection]);
-  useEffect(() => { if (machine) api.current?.setMachine(machine); }, [machine]);
+  const showcase = world?.showcase;
+  useEffect(() => { if (showcase) api.current?.setShowcase(showcase); }, [showcase]);
+  const streakOpened = world?.streak.opened, streakToday = world?.streak.today;
+  useEffect(() => { if (streakOpened !== undefined) api.current?.setStreak(streakOpened, streakToday ?? null); }, [streakOpened, streakToday]);
+  useEffect(() => { if (action) api.current?.act(action); }, [action]);
+  useEffect(() => { if (poke) api.current?.poke(poke); }, [poke]);
+  useEffect(() => { if (machines) api.current?.setMachines(machines); }, [machines]);
 
   return <div className={`${styles.stageWrap} ${immersive ? styles.immersiveStage : ""} ${gallery ? styles.galleryStage : ""}`}>
     <div ref={host} className={styles.stage} role="img" aria-label={boxMode ? labels.box : labels[status]} />

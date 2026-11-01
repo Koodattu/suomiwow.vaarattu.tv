@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Figurine texture comparison</title>
+<style>
+  :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; background: #161b23; color: #edf1f7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  main { max-width: 1160px; margin: auto; padding: 24px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  p { margin: 6px 0 18px; color: #b6c0d0; }
+  a { color: #a9ceff; }
+  .toolbar, .formats, .camera { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar { margin: 20px 0 14px; gap: 20px; }
+  label { display: flex; align-items: center; gap: 10px; }
+  button, select { font: inherit; color: inherit; background: #242d3b; border: 1px solid #516078; border-radius: 6px; min-height: 44px; padding: 8px 14px; cursor: pointer; }
+  button:hover, select:hover { background: #303d50; }
+  button[aria-pressed="true"] { background: #c8ddff; border-color: #c8ddff; color: #15233a; }
+  :focus-visible { outline: 3px solid #f1c46d; outline-offset: 3px; }
+  .formats button { flex: 1 1 190px; text-align: left; }
+  .formats small { display: block; opacity: .8; font-size: 12px; }
+  #status { min-height: 24px; margin: 14px 0 8px; color: #edf1f7; }
+  #view { height: clamp(340px, 65vh, 720px); width: 100%; background: #20252d; border: 1px solid #344052; border-radius: 8px; overflow: hidden; }
+  #view canvas { display: block; width: 100%; height: 100%; }
+  .camera { margin: 12px 0; }
+  #metrics { font-variant-numeric: tabular-nums; }
+  .note { font-size: 14px; max-width: 920px; }
+  @media (max-width: 600px) { main { padding: 16px; } h1 { font-size: 23px; } .formats { gap: 6px; } .formats button { flex-basis: 100%; } .toolbar { gap: 10px; } #view { height: 440px; } }
+</style>
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+<main>
+  <h1>Compare the textures</h1>
+  <p>Switch formats at the same angle and zoom. Drag to rotate; scroll or pinch to zoom.</p>
+  <div class="toolbar">
+    <label>Model <select id="model"><option value="kahvishock">Kahvishock</option><option value="roidy">Röidy</option><option value="rmp">Rmp</option></select></label>
+    <label>Finish <select id="finish"><option value="standard">Standard</option><option value="golden">Golden</option><option value="galaxy">Galaxy</option></select></label>
+  </div>
+  <div class="formats" role="group" aria-label="Texture format">
+    <button type="button" data-variant="webp" aria-pressed="true">Original · WebP<small>The textures used before KTX2</small></button>
+    <button type="button" data-variant="etc1s" aria-pressed="false">KTX2 · ETC1S<small>Smaller compressed pilot files</small></button>
+    <button type="button" data-variant="ktx2" aria-pressed="false">KTX2 · UASTC<small>Larger compressed pilot files</small></button>
+  </div>
+  <p id="status" role="status" aria-live="polite">Loading the viewer…</p>
+  <div id="view" aria-label="3D figurine preview" aria-busy="true"></div>
+  <div class="camera" role="group" aria-label="Camera">
+    <button type="button" id="front">Front / reset</button>
+    <button type="button" id="back">Back</button>
+    <button type="button" id="closer">Zoom in</button>
+    <button type="button" id="farther">Zoom out</button>
+  </div>
+  <p id="metrics">Preparing model…</p>
+  <p class="note">ETC1S and UASTC are two compression options inside KTX2. The first selection loads that version; later switches reuse it. Lighting, pose and finish effects stay fixed for comparison. Only the three pilot models are available.</p>
+  <p class="note">The KTX2 pilots were made from original PNG exports; the current version uses WebP. Differences can include both encodings. <a href="/benchmark">Open the measurement harness</a>.</p>
+  <noscript>This viewer requires JavaScript and WebGL.</noscript>
+</main>
+<script type="module" src="/bench/figurine-compare-browser.mjs"></script>
+</html>
