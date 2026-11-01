@@ -2,27 +2,33 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
 
-test("all collectible and world GLBs use embedded ETC1S with mipmaps and bounded texture payloads", async () => {
-  const root = new URL("../public/figurines/", import.meta.url);
-  const files = (await fs.readdir(root, { recursive: true })).filter(file => /^(community-|world[\\/])/.test(file) && file.endsWith(".glb"));
+test("all public GLBs use embedded ETC1S with mipmaps and bounded texture payloads", async () => {
+  const root = new URL("../public/", import.meta.url);
+  const files = (await fs.readdir(root, { recursive: true })).filter(file => file.endsWith(".glb"));
   assert.ok(files.length >= 112);
   for (const file of files) {
     const bytes = await fs.readFile(new URL(file.replaceAll("\\", "/"), root)), length = bytes.readUInt32LE(12);
     const doc = JSON.parse(bytes.subarray(20, 20 + length)), bin = bytes.subarray(28 + length);
-    assert.ok(doc.extensionsRequired.includes("KHR_texture_basisu"), file);
+    if (doc.images?.length) assert.ok(doc.extensionsRequired.includes("KHR_texture_basisu"), file);
+    for (const texture of doc.textures ?? []) {
+      assert.ok(Number.isInteger(texture.extensions?.KHR_texture_basisu?.source), `${file}: BasisU texture source`);
+      assert.equal(texture.source, undefined, `${file}: no uncompressed fallback`);
+      assert.equal(texture.extensions?.EXT_texture_webp, undefined, `${file}: no WebP fallback`);
+    }
     let residentBytes = 0;
-    for (const image of doc.images) {
+    for (const image of doc.images ?? []) {
       assert.equal(image.mimeType, "image/ktx2", file); assert.equal(image.uri, undefined);
       const view = doc.bufferViews[image.bufferView], data = bin.subarray(view.byteOffset, view.byteOffset + view.byteLength);
       assert.deepEqual([...data.subarray(0, 12)], [171, 75, 84, 88, 32, 50, 48, 187, 13, 10, 26, 10]);
       assert.equal(data.readUInt32LE(44), 1, `${file}: ETC1S BasisLZ supercompression`);
+      assert.equal(data[data.readUInt32LE(48) + 12], 163, `${file}: ETC1S color model`);
       const width = data.readUInt32LE(20), height = data.readUInt32LE(24), levels = data.readUInt32LE(40);
       assert.equal(width & (width - 1), 0, `${file}: compatible compressed mip width`);
       assert.equal(height & (height - 1), 0, `${file}: compatible compressed mip height`);
       assert.equal(levels, Math.floor(Math.log2(Math.max(width, height))) + 1, file);
       for (let level = 0; level < levels; level++) residentBytes += Math.ceil(Math.max(1, width >> level) / 4) * Math.ceil(Math.max(1, height >> level) / 4) * 16;
     }
-    if (file.startsWith("community-")) assert.ok(residentBytes <= 32 * 1024 * 1024, `${file}: 8-bpp GPU texture budget`);
+    if (/^figurines[\\/](community-|prototype-series-)/.test(file)) assert.ok(residentBytes <= 32 * 1024 * 1024, `${file}: 8-bpp GPU texture budget`);
   }
 });
 

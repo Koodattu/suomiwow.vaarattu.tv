@@ -23,15 +23,25 @@ const imageBytes = ({ doc, bin }, index) => { const view = doc.bufferViews[doc.i
 const imageOf = (doc, index) => { const texture = doc.textures[index]; return texture.source ?? texture.extensions?.EXT_texture_webp?.source ?? texture.extensions?.KHR_texture_basisu?.source; };
 const slots = (material) => ({ baseColor: material.pbrMetallicRoughness?.baseColorTexture, metallicRoughness: material.pbrMetallicRoughness?.metallicRoughnessTexture, normal: material.normalTexture, occlusion: material.occlusionTexture, emissive: material.emissiveTexture });
 const catalogs = [];
-for (const file of (await fs.readdir(path.join(frontend, "src/data/figurines"))).filter(file => /^community-\d+\.json$/.test(file))) {
+for (const file of (await fs.readdir(path.join(frontend, "src/data/figurines"))).filter(file => /^(community-|prototype-series-)\d+\.json$/.test(file))) {
   const filename = path.join(frontend, "src/data/figurines", file);
   catalogs.push({ filename, doc: JSON.parse(await fs.readFile(filename)), original: await fs.readFile(filename) });
 }
-const jobs = ["world-models-002", "world-models-003", "station-models-001", "facility-models-001", "facility-models-002"];
-async function sourceFor(file) {
+const jobs = (await fs.readdir(path.join(exporter, "worker/data/results"))).filter(job => /-models-\d+$/.test(job));
+async function sourceFor(file, currentDoc) {
   const base = path.basename(file, ".glb");
   if (file.startsWith("world" + path.sep)) {
-    for (const job of jobs) { const source = path.join(exporter, "worker/data/results", job, `${base}.glb`); try { return { bytes: await fs.readFile(source), source }; } catch (error) { if (error.code !== "ENOENT") throw error; } }
+    const candidates = new Map();
+    for (const job of jobs) {
+      const source = path.join(exporter, "worker/data/results", job, `${base}.glb`);
+      try {
+        const bytes = await fs.readFile(source), raw = parse(bytes);
+        // Different export jobs can reuse a filename for different WoW assets.
+        if ((currentDoc.materials ?? []).every(material => raw.doc.materials?.some(candidate => candidate.name === material.name))) candidates.set(hash(bytes), { bytes, source });
+      } catch (error) { if (error.code !== "ENOENT") throw error; }
+    }
+    if (candidates.size > 1) throw new Error(`Ambiguous original sources: ${file}`);
+    if (candidates.size === 1) return [...candidates.values()][0];
   } else {
     const catalog = catalogs.find(c => c.doc.id === file.split(path.sep)[0])?.doc;
     const entry = catalog?.characters.find(c => c.id === base);
@@ -77,7 +87,7 @@ function replaceImages(original, replacements) {
   let binary = Buffer.concat(parts); doc.buffers[0].byteLength = binary.length;
   if (binary.length % 4) binary = Buffer.concat([binary, Buffer.alloc(4 - binary.length % 4)]);
   for (const texture of doc.textures ?? []) {
-    const source = texture.source ?? texture.extensions?.EXT_texture_webp?.source;
+    const source = texture.source ?? texture.extensions?.EXT_texture_webp?.source ?? texture.extensions?.KHR_texture_basisu?.source;
     texture.extensions ??= {}; delete texture.extensions.EXT_texture_webp; delete texture.source;
     texture.extensions.KHR_texture_basisu = { source };
   }
@@ -97,11 +107,25 @@ function replaceImages(original, replacements) {
   });
   return output;
 }
-const files = (await fs.readdir(originalRoot,{recursive:true})).filter(file=>file.endsWith(".glb")&&(file.startsWith("community-")||file.startsWith("world"+path.sep))).sort();
+const files = (await fs.readdir(publicRoot,{recursive:true})).filter(file=>file.endsWith(".glb")).sort();
 const plans = [];
 // Resolve every texture against original source material slots before writing any served file.
 for (const file of files) {
-  const original = await fs.readFile(path.join(originalRoot,file)), current = parse(original), source = await sourceFor(file), raw = parse(source.bytes);
+  const original = await fs.readFile(path.join(publicRoot,file)), current = parse(original);
+  const isEtc1s = (image, index) => {
+    if (image.mimeType !== "image/ktx2") return false;
+    const bytes = imageBytes(current,index);
+    return bytes.readUInt32LE(44) === 1 && bytes[bytes.readUInt32LE(48) + 12] === 163;
+  };
+  if ((current.doc.images ?? []).every(isEtc1s)) continue;
+  const backup = path.join(originalRoot,file);
+  await fs.mkdir(path.dirname(backup),{recursive:true});
+  try { await fs.writeFile(backup,original,{flag:"wx"}); }
+  catch(error) {
+    if(error.code!=="EEXIST")throw error;
+    if(!(await fs.readFile(backup)).equals(original))throw new Error(`Backup differs; use a fresh work directory: ${file}`);
+  }
+  const source = await sourceFor(file,current.doc), raw = parse(source.bytes);
   const sources = current.doc.images.map(()=>new Map());
   for (const material of current.doc.materials ?? []) for (const [slot,reference] of Object.entries(slots(material))) {
     if (!reference) continue;
@@ -112,18 +136,26 @@ for (const file of files) {
     }
   }
   const textures = await Promise.all(sources.map(async (candidates,index) => {
+    if (isEtc1s(current.doc.images[index],index)) return { encoded: imageBytes(current,index) };
     if (candidates.size !== 1) throw new Error(`${file} image ${index}: ${candidates.size} original source candidates`);
-    const meta = await sharp(imageBytes(current,index)).metadata();
+    const bytes = imageBytes(current,index);
+    const meta = current.doc.images[index].mimeType === "image/ktx2" ? { width:bytes.readUInt32LE(20), height:bytes.readUInt32LE(24) } : await sharp(bytes).metadata();
+    if ((meta.width & (meta.width-1)) || (meta.height & (meta.height-1))) throw new Error(`Non-power-of-two runtime image: ${file} image ${index}`);
     return { source: [...candidates.values()][0], width:meta.width, height:meta.height, color: current.doc.materials.some(m=>[m.pbrMetallicRoughness?.baseColorTexture,m.emissiveTexture].some(t=>t&&imageOf(current.doc,t.index)===index)) };
   }));
   plans.push({ file, original, textures, source: source.source });
 }
 console.log(`Preflight: ${plans.length} models, ${plans.reduce((s,p)=>s+p.textures.length,0)} textures from original exports.`);
+if (!plans.length) {
+  console.log("All model textures already use ETC1S; no assets or catalogs changed.");
+  process.exit(0);
+}
 const textureDir = path.join(work,"textures"); await fs.mkdir(textureDir,{recursive:true});
 const report = { codec:"ETC1S",qlevel:255,clevel:2,mipmaps:true,models:[] };
 for (const plan of plans) {
   const replacements=[];
   for (const texture of plan.textures) {
+    if (texture.encoded) { replacements.push(texture.encoded); continue; }
     const png = await sharp(texture.source).resize(texture.width,texture.height,{fit:"fill"}).ensureAlpha().png().toBuffer();
     const key=hash(Buffer.concat([png,Buffer.from(texture.color?"srgb":"linear")])), pngFile=path.join(textureDir,`${key}.png`), ktxFile=path.join(textureDir,`${key}.ktx2`);
     try { replacements.push(await fs.readFile(ktxFile)); }
@@ -148,12 +180,17 @@ if(apply==="--apply") {
   // Reject concurrent edits before replacing any model or catalog.
   for(const model of report.models)if(hash(await fs.readFile(path.join(publicRoot,model.file)))!==model.originalHash)throw new Error(`Concurrent asset edit: ${model.file}`);
   for(const catalog of catalogs)if(!(await fs.readFile(catalog.filename)).equals(catalog.original))throw new Error(`Concurrent catalog edit: ${catalog.filename}`);
+  const changedCatalogs = catalogs.filter(catalog=>catalog.doc.characters.some(entry=>report.models.some(m=>m.file.replaceAll(path.sep,"/")===entry.model.split("?")[0].replace("/figurines/",""))));
+  for(const catalog of changedCatalogs) {
+    await fs.mkdir(path.join(work,"catalogs"),{recursive:true});
+    await fs.writeFile(path.join(work,"catalogs",path.basename(catalog.filename)),catalog.original,{flag:"wx"});
+  }
   for(const model of report.models)await fs.copyFile(path.join(outputRoot,model.file),path.join(publicRoot,model.file));
-  for(const catalog of catalogs) {
+  for(const catalog of changedCatalogs) {
     catalog.doc.compression = { geometry: "EXT_meshopt_compression", textures: "KHR_texture_basisu", codec: "ETC1S", maxTextureSize: 2048, qlevel: 255, clevel: 2, mipmaps: true };
     for(const entry of catalog.doc.characters) {
       const model=report.models.find(m=>m.file.replaceAll(path.sep,"/")===entry.model.split("?")[0].replace("/figurines/",""));
-      if(!model)throw new Error(`Missing converted catalog model: ${entry.model}`);
+      if(!model)continue;
       entry.bytes=model.bytes; entry.sha256=model.sha256; entry.model=entry.model.split("?")[0]+`?v=${model.sha256.slice(0,12)}`;
     }
     await fs.writeFile(catalog.filename,JSON.stringify(catalog.doc,null,2)+"\n");

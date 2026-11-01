@@ -535,15 +535,15 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     let mixer: THREE.AnimationMixer | null = null;
     let disposed = false, generation = 0;
     const pendingUrls = new Set<string>();
-    // Restores materials, faces the camera, scales to 2.5 units and stands the figure on the disc.
+    // Restores materials, faces the camera and stands the body at its race/form height on the disc.
     const prepareModel = (root: THREE.Object3D) => {
       restoreFigurineMaterials(root);
       if (immersive || gallery) root.rotation.y = -Math.PI / 2;
       const bounds = new THREE.Box3().setFromObject(root);
       const size = bounds.getSize(new THREE.Vector3());
       if (!Number.isFinite(size.y) || size.y <= 0 || size.length() === 0) { disposeObject(root); throw new Error("Empty model"); }
-      // Sized by the body, not by staffs, wings or effects, so every figure stands the same size.
-      const scale = figurineScale(figurineBodyBounds(root));
+      // Accessories do not determine body height; race/form does.
+      const scale = figurineScale(figurineBodyBounds(root), root.name);
       const support = figurineSupport(root, bounds);
       root.scale.multiplyScalar(scale);
       root.position.x -= support.x * scale;

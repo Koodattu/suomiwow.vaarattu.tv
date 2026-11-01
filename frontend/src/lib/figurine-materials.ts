@@ -67,10 +67,32 @@ export function figurineBodyBounds(root: THREE.Object3D): THREE.Box3 {
   return body.isEmpty() ? new THREE.Box3().setFromObject(root) : body;
 }
 
-// Every figure's body stands this tall in world units (a box on the pedestal is 2.75); items may
-// reach past it. Wide bodies (sitting, crouching, big races) are fitted within `FIGURE_WIDTH`.
+// The tallest standard body and the shared footprint limit (the box is 2.75 tall).
 export const FIGURE_HEIGHT = 2.3, FIGURE_WIDTH = 3.1;
-export const figurineScale = (body: THREE.Box3) => {
+// Art-directed display heights, not canonical measurements in metres. Keys are the exporter's
+// body model names, so visage/cat forms are sized by their visible body, not the owner's race.
+// Keep the largest races within the existing camera/box envelope; items may extend past it.
+// All 26 playable races have targets, including races not yet in the catalog.
+// Male and female variants share a target. Scourge = Undead; Harronir = Haranir.
+export const FIGURE_BODY_HEIGHTS: Readonly<Record<string, number>> = {
+  human: 1.85, kultiran: 2.15, scourge: 1.8, worgen: 2.1,
+  dwarf: 1.3, darkirondwarf: 1.3, earthen: 1.45,
+  gnome: 0.95, mechagnome: 0.95, goblin: 1.05, vulpera: 1.1,
+  bloodelf: 1.85, voidelf: 1.85, nightelf: 2.1, nightborne: 2.1,
+  draenei: 2.15, lightforgeddraenei: 2.15,
+  orc: 2, magharorc: 2, troll: 2.15, zandalaritroll: 2.2, pandaren: 1.95,
+  tauren: FIGURE_HEIGHT, highmountaintauren: FIGURE_HEIGHT,
+  harronir: 2.1, dracthyr: 1.85, dracthyrdragon: 2.2, cat: 1.1,
+};
+
+export function figurineHeight(modelName = ""): number {
+  // Known WoW exports: dwarffemale_hd_Scene, highmountaintaurenmale_Scene, cat_Scene.
+  // Custom imports without this naming convention retain the previous neutral fitting.
+  const body = /^([a-z]+?)(?:female|male)?(?:_hd)?_scene$/i.exec(modelName)?.[1].toLowerCase();
+  return body && Object.hasOwn(FIGURE_BODY_HEIGHTS, body) ? FIGURE_BODY_HEIGHTS[body] : FIGURE_HEIGHT;
+}
+
+export const figurineScale = (body: THREE.Box3, modelName?: string) => {
   const size = body.getSize(new THREE.Vector3());
-  return Math.min(FIGURE_HEIGHT / Math.max(size.y, 1e-3), FIGURE_WIDTH / Math.max(size.x, size.z, 1e-3));
+  return Math.min(figurineHeight(modelName) / Math.max(size.y, 1e-3), FIGURE_WIDTH / Math.max(size.x, size.z, 1e-3));
 };

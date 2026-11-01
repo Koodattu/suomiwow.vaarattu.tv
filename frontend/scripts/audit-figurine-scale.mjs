@@ -5,7 +5,7 @@ import path from "node:path";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
-import { figurineBodyBounds, figurineScale } from "../src/lib/figurine-materials.ts";
+import { figurineBodyBounds, figurineHeight, figurineScale } from "../src/lib/figurine-materials.ts";
 const frontend=path.resolve(import.meta.dirname,".."), results=[];
 const loader=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 for(const file of (await fs.readdir(path.join(frontend,"src/data/figurines"))).filter(f=>/^community-\d+\.json$/.test(f))) {
@@ -20,8 +20,8 @@ for(const file of (await fs.readdir(path.join(frontend,"src/data/figurines"))).f
     const bytes=Buffer.concat([header,json,bin]);const {scene}=await loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),"");
     scene.rotation.y=-Math.PI/2;
     const full=new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3()), body=figurineBodyBounds(scene), size=body.getSize(new THREE.Vector3());
-    const previous=Math.min(2.5/full.y,2.9/Math.max(full.x,full.z)), current=figurineScale(body);
-    results.push({id:figure.id,series:catalog.id,name:figure.name,bodyHeight:size.y,fullHeight:full.y,beforeBodyHeight:size.y*previous,afterBodyHeight:size.y*current,widthLimited:current<2.3/size.y-1e-6});
+    const previous=figurineScale(body), targetHeight=figurineHeight(scene.name), current=figurineScale(body,scene.name);
+    results.push({id:figure.id,series:catalog.id,name:figure.name,race:figure.raceKey,modelName:scene.name,targetHeight,bodyHeight:size.y,fullHeight:full.y,beforeBodyHeight:size.y*previous,afterBodyHeight:size.y*current,widthLimited:current<targetHeight/size.y-1e-6});
     scene.traverse(o=>{if(o.isMesh){o.geometry.dispose();for(const material of [o.material].flat())material.dispose();}});
   }
 }

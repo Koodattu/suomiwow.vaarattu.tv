@@ -7,13 +7,13 @@ import { disposeFigurineObject } from "@/lib/figurine-cache";
 import type { FigurineQuality } from "@/lib/figurine-collection";
 
 // The showcase's figures, standing about the world at their spots (one per showcase place) like
-// visitors to the village: on the ground, full size (the same body height as on the pedestal),
+// visitors to the village: on the ground, at the same race/form height as on the pedestal,
 // idling if their model has an idle. Each also stands in the display cabinet's cubby of the same
 // number as a small copy, posed at a moment of its idle. Figures load one at a time, so a full
 // showcase never stalls a frame.
 export type StatueEntry = { url: string; quality: FigurineQuality } | null;
 const STATUE_HEIGHT = FIGURE_HEIGHT;
-// A cabinet copy's height, to fit its cubby.
+// The tallest standard cabinet body; smaller races retain their relative height.
 const MINIATURE_HEIGHT = 0.64;
 
 export function buildStatues(parent: THREE.Object3D, { finishEnv, load, cubbies = [] }: { finishEnv: THREE.Texture; load: (url: string) => Promise<{ scene: THREE.Object3D; animations: THREE.AnimationClip[] }>; cubbies?: THREE.Object3D[] }) {
@@ -25,7 +25,7 @@ export function buildStatues(parent: THREE.Object3D, { finishEnv, load, cubbies 
   const place = (root: THREE.Object3D) => {
     restoreFigurineMaterials(root);
     root.rotation.y = -Math.PI / 2;
-    const scale = figurineScale(figurineBodyBounds(root)) * STATUE_HEIGHT / FIGURE_HEIGHT;
+    const scale = figurineScale(figurineBodyBounds(root), root.name) * STATUE_HEIGHT / FIGURE_HEIGHT;
     const support = figurineSupport(root, new THREE.Box3().setFromObject(root));
     root.scale.multiplyScalar(scale);
     root.position.set(-support.x * scale, -support.y * scale, -support.z * scale);

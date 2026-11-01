@@ -933,6 +933,21 @@ backs up the inputs and prepares validated outputs. Add `--apply` to install
 them after checking that source assets and catalogs have not changed. It needs
 the original exporter results and the exporter's existing optimizer dependencies.
 
+The 2026-11-01 follow-up covers all 127 public GLBs: 49 community figures,
+two retained prototype figures and 76 world models. It converts the 13 new fishing
+props and both prototypes from original PNG exports, retaining runtime dimensions
+and ETC1S quality 255. All 34 converted image payloads have full mip chains;
+non-image buffers remain byte-identical. Prototype catalog hashes and the prop
+URL version were refreshed. The close-up box artwork remains UASTC.
+
+The converter now scans current served GLBs, backs up only models needing
+conversion and skips existing ETC1S payloads. Use a fresh work directory for each
+batch. It discovers world export jobs and matches material names, rejecting
+ambiguous sources. After applying world conversions, bump the affected loader's
+URL version (`PROP_VERSION` or `MODEL_VERSION`). Run
+`node --test test/figurine-ktx.test.mjs` from `frontend` after importing models;
+the check scans every public GLB, including prototypes and newly added folders.
+
 Boxes use baked artwork for Series 000, 001 and 002, plus one shared gray design
 for unreleased series. English and Finnish produce eight localized designs.
 The shelf tier uses small textures; the close-up artwork is repainted at twice
@@ -961,6 +976,25 @@ not simultaneously resident textures or measured driver allocations. Runtime
 caches continue to bound residency instead of loading the whole library.
 
 `scripts/audit-figurine-scale.mjs` verifies body-based fitting, excluding attached
-weapons and accessories: 47 figures reach the common 2.3-unit body height;
-Zetabeach remains shorter because the wide pose reaches the 3.1-unit width limit.
-The fitting preserves proportions and authored poses.
+weapons and accessories. As of 2026-11-01, the reveal, village figures and cabinet
+miniatures share race/form proportions instead of equalizing everyone to 2.3 units.
+`FIGURE_BODY_HEIGHTS` in `figurine-materials.ts` defines visual display targets,
+not canonical lore measurements: dwarf 1.3, human 1.85, night elf 2.1, tauren 2.3.
+The export's scene name identifies its visible body type, including separate
+dracthyr visage/dragon forms and the cat form. Unknown custom imports retain
+the neutral 2.3-unit target. Body proportions, support anchors and authored poses
+are preserved; the 3.1-unit footprint cap still applies. The 48-model audit gives
+body heights from 1.1 to 2.3 units, with none currently limited by width.
+These targets normalize posed body bounds; they do not reconstruct neutral
+standing anatomy from a crouched or leaning export.
+
+The height table covers all 26 playable races in the
+[Blizzard race roster](https://worldofwarcraft.blizzard.com/en-gb/game/races),
+including races without catalog figures. Male and female export variants share
+one target per race. Internal model names `scourge` and `harronir` identify Undead
+and Haranir. The added targets are Gnome/Mechagnome 0.95, Goblin 1.05, Earthen
+1.45, Undead 1.8, Mag'har Orc 2.0, Worgen/Nightborne 2.1, Troll/Kul Tiran 2.15,
+and Zandalari Troll 2.2. These remain visual proportions rather than lore heights.
+The material tests keep an independent roster and exercise both body variants
+with standard and HD scene names, preventing a missing race from silently
+passing through the fallback. No model or texture re-export is required.

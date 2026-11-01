@@ -6,7 +6,7 @@ import { restoreFigurineMaterials } from "@/lib/figurine-materials";
 
 // Game props that dress the stations, exported with the local wow.export worker
 // (provenance: the "stations" and "facilities" entries of /figurines/world/source-models.json).
-const PROP_VERSION = 2;
+const PROP_VERSION = 3;
 export const STATION_PROPS = {
   gear: "/figurines/world/models/gnome-gear.glb",
   lamp: "/figurines/world/models/gnome-light.glb",
