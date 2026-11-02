@@ -45,11 +45,12 @@ const CASTERS = new Set<ForestModel>(["tree", "bareTree", "bush", "stump", "hays
 // WoW models face +x; this yaw turns one at (x, z) toward the plaza centre.
 const facingCentre = (x: number, z: number) => Math.atan2(z, -x);
 
-// The market lane behind the shop: a tent with a stall of produce, a wagon, a signpost up the
-// lane (no faction banners: the market takes no side), stock by the trading post and in the
-// tinkers' yard, and hay at the edge of the trees. A barrel washed up in the reeds on the far bank
+// Scenery backs the plaza's neighbourhoods: market canvas, produce, a wagon and stored stock
+// to the west; supplies behind the workshop; and a signpost on the outgoing north path.
+// A barrel washed up in the reeds on the far bank
 // of the fishing pond hides the secret series' box, its broken side turned toward the pond's view.
-export const SECRET_BARREL = { x: 17.2, z: 23.8, toward: [9.4, 12.6] as [number, number] };
+export const POND = { x: 6.9, z: 16.9, radius: 4.2 };
+export const SECRET_BARREL = { x: POND.x + 3.6, z: POND.z + 4.4, toward: [4, 10] as [number, number] };
 export function marketLayout(): Placement[] {
   const at = (model: ForestModel, x: number, z: number, extra: Partial<Placement> = {}): Placement => ({ model, x, z, yaw: facingCentre(x, z), size: 0.5, ...extra });
   const table = (x: number, z: number) => {
@@ -61,13 +62,13 @@ export function marketLayout(): Placement[] {
   // The broken opening faces local -z; turn it toward the pond's camera.
   const [tx, tz] = SECRET_BARREL.toward;
   return [
-    at("tent", -10.4, -22.8), at("wagon", 12.8, -21.6, { yaw: 2.6 }), at("signpost", -1.8, -27.4, { yaw: 1.2 }),
-    at("crate", -6.8, -23.6, { yaw: 0.5 }), at("crate", -7.4, -22.8, { yaw: -0.3, size: 0.2 }), at("barrel", 8.6, -24.6),
-    at("haystack", -17.2, -15.6, { yaw: 0.8, size: 0.4 }), at("haystack", -18.2, -13.8, { yaw: 2.1, size: 0.7 }),
+    at("tent", -19.3, -7.2), at("wagon", -19.6, 5.2, { yaw: 0.3 }), at("signpost", 0.8, -20.5, { yaw: 1.2 }),
+    at("crate", -16.4, -9.4, { yaw: 0.5 }), at("crate", -17.1, -8.8, { yaw: -0.3, size: 0.2 }), at("barrel", 14.8, -12.8),
+    at("haystack", -20.8, 8.6, { yaw: 0.8, size: 0.4 }), at("haystack", -21.7, 7.2, { yaw: 2.1, size: 0.7 }),
     // Stock behind the tinkers' yard.
-    at("crate", -24.6, -6.4, { yaw: 0.3 }), at("crate", -25.2, -5.4, { yaw: -0.2, size: 0.2 }), at("crate", -24.7, -6.3, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -23.6, -7.6),
+    at("crate", -12.8, 14.8, { yaw: 0.3 }), at("crate", -13.4, 15.8, { yaw: -0.2, size: 0.2 }), at("crate", -12.9, 14.9, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -7.3, 17.5),
     at("barrel", SECRET_BARREL.x, SECRET_BARREL.z, { yaw: Math.atan2(SECRET_BARREL.x - tx, SECRET_BARREL.z - tz), secretSeries: "community-000" }),
-    ...table(-13.4, -18.6), ...table(9.2, -27.4),
+    ...table(-16.8, -12.8), ...table(-18, 2.5),
   ];
 }
 // True if (x, z) is clear of the market's footprints.
@@ -78,12 +79,14 @@ export function groveLayout(): Placement[] {
   const tree = (x: number, z: number, size: number, model: ForestModel = "tree"): Placement => ({ model, x, z, yaw: x * 1.7 + z, size });
   const low = (model: ForestModel, x: number, z: number, size = 0.5): Placement => ({ model, x, z, yaw: x * 2.3 - z, size });
   return [
-    tree(-14.4, -10.8, 0.15), tree(12.8, -17.4, 0.3), tree(-16.8, 11.6, 0.35), tree(22.6, -6.4, 0.3, "bareTree"), tree(-8.6, 16.4, 0.2),
-    tree(-22.4, -12.4, 0.5), tree(4.2, -28.6, 0.4), tree(-19.8, 17.6, 0.15, "bareTree"), tree(23.6, 14.6, 0.45), tree(-7.4, -19.4, 0.05, "bareTree"),
-    low("bush", -12.4, -7.8, 0.7), low("bushSmall", -16, -7.4), low("bush", 11.2, -14.6, 0.4), low("bushSmall", 16.8, -4.6, 0.3),
-    low("bush", -15.2, 9.2, 0.5), low("rock", -6.8, 13.6, 0.6), low("rockSmall", -6, 14.4), low("bush", 6.4, 16.2, 0.8),
-    low("stump", 18.8, -9.6, 0.4), low("rock", -22.8, 7.6, 0.5), low("bushSmall", 1.6, -19.4, 0.2), low("rock", 21.4, -1.4, 0.4),
-    low("bush", 3.4, -14.4, 0.3), low("bushSmall", -2.8, -15.6, 0.6), low("stump", -13.6, 12.6, 0.2), low("bush", 15.6, 12.8, 0.5),
+    // Canopies frame each neighbourhood from behind, leaving its front and the path mouths open.
+    tree(-14.8, -14.3, 0.15), tree(8, -19.8, 0.3), tree(-20.2, 15.6, 0.35), tree(19.2, -8.4, 0.3, "bareTree"), tree(-7.2, 23.8, 0.2),
+    tree(-23.4, -12.4, 0.5), tree(4.2, -28.6, 0.4), tree(-19.8, 19.6, 0.15, "bareTree"), tree(20.6, 12.6, 0.45), tree(-8.9, -20.4, 0.05, "bareTree"),
+    // Uneven pockets of planting separate groups; low rocks soften the cobble and water edges.
+    low("bush", -14.9, -7.3, 0.5), low("bushSmall", -15.8, -7.9), low("bush", 10.8, -15.2, 0.4), low("bushSmall", 18.8, -4.1, 0.3),
+    low("bush", -14.8, 8.4, 0.5), low("rock", -2.1, 15.3, 0.6), low("rockSmall", -1.4, 16.1), low("bush", 12.4, 17.4, 0.8),
+    low("stump", 17.4, -10.6, 0.4), low("rock", -17, 7.8, 0.5), low("bushSmall", 2.8, -19.4, 0.2), low("rock", 18.4, 0.4, 0.4),
+    low("bush", 6.2, -16.2, 0.3), low("bushSmall", -5.8, -16, 0.6), low("stump", -15.6, 13.8, 0.2), low("bush", 15.9, 12.4, 0.5),
   ];
 }
 // Open ground the woods keep clear of: every station, and the paths.
@@ -95,7 +98,6 @@ const PATH_ANGLE = Math.PI, PATH_HALF = 0.13;
 // The opening shot starts 2.6 times as far out as the home camera and swings in from up to 0.35 rad
 // round: nothing tall stands in that lane short of its starting point. The fishing pond lies in it.
 const LANE = { from: -0.15, to: 0.6, radius: 29 };
-export const POND = { x: 13.6, z: 19.4, radius: 4.2 };
 const nearPond = (x: number, z: number) => Math.hypot(x - POND.x, z - POND.z) < POND.radius + 3.5;
 const inLane = (angle: number, radius: number) => radius < LANE.radius && Math.atan2(Math.sin(angle), Math.cos(angle)) > LANE.from && Math.atan2(Math.sin(angle), Math.cos(angle)) < LANE.to;
 const angularGap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));

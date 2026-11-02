@@ -1,23 +1,20 @@
 import * as THREE from "three";
 import type { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
-import { buildForest, forestLayout, marketLayout, swayMaterial, type Keep } from "@/lib/figurine-forest";
+import { buildForest, forestLayout, marketLayout, POND, swayMaterial, type Keep } from "@/lib/figurine-forest";
 
 // The collectibles world: a painted sky bubble over a forest clearing. A cobbled square holds the
-// opening pedestal at its centre, and what a player uses every day stands round its edge, a few
-// steps away: the shop and the collection's display cabinet at the back, the quest board and the
-// daily crate to the left, the lucky wheel to the right. Worn dirt paths lead on between them to
-// the rest, further out among the trees: the market lane behind (the trading post and the
-// mailbox), a tinkers' yard to the west (the recycler and the forge), the scrying ball behind the
-// cabinet, the hall of fame and the leaderboards to the east, and the fishing pond down its own
-// path to the south-east. Nothing is signposted: each facility is its props, there to be found and
-// tapped. The showcase's figures stand about the world at sixteen spots of their own.
+// opening pedestal at its centre. Facilities share small, uneven forecourts around its edge:
+// the market to the west, daily errands to the north, the collection and mail to the north-east,
+// the scrying ball and honours to the east, and the workshop to the south-west. The pond opens
+// off the south-east corner. Paths leave through the gaps; scenery gathers behind the facilities,
+// while showcase figures stand along both the plaza edge and the outer neighbourhoods.
 // The centre (the pedestal, with a box or an inspected figure) is home; the others are stations.
 export type Station = "shop" | "gallery" | "recycler" | "forge" | "crate" | "wheel" | "mail" | "quests" | "feed" | "fame" | "leaderboard" | "trading" | "pond";
 export type WorldView = Station | "opening" | "viewer";
 // The views that are stations (everything but the two at the centre).
 export const isStation = (view: WorldView): view is Station => view !== "opening" && view !== "viewer";
 // The cobbled square, and the clearing round it that the woods leave open.
-export const COBBLE_RADIUS = 11.2, PLAZA_RADIUS = 21;
+export const COBBLE_RADIUS = 11.2, PLAZA_RADIUS = 19.5;
 // Each station: where it stands (\`at\`, x and z; +z is toward the home camera) and the point it
 // faces (\`face\`, default the centre: most face their path or the square), its footprint (\`width\`
 // along its front, \`back\`/\`front\` behind and before its origin, for the camera's occlusion
@@ -27,25 +24,23 @@ type StationSpec = { at: [number, number]; face?: [number, number]; width: numbe
 const big = (fit: number) => ({ height: 1.2, distance: 6.8, target: 1.6, fit });
 const small = (fit: number, target = 1.3) => ({ height: 1.1, distance: 6.6, target, fit });
 export const STATION_SPECS: Record<Station, StationSpec> = {
-  // Round the square's edge: the everyday things.
-  shop: { at: [-6.8, -12.2], face: [0, -6], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
-  gallery: { at: [7, -11.8], face: [0, -5.5], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
-  quests: { at: [-12.8, -3.6], face: [0, -1.5], width: 3, back: -0.6, front: 0.9, shot: small(4, 1.5) },
-  crate: { at: [-11.8, 5], face: [0, 1.5], width: 2.4, back: -0.8, front: 0.9, shot: small(3.2, 1) },
-  wheel: { at: [12.8, -3.4], face: [0, -1.5], width: 3, back: -0.6, front: 0.8, shot: small(3.8, 1.6) },
-  // Further out. The market lane behind the shop and the cabinet.
-  trading: { at: [-2.6, -21.4], face: [0, -12], width: 4, back: -0.6, front: 0.9, shot: big(4.6) },
-  mail: { at: [4.6, -21], face: [1.2, -15], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
-  // The scrying ball, behind the cabinet among the trees.
-  feed: { at: [16.6, -13.2], face: [8, -6], width: 2.6, back: -0.6, front: 0.8, shot: small(3.4, 1.4) },
-  // The tinkers' yard, down the west path.
-  recycler: { at: [-20.6, -2.6], face: [-11, -0.6], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
-  forge: { at: [-19.8, 4.2], face: [-11, 1.8], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
-  // The hall of fame and the leaderboards, down the east path.
-  fame: { at: [20.4, 2.6], face: [11, 1.4], width: 3.4, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
-  leaderboard: { at: [18.6, 9.6], face: [10, 4.6], width: 3, back: -0.8, front: 0.9, shot: small(4, 1.5) },
-  // Down its own path to the south-east, where the trees open onto the water.
-  pond: { at: [13.6, 19.4], face: [7, 10], width: 6, back: -3, front: 3, shot: { height: 2.4, distance: 8.5, target: 0.6, fit: 8.5 } },
+  // The market bends around the west edge, with room for visitors between its stalls.
+  shop: { at: [-10.2, -9.6], face: [-5, -3], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
+  wheel: { at: [-13.2, -3.6], face: [-7, 0], width: 3, back: -0.6, front: 0.8, shot: small(3.8, 1.6) },
+  trading: { at: [-13.8, 3.4], face: [-7, 2], width: 4, back: -0.6, front: 0.9, shot: big(4.6) },
+  // Daily errands flank the outgoing north path, on the same patch of worn ground.
+  crate: { at: [-4.5, -13.2], face: [-1, -6], width: 2.4, back: -0.8, front: 0.9, shot: small(3.2, 1) },
+  quests: { at: [1.4, -14.3], face: [-0.5, -6], width: 3, back: -0.6, front: 0.9, shot: small(4, 1.5) },
+  gallery: { at: [8.4, -11.2], face: [4, -6], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
+  mail: { at: [12.6, -7.6], face: [6, -4], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
+  // The scrying ball, honours and scores share the east-side garden.
+  feed: { at: [14, -2.8], face: [8, 0], width: 2.6, back: -0.6, front: 0.8, shot: small(3.4, 1.4) },
+  leaderboard: { at: [15.4, 2.4], face: [8, 2.5], width: 3, back: -0.8, front: 0.9, shot: small(4, 1.5) },
+  fame: { at: [11.6, 6.9], face: [7, 2], width: 3.4, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
+  // A working yard off the south-west corner; its two machines face a shared approach.
+  recycler: { at: [-10.2, 10.2], face: [-5, 6], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
+  forge: { at: [-4.8, 14.2], face: [-3, 7], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
+  pond: { at: [POND.x, POND.z], face: [4, 10], width: 6, back: -3, front: 3, shot: { height: 2.4, distance: 8.5, target: 0.6, fit: 8.5 } },
 };
 export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([name, spec]) => {
   const [fx, fz] = spec.face ?? [0, 0];
@@ -53,23 +48,33 @@ export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([n
 })) as Record<Station, { position: THREE.Vector3; rotation: number }>;
 // The worn paths off the square, as points along their middles.
 export const PATHS: [number, number][][] = [
-  [[0, -10.4], [0.6, -14.5], [0.2, -18.5], [1, -23.5], [2.4, -30], [3.6, -40]],
-  [[-11, 0.6], [-14.2, 0.4], [-17.2, 0.8], [-21.4, 0.9], [-26, 1.6]],
-  [[11, 1.2], [14.2, 2.4], [17.4, 3.6], [19.6, 6]],
-  [[10.2, -8.2], [12.8, -10.4], [15.2, -11.6]],
-  [[7.6, 8], [9.6, 11.4], [11, 14.6]],
+  [[-1, -10], [-1.7, -13.8], [-1.1, -18.5], [0.3, -24], [2.4, -30], [3.6, -40]],
+  [[-10.5, 0.3], [-14.4, 0], [-18.7, -0.8], [-23.6, -1.8], [-31, -4]],
+  [[9.8, -5], [13, -5.1], [17, -5.7], [23, -5.4], [30, -3]],
+  [[-7.3, 7.8], [-7.1, 11.4], [-8.2, 15.4], [-10.5, 19.3], [-14, 25]],
+  [[1.7, 10.2], [1.2, 13], [2.1, 16.5], [1.6, 22], [-0.5, 29]],
 ];
-// Trodden ground round each neighbourhood out among the trees.
-export const PATCHES: [number, number, number][] = [[1, -21, 5.4], [-19.6, 0.8, 4.6], [19, 5.6, 4.8], [16, -12.6, 3], [12.4, 17.6, 3.6]];
-// Where the showcase's figures stand, by slot (1-16): about the square between the stalls, down
-// the paths, at the market, in the yard, by the hall and on the pond's bank. Each looks roughly
-// toward the square.
+// Overlapping worn patches join each group to the plaza, with irregular grass pockets between.
+export const PATCHES: [number, number, number][] = [[-11.6, -7, 4.5], [-13.6, 0.3, 4.8], [-1.8, -12.7, 4.4], [9.7, -9.3, 4.5], [13, 2, 5], [-7.5, 11.6, 4.8], [3.2, 13.6, 3.5]];
+// An inner layer beside the facilities and an outer layer at their gardens and paths. Leave
+// the opening pedestal's middle of the plaza empty. Each visitor looks roughly toward it.
 export const STATUE_SPOTS = ([
-  [-2.4, -11.2], [3.2, -10.8], [-10.6, -8.6], [14.2, -8.6], [-8.2, -5.6], [8.8, 7.2], [-5.2, 0.2], [5, 0.8],
-  [-2.2, -24.6], [6.8, -25.4], [-17.4, -8.6], [-15.6, 6.8], [15.6, -0.6], [14.6, 4.2], [8.2, 17.2], [-11.4, -15.6],
+  [-13.5, -6.5], [-10, 5], [-12, 7], [-0.8, 12], [8.9, 9], [12.2, 0.5], [4.6, -12.6], [-5.5, -10],
+  [-7.5, -15.6], [-16.1, -5.1], [-13.6, 12.1], [0.2, 18.5], [13.6, 11.8], [17.8, -2.8], [13.1, -13], [3.5, -17.8],
 ] as [number, number][]).map(([x, z], index) => ({ number: index + 1, position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(-x, -z) + Math.sin(index * 2.4) * 0.5 }));
 // Lamp posts along the paths.
-export const LAMP_SPOTS: [number, number][] = [[-1.4, -9.8], [-4.2, -16.8], [-14.6, 4.6], [12.6, 0], [9.2, 9.8], [-16.8, -5.8], [10.4, -6.6], [-9.4, 9.4]];
+export const LAMP_SPOTS: [number, number][] = [[-3.5, -17.5], [4.8, -15.9], [-16.2, 2], [-15.3, -11.8], [16, -9.6], [17.8, 5.6], [-10.6, 16.1], [0, 15.5]];
+// Sample the entire path, not just its control points: vegetation must not close the gaps
+// between them. Figure spots also need a clearing when the outer woods are generated.
+export const FOREST_CLEARINGS: Keep[] = [
+  ...Object.values(STATION_SPECS).map(({ at, width }): Keep => [at[0], at[1], width / 2 + 2.5]),
+  ...STATUE_SPOTS.map(({ position }): Keep => [position.x, position.z, 1.8]),
+  ...LAMP_SPOTS.map(([x, z]): Keep => [x, z, 1.2]),
+  ...PATHS.flatMap((path) => path.slice(1).flatMap(([x, z], index) => {
+    const [px, pz] = path[index], steps = Math.ceil(Math.hypot(x - px, z - pz) / 2);
+    return Array.from({ length: steps + 1 }, (_, step): Keep => [px + (x - px) * step / steps, pz + (z - pz) * step / steps, 2.2]);
+  })),
+];
 // Classic game textures (Elwynn cobbles and grass, sky layers) exported with the local wow.export
 // worker; the painted fallbacks show until they load. Provenance: /figurines/world/source.json.
 export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", grass: "/figurines/world/grass.png", dirt: "/figurines/world/dirt.png", clouds: "/figurines/world/clouds.jpg" };
@@ -263,10 +268,7 @@ export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: 
   const setPlazaDirt = blendGround(plazaMaterial, dirtMask(PLAZA_MESH, true), 15);
   // The forest clearing and its lamp posts, each lamp with an additive glow.
   const wind = { value: 0 };
-  const forest = buildForest(group, forestLayout(PLAZA_RADIUS, 11, marketLayout(), LAMP_SPOTS, [
-    ...Object.values(STATION_SPECS).map(({ at, width }): Keep => [at[0], at[1], width / 2 + 2.5]),
-    ...PATHS.flatMap((path) => path.map(([x, z]): Keep => [x, z, 2.2])),
-  ]), (material) => swayMaterial(material, wind), ktx2Loader);
+  const forest = buildForest(group, forestLayout(PLAZA_RADIUS, 11, marketLayout(), LAMP_SPOTS, FOREST_CLEARINGS), (material) => swayMaterial(material, wind), ktx2Loader);
   const glowCanvas = canvas(64, 64);
   const halo = glowCanvas[1].createRadialGradient(32, 32, 0, 32, 32, 32);
   halo.addColorStop(0, "rgba(255,214,150,1)"); halo.addColorStop(0.3, "rgba(255,190,110,.4)"); halo.addColorStop(1, "rgba(255,170,90,0)");

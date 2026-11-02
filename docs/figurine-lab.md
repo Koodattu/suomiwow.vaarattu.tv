@@ -368,26 +368,37 @@ camera, so swapping between a box and a figure never moves it, and returning fro
 where the camera was left. The opening shot flies in from far out and plays to its end before
 the world takes any input (taps, drags or keys).
 
-The world is a forest clearing round a cobbled square (`figurine-world.ts`). What a player uses
-every day stands round the square's ragged edge, a few steps from the pedestal and facing it: the
-shop and the collection's display cabinet at the back, the quest board and the daily crate to the
-left, the lucky wheel to the right. Worn dirt paths (`PATHS`) lead on between them to the rest,
-further out among the trees on their own trodden ground (`PATCHES`): the market lane behind the
-shop (the trading post and the mailbox, with a tent, a wagon and produce tables), the scrying ball
-behind the cabinet, the tinkers' yard down the west path (the recycler and the forge), the hall of
-fame and the leaderboards down the east path, and the fishing pond down its own path to the
-south-east. Each station has a position and a point it faces (`STATION_SPECS`). Trees, bushes and
-rocks stand between them (`groveLayout` in `figurine-forest.ts`); the woods keep clear of every
-station and path. Nothing is signposted: each facility is its game props
+The world is a forest clearing round a cobbled square (`figurine-world.ts`). Facilities form an
+uneven ring around its ragged edge, sharing small forecourts rather than standing on an exact
+circle. The shop, lucky wheel and trading post occupy the west; the daily crate and quest board
+flank the north path; the collection and mailbox sit to the north-east; the scrying ball,
+leaderboards and hall of fame share the east garden; and the recycler and forge share the
+south-west yard. The fishing pond opens off the south-east corner. Most facility origins are
+13.5–15.6 units from the centre, within 4.5 units of the cobbled edge; the pond is about 18.3 units
+out to leave room for its water and dock. This is a first arrangement guided by the exported
+layout sketch, not an exact import of its positions or rotations.
+
+Worn dirt paths (`PATHS`) leave through gaps between groups. Overlapping, irregular dirt patches
+(`PATCHES`) connect their approaches to the plaza. Market canvas, produce and the wagon sit
+behind the west-side stalls; crates and barrels back the workshop. Trees, bushes and rocks
+(`groveLayout` in `figurine-forest.ts`) frame these groups from behind and soften their edges.
+`FOREST_CLEARINGS` keeps generated vegetation away from facilities, figures, lamps and sampled
+points along the full length of each path. Each station faces its local approach (`STATION_SPECS`).
+The sixteen showcase figures occupy an inner layer beside facilities and an outer layer by
+gardens and paths, leaving the centre of the plaza open. The pond's forest exclusion and station
+position share `POND`, with the secret barrel positioned relative to it.
+
+The existing camera limits, fog and station framing remain unchanged. Each facility is its game props
 (`figurine-facilities.ts`), there to be found. Pointing at one names it in the HUD; tapping one
 flies the camera there and opens its panel (`WorldPanels.tsx`), docked right on wide screens or as
 a bottom sheet on phones, with the station framed in the space beside or above it. Tap empty
 ground, the panel's close button or Esc to come back. Keyboard: S shop, C collection, M recycler,
 U trade-up forge, Q quests, W lucky wheel, F fishing pond (Space casts and strikes there), D daily
 crate, 1-9 pick a series (in the shop), Enter opens the sealed box.
-`test/figurine-layout.test.mjs` checks that the everyday stations stand within reach of the
-square and the rest further out, and that no station, figure, lamp, tree or market prop stands in
-another station or in the line from its camera, on a wide screen or a phone's backed-off shot.
+`test/figurine-layout.test.mjs` checks facility reach and grouping, the figures' inner/outer
+distribution, dry pond banks, open paths through the generated woods, and clearance between
+stations, figures, lamps, trees and props. It also checks station camera sightlines on wide
+screens and a phone's backed-off shot. Existing KTX2 ETC1S models are reused for this arrangement.
 
 The secret Series 000 box hides in a broken barrel washed up in the reeds on the fishing pond's
 far bank (`SECRET_BARREL` in `figurine-forest.ts`), its broken side turned toward the pond's
