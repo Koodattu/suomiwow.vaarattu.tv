@@ -286,8 +286,6 @@
         "back": "Takaisin",
         "controls": "Kalastus",
         "story": {
-          "glint": "Jokin kimaltelee pinnan alla…",
-          "fish": "Lammessa liikkuu enää vain kaloja.",
           "cast": "Siima lentää…",
           "wait": "Odota…",
           "nibble": "Jokin näykkii…",

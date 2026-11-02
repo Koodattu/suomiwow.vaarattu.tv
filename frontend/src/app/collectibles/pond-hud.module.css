@@ -3,7 +3,6 @@
 .story { position: absolute; z-index: 3; bottom: max(108px, calc(env(safe-area-inset-bottom) + 98px)); left: 50%; width: min(640px, calc(100vw - 32px)); transform: translateX(-50%); text-align: center; pointer-events: none; color: #fff6e2; text-shadow: 0 1px 2px rgba(0, 0, 0, .9), 0 0 18px rgba(0, 0, 0, .55); }
 .story p { margin: 0; font: italic 400 clamp(18px, 2.4vw, 24px)/1.25 Georgia, serif; letter-spacing: .01em; animation: storyIn .5s ease-out both; }
 .story small { display: block; margin-top: 6px; font: 500 13px/1.4 system-ui, sans-serif; color: #e9dfc9; opacity: .85; }
-.story[data-tone="glint"] p { color: #ffe7b0; }
 .story[data-tone="miss"] p { color: #f3c9b8; }
 .story[data-tone="bite"] p { font-style: normal; font-weight: 700; font-size: clamp(26px, 3.6vw, 36px); color: #ffd257; letter-spacing: .04em; animation: bite .32s ease-in-out infinite alternate; }
 @keyframes storyIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }

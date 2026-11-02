@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { ANGLER_TOP, FISH, FINISH_TIMES, RARITY_POINTS, anglerScore, dailyCatchesLeft, fishOf, fishRarity, type FigurineRecords, type FigurineQuality } from "@/lib/figurine-collection";
+import { ANGLER_TOP, FISH, FINISH_TIMES, RARITY_POINTS, anglerScore, fishOf, fishRarity, type FigurineRecords, type FigurineQuality } from "@/lib/figurine-collection";
 import { findFigure } from "@/lib/figurine-series";
 import type { LinePhase, PanelResult } from "./WorldPanels";
 import Portrait from "./Portrait";
@@ -16,27 +16,27 @@ import styles from "./pond-hud.module.css";
 export type PondPart = "rod" | "bobber" | "bucket" | "board";
 export type PondSheet = "log" | "board";
 type Props = {
-  records: FigurineRecords; now: Date; line: LinePhase | null; result: Extract<PanelResult, { station: "pond" }> | null;
+  records: FigurineRecords; line: LinePhase | null; result: Extract<PanelResult, { station: "pond" }> | null;
   busy: boolean; hovered: PondPart | null; sheet: PondSheet | null;
   onCast: () => void; onHook: () => void; onDismiss: () => void; onSheet: (sheet: PondSheet | null) => void; onBack: () => void;
 };
 // Players learn the pond in a few casts; after that the how-to lines step aside.
 const LEARNED = 3;
 
-export default function PondHud({ records, now, line, result, busy, hovered, sheet, onCast, onHook, onDismiss, onSheet, onBack }: Props) {
+export default function PondHud({ records, line, result, busy, hovered, sheet, onCast, onHook, onDismiss, onSheet, onBack }: Props) {
   const t = useTranslations("figurineLab.world.pond");
   const quality = useTranslations("figurineLab.quality");
-  const prizes = dailyCatchesLeft(records, now), learning = records.stats.fish < LEARNED;
+  const learning = records.stats.fish < LEARNED;
   const kinds = FISH.filter((entry) => records.fish[entry.id]).length, score = anglerScore(records);
   const out = line !== null;
-  // The water's story: the line's moment while it is out, else the last miss, else what stirs below.
+  // Show casting feedback and misses; the golden effect in the water indicates prizes.
   const story = line === "bite" ? t("story.bite") : line === "nibble" ? t("story.nibble") : line === "wait" ? t("story.wait") : line === "cast" ? t("story.cast")
-    : result && "missed" in result ? t(result.missed) : t(prizes > 0 ? "story.glint" : "story.fish");
+    : result && "missed" in result ? t(result.missed) : null;
   const how = line === "wait" || line === "nibble" ? t("how.wait") : line === "bite" ? t("how.bite") : !out && !busy ? t("how.idle") : null;
   const pointing = !out && hovered ? t(`parts.${hovered}`) : null;
   return <>
-    <div className={styles.story} data-tone={line === "bite" ? "bite" : result && "missed" in result && !out ? "miss" : !out && prizes > 0 ? "glint" : undefined} aria-live="polite">
-      <p>{story}</p>
+    <div className={styles.story} data-tone={line === "bite" ? "bite" : result && "missed" in result && !out ? "miss" : undefined} aria-live="polite">
+      {story && <p>{story}</p>}
       {(pointing || (learning && how)) && <small>{pointing ?? how}</small>}
     </div>
     {result && "caught" in result && !out && <>

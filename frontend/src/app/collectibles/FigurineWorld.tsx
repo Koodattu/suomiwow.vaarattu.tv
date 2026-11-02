@@ -405,7 +405,7 @@ export default function FigurineWorld() {
     {records.boons.boost && revealedWorld && <p className={panelStyles.hudBoons}>
       {records.boons.boost && <span data-quality={records.boons.boost}>{t("world.rewards.boostNext", { quality: t(`quality.${records.boons.boost}`) })}</span>}
     </p>}
-    {view === "pond" && revealedWorld && <PondHud records={records} now={now} line={line} result={result?.station === "pond" ? result : null} busy={busy} hovered={hoverPart} sheet={pondSheet}
+    {view === "pond" && revealedWorld && <PondHud records={records} line={line} result={result?.station === "pond" ? result : null} busy={busy} hovered={hoverPart} sheet={pondSheet}
       onCast={cast} onHook={hook} onDismiss={dismissCatch} onSheet={openSheet} onBack={leavePond} />}
     {isStation(view) && view !== "shop" && view !== "pond" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back} actions={panelActions}
       onInspect={(key, finish) => inspect(key, finish)} machine={machinePanel}

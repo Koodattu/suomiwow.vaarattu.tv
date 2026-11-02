@@ -286,8 +286,6 @@
         "back": "Back",
         "controls": "Fishing",
         "story": {
-          "glint": "Something glints beneath the surface…",
-          "fish": "Only fish stir in the pond now.",
           "cast": "The line sails out…",
           "wait": "Wait for it…",
           "nibble": "Something's nibbling…",
