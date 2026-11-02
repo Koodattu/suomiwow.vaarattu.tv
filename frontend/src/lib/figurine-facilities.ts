@@ -541,7 +541,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     const catchBackdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: sparkMap, color: 0x000000, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
     catchBackdrop.name = "pond-catch-backdrop";
     catchBackdrop.visible = false; catchBackdrop.raycast = () => {}; presentation.add(catchBackdrop);
-    let displayScale = 0.5, stowScale = 0.5, stowSpin = 0, revealProgress = 0, reducedCatchMotion = false;
+    let displayScale = 0.5, stowScale = 0.5, stowSpin = 0, revealProgress = 0, displayTime = 0, reducedCatchMotion = false;
     const launchRotation = new THREE.Quaternion(), stowRotation = new THREE.Quaternion(), stowFrom = new THREE.Vector3();
     const bucketRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, bucket.rotation.y, Math.PI / 3));
     // Anchor the landed model to the viewport, including while the player looks around.
@@ -574,19 +574,25 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     };
     const holder = new THREE.Group(); show.add(holder);
     let shown: CatchVisual | null = null, queued: CatchVisual | null = null, stowing = -1;
-    const clearShow = () => { show.visible = catchBackdrop.visible = false; catchBackdrop.material.opacity = 0; show.scale.setScalar(1); holder.children.forEach((child) => releaseFinishes(child)); holder.clear(); holder.rotation.y = 0; shown = null; stowing = -1; revealProgress = 0; };
+    const clearShow = () => { show.visible = catchBackdrop.visible = false; catchBackdrop.material.opacity = 0; show.scale.setScalar(1); holder.children.forEach((child) => releaseFinishes(child)); holder.clear(); holder.rotation.y = 0; shown = null; stowing = -1; revealProgress = displayTime = 0; };
     const showCatch = (visual: CatchVisual) => {
       clearShow(); shown = visual;
       const placed = visual.kind === "box" ? placeProp(holder, "gift", { height: 0.4, yaw: 0.4 })
         : visual.kind === "figure" ? placeProp(holder, "chest", { height: 0.45, yaw: -Math.PI / 2 })
-        // Fish lie on their sides: stood up, they show their flank to the dock.
-        : placeProp(holder, FISH_PROP[visual.fish], { height: 1, length: THREE.MathUtils.clamp(visual.length * 2, 1.4, 1.9), yaw: Math.PI / 2 });
-      if (visual.kind === "fish") placed.group.rotation.z = -Math.PI / 2;
+        : placeProp(holder, FISH_PROP[visual.fish], { height: 1, length: THREE.MathUtils.clamp(visual.length * 2, 1.4, 1.9) });
       void placed.ready.then((group) => {
+        if (group.parent !== holder) return;
+        // Measure and centre in the model's own space, independent of the camera or the last
+        // catch's rotation. The fish-card baker uses the same authored-axis correction.
+        holder.remove(group);
+        if (visual.kind === "fish" && visual.fish !== "boot") {
+          const size = new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3());
+          group.rotation.set(size.y < size.x && size.y < size.z ? -Math.PI / 2 : 0, size.z > size.x ? Math.PI / 2 : 0, 0);
+        }
         if (visual.kind === "fish" && visual.quality !== "standard") applyFinish(group, visual.quality, envMap);
-        group.updateWorldMatrix(true, true);
         const centre = new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3());
-        holder.worldToLocal(centre); group.position.sub(centre);
+        group.position.sub(centre);
+        holder.add(group);
         group.traverse((object) => { object.raycast = () => {}; });
       });
     };
@@ -600,7 +606,11 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       const shade = show.visible && stowing < 0 ? THREE.MathUtils.smoothstep(revealProgress, 0.35, 1) * 0.65 : 0;
       catchBackdrop.material.opacity = THREE.MathUtils.damp(catchBackdrop.material.opacity, shade, 10, delta);
       catchBackdrop.visible = catchBackdrop.material.opacity > 0.001;
-      if (show.visible && stowing < 0 && !reducedCatchMotion) holder.rotation.y += delta * 0.9;
+      // Arrive broadside and upright, then ease into a turn around screen-up only.
+      if (show.visible && revealProgress >= 1 && stowing < 0 && !reducedCatchMotion) {
+        displayTime += delta;
+        holder.rotation.y += delta * 0.9 * Math.min(1, displayTime / 0.35);
+      }
       if (stowing < 0) return;
       stowing += delta;
       const k = Math.min(1, stowing / STOW_SECONDS), eased = smooth(k);
