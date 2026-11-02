@@ -386,8 +386,10 @@ behind the west-side stalls; crates and barrels back the workshop. Trees, bushes
 points along the full length of each path. Each station faces its local approach (`STATION_SPECS`).
 The sixteen showcase figures occupy an inner layer beside facilities and an outer layer by
 gardens and paths, leaving the centre of the plaza open. The pond's forest exclusion and station
-position share `POND`, with the secret barrel positioned relative to it.
+position share `POND`; the secret barrel sits beyond the shop's side edge, visible through the gap from the plaza.
 
+Facilities sit roughly 2-3 world units closer to the center, with nearby figures and path mouths
+adjusted to keep the tighter ring clear. The fishing pond stays in its original position.
 The existing camera limits, fog and station framing remain unchanged. Each facility is its game props
 (`figurine-facilities.ts`), there to be found. Pointing at one names it in the HUD; tapping one
 flies the camera there and opens its panel (`WorldPanels.tsx`), docked right on wide screens or as
@@ -400,9 +402,12 @@ distribution, dry pond banks, open paths through the generated woods, and cleara
 stations, figures, lamps, trees and props. It also checks station camera sightlines on wide
 screens and a phone's backed-off shot. Existing KTX2 ETC1S models are reused for this arrangement.
 
-The secret Series 000 box hides in a broken barrel washed up in the reeds on the fishing pond's
-far bank (`SECRET_BARREL` in `figurine-forest.ts`), its broken side turned toward the pond's
-camera: the one view that can find it.
+The secret Series 000 box hides in a broken barrel at (-12.5, -6.5), just behind the shop's side edge
+(`SECRET_BARREL` in `figurine-forest.ts`). Its intact back faces the plaza; the broken opening
+faces away from the plaza. The barrel remains visible from the center and the home camera,
+but sits clear of the shop and wheel instead of in front of either facility. Normal foreground occlusion still applies.
+Station picking ignores hidden objects and ancestors, but preserves invisible helper targets
+for small controls. Pond ripples never participate in picking and stop updating after fading.
 
 In the shop, the sealed box opens by pulling its tape. Once five boxes have been opened that way,
 an "Open box" button opens it without the tape, and after every opening "Open another" drops a new

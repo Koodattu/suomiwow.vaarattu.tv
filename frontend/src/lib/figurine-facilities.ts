@@ -135,8 +135,8 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       if (t > 2.2) { done(); return false; }
       return true;
     });
-    prop("goldPile", 0.26, -0.85, 0.45, 0.3);
-    prop("goldPileSmall", 0.18, 0.85, 0.55, 1.4);
+    prop("goldPile", 0.13, -1.1, 0.55, 0.3);
+    prop("goldPileSmall", 0.09, 1.08, 0.55, 1.4);
     // The streak board: a coin per day, gilded once that day's crate is opened; today's is ringed.
     const [streakCanvas, streak] = canvas(512, 96), streakMap = srgb(streakCanvas);
     paintStreak = (opened: number, today: number | null) => {
@@ -174,7 +174,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     for (let peg = 0; peg < 8; peg++) { const angle = peg / 8 * Math.PI * 2; add(new THREE.CylinderGeometry(0.025, 0.025, 0.12, 8).rotateX(Math.PI / 2), gold, Math.cos(angle) * 0.96, Math.sin(angle) * 0.96, 0.08, wheel); }
     for (const side of [-1, 1]) { const leg = add(new THREE.BoxGeometry(0.1, 1.9, 0.1), wood, side * 0.45, 0.95, -0.12); leg.rotation.z = side * 0.24; }
     add(new THREE.ConeGeometry(0.1, 0.24, 4).rotateZ(Math.PI), gold, 0, 2.75, 0.12);
-    prop("goblinStatue", 1.45, -1.15, 0.2, -Math.PI / 2 + 0.5);
+    prop("goblinStatue", 1.1, -1.45, 0.35, -Math.PI / 2 + 0.5);
     prop("fireworks", 0.95, 1.1, 0.25, 0);
     // Idle, it rocks a little; a spin turns it five times over and settles the segment at the top.
     let rest = 0, spun = false;
@@ -197,17 +197,18 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   } else if (kind === "mail") {
     // Gifting post: a mailbox, and a table of wrapped gifts.
     prop("postboxHuman", 1.9, -0.6, -0.05, -Math.PI / 2);
-    frame.push(add(new THREE.BoxGeometry(1, 0.08, 0.7), wood, 0.55, 0.68, 0.05));
+    frame.push(add(new THREE.BoxGeometry(1.3, 0.08, 0.85), wood, 0.55, 0.68, 0.05));
     for (const [x, z] of [[0.2, -0.2], [0.9, -0.2], [0.2, 0.3], [0.9, 0.3]]) add(new THREE.CylinderGeometry(0.035, 0.035, 0.68, 6), wood, x, 0.34, z);
-    prop("gift", 0.36, 0.35, 0.05, 0.3, 0.72);
-    prop("giftRed", 0.26, 0.78, 0.15, -0.4, 0.72);
-    prop("giftWhite", 0.3, 0.6, -0.15, 0.9, 0.72);
+    prop("gift", 0.25, 0.2, 0.12, 0.3, 0.72);
+    prop("giftRed", 0.2, 0.85, 0.12, -0.4, 0.72);
+    prop("giftWhite", 0.16, 0.55, -0.14, 0.9, 0.72);
   } else if (kind === "quests") {
     // Quest giver: a board of postings under a floating golden "!", scrolls on a crate beside it.
     prop("wanted", 2.5, 0, -0.2, -Math.PI / 2);
     prop("wantedWood", 1.5, 1.2, 0.05, -Math.PI / 2 - 0.35);
-    frame.push(add(new THREE.BoxGeometry(0.6, 0.5, 0.5), wood, -1.15, 0.25, 0.15));
-    prop("scrollMap", 0.12, -1.15, 0.15, 0.4, 0.5);
+    // A full-sized map on a broad WoW supply crate, with room beside the noticeboard.
+    prop("fishingBox", 0.7, -1.4, 0.25, 0.15);
+    prop("scrollMap", 0.14, -1.4, 0.25, 0.15, 0.71);
     const mark = new THREE.Group(); mark.position.set(0, 3.15, -0.15); parent.add(mark);
     const glow = new THREE.MeshStandardMaterial({ color: 0xffd24a, emissive: 0xffb81c, emissiveIntensity: 0.9, metalness: 0.3, roughness: 0.35 });
     add(new THREE.BoxGeometry(0.13, 0.42, 0.13), glow, 0, 0.12, 0, mark);
@@ -217,7 +218,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     // Pull feed: a scrying ball on a pedestal that glimmers with the latest golden and galaxy
     // pulls, and a crier's bell on a post to ring them in.
     prop("pedestal", 1, 0, 0.05, -Math.PI / 2);
-    prop("crystalBall", 0.8, 0, 0.05, -Math.PI / 2, 0.98);
+    prop("crystalBall", 0.8, 0, 0.05, -Math.PI / 2, 1);
     const shine = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xb28cff, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending }));
     const [glowCanvas, glowPaint] = canvas(64, 64), gradient = glowPaint.createRadialGradient(32, 32, 0, 32, 32, 32);
     gradient.addColorStop(0, "rgba(255,255,255,1)"); gradient.addColorStop(1, "rgba(255,255,255,0)"); glowPaint.fillStyle = gradient; glowPaint.fillRect(0, 0, 64, 64);
@@ -233,7 +234,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     prop("lion", 2.2, -0.95, -0.15, -Math.PI / 2);
     frame.push(add(new THREE.BoxGeometry(0.8, 0.85, 0.6), stone, 0.45, 0.425, -0.1));
     prop("trophy", 0.8, 0.45, -0.1, -Math.PI / 2, 0.85);
-    prop("museumPlaque", 0.55, 1.25, 0.25, -Math.PI / 2 - 0.3);
+    prop("museumPlaque", 0.32, 1.4, 0.25, -Math.PI / 2 - 0.3);
   } else if (kind === "leaderboard") {
     // Leaderboards: a winners' podium (1 in the middle), an obelisk behind, plaques for the boards.
     const step = (place: number, height: number, x: number, color: string) => {
@@ -244,13 +245,13 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       frame.push(add(new THREE.BoxGeometry(0.7, height, 0.7), [stone, stone, stone, stone, face, stone], x, height / 2, 0.15));
     };
     step(2, 0.55, -0.72, "#c9ccd4"); step(1, 0.8, 0, "#e8c165"); step(3, 0.4, 0.72, "#c08a5a");
-    prop("obelisk", 3.1, 0, -0.55, -Math.PI / 2);
-    prop("plaqueSilver", 0.5, -1.15, 0.45, -Math.PI / 2 + 0.3);
-    prop("plaqueBronze", 0.45, 1.15, 0.45, -Math.PI / 2 - 0.3);
+    prop("obelisk", 3.1, 0, -0.85, -Math.PI / 2);
+    prop("plaqueSilver", 0.5, -1.15, 0.8, -Math.PI / 2 + 0.3);
+    prop("plaqueBronze", 0.45, 1.15, 0.8, -Math.PI / 2 - 0.3);
   } else if (kind === "trading") {
     // Trading post: a shop counter with a gnomish postbox beside it for the parcels.
     prop("counter", 1.05, 0, 0.1);
-    prop("postbox", 1.5, 1.8, -0.1, -Math.PI / 2 - 0.4);
+    prop("postbox", 1.5, 2.2, -0.1, -Math.PI / 2 - 0.4);
   } else if (kind === "pond") {
     // Fishing pond: still water ringed with reeds and lily pads, a rowboat, a little dock with a
     // fishing chair and rod, and a fish now and then leaping. The station's origin is the pond's
@@ -260,14 +261,15 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     pond.castShadow = false; frame.push(pond);
     const bank = add(new THREE.RingGeometry(4.1, 4.7, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x5b4a33, roughness: 1 }), 0, 0.015, 0);
     bank.castShadow = false;
-    for (let i = 0; i < 11; i++) { const angle = i / 11 * Math.PI * 2 + 0.3; if (Math.abs(Math.atan2(Math.sin(angle), Math.cos(angle))) < 0.5) continue; prop("reeds", 0.8 + (i % 3) * 0.25, Math.sin(angle) * 4.3, Math.cos(angle) * 4.3, angle * 2); }
-    for (const [x, z, yaw] of [[-1.8, -1.2, 0.4], [2.2, -1.9, 1.7], [-2.6, 1, 2.9], [0.9, -2.8, 0.8]]) prop("lilypad", 0.08, x, z, yaw, 0.02);
-    prop("rowboat", 0.7, -1.6, -2.1, 0.9, 0.02);
+    // Separate reed beds leave a landing for the boat and a clear seat on the far bank.
+    for (const [x, z, height, yaw] of [[3.9, 1.4, 0.8, 1.3], [3.4, -2.7, 0.7, 0.5], [0.5, -4.2, 0.75, 1.2], [-4.3, 0.3, 0.75, 1.2], [-3.2, 2.9, 0.6, 1]]) prop("reeds", height, x, z, yaw);
+    for (const [x, z, yaw] of [[0.4, -1.2, 0.4], [2.2, -1.9, 1.7], [-2.6, 1.5, 2.9], [0.9, -2.8, 0.8]]) prop("lilypad", 0.08, x, z, yaw, 0.02);
+    props.push(placeProp(parent, "rowboat", { height: 0.7, length: 2.8, x: -1.6, y: 0.02, z: -1.2, yaw: 0 }).ready);
     // The dock: planks on posts from the shore out over the water.
     for (let i = 0; i < 9; i++) add(new THREE.BoxGeometry(1.3, 0.06, 0.38), wood, 1.3, 0.32, 5.1 - i * 0.42);
     for (const [x, z] of [[0.7, 1.9], [1.9, 1.9], [0.7, 3.6], [1.9, 3.6]]) add(new THREE.CylinderGeometry(0.06, 0.07, 0.7, 8), wood, x, 0.1, z);
     // The fishing chair waits on the far bank, facing the water, out of the shot's way.
-    prop("fishingChair", 1.5, -4.4, -2.8, -0.56);
+    prop("fishingChair", 1.5, -4.8, -2.8, -0.56);
     // The rod rests on a forked stand at the dock's end, pivoting at its butt; tap it to cast.
     // Its model lies along z with the butt and reel at +z, so it is shifted out by half its length.
     const ROD = 2.5, REST = 0.32;
@@ -292,13 +294,25 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     // Rings on the water: a few at once, for nibbles, plops and the bite's churn.
     const ripples = Array.from({ length: 4 }, () => {
       const mesh = add(new THREE.RingGeometry(0.08, 0.12, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }), 0, 0.03, 0);
-      mesh.castShadow = false;
-      return { mesh, age: 9, strength: 1 };
+      mesh.castShadow = false; mesh.visible = false; mesh.raycast = () => {};
+      return { mesh, age: 0, strength: 1 };
     });
     let nextRipple = 0;
-    const splash = (at: THREE.Vector3, strength = 1) => { const ring = ripples[nextRipple++ % ripples.length]; ring.mesh.position.set(at.x, 0.03, at.z); ring.age = 0; ring.strength = strength; };
+    const splash = (at: THREE.Vector3, strength = 1) => {
+      const ring = ripples[nextRipple++ % ripples.length];
+      ring.mesh.position.set(at.x, 0.03, at.z); ring.mesh.scale.setScalar(1); ring.mesh.visible = true;
+      (ring.mesh.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.3 * strength;
+      ring.age = 0; ring.strength = strength;
+    };
     animate.push((delta) => {
-      for (const ring of ripples) { ring.age += delta; ring.mesh.scale.setScalar(1 + ring.age * 6 * ring.strength); (ring.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (0.35 + 0.3 * ring.strength) - ring.age * 0.5); }
+      for (const ring of ripples) {
+        if (!ring.mesh.visible) continue;
+        const opacity = 0.35 + 0.3 * ring.strength, lifetime = opacity * 2;
+        ring.age = Math.min(lifetime, ring.age + delta);
+        ring.mesh.scale.setScalar(1 + ring.age * 6 * ring.strength);
+        (ring.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, opacity - ring.age * 0.5);
+        ring.mesh.visible = ring.age < lifetime;
+      }
       stringLine();
     });
     prop("fishRack", 1.6, -2.4, 4.4, -Math.PI / 2 + 0.6);
@@ -320,7 +334,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     // A fish leaps in a short arc every few seconds, somewhere on the water.
     const fish = placeProp(parent, "fish", { height: 0.32, x: 0, y: -1, z: 0, yaw: 0 }).group;
     let leap = { at: 3, x: 0, z: 0, heading: 0 }, fishing = false;
-    const rest = new THREE.Vector3(1.75, 0.38, 2.15);
+    const rest = new THREE.Vector3(1.75, 0.44, 2.15);
     bobber.position.copy(rest);
     // A cast: the rod swings back and flicks, the bobber arcs out and plops. It bobs, a fish may
     // nibble (small dips: leave them), then it bites: the bobber plunges, and a tap within the

@@ -24,7 +24,7 @@ const inside = (name, point, margin = 0) => {
 test("all facilities stay within a few steps of the plaza in neighbouring groups", () => {
   assert.equal(stations.length, 13);
   for (const [name, { position }] of stations) {
-    assert.ok(position.length() - COBBLE_RADIUS < (name === "pond" ? 8 : 5.5), `${name} is too far from the plaza edge`);
+    assert.ok(position.length() - COBBLE_RADIUS < (name === "pond" ? 8 : 1.5), `${name} is too far from the plaza edge`);
   }
   for (const [a, b] of [["shop", "wheel"], ["crate", "quests"], ["gallery", "mail"], ["recycler", "forge"], ["feed", "leaderboard"], ["leaderboard", "fame"]]) {
     assert.ok(STATIONS[a].position.distanceTo(STATIONS[b].position) < 7.5, `${a} and ${b} should share a neighbourhood`);
@@ -32,7 +32,7 @@ test("all facilities stay within a few steps of the plaza in neighbouring groups
   for (const [name, { position, rotation }] of stations) {
     const facing = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
     assert.ok(facing.dot(position.clone().negate().normalize()) > 0.3, `${name} turns its back on the square`);
-    assert.ok(position.length() > 11 && position.length() < PLAZA + 4, `${name} stands about the square`);
+    assert.ok(position.length() > 10.5 && position.length() < PLAZA + 4, `${name} stands about the square`);
   }
   // Neighbours keep a gap: no station's front corners stand inside another station.
   for (const [a] of stations) for (const [b, { position, rotation }] of stations) if (a !== b) {
@@ -45,16 +45,17 @@ test("all facilities stay within a few steps of the plaza in neighbouring groups
 });
 
 test("figures occupy inner and outer edges, with an open centre and a dry pond bank", () => {
-  const inner = STATUE_SPOTS.filter(({ position }) => position.length() < 14);
+  const inner = STATUE_SPOTS.filter(({ position }) => position.length() < 12);
   assert.ok(inner.length >= 6 && inner.length <= 10, "showcase should have both inner and outer layers");
   for (const { number, position } of STATUE_SPOTS) {
-    assert.ok(position.length() > 10 && position.length() < 21, `figure ${number} should be near the facilities, outside the plaza centre`);
+    assert.ok(position.length() > 8.5 && position.length() < 21, `figure ${number} should be near the facilities, outside the plaza centre`);
     assert.ok(position.distanceTo(STATIONS.pond.position) > POND.radius + 1, `figure ${number} stands in the pond or its reeds`);
     assert.ok(stations.some(([, station]) => station.position.distanceTo(position) < 7), `figure ${number} is isolated from the facilities`);
   }
   assert.deepEqual(STATION_SPECS.pond.at, [POND.x, POND.z], "water and forest exclusion must move together");
+  assert.deepEqual(STATION_SPECS.pond.at, [6.9, 16.9], "the pond stays put while the other facilities move inward");
   const barrelDistance = Math.hypot(SECRET_BARREL.x - POND.x, SECRET_BARREL.z - POND.z);
-  assert.ok(barrelDistance > POND.radius + 0.5 && barrelDistance < POND.radius + 2, "secret barrel stays on the pond's far bank");
+  assert.ok(barrelDistance > POND.radius + 5, "secret barrel stays clear of the pond and its tackle targets");
 });
 
 test("paths leave through gaps and stay open through the generated woods", () => {

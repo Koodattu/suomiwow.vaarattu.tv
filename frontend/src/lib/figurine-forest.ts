@@ -47,10 +47,10 @@ const facingCentre = (x: number, z: number) => Math.atan2(z, -x);
 
 // Scenery backs the plaza's neighbourhoods: market canvas, produce, a wagon and stored stock
 // to the west; supplies behind the workshop; and a signpost on the outgoing north path.
-// A barrel washed up in the reeds on the far bank
-// of the fishing pond hides the secret series' box, its broken side turned toward the pond's view.
+// A discarded barrel just beyond the shop's side edge hides the secret box. The barrel
+// is visible through the gap from the plaza, while its broken opening faces away.
 export const POND = { x: 6.9, z: 16.9, radius: 4.2 };
-export const SECRET_BARREL = { x: POND.x + 3.6, z: POND.z + 4.4, toward: [4, 10] as [number, number] };
+export const SECRET_BARREL = { x: -12.5, z: -6.5, toward: [-17, -8] as [number, number] };
 export function marketLayout(): Placement[] {
   const at = (model: ForestModel, x: number, z: number, extra: Partial<Placement> = {}): Placement => ({ model, x, z, yaw: facingCentre(x, z), size: 0.5, ...extra });
   const table = (x: number, z: number) => {
@@ -59,10 +59,10 @@ export function marketLayout(): Placement[] {
     const on = (model: ForestModel, along: number, across: number, size = 0.5) => at(model, x + along * c + across * s, z - along * s + across * c, { y: top, yaw: yaw + across * 2, size });
     return [at("table", x, z), on("cheese", 0.35, -0.9), on("cheese", 0.1, -0.55, 0.9), on("bread", -0.3, 0.1), on("bread", -0.2, 0.4, 0.2), on("fruit", 0.2, 0.75), on("lantern", -0.4, -1.3)];
   };
-  // The broken opening faces local -z; turn it toward the pond's camera.
+  // The broken opening faces local -z; keep its intact back toward the plaza.
   const [tx, tz] = SECRET_BARREL.toward;
   return [
-    at("tent", -19.3, -7.2), at("wagon", -19.6, 5.2, { yaw: 0.3 }), at("signpost", 0.8, -20.5, { yaw: 1.2 }),
+    at("tent", -22.3, -7.2), at("wagon", -19.6, 5.2, { yaw: 0.3 }), at("signpost", 0.8, -20.5, { yaw: 1.2 }),
     at("crate", -16.4, -9.4, { yaw: 0.5 }), at("crate", -17.1, -8.8, { yaw: -0.3, size: 0.2 }), at("barrel", 14.8, -12.8),
     at("haystack", -20.8, 8.6, { yaw: 0.8, size: 0.4 }), at("haystack", -21.7, 7.2, { yaw: 2.1, size: 0.7 }),
     // Stock behind the tinkers' yard.
@@ -84,7 +84,7 @@ export function groveLayout(): Placement[] {
     tree(-23.4, -12.4, 0.5), tree(4.2, -28.6, 0.4), tree(-19.8, 19.6, 0.15, "bareTree"), tree(20.6, 12.6, 0.45), tree(-8.9, -20.4, 0.05, "bareTree"),
     // Uneven pockets of planting separate groups; low rocks soften the cobble and water edges.
     low("bush", -14.9, -7.3, 0.5), low("bushSmall", -15.8, -7.9), low("bush", 10.8, -15.2, 0.4), low("bushSmall", 18.8, -4.1, 0.3),
-    low("bush", -14.8, 8.4, 0.5), low("rock", -2.1, 15.3, 0.6), low("rockSmall", -1.4, 16.1), low("bush", 12.4, 17.4, 0.8),
+    low("bush", -14.8, 8.4, 0.5), low("rock", -2.1, 15.3, 0.6), low("rockSmall", -1.4, 16.1), low("bush", 16, 18.8, 0.5),
     low("stump", 17.4, -10.6, 0.4), low("rock", -17, 7.8, 0.5), low("bushSmall", 2.8, -19.4, 0.2), low("rock", 18.4, 0.4, 0.4),
     low("bush", 6.2, -16.2, 0.3), low("bushSmall", -5.8, -16, 0.6), low("stump", -15.6, 13.8, 0.2), low("bush", 15.9, 12.4, 0.5),
   ];

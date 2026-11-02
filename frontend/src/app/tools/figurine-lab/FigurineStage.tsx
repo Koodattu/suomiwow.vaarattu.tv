@@ -26,6 +26,7 @@ import { FINISH_TIME, applyFinish, releaseFinishes } from "@/lib/figurine-finish
 import { type FigurineCollection, type FigurineMachine, type FigurineQuality } from "@/lib/figurine-collection";
 import { buildPedestal, PEDESTAL_TOP } from "@/lib/figurine-pedestal";
 import { hoverOutline } from "@/lib/figurine-glow";
+import { isVisibleHit } from "@/lib/figurine-picking";
 import { uploadFigurineTextures, warmFigurineScene } from "@/lib/figurine-warmup";
 import { createFigurineResourceCache, disposeFigurineObject as disposeObject, figurineResourceBytes } from "@/lib/figurine-cache";
 import styles from "./figurine-lab.module.css";
@@ -781,7 +782,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       // Only the stations are targets; glows and sprites never block what is behind them.
       const roots = stationGroups;
       const hit = raycaster.intersectObjects(roots.map(([root]) => root).filter((root): root is THREE.Group => !!root && root.visible), true)
-        .find(({ object }) => !(object instanceof THREE.Sprite) && !(object instanceof THREE.Points));
+        .find(isVisibleHit);
       // Scenery uses instances: only the marked barrel, not every copy of that model, is a secret.
       const secretHit = scenery?.pickSecret(raycaster);
       if (secretHit && (!hit || secretHit.distance < hit.distance) && worldRef.current?.series.some((entry) => entry.hidden && entry.id === secretHit.id)) return { kind: "series", id: secretHit.id };
@@ -790,11 +791,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       let station: Station | null = null;
       for (let object: THREE.Object3D | null = hit.object; object && !station; object = object.parent) station = roots.find(([root]) => root === object)?.[1] ?? null;
       // Boxes and figures can be picked straight from the hub, not only from their station.
-      if (station === "shop") { const stack = raycaster.intersectObjects(shop?.picks ?? [], false)[0]; if (stack) return { kind: "series", id: stack.object.userData.series }; }
+      if (station === "shop") { const stack = raycaster.intersectObjects(shop?.picks ?? [], false).find(isVisibleHit); if (stack) return { kind: "series", id: stack.object.userData.series }; }
       // A machine's cards and trigger work only up close, and not while it runs.
       if ((station === "recycler" || station === "forge") && view === station) {
         const machine = stationMachines[station];
-        const part = raycaster.intersectObjects(machine?.picks ?? [], false).find(({ object }) => object.userData.machine);
+        const part = raycaster.intersectObjects(machine?.picks ?? [], false).find((hit) => isVisibleHit(hit) && hit.object.userData.machine);
         if (part) return machine?.running ? null : { kind: "machine", machine: station, pick: part.object.userData.machine };
         if (machine?.running) return null;
       }
@@ -1203,6 +1204,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           }
         }
       }
+      // Fly into the same gently drifting pose that the station holds after arrival.
+      // Adding the drift only after the flight would jump by its current offset in one frame.
+      if (destination && isStation(currentView) && !reduced) {
+        destination.position.add(velocity.set(Math.sin(idle * 0.31) * 0.12, Math.sin(idle * 0.43) * 0.06, 0));
+      }
       if (flight && destination) {
         flight.t = reduced ? 1 : Math.min(1, flight.t + Math.min(elapsed, 0.1) / FLIGHT_SECONDS);
         const t = ease(flight.t);
@@ -1211,8 +1217,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         controls.target.lerpVectors(flight.fromTarget, destination.target, t);
         if (flight.t >= 1) flight = null;
       } else if (destination && currentView !== "opening" && currentView !== "viewer") {
-        // Stations hold a framed shot with a gentle hand-held drift.
-        camera.position.copy(destination.position).add(velocity.set(Math.sin(idle * 0.31) * 0.12, Math.sin(idle * 0.43) * 0.06, 0));
+        camera.position.copy(destination.position);
         controls.target.copy(destination.target);
       } else if (!immersive || currentView === "opening") {
         controls.target.y = THREE.MathUtils.damp(controls.target.y, immersive ? 1.5 + (bursting ? motion.lift * 0.6 : 0) : current.boxMode && current.open ? 2.1 : 1.5, 4, delta);

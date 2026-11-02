@@ -19,7 +19,7 @@ registerHooks({
 });
 const { FIGURINE_SERIES, UPCOMING_SERIES, SECRET_SERIES, RELEASED_SERIES, findFigure, TOTAL_FIGURES } = await import("../src/lib/figurine-series.ts");
 const { buildForest, marketLayout, SECRET_BARREL } = await import("../src/lib/figurine-forest.ts");
-const { STATIONS, viewPose } = await import("../src/lib/figurine-world.ts");
+const { STATIONS, STATION_SPECS } = await import("../src/lib/figurine-world.ts");
 const { collectionShelves, parseCollection } = await import("../src/lib/figurine-collection.ts");
 
 test("a first secret figure unlocks the top shelf and normal shelves keep their order", () => {
@@ -79,8 +79,8 @@ test("only the marked barrel instance reveals Series 000 and foreground props bl
   assert.equal(spots.filter(({ secretSeries }) => secretSeries).length, 1);
   const secret = spots.find(({ secretSeries }) => secretSeries);
   assert.deepEqual([secret.x, secret.z, secret.secretSeries], [SECRET_BARREL.x, SECRET_BARREL.z, "community-000"]);
-  // On the pond's far bank, beyond the water and its reeds.
-  assert.ok(STATIONS.pond.position.distanceTo(new THREE.Vector3(secret.x, 0, secret.z)) > 4.9);
+  // Its own nook, away from the pond's water, reeds and tackle targets.
+  assert.ok(STATIONS.pond.position.distanceTo(new THREE.Vector3(secret.x, 0, secret.z)) > 9.2);
   const scene = new THREE.Scene(), forest = buildForest(scene, spots);
   await forest.ready;
   scene.updateMatrixWorld(true);
@@ -121,9 +121,14 @@ test("the concealed box uses the measured cavity rather than bounds skewed by fa
   assert.ok(box.position.distanceTo(expected) < 1e-6);
   assert.equal(box.scale.x, .65);
   assert.ok(box.position.y + 0.33 * box.scale.y < 0.6, "box lid stays well below the tall rim");
-  // The broken side is turned toward the pond's camera, the one view that can find it.
+  // The plaza sees intact wood; the opening faces away from the shop approach.
   const opening = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), spot.yaw);
-  const home = { offset: new THREE.Vector3(0.6, 2.1, 9.6), target: new THREE.Vector3(0, 1.5, 0) };
-  const camera = viewPose("pond", 1, home, 16 / 9).position.setY(0);
-  assert.ok(opening.dot(camera.sub(new THREE.Vector3(spot.x, 0, spot.z)).normalize()) > 0.95);
+  const barrel = new THREE.Vector3(spot.x, 0, spot.z);
+  assert.ok(opening.dot(barrel.clone().negate().normalize()) < -0.3, "opening faces away from the plaza");
+  const shopLocal = barrel.clone().sub(STATIONS.shop.position).applyAxisAngle(new THREE.Vector3(0, 1, 0), -STATIONS.shop.rotation);
+  assert.ok(shopLocal.z < 0 && Math.abs(shopLocal.x) > STATION_SPECS.shop.width / 2 + 0.5, "barrel sits behind the shop's side edge, outside its silhouette");
+  assert.ok(barrel.distanceTo(STATIONS.shop.position) < 5, "secret stays near the shop");
+  for (const { position } of Object.values(STATIONS)) {
+    assert.ok(position.distanceTo(barrel) > 3, "secret clears the nearby facilities");
+  }
 });

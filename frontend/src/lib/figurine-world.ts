@@ -25,21 +25,21 @@ const big = (fit: number) => ({ height: 1.2, distance: 6.8, target: 1.6, fit });
 const small = (fit: number, target = 1.3) => ({ height: 1.1, distance: 6.6, target, fit });
 export const STATION_SPECS: Record<Station, StationSpec> = {
   // The market bends around the west edge, with room for visitors between its stalls.
-  shop: { at: [-10.2, -9.6], face: [-5, -3], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
-  wheel: { at: [-13.2, -3.6], face: [-7, 0], width: 3, back: -0.6, front: 0.8, shot: small(3.8, 1.6) },
-  trading: { at: [-13.8, 3.4], face: [-7, 2], width: 4, back: -0.6, front: 0.9, shot: big(4.6) },
+  shop: { at: [-8.8, -8.2], face: [-4, -2.4], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
+  wheel: { at: [-11.8, -2.8], face: [-5.6, 0], width: 4.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
+  trading: { at: [-11.5, 3.4], face: [-5.6, 1.6], width: 5.4, back: -2, front: 2.2, shot: big(4.6) },
   // Daily errands flank the outgoing north path, on the same patch of worn ground.
-  crate: { at: [-4.5, -13.2], face: [-1, -6], width: 2.4, back: -0.8, front: 0.9, shot: small(3.2, 1) },
-  quests: { at: [1.4, -14.3], face: [-0.5, -6], width: 3, back: -0.6, front: 0.9, shot: small(4, 1.5) },
-  gallery: { at: [8.4, -11.2], face: [4, -6], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
-  mail: { at: [12.6, -7.6], face: [6, -4], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
+  crate: { at: [-3.7, -11.2], face: [-0.8, -4.8], width: 3.1, back: -0.8, front: 1.1, shot: small(3.2, 1) },
+  quests: { at: [1.6, -11.6], face: [-0.4, -4.8], width: 4.5, back: -0.6, front: 1.3, shot: small(4.8, 1.5) },
+  gallery: { at: [6.92, -9.36], face: [3.2, -4.8], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
+  mail: { at: [10.6, -6.4], face: [4.8, -3.2], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
   // The scrying ball, honours and scores share the east-side garden.
-  feed: { at: [14, -2.8], face: [8, 0], width: 2.6, back: -0.6, front: 0.8, shot: small(3.4, 1.4) },
-  leaderboard: { at: [15.4, 2.4], face: [8, 2.5], width: 3, back: -0.8, front: 0.9, shot: small(4, 1.5) },
-  fame: { at: [11.6, 6.9], face: [7, 2], width: 3.4, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
+  feed: { at: [11.4, -1.8], face: [6.4, 0], width: 2.6, back: -0.6, front: 0.8, shot: small(3.4, 1.4) },
+  leaderboard: { at: [12.32, 1.92], face: [6.4, 2], width: 3, back: -1.4, front: 1, shot: small(4, 1.5) },
+  fame: { at: [9.28, 5.52], face: [5.6, 1.6], width: 3.8, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
   // A working yard off the south-west corner; its two machines face a shared approach.
-  recycler: { at: [-10.2, 10.2], face: [-5, 6], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
-  forge: { at: [-4.8, 14.2], face: [-3, 7], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
+  recycler: { at: [-8.16, 8.16], face: [-4, 4.8], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
+  forge: { at: [-3, 11.4], face: [-2.4, 5.6], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
   pond: { at: [POND.x, POND.z], face: [4, 10], width: 6, back: -3, front: 3, shot: { height: 2.4, distance: 8.5, target: 0.6, fit: 8.5 } },
 };
 export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([name, spec]) => {
@@ -48,22 +48,22 @@ export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([n
 })) as Record<Station, { position: THREE.Vector3; rotation: number }>;
 // The worn paths off the square, as points along their middles.
 export const PATHS: [number, number][][] = [
-  [[-1, -10], [-1.7, -13.8], [-1.1, -18.5], [0.3, -24], [2.4, -30], [3.6, -40]],
-  [[-10.5, 0.3], [-14.4, 0], [-18.7, -0.8], [-23.6, -1.8], [-31, -4]],
-  [[9.8, -5], [13, -5.1], [17, -5.7], [23, -5.4], [30, -3]],
-  [[-7.3, 7.8], [-7.1, 11.4], [-8.2, 15.4], [-10.5, 19.3], [-14, 25]],
+  [[-1.2, -8], [-1.4, -12.5], [-1.1, -18.5], [0.3, -24], [2.4, -30], [3.6, -40]],
+  [[-8.4, -0.4], [-10.5, -0.4], [-12.5, 0.2], [-18.7, -0.8], [-23.6, -1.8], [-31, -4]],
+  [[7.84, -4], [10.4, -4.08], [17, -5.7], [23, -5.4], [30, -3]],
+  [[-5.2, 5.5], [-5.2, 9.12], [-8.2, 15.4], [-10.5, 19.3], [-14, 25]],
   [[1.7, 10.2], [1.2, 13], [2.1, 16.5], [1.6, 22], [-0.5, 29]],
 ];
 // Overlapping worn patches join each group to the plaza, with irregular grass pockets between.
-export const PATCHES: [number, number, number][] = [[-11.6, -7, 4.5], [-13.6, 0.3, 4.8], [-1.8, -12.7, 4.4], [9.7, -9.3, 4.5], [13, 2, 5], [-7.5, 11.6, 4.8], [3.2, 13.6, 3.5]];
+export const PATCHES: [number, number, number][] = [[-9.28, -5.6, 4.5], [-10.88, 0.24, 4.8], [-1.44, -10.16, 4.4], [7.76, -7.44, 4.5], [10.4, 1.6, 5], [-6, 9.28, 4.8], [3.2, 13.6, 3.5]];
 // An inner layer beside the facilities and an outer layer at their gardens and paths. Leave
 // the opening pedestal's middle of the plaza empty. Each visitor looks roughly toward it.
 export const STATUE_SPOTS = ([
-  [-13.5, -6.5], [-10, 5], [-12, 7], [-0.8, 12], [8.9, 9], [12.2, 0.5], [4.6, -12.6], [-5.5, -10],
-  [-7.5, -15.6], [-16.1, -5.1], [-13.6, 12.1], [0.2, 18.5], [13.6, 11.8], [17.8, -2.8], [13.1, -13], [3.5, -17.8],
+  [-8.2, -4], [-12, 7.4], [-8, 5], [-0.64, 9.6], [7.12, 7.2], [13.1, -0.2], [3.6, -8], [-4.8, -7.5],
+  [-6.75, -14.04], [-14.94, -5.49], [-13.14, 9.99], [0.2, 18.5], [12.5, 10.8], [15.5, 5.1], [12.24, -10.35], [5.2, -13.2],
 ] as [number, number][]).map(([x, z], index) => ({ number: index + 1, position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(-x, -z) + Math.sin(index * 2.4) * 0.5 }));
 // Lamp posts along the paths.
-export const LAMP_SPOTS: [number, number][] = [[-3.5, -17.5], [4.8, -15.9], [-16.2, 2], [-15.3, -11.8], [16, -9.6], [17.8, 5.6], [-10.6, 16.1], [0, 15.5]];
+export const LAMP_SPOTS: [number, number][] = [[-3.5, -17.5], [4.8, -15.9], [-17, -3], [-15.3, -11.8], [16, -9.6], [17.8, 5.6], [-10.6, 16.1], [0, 15.5]];
 // Sample the entire path, not just its control points: vegetation must not close the gaps
 // between them. Figure spots also need a clearing when the outer woods are generated.
 export const FOREST_CLEARINGS: Keep[] = [
