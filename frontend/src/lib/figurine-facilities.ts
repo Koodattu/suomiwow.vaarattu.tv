@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { hoverOutline } from "@/lib/figurine-glow";
 import { woodTexture } from "@/lib/figurine-shop";
 import { FISH_PROP, type PlaceProp } from "@/lib/figurine-props";
 import { WHEEL, type FigurineQuality, type FishId } from "@/lib/figurine-collection";
@@ -54,12 +55,15 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   let acting: { step: (t: number) => boolean; t: number } | null = null;
   const actions: Partial<Record<FacilityAction["kind"], (action: FacilityAction, cue: (cue: ActionCue) => void, done: (result?: CastResult) => void) => void>> = {};
   // Taps on a facility's parts while it acts (the pond: hooking the bite).
-  const pokes: Partial<Record<"hook", () => void>> = {};
+  const pokes: Partial<Record<"hook" | "dismiss", () => void>> = {};
   const play = (step: (t: number) => boolean) => { acting = { step, t: 0 }; };
   // The crate's streak board, repainted when the streak changes.
   let paintStreak: ((opened: number, today: number | null) => void) | null = null;
   // The pond's glint (while prize catches remain), and the tackle under the pointer.
   let setPrizes: ((left: number) => void) | null = null, hover: ((part: string | null) => void) | null = null;
+  let presentCatch: ((camera: THREE.PerspectiveCamera | null, reducedMotion: boolean) => void) | null = null;
+  const partOutlines = new Map<string, ReturnType<typeof hoverOutline>>();
+  let hoveredPart: string | null = null, disposed = false;
   // Sparks of gold for rewards: additive sprites flung up and falling back.
   const [sparkCanvas, sparkPaint] = canvas(32, 32), sparkGradient = sparkPaint.createRadialGradient(16, 16, 0, 16, 16, 16);
   sparkGradient.addColorStop(0, "rgba(255,255,255,1)"); sparkGradient.addColorStop(1, "rgba(255,255,255,0)"); sparkPaint.fillStyle = sparkGradient; sparkPaint.fillRect(0, 0, 32, 32);
@@ -370,11 +374,16 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
         if (/sign/i.test((object.material as THREE.Material).name)) { sign.push(object); return; }
         object.geometry = object.geometry.clone();
         toPond.copy(parent.matrixWorld).invert().multiply(object.matrixWorld);
-        const back = toPond.clone().invert(), positions = object.geometry.attributes.position as THREE.BufferAttribute;
-        for (let i = 0; i < positions.count; i++) {
-          point.fromBufferAttribute(positions, i).applyMatrix4(toPond);
-          if (point.y < -0.08) { point.y = -0.08; point.applyMatrix4(back); positions.setXYZ(i, point.x, point.y, point.z); }
+        const back = toPond.clone().invert(), source = object.geometry.attributes.position;
+        // Decode the quantized/interleaved positions before reshaping the pilings. Keep their
+        // feet just beneath the ground, and rebuild both the rendered and raycast bounds.
+        const positions = new THREE.Float32BufferAttribute(source.count * 3, 3);
+        for (let i = 0; i < source.count; i++) {
+          point.fromBufferAttribute(source, i).applyMatrix4(toPond);
+          point.y = Math.max(-0.005, point.y);
+          point.applyMatrix4(back); positions.setXYZ(i, point.x, point.y, point.z);
         }
+        object.geometry.setAttribute("position", positions);
         object.geometry.computeBoundingBox(); object.geometry.computeBoundingSphere();
       });
       sign.forEach((object) => object.removeFromParent());
@@ -387,31 +396,29 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     lanternGlow.position.set(lanternX, DOCK.deck + PILINGS.top + 0.24, lanternZ); lanternGlow.scale.setScalar(0.7); parent.add(lanternGlow);
     animate.push((_, time) => { lanternGlow.material.opacity = 0.45 + Math.sin(time * 3.1) * 0.05 + Math.sin(time * 7.3) * 0.03; });
     const hidden = new THREE.MeshBasicMaterial({ visible: false });
-    // On the dock: the open tackle box, and the bucket the catch goes into, which holds the fish
-    // log; a creel on the bank by the steps.
-    const [tackleX, tackleZ] = onDock(2.4, -1.6);
-    prop("tacklebox", 0.3, tackleX, tackleZ, -Math.PI / 2 + 0.35, DOCK.deck);
-    const [bucketX, bucketZ] = onDock(0.4, 2.3);
+    // The catch bucket replaces the tackle box on the left of the dock, clear of the rod.
+    // It also opens the fish log; a creel sits on the bank by the steps.
+    const [bucketX, bucketZ] = onDock(2.4, -1.6);
     const bucket = new THREE.Group(); bucket.position.set(bucketX, DOCK.deck, bucketZ); bucket.rotation.y = -0.6; bucket.userData.part = "bucket"; parent.add(bucket);
     props.push(placeProp(bucket, "fishBucket", { height: 0.32 }).ready);
     add(new THREE.BoxGeometry(0.6, 0.6, 0.6), hidden, 0, 0.22, 0, bucket).castShadow = false;
     prop("creel", 0.3, DOCK.x + 1.75, 4.3, 0.9, 0.02);
-    // The rod stands in a holder clamped to the far right piling, angled out over the water and
+    // The rod stands in a holder just inside the far right piling, angled out over the water and
     // pivoting at its butt; tap it to cast. Its model is 2.64 long with the butt and reel at +z,
     // butt and tip level with each other and the reel hanging 0.36 below them: it is set so its
     // butt is at the holder and its tip at -ROD. The bobber hangs from the tip until the line goes out.
-    const ROD = 2.5, REST = 0.5, AIM = 0.3;
+    const ROD = 2.5, REST = 0.35, AIM = 0.12;
     const [postX, postZ] = onDock(PILINGS.far, PILINGS.right);
-    const PIVOT = new THREE.Vector3(postX, DOCK.deck + 0.14, postZ - 0.15);
+    const PIVOT = new THREE.Vector3(postX - 0.22, DOCK.deck + 0.13, postZ + 0.48);
     const rod = new THREE.Group(); rod.position.copy(PIVOT); rod.rotation.order = "YXZ"; rod.rotation.set(REST, AIM, 0); rod.userData.part = "rod"; parent.add(rod);
     props.push(placeProp(rod, "fishingRod", { height: 1, length: ROD, y: -0.36 * ROD / 2.64, z: -ROD / 2 }).ready);
     add(new THREE.BoxGeometry(0.6, 0.6, ROD + 0.3), hidden, 0, 0.1, -ROD / 2, rod).castShadow = false;
-    // The holder: a short iron-banded tube round the rod's handle, bracketed to the piling.
+    // The holder: a short iron-banded tube round the rod's handle, bolted onto the deck.
     const iron = new THREE.MeshStandardMaterial({ color: 0x3a3632, metalness: 0.6, roughness: 0.5, envMap });
     add(new THREE.CylinderGeometry(0.038, 0.034, 0.3, 10, 1, true).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ map: wood.map, roughness: 0.7, side: THREE.DoubleSide }), 0, 0, -0.1, rod);
     for (const along of [-0.03, -0.22]) add(new THREE.TorusGeometry(0.04, 0.008, 6, 16), iron, 0, 0, along, rod);
-    add(new THREE.BoxGeometry(0.05, 0.04, 0.12), iron, postX, PIVOT.y + 0.02, postZ - 0.08);
-    add(new THREE.TorusGeometry(0.12, 0.012, 6, 20).rotateX(Math.PI / 2), iron, postX, PIVOT.y + 0.02, postZ);
+    add(new THREE.CylinderGeometry(0.035, 0.045, 0.13, 8), iron, PIVOT.x, DOCK.deck + 0.065, PIVOT.z);
+    add(new THREE.BoxGeometry(0.18, 0.025, 0.24), iron, PIVOT.x, DOCK.deck + 0.0125, PIVOT.z);
     // The anglers' board on the bank left of the dock: a notice board of pinned records under a
     // gilded trophy fish, turned toward the dock's foot. Tap it for the rankings.
     const [boardX, boardZ] = around(-0.55, 0.55);
@@ -441,7 +448,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     const trophy = new THREE.Group(); trophy.position.set(0, 1.62, 0.05); board.add(trophy);
     add(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 28).rotateX(Math.PI / 2).scale(1.7, 1, 1), wood, 0, 0, -0.02, trophy);
     const mounted = placeProp(trophy, FISH_PROP.mightfish, { height: 1, length: 0.62, yaw: Math.PI / 2 });
-    mounted.group.rotation.z = Math.PI / 2; mounted.group.position.set(0, -0.1, 0.03);
+    mounted.group.rotation.z = -Math.PI / 2; mounted.group.position.set(0, 0, 0.18);
     props.push(mounted.ready.then((group) => { applyFinish(group, "golden", envMap); return group; }));
     add(new THREE.BoxGeometry(1.4, 1.9, 0.5), hidden, 0, 0.95, 0, board).castShadow = false;
     // The line: a few points sagging between the rod's tip and the bobber, slack until a fish pulls.
@@ -522,29 +529,88 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     mark.visible = false; mark.renderOrder = 5; parent.add(mark);
     const closing = add(new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd257, transparent: true, opacity: 0, depthWrite: false }), 0, 0.04, 0);
     closing.castShadow = false; closing.visible = false; closing.raycast = () => {};
-    // The catch on show: it leaps from the water to hang before the camera, turning, finished
-    // like its quality, until the next cast, when a fish drops into the bucket.
-    const SHOW = new THREE.Vector3(0.2, 2, 6), BUCKET = new THREE.Vector3(bucketX, DOCK.deck + 0.32, bucketZ);
-    const show = new THREE.Group(); show.visible = false; parent.add(show);
+    // The catch on show: it leaps from the water to hang before the camera, finished
+    // like its quality, until dismissal or the next cast sends it into the bucket.
+    const SHOW = new THREE.Vector3(), BUCKET = new THREE.Vector3(bucketX, DOCK.deck + 0.2, bucketZ);
+    const REVEAL_SECONDS = 1.1, STOW_SECONDS = 0.7;
+    const smooth = (k: number) => k * k * (3 - 2 * k);
+    const arc = (k: number) => 16 * k * k * (1 - k) * (1 - k);
+    const presentation = new THREE.Group(); parent.add(presentation);
+    const show = new THREE.Group(); show.visible = false; presentation.add(show);
+    // A soft oval behind the catch fades to transparent at its edges, leaving the banks clear.
+    const catchBackdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: sparkMap, color: 0x000000, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+    catchBackdrop.name = "pond-catch-backdrop";
+    catchBackdrop.visible = false; catchBackdrop.raycast = () => {}; presentation.add(catchBackdrop);
+    let displayScale = 0.5, stowScale = 0.5, stowSpin = 0, revealProgress = 0, reducedCatchMotion = false;
+    const launchRotation = new THREE.Quaternion(), stowRotation = new THREE.Quaternion(), stowFrom = new THREE.Vector3();
+    const bucketRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, bucket.rotation.y, Math.PI / 3));
+    // Anchor the landed model to the viewport, including while the player looks around.
+    const screenCatch = new THREE.Vector3(), viewRotation = new THREE.Quaternion();
+    presentCatch = (camera, reducedMotion) => {
+      presentation.visible = !!camera;
+      if (!camera) return;
+      reducedCatchMotion = reducedMotion;
+      displayScale = 0.5 * Math.min(1, camera.aspect / 0.8);
+      camera.updateWorldMatrix(true, false);
+      // Close enough to stay in front of the dock even at the nearest allowed camera zoom.
+      screenCatch.set(0, 0.04, -3).applyMatrix4(camera.matrixWorld);
+      SHOW.copy(parent.worldToLocal(screenCatch));
+      parent.getWorldQuaternion(viewRotation).invert().multiply(camera.quaternion);
+      // One pose calculation owns the whole flight and the resting display. At k=1 the
+      // position, scale and rotation already equal the display pose, so nothing snaps.
+      if (show.visible && stowing < 0) {
+        const k = smooth(revealProgress);
+        if (current?.phase === "hooked") {
+          show.position.lerpVectors(current.out, SHOW, k);
+          if (!reducedMotion) show.position.y += arc(revealProgress) * 1.1;
+          show.quaternion.slerpQuaternions(launchRotation, viewRotation, k);
+        } else { show.position.copy(SHOW); show.quaternion.copy(viewRotation); }
+        show.scale.setScalar(THREE.MathUtils.lerp(0.22, displayScale, k));
+      }
+      catchBackdrop.position.copy(parent.worldToLocal(screenCatch.set(0, -0.22, -4).applyMatrix4(camera.matrixWorld)));
+      catchBackdrop.quaternion.copy(viewRotation);
+      const height = 8 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      catchBackdrop.scale.set(Math.min(height * 1.15, height * camera.aspect * 0.95), height * 0.72, 1);
+    };
     const holder = new THREE.Group(); show.add(holder);
     let shown: CatchVisual | null = null, queued: CatchVisual | null = null, stowing = -1;
-    const clearShow = () => { show.visible = false; show.scale.setScalar(1); holder.children.forEach((child) => releaseFinishes(child)); holder.clear(); shown = null; stowing = -1; };
+    const clearShow = () => { show.visible = catchBackdrop.visible = false; catchBackdrop.material.opacity = 0; show.scale.setScalar(1); holder.children.forEach((child) => releaseFinishes(child)); holder.clear(); holder.rotation.y = 0; shown = null; stowing = -1; revealProgress = 0; };
     const showCatch = (visual: CatchVisual) => {
       clearShow(); shown = visual;
       const placed = visual.kind === "box" ? placeProp(holder, "gift", { height: 0.4, yaw: 0.4 })
         : visual.kind === "figure" ? placeProp(holder, "chest", { height: 0.45, yaw: -Math.PI / 2 })
         // Fish lie on their sides: stood up, they show their flank to the dock.
-        : placeProp(holder, FISH_PROP[visual.fish], { height: 1, length: THREE.MathUtils.clamp(visual.length * 1.5, 0.5, 1.4), yaw: Math.PI / 2 });
-      if (visual.kind === "fish") { placed.group.rotation.z = Math.PI / 2; if (visual.quality !== "standard") void placed.ready.then((group) => applyFinish(group, visual.quality, envMap)); }
+        : placeProp(holder, FISH_PROP[visual.fish], { height: 1, length: THREE.MathUtils.clamp(visual.length * 2, 1.4, 1.9), yaw: Math.PI / 2 });
+      if (visual.kind === "fish") placed.group.rotation.z = -Math.PI / 2;
+      void placed.ready.then((group) => {
+        if (visual.kind === "fish" && visual.quality !== "standard") applyFinish(group, visual.quality, envMap);
+        group.updateWorldMatrix(true, true);
+        const centre = new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3());
+        holder.worldToLocal(centre); group.position.sub(centre);
+        group.traverse((object) => { object.raycast = () => {}; });
+      });
     };
     // Last catch away: a fish (or boot) drops into the bucket; a prize vanishes in a sparkle.
-    const stow = () => { if (show.visible && shown) stowing = 0; };
+    const stow = () => {
+      if (!show.visible || !shown || stowing >= 0) return;
+      stowing = 0; stowScale = show.scale.x; stowSpin = holder.rotation.y;
+      stowFrom.copy(show.position); stowRotation.copy(show.quaternion);
+    };
     animate.push((delta) => {
+      const shade = show.visible && stowing < 0 ? THREE.MathUtils.smoothstep(revealProgress, 0.35, 1) * 0.65 : 0;
+      catchBackdrop.material.opacity = THREE.MathUtils.damp(catchBackdrop.material.opacity, shade, 10, delta);
+      catchBackdrop.visible = catchBackdrop.material.opacity > 0.001;
+      if (show.visible && stowing < 0 && !reducedCatchMotion) holder.rotation.y += delta * 0.9;
       if (stowing < 0) return;
       stowing += delta;
-      const k = Math.min(1, stowing / 0.45);
-      if (shown?.kind === "fish") { show.position.lerp(BUCKET, k); show.position.y += Math.sin(Math.PI * k) * 0.3; show.scale.setScalar(1 - k * 0.7); }
-      else show.scale.setScalar(Math.max(0.01, 1 - k));
+      const k = Math.min(1, stowing / STOW_SECONDS), eased = smooth(k);
+      if (shown?.kind === "fish") {
+        show.position.lerpVectors(stowFrom, BUCKET, eased);
+        if (!reducedCatchMotion) show.position.y += arc(k) * 0.35;
+        show.quaternion.slerpQuaternions(stowRotation, bucketRotation, eased);
+        if (!reducedCatchMotion) holder.rotation.y = stowSpin + 0.9 * STOW_SECONDS * (k - k * k / 2);
+      }
+      show.scale.setScalar(THREE.MathUtils.lerp(stowScale, 0.015, eased));
       if (k >= 1) {
         if (shown?.kind !== "fish") burst(show.position.clone(), 0xffe6a0);
         const next = queued; queued = null; clearShow();
@@ -607,14 +673,12 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
           // The rod jerks up; the catch leaps from the water to its place before the camera.
           rod.rotation.x = REST - 0.36 + Math.min(1, since / 0.18) * 0.9 - Math.max(0, Math.min(1, (since - 0.6) / 0.8)) * 0.6;
           sag = 0;
-          const k = Math.min(1, since / 0.8);
+          const k = Math.min(1, since / REVEAL_SECONDS);
+          revealProgress = k;
           show.visible = true;
-          show.position.lerpVectors(out, SHOW, k); show.position.y = SHOW.y * k + Math.sin(Math.PI * k) * 1.1;
-          show.rotation.set(0, since * 2.2, (1 - k) * 2.5);
           bobber.position.lerp(restOf(clock, rest), Math.min(1, since / 0.7));
           if (k >= 1 && !finished) { burst(SHOW.clone(), 0xffe6a0); cue("burst"); finish("caught"); }
-          if (since > 0.8) show.position.y = SHOW.y + Math.sin(since * 2) * 0.05;
-          if (since > 1.6) { fishing = false; current = null; return false; }
+          if (k >= 1) { fishing = false; current = null; return false; }
         } else {
           // Lost: the bobber pops up empty and is reeled back to the rod.
           rod.rotation.x = THREE.MathUtils.lerp(rod.rotation.x, REST, Math.min(1, since * 4));
@@ -631,30 +695,29 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     pokes.hook = () => {
       const state = current;
       if (!state || !acting) return;
-      if (state.phase === "bite") { state.phase = "hooked"; state.at = acting.t; mark.visible = closing.visible = false; splash(state.out, 1.8); burst(state.out.clone().setY(0.4), 0xbfe8ff); }
+      if (state.phase === "bite") {
+        state.phase = "hooked"; state.at = acting.t; revealProgress = 0;
+        launchRotation.setFromEuler(new THREE.Euler(0.2, Math.atan2(SHOW.x - state.out.x, SHOW.z - state.out.z), -0.4));
+        mark.visible = closing.visible = false; splash(state.out, 1.8); burst(state.out.clone().setY(0.4), 0xbfe8ff);
+      }
       // A tap before the bite scares the fish off (taps while the bobber is still flying are ignored).
       else if (state.phase === "wait") { state.phase = "lost"; state.at = acting.t; state.result = "spooked"; splash(state.out, 0.8); }
     };
+    pokes.dismiss = () => {
+      if (!shown || revealProgress < 1 || stowing >= 0) return;
+      stow();
+    };
     setPrizes = (left) => { glintWanted = left > 0 ? 1 : 0; };
-    // Pointing at the tackle: the rod lifts a little in its holder, the bucket rises, and the
-    // trophy fish on the anglers' board turns out to look.
-    let hovered: string | null = null;
-    hover = (part) => { hovered = part; };
-    animate.push((delta, time) => {
-      const lift = THREE.MathUtils.damp(bucket.position.y, DOCK.deck + (hovered === "bucket" ? 0.06 : 0), 12, delta);
-      bucket.position.y = lift; bucket.scale.setScalar(1 + (lift - DOCK.deck) * 1.2);
-      trophy.rotation.y = THREE.MathUtils.damp(trophy.rotation.y, hovered === "board" ? 0.35 * Math.sin(time * 3) : 0, 6, delta);
-      trophy.scale.setScalar(THREE.MathUtils.damp(trophy.scale.x, hovered === "board" ? 1.12 : 1, 10, delta));
-    });
+    // Use the same gold silhouette as the other world controls, without moving the tackle.
+    hover = (part) => { hoveredPart = part; };
     // Back at rest: the rod settles in its holder, the bobber hangs from its tip.
     animate.push((delta, time) => {
       clock = time;
       if (fishing) return;
-      rod.rotation.x = THREE.MathUtils.damp(rod.rotation.x, REST + (hovered === "rod" ? 0.06 : 0), 8, delta);
+      rod.rotation.x = THREE.MathUtils.damp(rod.rotation.x, REST, 8, delta);
       sag = 0.05;
       if (stowing < 0 || shown?.kind !== "fish" || stowing > 0.2) bobber.position.lerp(restOf(time, rest), Math.min(1, delta * 8));
     });
-    animate.push((_, time) => { if (show.visible && !current && stowing < 0) { show.rotation.y = time * 0.9; show.position.y = SHOW.y + Math.sin(time * 2) * 0.05; } });
     animate.push((_, time) => {
       const t = time - leap.at;
       if (t > 1.1) { const angle = Math.random() * Math.PI * 2, radius = 1.2 + Math.random() * 2; leap = { at: time + 2 + Math.random() * 4, x: Math.sin(angle) * radius, z: Math.cos(angle) * radius * 0.7 - 0.8, heading: Math.random() * Math.PI * 2 }; }
@@ -667,8 +730,17 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     });
   }
   const ready = Promise.all(props).then((groups) => {
+    if (kind === "pond" && !disposed) {
+      const parts: THREE.Object3D[] = [];
+      parent.traverse((object) => { if (object.userData.part) parts.push(object); });
+      for (const part of parts) {
+        const meshes: THREE.Mesh[] = [];
+        part.traverse((object) => { if (object instanceof THREE.Mesh && !object.userData.outline && (Array.isArray(object.material) ? object.material : [object.material]).some((material) => material.visible)) meshes.push(object); });
+        partOutlines.set(part.userData.part, hoverOutline(meshes, 0xffcf7a, 0.03));
+      }
+    }
     const meshes = [...frame];
-    groups.forEach((group) => group.traverse((object) => { if ((object as THREE.Mesh).isMesh) meshes.push(object as THREE.Mesh); }));
+    groups.forEach((group) => group.traverse((object) => { if ((object as THREE.Mesh).isMesh && !object.userData.outline) meshes.push(object as THREE.Mesh); }));
     return meshes;
   });
   return {
@@ -677,16 +749,19 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     setStreak(opened: number, today: number | null) { paintStreak?.(opened, today); },
     // The pond: how many prize catches remain today (they glint under the water).
     setPrizes(left: number) { setPrizes?.(left); },
-    // The working part under the pointer, for a little lift (the pond's rod and tackle box).
+    // The working part under the pointer.
     hover(part: string | null) { hover?.(part); },
+    present(camera: THREE.PerspectiveCamera | null, reducedMotion = false) { presentCatch?.(camera, reducedMotion); },
+    dispose() { disposed = true; partOutlines.forEach((outline) => outline.dispose()); },
     // Acts out an action this facility has (the wheel spins, the pond casts, the crate opens).
     act(action: FacilityAction, cue: (cue: ActionCue) => void, done: (result?: CastResult) => void) {
       const run = actions[action.kind];
       if (run) run(action, cue, done); else done();
     },
     // A tap on the facility while it acts: at the pond, a strike at the bite.
-    poke(kind: "hook") { pokes[kind]?.(); },
+    poke(kind: "hook" | "dismiss") { pokes[kind]?.(); },
     update(delta: number, time: number) {
+      partOutlines.forEach((outline, part) => outline.update(hoveredPart === part ? 1 : 0, delta));
       animate.forEach((step) => step(delta, time));
       if (acting) { acting.t += Math.min(delta, 0.1); if (!acting.step(acting.t)) acting = null; }
       sparks.forEach((spark) => {

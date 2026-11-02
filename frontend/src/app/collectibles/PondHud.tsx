@@ -9,8 +9,8 @@ import Portrait from "./Portrait";
 import styles from "./pond-hud.module.css";
 
 // The fishing pond's controls, laid over the world rather than in a panel: what the water is
-// doing along the top, the catch as a banner, and a bar of buttons along the bottom (back to the
-// square, the one action, the fish log and the rankings). The world says the rest: something
+// doing above the bottom controls, the catch in the centre, and a bar of buttons along the bottom.
+// The world says the rest: something
 // glints under the water while the day's prize catches remain, the bucket on the dock holds the
 // fish log and the board on the bank the rankings.
 export type PondPart = "rod" | "bobber" | "bucket" | "board";
@@ -18,12 +18,12 @@ export type PondSheet = "log" | "board";
 type Props = {
   records: FigurineRecords; now: Date; line: LinePhase | null; result: Extract<PanelResult, { station: "pond" }> | null;
   busy: boolean; hovered: PondPart | null; sheet: PondSheet | null;
-  onCast: () => void; onHook: () => void; onSheet: (sheet: PondSheet | null) => void; onBack: () => void;
+  onCast: () => void; onHook: () => void; onDismiss: () => void; onSheet: (sheet: PondSheet | null) => void; onBack: () => void;
 };
 // Players learn the pond in a few casts; after that the how-to lines step aside.
 const LEARNED = 3;
 
-export default function PondHud({ records, now, line, result, busy, hovered, sheet, onCast, onHook, onSheet, onBack }: Props) {
+export default function PondHud({ records, now, line, result, busy, hovered, sheet, onCast, onHook, onDismiss, onSheet, onBack }: Props) {
   const t = useTranslations("figurineLab.world.pond");
   const quality = useTranslations("figurineLab.quality");
   const prizes = dailyCatchesLeft(records, now), learning = records.stats.fish < LEARNED;
@@ -39,17 +39,20 @@ export default function PondHud({ records, now, line, result, busy, hovered, she
       <p>{story}</p>
       {(pointing || (learning && how)) && <small>{pointing ?? how}</small>}
     </div>
-    {result && "caught" in result && !out && <CatchBanner result={result} quality={(finish) => quality(finish)} />}
+    {result && "caught" in result && !out && <>
+      <button type="button" className={styles.catchDismiss} onClick={onDismiss} aria-label={t("dismissCatch")}><span>{t("dismissCatch")}</span></button>
+      <CatchBanner result={result} quality={(finish) => quality(finish)} />
+    </>}
     <nav className={styles.bar} aria-label={t("controls")}>
       <div className={styles.left}>
-        <button type="button" className={styles.side} onClick={onBack} aria-label={t("back")}><Glyph kind="back" /><span>{t("back")}</span></button>
-      </div>
-      {out ? <button type="button" className={styles.action} data-strike={line === "bite"} disabled={line === "cast"} onClick={onHook}>{t("strike")}</button>
-        : <button type="button" className={styles.action} disabled={busy} onClick={onCast}>{t(result ? "castAgain" : "cast")}</button>}
-      <div className={styles.right}>
+        <button type="button" className={styles.back} onClick={onBack}>{t("back")}</button>
         <button type="button" className={styles.side} onClick={() => onSheet("log")} aria-haspopup="dialog" aria-label={`${t("log")} ${kinds}/${FISH.length}`}>
           <Glyph kind="log" /><span>{t("log")}</span><em>{kinds}/{FISH.length}</em>
         </button>
+      </div>
+      {out ? <button type="button" className={styles.action} data-strike={line === "bite"} disabled={line === "cast"} onClick={onHook}><Glyph kind="rod" />{t("strike")}</button>
+        : <button type="button" className={styles.action} disabled={busy} onClick={onCast}><Glyph kind="rod" />{t("cast")}</button>}
+      <div className={styles.right}>
         <button type="button" className={styles.side} onClick={() => onSheet("board")} aria-haspopup="dialog" aria-label={`${t("rankings")} ${t("points", { points: score })}`}>
           <Glyph kind="board" /><span>{t("rankings")}</span>{score > 0 && <em>{score}</em>}
         </button>
@@ -77,7 +80,6 @@ function CatchBanner({ result, quality }: { result: Extract<PanelResult, { caugh
   }
   const kind = fishOf(caught.fish)!;
   return <div className={styles.banner} data-quality={caught.quality} role="status">
-    <span className={styles.bannerFish}><FishPicture id={caught.fish} /></span>
     <div>
       <small>{caught.first ? t("banner.new") : caught.best ? t("banner.best") : t("banner.caught")}</small>
       <b>{kind.name}</b>
@@ -174,10 +176,10 @@ function AnglersBoard({ records, onClose }: { records: FigurineRecords; onClose:
   </Sheet>;
 }
 
-function Glyph({ kind }: { kind: "log" | "back" | "board" }) {
+function Glyph({ kind }: { kind: "log" | "rod" | "board" }) {
   return <svg className={styles.glyph} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     {kind === "log" ? <><path d="M3 12c3-4 7-5 10-5 3 0 5 2 6 5-1 3-3 5-6 5-3 0-7-1-10-5z" /><path d="M3 12 1 9M3 12l-2 3" /><circle cx="15.5" cy="11" r=".6" fill="currentColor" /></>
       : kind === "board" ? <><path d="M8 4h8v5a4 4 0 0 1-8 0z" /><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4" /><path d="M12 13v4M8 20h8M9.5 17h5" /></>
-      : <><path d="M15 6l-6 6 6 6" /></>}
+      : <><path d="m3 21 9-17c1-2 4-2 6 0l3 3v8a3 3 0 0 1-6 0v-2l2 2" /><path d="m4 17 3 2" /><circle cx="8" cy="14" r="2" /></>}
   </svg>;
 }

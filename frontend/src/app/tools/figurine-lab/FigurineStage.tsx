@@ -26,7 +26,7 @@ import { FINISH_TIME, applyFinish, releaseFinishes } from "@/lib/figurine-finish
 import { type FigurineCollection, type FigurineMachine, type FigurineQuality } from "@/lib/figurine-collection";
 import { buildPedestal, PEDESTAL_TOP } from "@/lib/figurine-pedestal";
 import { hoverOutline } from "@/lib/figurine-glow";
-import { isVisibleHit } from "@/lib/figurine-picking";
+import { isVisibleHit, pickFacilityPart } from "@/lib/figurine-picking";
 import { uploadFigurineTextures, warmFigurineScene } from "@/lib/figurine-warmup";
 import { createFigurineResourceCache, disposeFigurineObject as disposeObject, figurineResourceBytes } from "@/lib/figurine-cache";
 import styles from "./figurine-lab.module.css";
@@ -147,7 +147,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onActionDone?: (run: number, result?: CastResult) => void;
   onActionCue?: (run: number, cue: ActionCue) => void;
   // World mode: a tap passed on to an acting facility (a new `n` pokes it once).
-  poke?: { n: number; station: Facility; kind: "hook" } | null;
+  poke?: { n: number; station: Facility; kind: "hook" | "dismiss" } | null;
   // World mode: a working part of the facility the camera is at was tapped (the pond's rod, bobber or
   // tackle box), or is under the pointer (null when none is).
   onFacilityPart?: (station: Station, part: string) => void;
@@ -167,7 +167,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series), machinesRef = useRef(machines);
   useEffect(() => { labelsRef.current = labels; lineupRef.current = lineup; silhouettesRef.current = silhouettes; worldRef.current = world; seriesRef.current = series; machinesRef.current = machines; });
   // Lets later prop changes reach the running scene without rebuilding the renderer.
-  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; setPrizes: (left: number) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: { n: number; station: Facility; kind: "hook" }) => void } | null>(null);
+  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; setPrizes: (left: number) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: { n: number; station: Facility; kind: "hook" | "dismiss" }) => void } | null>(null);
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
@@ -752,8 +752,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // The world is the interface: tap a station to go there, a series to open it, an owned figure
     // to inspect it, and empty ground or sky to step back. The target must match on release.
     type Pick = { kind: "station"; view: WorldView } | { kind: "series"; id: string } | { kind: "machine"; machine: FigurineMachine; pick: MachinePick } | { kind: "part"; station: Station; part: string } | { kind: "back" };
-    let press: { x: number; y: number; pick: Pick | null; yaw: number; pitch: number; panX: number; panY: number } | null = null;
-    // Station shots: the shop turns a little (yaw, pitch); the collection pans across (panX, panY). Both zoom.
+    let press: { x: number; y: number; moved: boolean; pick: Pick | null; yaw: number; pitch: number; panX: number; panY: number } | null = null;
+    // Station shots turn a little (yaw, pitch); the collection pans across (panX, panY). Both zoom.
     const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }, lookTarget = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
     const panning = () => state.current.view === "gallery";
     // World units per pixel at the station's target, for panning that keeps pace with the pointer.
@@ -764,7 +764,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       lookTarget.panY = THREE.MathUtils.clamp(from.panY + dy * scale, -1.6, 1.6);
     };
     let looking: { id: number; x: number; y: number; yaw: number; pitch: number; panX: number; panY: number } | null = null;
-    const lookLimits = () => ({ yaw: 0.35, pitch: 0.15, near: panning() ? 0.35 : 0.6, far: 1.3 });
+    const lookLimits = () => ({ yaw: state.current.view === "pond" ? 0.55 : 0.35, pitch: state.current.view === "pond" ? 0.22 : 0.15, near: panning() ? 0.35 : 0.6, far: 1.3 });
     const directed = () => immersive && !flight && isStation(state.current.view);
     const steer = (dx: number, dy: number, from: { yaw: number; pitch: number }) => {
       const limits = lookLimits(), size = renderer.domElement;
@@ -784,6 +784,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const pickAt = (): Pick | null => {
       const view = state.current.view;
       if ((flight && flight.t < 0.6) || !immersive || !navigable()) return null;
+      if (view === "pond" && groups.pond) {
+        const part = pickFacilityPart(raycaster, groups.pond);
+        return part ? { kind: "part", station: "pond", part } : null;
+      }
       // Only the stations are targets; glows and sprites never block what is behind them.
       const roots = stationGroups;
       const hit = raycaster.intersectObjects(roots.map(([root]) => root).filter((root): root is THREE.Group => !!root && root.visible), true)
@@ -803,13 +807,6 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         const part = raycaster.intersectObjects(machine?.picks ?? [], false).find((hit) => isVisibleHit(hit) && hit.object.userData.machine);
         if (part) return machine?.running ? null : { kind: "machine", machine: station, pick: part.object.userData.machine };
         if (machine?.running) return null;
-      }
-      // At the pond only its tackle takes taps: the rod casts, the bobber strikes, the tackle box
-      // opens the fish log. The water and the bank do nothing, so a stray tap never casts.
-      if (station === "pond" && view === "pond") {
-        let part: string | undefined;
-        for (let object: THREE.Object3D | null = hit.object; object && !part; object = object.parent) part = object.userData.part;
-        return part ? { kind: "part", station, part } : null;
       }
       // Tapping the station you are at (off its items) steps back to the hub.
       if (station === view) return { kind: "back" };
@@ -848,7 +845,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         return;
       }
       if (event.button !== 0) return;
-      press = { x: event.clientX, y: event.clientY, pick: pickAt(), yaw: lookTarget.yaw, pitch: lookTarget.pitch, panX: lookTarget.panX, panY: lookTarget.panY };
+      press = { x: event.clientX, y: event.clientY, moved: false, pick: pickAt(), yaw: lookTarget.yaw, pitch: lookTarget.pitch, panX: lookTarget.panX, panY: lookTarget.panY };
     };
     const onPointerMove = (event: PointerEvent) => {
       aim(event);
@@ -869,8 +866,13 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         if (directed()) (panning() ? pan : steer)(event.clientX - looking.x, event.clientY - looking.y, looking);
         return;
       }
-      // Dragging across the collection slides along it.
-      if (event.buttons && press && panning() && directed()) { pan(event.clientX - press.x, event.clientY - press.y, press); return; }
+      // Drag to pan the collection or look around the pond; a drag never activates its start target.
+      if (event.buttons && press && (panning() || state.current.view === "pond") && directed()) {
+        const dx = event.clientX - press.x, dy = event.clientY - press.y;
+        if (Math.hypot(dx, dy) > 10) press.moved = true;
+        if (press.moved || panning()) (panning() ? pan : steer)(dx, dy, press);
+        return;
+      }
       if (event.buttons || !immersive) return;
       const pick = event.pointerType === "mouse" ? pickAt() : null;
       hoveredSeries = pick?.kind === "series" ? pick.id : null;
@@ -885,10 +887,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       renderer.domElement.style.cursor = hovering ? "grab" : pick && pick.kind !== "back" ? "pointer" : "";
     };
     const letGo = (event: PointerEvent) => {
+      if (event.type === "pointercancel" && (press || looking)) { press = null; looking = null; return; }
       if (looking && event.pointerId === looking.id) { looking = null; return; }
       if (press) {
         aim(event);
-        const pick = pickAt(), moved = Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10;
+        const pick = pickAt(), moved = press.moved || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10;
         // A press made while the camera was still settling counts with what is under the finger now.
         if (!moved && pick && (samePick(pick, press.pick) || (!press.pick && pick.kind !== "back"))) {
           unlockFigurineAudio();
@@ -916,7 +919,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (opened) { released = peel; callbacks.current.onBoxTap?.(); }
       else { peelTarget = 0; if (peel > 0.05) released = -1; }
     };
-    const onPointerLeave = () => { hovering = hoverTape = false; press = null; hoveredSeries = null; hoveredStation = null; hoveredMachine = null; if (!grab) renderer.domElement.style.cursor = ""; };
+    const clearPartHover = () => { hoveredPart = null; facilities.forEach((facility) => facility.hover(null)); callbacks.current.onHoverPart?.(null); };
+    const onPointerLeave = () => { hovering = hoverTape = false; press = null; hoveredSeries = null; hoveredStation = null; hoveredMachine = null; clearPartHover(); if (!grab) renderer.domElement.style.cursor = ""; };
     renderer.domElement.addEventListener("pointerdown", onPointerDown, { capture: true });
     renderer.domElement.addEventListener("pointerup", letGo);
     renderer.domElement.addEventListener("pointercancel", letGo);
@@ -973,6 +977,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         if (flying && centre(currentView) && !orbitOffset) centreShot = { position: camera.position.clone(), target: controls.target.clone() };
         if (flying) flight = { from: camera.position.clone(), fromTarget: controls.target.clone(), t: 0 };
         currentView = current.view; displayClock = 0; press = null; looking = null; Object.assign(lookTarget, { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }); Object.assign(look, lookTarget); grab = null; shake = null; heldTarget.set(0, 0); peelSound?.stop(); peelSound = null;
+        clearPartHover();
         if (flying && !reducedMotion.matches) playFigurineCue("whoosh");
       }
       if (current.arrival !== seenArrival) {
@@ -1260,6 +1265,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       controls.maxDistance = orbiting ? Math.max(15, camera.position.distanceTo(controls.target)) : Infinity;
       // Timed by the frame delta, so auto-rotation turns at the same speed on any refresh rate.
       controls.update(delta); if (!reduced) mixer?.update(delta);
+      facilities.find((facility) => facility.kind === "pond")?.present(currentView === "pond" ? camera : null, reduced);
       const cameraShake = cinematic ? (bursting ? motion.shake : build.knock * 0.3) : 0;
       if (cameraShake > 0) camera.position.add(velocity.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(cameraShake * 0.13));
       if (worldGpuReady) renderer.render(scene, camera);
@@ -1272,6 +1278,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       renderer.domElement.removeEventListener("pointermove", onPointerMove); renderer.domElement.removeEventListener("pointerleave", onPointerLeave); renderer.domElement.removeEventListener("wheel", onWheel);
       renderer.setAnimationLoop(null); resize.disconnect(); skyLight?.dispose(); controls.dispose(); mixer?.stopAllAction();
       prepared.dispose();
+      facilities.forEach((facility) => facility.dispose());
       packagings.forEach(({ parts }) => parts.stop()); releaseFinishes(modelRoot); disposeObject(scene); environment.dispose(); shop?.stop(); secretPrints.forEach((prints) => prints.stop()); statues?.dispose(); portraitCards.dispose(); boxTextures.dispose(); compileTarget.dispose(); api.current = null; pendingUrls.forEach((url) => URL.revokeObjectURL(url)); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     };
   }, [labels.boxTitle, labels.boxSubtitle, labels.series, immersive, gallery]);

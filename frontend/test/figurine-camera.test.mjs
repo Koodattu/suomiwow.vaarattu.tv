@@ -52,3 +52,31 @@ test("reduced motion holds a stationary facility shot after arrival", () => {
   step.runInContext(state);
   assert.ok(arrival.distanceTo(state.camera.position) < 1e-9);
 });
+
+test("pond look-around clamps both axes while keeping the camera above the water", () => {
+  const from = source.indexOf("    const lookLimits ="), to = source.indexOf("    controls.mouseButtons.MIDDLE", from);
+  const steer = new vm.Script(`${ts.transpile(source.slice(from, to))}\nsteer(dx, dy, { yaw: 0, pitch: 0 });`);
+  for (const direction of [-1, 1]) {
+    const state = cameraState("pond", 0, true);
+    Object.assign(state, { state: { current: { view: "pond" } }, panning: () => false, dx: direction * 10000, dy: direction * 10000 });
+    steer.runInContext(state);
+    assert.equal(Math.abs(state.lookTarget.yaw), 0.55);
+    assert.equal(Math.abs(state.lookTarget.pitch), 0.22);
+    for (let i = 0; i < 120; i++) step.runInContext(state);
+    assert.ok(state.camera.position.y > state.controls.target.y, "the lowest pond angle remains above its target");
+  }
+});
+
+test("dragging the pond and returning to the starting point does not cast on release", () => {
+  const from = source.indexOf("    const onPointerMove ="), to = source.indexOf("    const clearPartHover =", from);
+  const handlers = new vm.Script(`${ts.transpile(source.slice(from, to))}\nonPointerMove({ buttons: 1, clientX: 120, clientY: 50 });\nonPointerMove({ buttons: 1, clientX: 50, clientY: 50 });\nletGo({ type: 'pointerup', clientX: 50, clientY: 50 });`);
+  let casts = 0, turns = 0;
+  handlers.runInNewContext({
+    aim() {}, grab: null, shake: null, looking: null, immersive: true,
+    press: { x: 50, y: 50, moved: false, pick: { kind: "part", station: "pond", part: "rod" } },
+    panning: () => false, directed: () => true, state: { current: { view: "pond" } },
+    steer: () => { turns++; }, pickAt: () => ({ kind: "part", station: "pond", part: "rod" }), samePick: () => true,
+    unlockFigurineAudio() {}, callbacks: { current: { onFacilityPart: () => { casts++; } } },
+  });
+  assert.equal(turns, 2); assert.equal(casts, 0);
+});

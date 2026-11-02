@@ -187,7 +187,7 @@ export default function FigurineWorld() {
   // A cast carries what is on the line (and the figure, for the figure prize) until it is hooked or lost.
   const [pending, setPending] = useState<{ run: number; result: PanelResult | null; source?: PullSource; roll?: CatchRoll; figure?: MachineItem } | null>(null);
   const [line, setLine] = useState<LinePhase | null>(null);
-  const [poke, setPoke] = useState<{ n: number; station: "pond"; kind: "hook" } | null>(null);
+  const [poke, setPoke] = useState<{ n: number; station: "pond"; kind: "hook" | "dismiss" } | null>(null);
   // The pond's sheets (the fish log from its bucket, the anglers' board from the board on the bank,
   // or either's button), and the tackle under the pointer.
   const [pondSheet, setPondSheet] = useState<PondSheet | null>(null);
@@ -242,6 +242,10 @@ export default function FigurineWorld() {
     setLine("cast");
   }
   const hook = () => { if (pending?.roll) setPoke((current) => ({ n: (current?.n ?? 0) + 1, station: "pond", kind: "hook" })); };
+  const dismissCatch = () => {
+    setResult(null);
+    setPoke((current) => ({ n: (current?.n ?? 0) + 1, station: "pond", kind: "dismiss" }));
+  };
   // A nibble passes: the line goes back to waiting.
   useEffect(() => {
     if (line !== "nibble") return;
@@ -324,6 +328,7 @@ export default function FigurineWorld() {
       if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
       // The pond's sheets close before anything else; while one is open the pond waits.
       if (pondSheet && view === "pond") { if (key === "escape" || key === (pondSheet === "log" ? "l" : "b")) setPondSheet(null); return; }
+      if (view === "pond" && result?.station === "pond" && "caught" in result && key === "escape") { event.preventDefault(); dismissCatch(); return; }
       if (key === "escape" || key === "backspace") back();
       else if (atCentre(view) && key === "s") navigate("shop");
       else if (atCentre(view) && key === "c") navigate("gallery");
@@ -397,12 +402,11 @@ export default function FigurineWorld() {
       onProgress={setStageProgress} onLoaded={() => setStageLoaded(true)} arrival={arrival}
       onRevealed={revealed} signature={drawn?.classKey} quip={drawn && series ? figureQuip(figureKey(series.id, drawn.id)) : undefined}
       labels={{ loading: t("modelLoading"), ready: t("modelReady"), empty: t("modelEmpty"), error: t("modelError"), webgl: t("webglError"), box: t("boxStatus"), boxTitle: t("boxTitle"), boxSubtitle: t("boxSubtitle"), series: t("navCollection"), packaging }} />
-    {(records.boons.boxes > 0 || records.boons.boost) && revealedWorld && <p className={panelStyles.hudBoons}>
-      {records.boons.boxes > 0 && <span>{t("world.rewards.banked", { count: records.boons.boxes })}</span>}
+    {records.boons.boost && revealedWorld && <p className={panelStyles.hudBoons}>
       {records.boons.boost && <span data-quality={records.boons.boost}>{t("world.rewards.boostNext", { quality: t(`quality.${records.boons.boost}`) })}</span>}
     </p>}
     {view === "pond" && revealedWorld && <PondHud records={records} now={now} line={line} result={result?.station === "pond" ? result : null} busy={busy} hovered={hoverPart} sheet={pondSheet}
-      onCast={cast} onHook={hook} onSheet={openSheet} onBack={leavePond} />}
+      onCast={cast} onHook={hook} onDismiss={dismissCatch} onSheet={openSheet} onBack={leavePond} />}
     {isStation(view) && view !== "shop" && view !== "pond" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back} actions={panelActions}
       onInspect={(key, finish) => inspect(key, finish)} machine={machinePanel}
       onFavorite={(item) => { unlockFigurineAudio(); toggleFavorite(item); }} onMoveFavorite={(key, to) => moveFavorite(key, to)} onFavoriteQuality={(key, finish) => setFavoriteQuality(key, finish)} />}

@@ -280,8 +280,8 @@
         "body": "Vaihda hahmoja muiden pelaajien kanssa: tarjoa omaasi, pyydä heidän omaansa, ja molemmat hyväksyvät."
       },
       "pond": {
+        "dismissCatch": "Sulje napauttamalla ruutua",
         "cast": "Heitä",
-        "castAgain": "Heitä uudelleen",
         "strike": "Vedä!",
         "back": "Takaisin",
         "controls": "Kalastus",

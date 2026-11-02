@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
 import * as THREE from "three";
-import { isVisibleHit } from "../src/lib/figurine-picking.ts";
+import { isVisibleHit, pickFacilityPart } from "../src/lib/figurine-picking.ts";
 
 registerHooks({ resolve(specifier, context, next) {
   return next(specifier.startsWith("@/") ? new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href : specifier, context);
@@ -73,7 +73,7 @@ test("pond ripples never intercept clicks and stop growing after fading, includi
   }
 });
 
-test("only the pond's tackle takes taps, its glint follows the prizes left and a pointed-at bucket lifts", async t => {
+test("only the pond's tackle takes taps, its glint follows the prizes left and hover outlines do not move props", async t => {
   const previous = globalThis.document;
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
   const paint = new Proxy({}, { get: (_, key) => key === "createLinearGradient" || key === "createRadialGradient" ? () => ({ addColorStop() {} }) : key === "createImageData" ? (width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }) : () => {}, set: () => true });
@@ -81,6 +81,7 @@ test("only the pond's tackle takes taps, its glint follows the prizes left and a
   const root = new THREE.Group();
   const placeProp = (parent, name, options) => {
     const group = new THREE.Group(); group.position.set(options.x ?? 0, options.y ?? 0, options.z ?? 0); parent.add(group);
+    if (["fishBucket", "fishingRod", "fishBig"].includes(name)) group.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshStandardMaterial()));
     return { group, ready: Promise.resolve(group) };
   };
   const pond = buildFacility(root, "pond", { placeProp, envMap: new THREE.Texture() });
@@ -102,9 +103,29 @@ test("only the pond's tackle takes taps, its glint follows the prizes left and a
   assert.ok(glows().length === 2 && glows().every(glow => glow.visible));
   pond.setPrizes(0); for (let frame = 0; frame < 30; frame++) pond.update(0.2, 1 + frame);
   assert.ok(glows().every(glow => !glow.visible));
-  const bucket = parts.get("bucket"), rest = bucket.position.y;
-  pond.hover("bucket"); pond.update(1, 40);
-  assert.ok(bucket.position.y > rest + 0.04);
-  pond.hover(null); pond.update(1, 41);
-  assert.ok(Math.abs(bucket.position.y - rest) < 0.005);
+  assert.equal(pickFacilityPart(down, root), null);
+  for (const name of ["rod", "bucket", "board"]) {
+    const part = parts.get(name), rest = part.position.clone(), rotation = part.quaternion.clone(), shells = [];
+    part.traverse(object => { if (object.userData.outline) shells.push(object); });
+    assert.ok(shells.length, `${name} has a visible-model outline`);
+    pond.hover(name); pond.update(1, 40);
+    assert.ok(shells.every(shell => shell.visible), `${name} glows on hover`);
+    assert.ok(part.position.equals(rest) && part.quaternion.angleTo(rotation) < 1e-6, `${name} stays in place`);
+    pond.hover(null); pond.update(1, 41);
+    assert.ok(shells.every(shell => !shell.visible), `${name} glow clears`);
+  }
+  pond.dispose();
+  let shells = 0; root.traverse(object => { if (object.userData.outline) shells++; });
+  assert.equal(shells, 0, "outline shells are released with the scene");
+});
+
+test("a rod target behind decoration is clickable, but hidden controls and open water are not", () => {
+  const root = new THREE.Group(), rod = new THREE.Group(); rod.userData.part = "rod";
+  const target = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 2.8), new THREE.MeshBasicMaterial({ visible: false }));
+  rod.add(target); root.add(rod);
+  const decoration = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)); decoration.position.y = 2; root.add(decoration);
+  root.updateMatrixWorld(true);
+  assert.equal(pickFacilityPart(ray, root), "rod");
+  rod.visible = false;
+  assert.equal(pickFacilityPart(ray, root), null);
 });

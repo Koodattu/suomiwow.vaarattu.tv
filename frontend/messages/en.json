@@ -280,8 +280,8 @@
         "body": "Trade figures with other players: offer yours, ask for theirs, and both accept."
       },
       "pond": {
+        "dismissCatch": "Tap anywhere to dismiss",
         "cast": "Cast",
-        "castAgain": "Cast again",
         "strike": "Strike!",
         "back": "Back",
         "controls": "Fishing",
