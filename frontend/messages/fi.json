@@ -283,31 +283,69 @@
         "cast": "Heitä",
         "castAgain": "Heitä uudelleen",
         "strike": "Vedä!",
-        "phase": {
-          "idle": "Siima on sisällä",
-          "cast": "Heitetään…",
-          "wait": "Odotetaan tärppiä",
+        "back": "Takaisin",
+        "controls": "Kalastus",
+        "story": {
+          "glint": "Jokin kimaltelee pinnan alla…",
+          "fish": "Lammessa liikkuu enää vain kaloja.",
+          "cast": "Siima lentää…",
+          "wait": "Odota…",
+          "nibble": "Jokin näykkii…",
           "bite": "Tärppi!"
         },
         "how": {
-          "idle": "Napauta onkea heittääksesi.",
-          "cast": "Sinne menee.",
-          "wait": "Anna pienten nykäisyjen olla. Kun koho sukeltaa, napauta sitä.",
-          "bite": "Napauta kohoa nyt!"
+          "idle": "Napauta onkea tai paina Heitä.",
+          "wait": "Anna näykkimisen olla. Kun koho sukeltaa, vedä.",
+          "bite": "Napauta kohoa tai paina Vedä, nyt!"
         },
-        "missed": "Liian hidas: se pääsi karkuun.",
-        "spooked": "Liian aikaisin: säikäytit sen.",
-        "prizeCatch": "Palkintosaalis",
+        "parts": {
+          "rod": "Onkivapa: heitä",
+          "bobber": "Koho: heitä",
+          "bucket": "Kalasanko: kalakirjasi",
+          "board": "Kalastajien taulu: tulokset"
+        },
+        "missed": "Liian hidas. Se pääsi karkuun.",
+        "spooked": "Liian aikaisin. Säikäytit sen.",
         "weight": "{weight} lb",
-        "newKind": "Uusi kalakirjaan!",
-        "best": "Lajinsa suurin tähän asti!",
-        "prizes": "Päivän palkintosaaliit",
-        "prize": {
-          "box": "Laatikko",
-          "figure": "Hahmo"
+        "banner": {
+          "new": "Uusi saalis!",
+          "best": "Oma ennätys!",
+          "caught": "Saalis",
+          "treasure": "Aarre!",
+          "box": "Paketoitu laatikko",
+          "banked": "{count, plural, one {+# laatikko säästöön} other {+# laatikkoa säästöön}}",
+          "chest": "Upponut arkku!",
+          "joins": "liittyy kokoelmaasi"
         },
-        "prizesDone": "Kaikki kolme saatu. Kalat syövät yhä.",
-        "log": "Kalakirja"
+        "log": "Kalakirja",
+        "closeLog": "Sulje kalakirja",
+        "logSummary": "{kinds}/{total} lajia · {count, plural, one {# saalis} other {# saalista}}",
+        "logRecord": "Ennätys: {name}, {weight} lb",
+        "logCount": "×{count}",
+        "logBest": "Paras {weight} lb",
+        "logMissing": "Ei vielä saatu",
+        "unknown": "???",
+        "rarity": {
+          "junk": "Roska",
+          "common": "Tavallinen",
+          "uncommon": "Harvinaisehko",
+          "rare": "Harvinainen",
+          "epic": "Eeppinen"
+        },
+        "rankings": "Tulokset",
+        "board": "Kalastajien taulu",
+        "closeBoard": "Sulje kalastajien taulu",
+        "boardIntro": "Jokainen kala tuo pisteitä. Kymmenen parasta saalistasi muodostavat pisteesi.",
+        "standings": "Sijoitukset",
+        "you": "Sinä",
+        "standingsSoon": "Killan tulostaulut tulevat Discord-kirjautumisen myötä.",
+        "bestTen": "Parhaat saaliisi · {count}/{total}",
+        "boardEmpty": "Taulu on vielä tyhjä. Nappaa kala saadaksesi pisteitä.",
+        "points": "{points} p",
+        "gain": "+{points} p",
+        "scoring": "Pisteytys",
+        "scoringSize": "× koko lajissaan, 1–2",
+        "scoringFinish": "× kulta {golden}, galaksi {galaxy}"
       },
       "rewards": {
         "boxes": "{count, plural, one {# laatikko} other {# laatikkoa}}",

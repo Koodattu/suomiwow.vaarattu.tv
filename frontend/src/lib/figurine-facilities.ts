@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { woodTexture } from "@/lib/figurine-shop";
-import type { PlaceProp } from "@/lib/figurine-props";
+import { FISH_PROP, type PlaceProp } from "@/lib/figurine-props";
 import { WHEEL, type FigurineQuality, type FishId } from "@/lib/figurine-collection";
 import { applyFinish, releaseFinishes } from "@/lib/figurine-finish";
+import { WORLD_TEXTURES } from "@/lib/figurine-world";
 
 // The plaza's facilities other than the shop and the two machines. Each is a small scene of game
 // props, some round a hand-built centrepiece, standing in the world unsigned: a mailbox is just a
@@ -18,11 +19,6 @@ export type CastResult = "caught" | "missed" | "spooked";
 // What comes up when a line is hooked: a prize (a wrapped box, a little chest holding a figure),
 // or a fish (or boot) of the given length, at its finish.
 export type CatchVisual = { kind: "box" } | { kind: "figure" } | { kind: "fish"; fish: FishId; length: number; quality: FigurineQuality };
-// The game model each catch shows as.
-const FISH_PROP: Record<FishId, Parameters<PlaceProp>[1]> = {
-  smallfish: "fishGreen", mudsnapper: "fishOrange", catfish: "fishPale", blackmouth: "fishBlue", firefin: "fishSpiny",
-  deviate: "fishPurple", yellowtail: "fishGold", eel: "fishEel", salmon: "fishPink", mightfish: "fishBig", boot: "boot",
-};
 // How each wheel prize is painted: its label and colour.
 const PRIZE_PAINT = (prize: (typeof WHEEL)[number]["prize"]) => "boost" in prize
   ? prize.boost === "galaxy" ? { label: "✦", color: "#6b45c8", ink: "#f1e9ff" } : { label: "★", color: "#e8c165", ink: "#3a2506" }
@@ -35,6 +31,22 @@ function canvas(width: number, height: number) {
   return [element, element.getContext("2d")!] as const;
 }
 const srgb = (element: HTMLCanvasElement) => { const map = new THREE.CanvasTexture(element); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4; return map; };
+const seeded = (seed: number) => () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+// A tiling normal map of soft, crossing ripples, for still water.
+function rippleNormals() {
+  const size = 128, [element, paint] = canvas(size, size), image = paint.createImageData(size, size);
+  const height = (x: number, y: number) => {
+    const u = x / size * Math.PI * 2, v = y / size * Math.PI * 2;
+    return Math.sin(u * 3 + Math.sin(v * 2) * 1.5) + 0.6 * Math.sin(v * 4 + u) + 0.3 * Math.sin((u - v) * 5) + 0.2 * Math.sin(u * 7 + v * 3);
+  };
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const dx = (height(x + 1, y) - height(x - 1, y)) * 2, dy = (height(x, y + 1) - height(x, y - 1)) * 2, length = Math.hypot(dx, dy, 1), i = (y * size + x) * 4;
+    image.data[i] = (-dx / length * 0.5 + 0.5) * 255; image.data[i + 1] = (-dy / length * 0.5 + 0.5) * 255; image.data[i + 2] = (1 / length * 0.5 + 0.5) * 255; image.data[i + 3] = 255;
+  }
+  paint.putImageData(image, 0, 0);
+  const map = new THREE.CanvasTexture(element); map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  return map;
+}
 export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, envMap }: { placeProp: PlaceProp; envMap: THREE.Texture }) {
   // What the hover outline wraps: built parts now, game props once they have loaded.
   const frame: THREE.Mesh[] = [], props: Promise<THREE.Group>[] = [];
@@ -46,6 +58,8 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   const play = (step: (t: number) => boolean) => { acting = { step, t: 0 }; };
   // The crate's streak board, repainted when the streak changes.
   let paintStreak: ((opened: number, today: number | null) => void) | null = null;
+  // The pond's glint (while prize catches remain), and the tackle under the pointer.
+  let setPrizes: ((left: number) => void) | null = null, hover: ((part: string | null) => void) | null = null;
   // Sparks of gold for rewards: additive sprites flung up and falling back.
   const [sparkCanvas, sparkPaint] = canvas(32, 32), sparkGradient = sparkPaint.createRadialGradient(16, 16, 0, 16, 16, 16);
   sparkGradient.addColorStop(0, "rgba(255,255,255,1)"); sparkGradient.addColorStop(1, "rgba(255,255,255,0)"); sparkPaint.fillStyle = sparkGradient; sparkPaint.fillRect(0, 0, 32, 32);
@@ -253,54 +267,212 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     prop("counter", 1.05, 0, 0.1);
     prop("postbox", 1.5, 2.2, -0.1, -Math.PI / 2 - 0.4);
   } else if (kind === "pond") {
-    // Fishing pond: still water ringed with reeds and lily pads, a rowboat, a little dock with a
-    // fishing chair and rod, and a fish now and then leaping. The station's origin is the pond's
-    // centre; the dock runs in from the plaza side (+z).
-    const water = new THREE.MeshStandardMaterial({ color: 0x2f6a72, roughness: 0.12, metalness: 0.2, envMap, envMapIntensity: 0.9, transparent: true, opacity: 0.92 });
-    const pond = add(new THREE.CircleGeometry(4.2, 64).rotateX(-Math.PI / 2), water, 0, 0.02, 0);
-    pond.castShadow = false; frame.push(pond);
-    const bank = add(new THREE.RingGeometry(4.1, 4.7, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x5b4a33, roughness: 1 }), 0, 0.015, 0);
-    bank.castShadow = false;
-    // Separate reed beds leave a landing for the boat and a clear seat on the far bank.
-    for (const [x, z, height, yaw] of [[3.9, 1.4, 0.8, 1.3], [3.4, -2.7, 0.7, 0.5], [0.5, -4.2, 0.75, 1.2], [-4.3, 0.3, 0.75, 1.2], [-3.2, 2.9, 0.6, 1]]) prop("reeds", height, x, z, yaw);
-    for (const [x, z, yaw] of [[0.4, -1.2, 0.4], [2.2, -1.9, 1.7], [-2.6, 1.5, 2.9], [0.9, -2.8, 0.8]]) prop("lilypad", 0.08, x, z, yaw, 0.02);
-    props.push(placeProp(parent, "rowboat", { height: 0.7, length: 2.8, x: -1.6, y: 0.02, z: -1.2, yaw: 0 }).ready);
-    // The dock: planks on posts from the shore out over the water.
-    for (let i = 0; i < 9; i++) add(new THREE.BoxGeometry(1.3, 0.06, 0.38), wood, 1.3, 0.32, 5.1 - i * 0.42);
-    for (const [x, z] of [[0.7, 1.9], [1.9, 1.9], [0.7, 3.6], [1.9, 3.6]]) add(new THREE.CylinderGeometry(0.06, 0.07, 0.7, 8), wood, x, 0.1, z);
-    // The fishing chair waits on the far bank, facing the water, out of the shot's way.
-    prop("fishingChair", 1.5, -4.8, -2.8, -0.56);
-    // The rod rests on a forked stand at the dock's end, pivoting at its butt; tap it to cast.
-    // Its model lies along z with the butt and reel at +z, so it is shifted out by half its length.
-    const ROD = 2.5, REST = 0.32;
-    const rod = new THREE.Group(); rod.position.set(1.3, 0.46, 2.6); rod.rotation.x = REST; rod.userData.part = "rod"; parent.add(rod);
-    props.push(placeProp(rod, "fishingRod", { height: 1, length: ROD, z: -ROD / 2 + 0.1 }).ready);
+    // Fishing pond: a woodland pool with a ragged, muddy shore, cattails, rocks and flowering lily
+    // pads, and a short plank dock out from the plaza side (+z). The camera stands at the dock's
+    // foot, so the pond is seen as an angler sees it: the dock and its tackle below, open water
+    // ahead, the far bank (a net rack, a beached rowboat, a chair) beyond. Only a few things take
+    // taps: the rod in its holder casts (and strikes while the line is out), the bobber strikes,
+    // the bucket of the catch holds the fish log and the anglers' board on the bank the rankings.
+    // While the day's prize catches remain, something glints under the water. The station's
+    // origin is the pond's centre.
+    const random = seeded(17);
+    // The shore's radius at each angle (0 is +z, toward the dock), between about 3.5 and 4.6.
+    const shore = (angle: number) => 4 + 0.32 * Math.sin(3 * angle + 0.7) + 0.18 * Math.sin(5 * angle + 2.1) + 0.08 * Math.sin(9 * angle + 0.3);
+    const around = (angle: number, beyond: number) => { const radius = shore(angle) + beyond; return [Math.sin(angle) * radius, Math.cos(angle) * radius] as const; };
+    // A band following the shore: each ring a radius (from the shore's), a height and a colour.
+    const SEGMENTS = 120;
+    const band = (rings: { radius: (shoreline: number) => number; y: number; color: string; alpha?: number }[], centre?: { y: number; color: string }) => {
+      const positions: number[] = [], colors: number[] = [], uvs: number[] = [], index: number[] = [], tint = new THREE.Color();
+      const vertex = (x: number, y: number, z: number, color: string, alpha = 1) => { positions.push(x, y, z); tint.set(color); colors.push(tint.r, tint.g, tint.b, alpha); uvs.push(x / 1.3, z / 1.3); };
+      for (const ring of rings) for (let i = 0; i < SEGMENTS; i++) {
+        const angle = i / SEGMENTS * Math.PI * 2, radius = ring.radius(shore(angle));
+        vertex(Math.sin(angle) * radius, ring.y, Math.cos(angle) * radius, ring.color, ring.alpha);
+      }
+      for (let k = 0; k + 1 < rings.length; k++) for (let i = 0; i < SEGMENTS; i++) {
+        const a = k * SEGMENTS + i, b = k * SEGMENTS + (i + 1) % SEGMENTS, c = a + SEGMENTS, d = b + SEGMENTS;
+        index.push(a, c, b, b, c, d);
+      }
+      if (centre) {
+        const middle = positions.length / 3; vertex(0, centre.y, 0, centre.color);
+        for (let i = 0; i < SEGMENTS; i++) index.push(middle, i, (i + 1) % SEGMENTS);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 4));
+      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.setIndex(index); geometry.computeVertexNormals();
+      return geometry;
+    };
+    // The water: dark in the middle, clearing to murky green shallows, with a slow shimmer of
+    // ripples sliding across it and the sky's light on top.
+    const shimmer = rippleNormals();
+    // A soft specular keeps the low sun from blowing the surface out to white.
+    const water = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.2, metalness: 0, specularIntensity: 0.25, envMap, envMapIntensity: 0.3, normalMap: shimmer, normalScale: new THREE.Vector2(0.1, 0.1), side: THREE.DoubleSide });
+    const pond = new THREE.Mesh(band([
+      { radius: (r) => r * 0.3, y: 0.025, color: "#163a43" }, { radius: (r) => r * 0.62, y: 0.025, color: "#1d4d55" },
+      { radius: (r) => r * 0.86, y: 0.025, color: "#2d6363" }, { radius: (r) => r + 0.08, y: 0.025, color: "#4a6143" },
+    ], { y: 0.025, color: "#12333c" }), water);
+    pond.receiveShadow = true; parent.add(pond); frame.push(pond);
+    animate.push((_, time) => { shimmer.offset.set(time * 0.012, time * 0.02); });
+    // The bank: a low lip of wet mud at the water's edge drying to dirt, fading into the grass.
+    const mud = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+    new THREE.TextureLoader().load(WORLD_TEXTURES.dirt, (texture) => { texture.colorSpace = THREE.SRGBColorSpace; texture.wrapS = texture.wrapT = THREE.RepeatWrapping; mud.map = texture; mud.needsUpdate = true; });
+    const bank = new THREE.Mesh(band([
+      { radius: (r) => r - 0.05, y: 0.03, color: "#3a3122" }, { radius: (r) => r + 0.18, y: 0.06, color: "#5a4a33" },
+      { radius: (r) => r + 0.55, y: 0.045, color: "#8a7450" }, { radius: (r) => r + 1.05, y: 0.025, color: "#8a7a58", alpha: 0.75 },
+      { radius: (r) => r + 1.6, y: 0.015, color: "#7d7a55", alpha: 0 },
+    ]), mud);
+    bank.receiveShadow = true; bank.renderOrder = 1; bank.raycast = () => {}; parent.add(bank);
+    // Rocks half sunk along the bank, cattail beds and reed clumps; the dock's landing stays clear.
+    const clear = (angle: number) => Math.abs(Math.atan2(Math.sin(angle), Math.cos(angle))) > 0.55;
+    for (let i = 0; i < 16; i++) {
+      const angle = i / 16 * Math.PI * 2 + random() * 0.3;
+      if (!clear(angle)) continue;
+      const [x, z] = around(angle, 0.1 + random() * 0.45);
+      prop(i % 3 ? "rockSmall" : "rock", (i % 3 ? 0.18 : 0.32) + random() * 0.14, x, z, random() * 6, -0.06);
+    }
+    for (const angle of [1.25, 1.9, 2.55, 2.95, 3.55, 4.05, 4.6, 5.1]) for (let stem = 0; stem < 4; stem++) {
+      const [x, z] = around(angle + (random() - 0.5) * 0.22, -0.15 + random() * 0.45);
+      prop("cattails", 1 + random() * 0.6, x, z, random() * 6);
+    }
+    for (const angle of [1.55, 2.2, 3.25, 3.85, 4.35, 4.85]) { const [x, z] = around(angle, 0.05); prop("reeds", 0.6 + random() * 0.3, x, z, random() * 6); }
+    // Lily pads drift clear of the dock and the casting water; some are in flower.
+    for (const [x, z, yaw] of [[-2.8, -0.4, 0.8], [2.7, -2.1, 1.9], [-1.9, -3, 2.4], [3, 0.8, 0.2]]) props.push(placeProp(parent, "lilyFlowers", { height: 0.3, length: 1.1, x, z, y: 0.02, yaw }).ready);
+    for (const [x, z, yaw] of [[-2.4, 1.6, 2.9], [1.9, -3, 0.8], [3.3, -0.6, 1.1]]) prop("lilypad", 0.08, x, z, yaw, 0.02);
+    // The far bank: a net hung to dry with the day's fish, a barrel of the catch, the chair, the
+    // old fish rack, and the rowboat pulled up on the mud.
+    const onBank = (angle: number, beyond: number, model: Parameters<PlaceProp>[1], height: number, turn = 0) => { const [x, z] = around(angle, beyond); return prop(model, height, x, z, Math.atan2(-x, -z) - Math.PI / 2 + turn); };
+    onBank(4.0, 0.9, "fishNet", 1.35, 0.2);
+    onBank(2.55, 0.7, "fishBarrel", 0.85);
+    onBank(4.55, 0.7, "fishingChair", 1.35, Math.PI);
+    onBank(3.35, 1, "fishRack", 1.5, 0.3);
+    const [boatX, boatZ] = around(2.05, -0.2);
+    props.push(placeProp(parent, "rowboat", { height: 0.7, length: 2.6, x: boatX, z: boatZ, y: 0.01, yaw: 0.35 }).ready);
+    // The dock: Elwynn's small dock, a plank platform on four pilings with steps down to the bank,
+    // reaching only a little way over the water so a cast carries well out beyond it. The model
+    // runs along x with its steps at -x; turned a quarter, they come ashore toward the camera.
+    // Places on it are measured in the model's own units (`along` toward the water from the
+    // model's middle, `across` to the right seen from the shore) and scaled by DOCK.scale: its deck
+    // stands 23.29 above its lowest point (the pilings' feet, far under the pond), its pilings
+    // stand 1.21 above the deck, and its platform ends 7.97 along.
+    const DOCK = { x: 0.43, z: 4.34, deck: 0.36, scale: 0.2 };
+    const PILINGS = { near: -1.1, far: 5.07, left: -3.5, right: 3.6, top: 1.21 * DOCK.scale };
+    const onDock = (along: number, across: number) => [DOCK.x + across * DOCK.scale, DOCK.z - along * DOCK.scale] as const;
+    const dock = placeProp(parent, "dock", { height: 1, length: 15.95 * DOCK.scale, x: DOCK.x, y: DOCK.deck - 23.29 * DOCK.scale, z: DOCK.z, yaw: Math.PI / 2 });
+    // Without the little roadsign it carries at its steps (the anglers' board stands on the bank),
+    // and with its pilings cut off just under the water: driven deep into the game's lake bed,
+    // they would show through the bank from above.
+    props.push(dock.ready.then((group) => {
+      const sign: THREE.Object3D[] = [], toPond = new THREE.Matrix4(), point = new THREE.Vector3();
+      parent.updateWorldMatrix(true, true);
+      group.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        if (/sign/i.test((object.material as THREE.Material).name)) { sign.push(object); return; }
+        object.geometry = object.geometry.clone();
+        toPond.copy(parent.matrixWorld).invert().multiply(object.matrixWorld);
+        const back = toPond.clone().invert(), positions = object.geometry.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < positions.count; i++) {
+          point.fromBufferAttribute(positions, i).applyMatrix4(toPond);
+          if (point.y < -0.08) { point.y = -0.08; point.applyMatrix4(back); positions.setXYZ(i, point.x, point.y, point.z); }
+        }
+        object.geometry.computeBoundingBox(); object.geometry.computeBoundingSphere();
+      });
+      sign.forEach((object) => object.removeFromParent());
+      return group;
+    }));
+    // A lantern on the piling at the head of the steps.
+    const [lanternX, lanternZ] = onDock(PILINGS.near, PILINGS.left);
+    prop("dockLantern", 0.36, lanternX, lanternZ, 0.4, DOCK.deck + PILINGS.top - 0.02);
+    const lanternGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkMap, color: 0xffc46a, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+    lanternGlow.position.set(lanternX, DOCK.deck + PILINGS.top + 0.24, lanternZ); lanternGlow.scale.setScalar(0.7); parent.add(lanternGlow);
+    animate.push((_, time) => { lanternGlow.material.opacity = 0.45 + Math.sin(time * 3.1) * 0.05 + Math.sin(time * 7.3) * 0.03; });
     const hidden = new THREE.MeshBasicMaterial({ visible: false });
-    add(new THREE.BoxGeometry(0.7, 0.7, ROD + 0.4), hidden, 0, 0.1, -ROD / 2, rod).castShadow = false;
-    for (const side of [-1, 1]) { const stick = add(new THREE.CylinderGeometry(0.025, 0.03, 0.62, 6), wood, 1.3 + side * 0.08, 0.6, 1.6); stick.rotation.z = side * 0.32; }
-    const line = add(new THREE.CylinderGeometry(0.005, 0.005, 1, 3), new THREE.MeshBasicMaterial({ color: 0xf2f2f2 }), 0, 0, 0);
-    line.castShadow = false;
-    // The bobber, with a generous invisible float round it so a quick tap finds it.
+    // On the dock: the open tackle box, and the bucket the catch goes into, which holds the fish
+    // log; a creel on the bank by the steps.
+    const [tackleX, tackleZ] = onDock(2.4, -1.6);
+    prop("tacklebox", 0.3, tackleX, tackleZ, -Math.PI / 2 + 0.35, DOCK.deck);
+    const [bucketX, bucketZ] = onDock(0.4, 2.3);
+    const bucket = new THREE.Group(); bucket.position.set(bucketX, DOCK.deck, bucketZ); bucket.rotation.y = -0.6; bucket.userData.part = "bucket"; parent.add(bucket);
+    props.push(placeProp(bucket, "fishBucket", { height: 0.32 }).ready);
+    add(new THREE.BoxGeometry(0.6, 0.6, 0.6), hidden, 0, 0.22, 0, bucket).castShadow = false;
+    prop("creel", 0.3, DOCK.x + 1.75, 4.3, 0.9, 0.02);
+    // The rod stands in a holder clamped to the far right piling, angled out over the water and
+    // pivoting at its butt; tap it to cast. Its model is 2.64 long with the butt and reel at +z,
+    // butt and tip level with each other and the reel hanging 0.36 below them: it is set so its
+    // butt is at the holder and its tip at -ROD. The bobber hangs from the tip until the line goes out.
+    const ROD = 2.5, REST = 0.5, AIM = 0.3;
+    const [postX, postZ] = onDock(PILINGS.far, PILINGS.right);
+    const PIVOT = new THREE.Vector3(postX, DOCK.deck + 0.14, postZ - 0.15);
+    const rod = new THREE.Group(); rod.position.copy(PIVOT); rod.rotation.order = "YXZ"; rod.rotation.set(REST, AIM, 0); rod.userData.part = "rod"; parent.add(rod);
+    props.push(placeProp(rod, "fishingRod", { height: 1, length: ROD, y: -0.36 * ROD / 2.64, z: -ROD / 2 }).ready);
+    add(new THREE.BoxGeometry(0.6, 0.6, ROD + 0.3), hidden, 0, 0.1, -ROD / 2, rod).castShadow = false;
+    // The holder: a short iron-banded tube round the rod's handle, bracketed to the piling.
+    const iron = new THREE.MeshStandardMaterial({ color: 0x3a3632, metalness: 0.6, roughness: 0.5, envMap });
+    add(new THREE.CylinderGeometry(0.038, 0.034, 0.3, 10, 1, true).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ map: wood.map, roughness: 0.7, side: THREE.DoubleSide }), 0, 0, -0.1, rod);
+    for (const along of [-0.03, -0.22]) add(new THREE.TorusGeometry(0.04, 0.008, 6, 16), iron, 0, 0, along, rod);
+    add(new THREE.BoxGeometry(0.05, 0.04, 0.12), iron, postX, PIVOT.y + 0.02, postZ - 0.08);
+    add(new THREE.TorusGeometry(0.12, 0.012, 6, 20).rotateX(Math.PI / 2), iron, postX, PIVOT.y + 0.02, postZ);
+    // The anglers' board on the bank left of the dock: a notice board of pinned records under a
+    // gilded trophy fish, turned toward the dock's foot. Tap it for the rankings.
+    const [boardX, boardZ] = around(-0.55, 0.55);
+    const board = new THREE.Group(); board.position.set(boardX, 0, boardZ); board.rotation.y = Math.atan2(DOCK.x - boardX, 7.5 - boardZ); board.userData.part = "board"; parent.add(board);
+    for (const side of [-1, 1]) add(new THREE.CylinderGeometry(0.04, 0.05, 1.5, 8), wood, side * 0.52, 0.75, 0, board);
+    const [notesCanvas, notes] = canvas(256, 160);
+    notes.fillStyle = "#4a3020"; notes.fillRect(0, 0, 256, 160);
+    notes.strokeStyle = "rgba(0,0,0,.35)"; notes.lineWidth = 2;
+    for (let y = 40; y < 160; y += 40) { notes.beginPath(); notes.moveTo(0, y); notes.lineTo(256, y); notes.stroke(); }
+    // Pinned notes: a ranking with its podium marks, and catches written up beside it.
+    const note = (x: number, y: number, width: number, height: number, tilt: number, rows: number, marks = false) => {
+      notes.save(); notes.translate(x + width / 2, y + height / 2); notes.rotate(tilt);
+      notes.fillStyle = "#e9dcb8"; notes.shadowColor = "rgba(0,0,0,.45)"; notes.shadowBlur = 5; notes.fillRect(-width / 2, -height / 2, width, height); notes.shadowBlur = 0;
+      for (let row = 0; row < rows; row++) {
+        const lineY = -height / 2 + 16 + row * 13;
+        if (marks) { notes.fillStyle = ["#c9a227", "#9ea3ab", "#a8693a"][row] ?? "#6b5a44"; notes.beginPath(); notes.arc(-width / 2 + 12, lineY, 4.5, 0, Math.PI * 2); notes.fill(); }
+        notes.fillStyle = "#5d4c3a"; notes.fillRect(-width / 2 + (marks ? 22 : 9), lineY - 1.5, (width - (marks ? 32 : 18)) * (0.55 + 0.4 * ((row * 37) % 10) / 10), 3);
+      }
+      notes.fillStyle = "#b8322a"; notes.beginPath(); notes.arc(0, -height / 2 + 6, 3.5, 0, Math.PI * 2); notes.fill();
+      notes.restore();
+    };
+    note(18, 14, 104, 92, -0.04, 5, true); note(136, 10, 96, 60, 0.06, 3); note(140, 82, 86, 64, -0.05, 3); note(40, 112, 70, 40, 0.08, 2);
+    const noteboard = new THREE.MeshStandardMaterial({ map: srgb(notesCanvas), roughness: 0.8 });
+    add(new THREE.BoxGeometry(1.12, 0.7, 0.05), [wood, wood, wood, wood, noteboard, wood], 0, 1.02, 0.03, board);
+    add(new THREE.BoxGeometry(1.26, 0.05, 0.16), wood, 0, 1.4, 0.03, board);
+    // The trophy: the pond's biggest fish, gilded, mounted on a wooden plaque atop the board.
+    const trophy = new THREE.Group(); trophy.position.set(0, 1.62, 0.05); board.add(trophy);
+    add(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 28).rotateX(Math.PI / 2).scale(1.7, 1, 1), wood, 0, 0, -0.02, trophy);
+    const mounted = placeProp(trophy, FISH_PROP.mightfish, { height: 1, length: 0.62, yaw: Math.PI / 2 });
+    mounted.group.rotation.z = Math.PI / 2; mounted.group.position.set(0, -0.1, 0.03);
+    props.push(mounted.ready.then((group) => { applyFinish(group, "golden", envMap); return group; }));
+    add(new THREE.BoxGeometry(1.4, 1.9, 0.5), hidden, 0, 0.95, 0, board).castShadow = false;
+    // The line: a few points sagging between the rod's tip and the bobber, slack until a fish pulls.
+    const LINE_POINTS = 14, lineGeometry = new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(LINE_POINTS * 3), 3));
+    const line = new THREE.Line(lineGeometry, new THREE.LineBasicMaterial({ color: 0xf4efe0, transparent: true, opacity: 0.85 }));
+    line.frustumCulled = false; line.raycast = () => {}; parent.add(line);
     const bobber = new THREE.Group(); bobber.userData.part = "bobber"; parent.add(bobber);
     props.push(placeProp(bobber, "bobber", { height: 0.3, y: -0.08, yaw: Math.PI / 2 }).ready);
-    add(new THREE.SphereGeometry(0.6, 12, 8), hidden, 0, 0.1, 0, bobber).castShadow = false;
-    const tip = new THREE.Vector3(), towards = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    add(new THREE.SphereGeometry(0.55, 12, 8), hidden, 0, 0.1, 0, bobber).castShadow = false;
+    const tip = new THREE.Vector3(), point = new THREE.Vector3();
+    let sag = 0.25;
     const stringLine = () => {
-      rod.updateMatrix(); tip.set(0, 0.1, -ROD + 0.1).applyMatrix4(rod.matrix);
-      towards.subVectors(bobber.position, tip).y += 0.12;
-      line.position.copy(tip).addScaledVector(towards, 0.5); line.scale.set(1, towards.length(), 1);
-      line.quaternion.setFromUnitVectors(up, towards.normalize());
+      rod.updateMatrix(); tip.set(0, 0, -ROD).applyMatrix4(rod.matrix);
+      const positions = lineGeometry.attributes.position as THREE.BufferAttribute, top = bobber.position.clone().setY(bobber.position.y + 0.14), length = tip.distanceTo(top);
+      for (let i = 0; i < LINE_POINTS; i++) {
+        const k = i / (LINE_POINTS - 1);
+        point.lerpVectors(tip, top, k); point.y -= Math.sin(Math.PI * k) * sag * length * 0.12;
+        positions.setXYZ(i, point.x, point.y, point.z);
+      }
+      positions.needsUpdate = true;
     };
     // Rings on the water: a few at once, for nibbles, plops and the bite's churn.
     const ripples = Array.from({ length: 4 }, () => {
-      const mesh = add(new THREE.RingGeometry(0.08, 0.12, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }), 0, 0.03, 0);
+      const mesh = add(new THREE.RingGeometry(0.08, 0.12, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }), 0, 0.035, 0);
       mesh.castShadow = false; mesh.visible = false; mesh.raycast = () => {};
       return { mesh, age: 0, strength: 1 };
     });
     let nextRipple = 0;
     const splash = (at: THREE.Vector3, strength = 1) => {
       const ring = ripples[nextRipple++ % ripples.length];
-      ring.mesh.position.set(at.x, 0.03, at.z); ring.mesh.scale.setScalar(1); ring.mesh.visible = true;
+      ring.mesh.position.set(at.x, 0.035, at.z); ring.mesh.scale.setScalar(1); ring.mesh.visible = true;
       (ring.mesh.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.3 * strength;
       ring.age = 0; ring.strength = strength;
     };
@@ -315,26 +487,77 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       }
       stringLine();
     });
-    prop("fishRack", 1.6, -2.4, 4.4, -Math.PI / 2 + 0.6);
-    prop("fishingBox", 0.45, 2.5, 5.2, 0.4);
-    // The catch on show: it leaps from the water to hang over the dock, turning, finished like its
-    // quality, until the next cast.
-    const SHOW = new THREE.Vector3(0.1, 1.55, 2.2);
+    // The glint: while prize catches remain, something golden shines up through the water, motes
+    // rising from it. A prize cast lands the bobber on it.
+    const GLINT = new THREE.Vector3(-1.75, 0, -0.9);
+    // A gold wash on the water with a bright heart, both outside tone mapping so gold stays gold.
+    const glint = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: sparkMap, color: 0xffc23c, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+    glint.position.set(GLINT.x, 0.04, GLINT.z); glint.scale.setScalar(2); glint.raycast = () => {}; parent.add(glint);
+    const heart = new THREE.Mesh(glint.geometry, new THREE.MeshBasicMaterial({ map: sparkMap, color: 0xfff0b0, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+    heart.position.set(GLINT.x, 0.045, GLINT.z); heart.scale.setScalar(0.75); heart.raycast = () => {}; parent.add(heart);
+    const motes = Array.from({ length: 7 }, (_, index) => {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkMap, color: 0xffe08a, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+      sprite.scale.setScalar(0.09); parent.add(sprite);
+      return { sprite, phase: index / 7, x: 0, z: 0 };
+    });
+    let glintLevel = 0, glintWanted = 0;
+    animate.push((delta, time) => {
+      glintLevel = THREE.MathUtils.damp(glintLevel, glintWanted, 2.5, delta);
+      glint.visible = heart.visible = glintLevel > 0.01;
+      const pulse = 0.8 + 0.14 * Math.sin(time * 1.7) + 0.06 * Math.sin(time * 4.3);
+      glint.material.opacity = glintLevel * 0.55 * pulse; heart.material.opacity = glintLevel * 0.8 * pulse;
+      for (const mote of motes) {
+        const k = (time * 0.45 + mote.phase) % 1;
+        if (k < 0.02) { const angle = Math.random() * Math.PI * 2, radius = Math.random() * 0.45; mote.x = GLINT.x + Math.cos(angle) * radius; mote.z = GLINT.z + Math.sin(angle) * radius; }
+        mote.sprite.visible = glint.visible;
+        mote.sprite.position.set(mote.x, 0.05 + k * 0.7, mote.z);
+        mote.sprite.material.opacity = glintLevel * Math.sin(Math.PI * k) * 0.9;
+      }
+    });
+    // The bite: a "!" springs up over the bobber, and a ring closes in on it as the moment passes.
+    const [markCanvas, markPaint] = canvas(64, 128);
+    markPaint.font = "900 112px Georgia, serif"; markPaint.textAlign = "center"; markPaint.textBaseline = "middle";
+    markPaint.lineWidth = 10; markPaint.strokeStyle = "#2a1606"; markPaint.strokeText("!", 32, 68); markPaint.fillStyle = "#ffd257"; markPaint.fillText("!", 32, 68);
+    const mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: srgb(markCanvas), transparent: true, depthTest: false }));
+    mark.visible = false; mark.renderOrder = 5; parent.add(mark);
+    const closing = add(new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd257, transparent: true, opacity: 0, depthWrite: false }), 0, 0.04, 0);
+    closing.castShadow = false; closing.visible = false; closing.raycast = () => {};
+    // The catch on show: it leaps from the water to hang before the camera, turning, finished
+    // like its quality, until the next cast, when a fish drops into the bucket.
+    const SHOW = new THREE.Vector3(0.2, 2, 6), BUCKET = new THREE.Vector3(bucketX, DOCK.deck + 0.32, bucketZ);
     const show = new THREE.Group(); show.visible = false; parent.add(show);
     const holder = new THREE.Group(); show.add(holder);
-    const clearShow = () => { show.visible = false; holder.children.forEach((child) => releaseFinishes(child)); holder.clear(); };
+    let shown: CatchVisual | null = null, queued: CatchVisual | null = null, stowing = -1;
+    const clearShow = () => { show.visible = false; show.scale.setScalar(1); holder.children.forEach((child) => releaseFinishes(child)); holder.clear(); shown = null; stowing = -1; };
     const showCatch = (visual: CatchVisual) => {
-      clearShow();
-      const placed = visual.kind === "box" ? placeProp(holder, "gift", { height: 0.7, yaw: 0.4 })
-        : visual.kind === "figure" ? placeProp(holder, "chest", { height: 0.75, yaw: -Math.PI / 2 })
+      clearShow(); shown = visual;
+      const placed = visual.kind === "box" ? placeProp(holder, "gift", { height: 0.4, yaw: 0.4 })
+        : visual.kind === "figure" ? placeProp(holder, "chest", { height: 0.45, yaw: -Math.PI / 2 })
         // Fish lie on their sides: stood up, they show their flank to the dock.
-        : placeProp(holder, FISH_PROP[visual.fish], { height: 1, length: THREE.MathUtils.clamp(visual.length * 1.7, 0.7, 2.2), yaw: Math.PI / 2 });
+        : placeProp(holder, FISH_PROP[visual.fish], { height: 1, length: THREE.MathUtils.clamp(visual.length * 1.5, 0.5, 1.4), yaw: Math.PI / 2 });
       if (visual.kind === "fish") { placed.group.rotation.z = Math.PI / 2; if (visual.quality !== "standard") void placed.ready.then((group) => applyFinish(group, visual.quality, envMap)); }
     };
+    // Last catch away: a fish (or boot) drops into the bucket; a prize vanishes in a sparkle.
+    const stow = () => { if (show.visible && shown) stowing = 0; };
+    animate.push((delta) => {
+      if (stowing < 0) return;
+      stowing += delta;
+      const k = Math.min(1, stowing / 0.45);
+      if (shown?.kind === "fish") { show.position.lerp(BUCKET, k); show.position.y += Math.sin(Math.PI * k) * 0.3; show.scale.setScalar(1 - k * 0.7); }
+      else show.scale.setScalar(Math.max(0.01, 1 - k));
+      if (k >= 1) {
+        if (shown?.kind !== "fish") burst(show.position.clone(), 0xffe6a0);
+        const next = queued; queued = null; clearShow();
+        if (next) showCatch(next);
+      }
+    });
     // A fish leaps in a short arc every few seconds, somewhere on the water.
     const fish = placeProp(parent, "fish", { height: 0.32, x: 0, y: -1, z: 0, yaw: 0 }).group;
     let leap = { at: 3, x: 0, z: 0, heading: 0 }, fishing = false;
-    const rest = new THREE.Vector3(1.75, 0.44, 2.15);
+    // At rest the bobber hangs a little under the rod's tip, swaying.
+    const restOf = (time: number, into: THREE.Vector3) => { rod.updateMatrix(); return into.set(0, 0, -ROD).applyMatrix4(rod.matrix).add(new THREE.Vector3(Math.sin(time * 1.1) * 0.03, -0.55, Math.cos(time * 0.9) * 0.02)); };
+    let clock = 0;
+    const rest = restOf(0, new THREE.Vector3());
     bobber.position.copy(rest);
     // A cast: the rod swings back and flicks, the bobber arcs out and plops. It bobs, a fish may
     // nibble (small dips: leave them), then it bites: the bobber plunges, and a tap within the
@@ -344,8 +567,11 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     let current: Line | null = null;
     actions.cast = (action, cue, done) => {
       if (action.kind !== "cast") return;
-      clearShow(); fishing = true;
-      const out = new THREE.Vector3(0.5 + (Math.random() - 0.5) * 1.8, 0, -0.5 - Math.random() * 1.6), from = rest.clone();
+      stow(); fishing = true;
+      const prize = action.catch.kind !== "fish";
+      const out = prize ? GLINT.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3))
+        : new THREE.Vector3(-1.6 + Math.random() * 2.8, 0, -2.9 + Math.random() * 2.4);
+      const from = bobber.position.clone();
       const biteAt = 2.8 + Math.random() * 3.2, nibbles = Array.from({ length: Math.floor(Math.random() * 3) }, () => 2 + Math.random() * (biteAt - 2.7)).sort((a, b) => a - b);
       const state: Line = { phase: "cast", at: 0, out, biteAt, nibbles, heard: 0, result: "missed" };
       current = state;
@@ -353,12 +579,16 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       const finish = (result: CastResult) => { if (!finished) { finished = true; done(result); } };
       play((t) => {
         const since = t - state.at;
+        mark.visible = state.phase === "bite";
+        closing.visible = state.phase === "bite";
         if (state.phase === "cast") {
           rod.rotation.x = t < 0.4 ? REST + t / 0.4 * 0.75 : t < 0.6 ? REST + 0.75 - (t - 0.4) / 0.2 * 1.05 : REST - 0.3;
+          sag = 0.05;
           if (t >= 0.6) { const k = Math.min(1, (t - 0.6) / 0.7); bobber.position.lerpVectors(from, out, k); bobber.position.y = from.y * (1 - k) + Math.sin(Math.PI * k) * 1.5; }
           if (t >= 1.3) { state.phase = "wait"; state.at = t; splash(out, 1.2); cue("splash"); }
         } else if (state.phase === "wait") {
           rod.rotation.x = REST - 0.3 + Math.sin(t * 1.3) * 0.015;
+          sag = Math.min(1, since * 2);
           let dip = 0;
           for (const at of state.nibbles) if (t >= at && t < at + 0.28) dip = Math.sin((t - at) / 0.28 * Math.PI) * 0.06;
           if (state.heard < state.nibbles.length && t >= state.nibbles[state.heard]) { state.heard++; splash(out, 0.4); cue("nibble"); }
@@ -366,47 +596,71 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
           if (t >= state.biteAt) { state.phase = "bite"; state.at = t; splash(out, 1.6); cue("bite"); }
         } else if (state.phase === "bite") {
           rod.rotation.x = REST - 0.36 - Math.abs(Math.sin(t * 18)) * 0.05;
+          sag = 0;
           bobber.position.set(out.x + Math.sin(t * 31) * 0.03, -0.13 - Math.abs(Math.sin(t * 22)) * 0.05, out.z + Math.cos(t * 27) * 0.03);
+          const k = Math.min(1, since / BITE_WINDOW), pop = Math.min(1, since / 0.12);
+          mark.position.set(out.x, 0.85 + Math.sin(t * 14) * 0.03, out.z); mark.scale.set(0.34, 0.68, 1).multiplyScalar(pop * (1 + 0.25 * Math.sin(Math.min(1, since / 0.25) * Math.PI)));
+          closing.position.set(out.x, 0.04, out.z); closing.scale.setScalar(0.9 - k * 0.68); (closing.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.5 * k;
           if (since > 0.45 && since - 1 / 60 <= 0.45) splash(out, 1);
           if (since >= BITE_WINDOW) { state.phase = "lost"; state.at = t; state.result = "missed"; cue("escape"); }
         } else if (state.phase === "hooked") {
-          // The rod jerks up; the catch leaps from the water to its place over the dock.
+          // The rod jerks up; the catch leaps from the water to its place before the camera.
           rod.rotation.x = REST - 0.36 + Math.min(1, since / 0.18) * 0.9 - Math.max(0, Math.min(1, (since - 0.6) / 0.8)) * 0.6;
+          sag = 0;
           const k = Math.min(1, since / 0.8);
           show.visible = true;
           show.position.lerpVectors(out, SHOW, k); show.position.y = SHOW.y * k + Math.sin(Math.PI * k) * 1.1;
           show.rotation.set(0, since * 2.2, (1 - k) * 2.5);
-          bobber.position.lerp(rest, Math.min(1, since / 0.7));
+          bobber.position.lerp(restOf(clock, rest), Math.min(1, since / 0.7));
           if (k >= 1 && !finished) { burst(SHOW.clone(), 0xffe6a0); cue("burst"); finish("caught"); }
           if (since > 0.8) show.position.y = SHOW.y + Math.sin(since * 2) * 0.05;
           if (since > 1.6) { fishing = false; current = null; return false; }
         } else {
-          // Lost: the bobber pops up empty and is reeled back to the dock.
+          // Lost: the bobber pops up empty and is reeled back to the rod.
           rod.rotation.x = THREE.MathUtils.lerp(rod.rotation.x, REST, Math.min(1, since * 4));
+          sag = 0.3;
           const k = Math.min(1, since / 0.7);
-          bobber.position.lerpVectors(out, rest, k); bobber.position.y += Math.sin(Math.PI * k) * 0.5;
+          bobber.position.lerpVectors(out, restOf(clock, rest), k); bobber.position.y += Math.sin(Math.PI * k) * 0.5;
           if (k >= 1) { finish(state.result); fishing = false; current = null; return false; }
         }
         return true;
       });
       // The catch is placed now, hidden, so it is loaded by the time it leaps.
-      showCatch(action.catch);
+      if (stowing >= 0) queued = action.catch; else showCatch(action.catch);
     };
     pokes.hook = () => {
       const state = current;
       if (!state || !acting) return;
-      if (state.phase === "bite") { state.phase = "hooked"; state.at = acting.t; splash(state.out, 1.8); burst(state.out.clone().setY(0.4), 0xbfe8ff); }
+      if (state.phase === "bite") { state.phase = "hooked"; state.at = acting.t; mark.visible = closing.visible = false; splash(state.out, 1.8); burst(state.out.clone().setY(0.4), 0xbfe8ff); }
       // A tap before the bite scares the fish off (taps while the bobber is still flying are ignored).
       else if (state.phase === "wait") { state.phase = "lost"; state.at = acting.t; state.result = "spooked"; splash(state.out, 0.8); }
     };
-    // Back at rest: the rod settles on its stand, the bobber waits on the dock.
-    animate.push(() => { if (!fishing) { rod.rotation.x = THREE.MathUtils.lerp(rod.rotation.x, REST, 0.1); if (!show.visible) bobber.position.copy(rest); } });
-    animate.push((_, time) => { if (show.visible && !current) { show.rotation.y = time * 0.9; show.position.y = SHOW.y + Math.sin(time * 2) * 0.05; } });
+    setPrizes = (left) => { glintWanted = left > 0 ? 1 : 0; };
+    // Pointing at the tackle: the rod lifts a little in its holder, the bucket rises, and the
+    // trophy fish on the anglers' board turns out to look.
+    let hovered: string | null = null;
+    hover = (part) => { hovered = part; };
     animate.push((delta, time) => {
+      const lift = THREE.MathUtils.damp(bucket.position.y, DOCK.deck + (hovered === "bucket" ? 0.06 : 0), 12, delta);
+      bucket.position.y = lift; bucket.scale.setScalar(1 + (lift - DOCK.deck) * 1.2);
+      trophy.rotation.y = THREE.MathUtils.damp(trophy.rotation.y, hovered === "board" ? 0.35 * Math.sin(time * 3) : 0, 6, delta);
+      trophy.scale.setScalar(THREE.MathUtils.damp(trophy.scale.x, hovered === "board" ? 1.12 : 1, 10, delta));
+    });
+    // Back at rest: the rod settles in its holder, the bobber hangs from its tip.
+    animate.push((delta, time) => {
+      clock = time;
+      if (fishing) return;
+      rod.rotation.x = THREE.MathUtils.damp(rod.rotation.x, REST + (hovered === "rod" ? 0.06 : 0), 8, delta);
+      sag = 0.05;
+      if (stowing < 0 || shown?.kind !== "fish" || stowing > 0.2) bobber.position.lerp(restOf(time, rest), Math.min(1, delta * 8));
+    });
+    animate.push((_, time) => { if (show.visible && !current && stowing < 0) { show.rotation.y = time * 0.9; show.position.y = SHOW.y + Math.sin(time * 2) * 0.05; } });
+    animate.push((_, time) => {
       const t = time - leap.at;
-      if (t > 1.1 && !fishing) { const angle = Math.random() * Math.PI * 2, radius = 1 + Math.random() * 2.2; leap = { at: time + 2 + Math.random() * 4, x: Math.sin(angle) * radius, z: Math.cos(angle) * radius * 0.7 - 0.6, heading: Math.random() * Math.PI * 2 }; }
+      if (t > 1.1) { const angle = Math.random() * Math.PI * 2, radius = 1.2 + Math.random() * 2; leap = { at: time + 2 + Math.random() * 4, x: Math.sin(angle) * radius, z: Math.cos(angle) * radius * 0.7 - 0.8, heading: Math.random() * Math.PI * 2 }; }
       const k = t / 0.9;
-      fish.visible = k >= 0 && k <= 1;
+      // Not by the line while it is out: the fish there are on the hook's business.
+      fish.visible = k >= 0 && k <= 1 && !(fishing && current && Math.hypot(leap.x - current.out.x, leap.z - current.out.z) < 1.5);
       if (!fish.visible) return;
       fish.position.set(leap.x + Math.cos(leap.heading) * (k - 0.5) * 0.9, Math.sin(Math.PI * k) * 0.7 - 0.08, leap.z + Math.sin(leap.heading) * (k - 0.5) * 0.9);
       fish.rotation.set(0, -leap.heading, (0.5 - k) * 2.2);
@@ -421,6 +675,10 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     frame, ready, cubbies,
     // Shows the daily crate's streak: days opened, and today's day if it is still to open.
     setStreak(opened: number, today: number | null) { paintStreak?.(opened, today); },
+    // The pond: how many prize catches remain today (they glint under the water).
+    setPrizes(left: number) { setPrizes?.(left); },
+    // The working part under the pointer, for a little lift (the pond's rod and tackle box).
+    hover(part: string | null) { hover?.(part); },
     // Acts out an action this facility has (the wheel spins, the pond casts, the crate opens).
     act(action: FacilityAction, cue: (cue: ActionCue) => void, done: (result?: CastResult) => void) {
       const run = actions[action.kind];

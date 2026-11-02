@@ -21,6 +21,7 @@ function cameraState(view, idle, reduced = false, width = 1200) {
     shotAspect: () => 1, viewPose: () => ({ position: pose.position.clone(), target: pose.target.clone() }),
     look, lookTarget: { ...look }, screen: new THREE.Vector3(), velocity: new THREE.Vector3(), Y_AXIS: new THREE.Vector3(0, 1, 0),
     renderer: { domElement: { clientWidth: width, clientHeight: 800 } }, PANEL_SHEET_WIDTH: 700, panelShare: () => 0.3,
+    panelled: view => view !== "opening" && view !== "viewer" && view !== "shop" && view !== "pond",
     camera: new THREE.PerspectiveCamera(36, width / 800), controls: { target: new THREE.Vector3() },
     flight: { from: new THREE.Vector3(0, 3, 9), fromTarget: new THREE.Vector3(0, 1.5, 0), t: 1 },
     FLIGHT_SECONDS: 0.95, ease: t => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2,

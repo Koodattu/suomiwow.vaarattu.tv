@@ -283,31 +283,69 @@
         "cast": "Cast",
         "castAgain": "Cast again",
         "strike": "Strike!",
-        "phase": {
-          "idle": "The line is in",
-          "cast": "Casting…",
-          "wait": "Waiting for a bite",
+        "back": "Back",
+        "controls": "Fishing",
+        "story": {
+          "glint": "Something glints beneath the surface…",
+          "fish": "Only fish stir in the pond now.",
+          "cast": "The line sails out…",
+          "wait": "Wait for it…",
+          "nibble": "Something's nibbling…",
           "bite": "Bite!"
         },
         "how": {
-          "idle": "Tap the rod to cast.",
-          "cast": "There it goes.",
-          "wait": "Leave the little nibbles. When the bobber plunges, tap it.",
-          "bite": "Tap the bobber now!"
+          "idle": "Tap the rod, or press Cast.",
+          "wait": "Leave the nibbles. When the bobber plunges, strike.",
+          "bite": "Tap the bobber or press Strike, now!"
         },
-        "missed": "Too slow: it got away.",
-        "spooked": "Too soon: you scared it off.",
-        "prizeCatch": "Prize catch",
+        "parts": {
+          "rod": "Fishing rod: cast",
+          "bobber": "Bobber: cast",
+          "bucket": "Fish bucket: your fish log",
+          "board": "Anglers' board: rankings"
+        },
+        "missed": "Too slow. It got away.",
+        "spooked": "Too soon. You scared it off.",
         "weight": "{weight} lb",
-        "newKind": "New to your log!",
-        "best": "Your biggest of its kind yet!",
-        "prizes": "Today's prize catches",
-        "prize": {
-          "box": "A box",
-          "figure": "A figure"
+        "banner": {
+          "new": "New catch!",
+          "best": "Personal best!",
+          "caught": "Caught",
+          "treasure": "Treasure!",
+          "box": "A wrapped box",
+          "banked": "{count, plural, one {+# box, banked} other {+# boxes, banked}}",
+          "chest": "A sunken chest!",
+          "joins": "joins your collection"
         },
-        "prizesDone": "All three landed. The fish keep biting.",
-        "log": "Fish log"
+        "log": "Fish log",
+        "closeLog": "Close the fish log",
+        "logSummary": "{kinds} of {total} kinds · {count, plural, one {# catch} other {# catches}}",
+        "logRecord": "Record: {name}, {weight} lb",
+        "logCount": "×{count}",
+        "logBest": "Best {weight} lb",
+        "logMissing": "Not caught yet",
+        "unknown": "???",
+        "rarity": {
+          "junk": "Junk",
+          "common": "Common",
+          "uncommon": "Uncommon",
+          "rare": "Rare",
+          "epic": "Epic"
+        },
+        "rankings": "Rankings",
+        "board": "Anglers' board",
+        "closeBoard": "Close the anglers' board",
+        "boardIntro": "Every fish scores. Your ten best catches make your score.",
+        "standings": "Standings",
+        "you": "You",
+        "standingsSoon": "Guild standings arrive with Discord sign-in.",
+        "bestTen": "Your best catches · {count} of {total}",
+        "boardEmpty": "Nothing on the board yet. Land a fish to score.",
+        "points": "{points, plural, one {# pt} other {# pts}}",
+        "gain": "+{points, plural, one {# pt} other {# pts}}",
+        "scoring": "Scoring",
+        "scoringSize": "× its size for its kind, 1 to 2",
+        "scoringFinish": "× golden {golden}, galaxy {galaxy}"
       },
       "rewards": {
         "boxes": "{count, plural, one {# box} other {# boxes}}",

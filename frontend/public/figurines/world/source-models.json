@@ -201,7 +201,8 @@
       "facility-models-001",
       "facility-models-002",
       "fish-models-001",
-      "boot-models-001"
+      "boot-models-001",
+      "pond-models-001"
     ],
     "build": {
       "Region": "eu",
@@ -473,6 +474,60 @@
         "file": "world/expansion05/doodads/human/doodads/6hu_salvageyard_junkboot01.m2",
         "fileDataID": 955699,
         "bytes": 23140
+      },
+      {
+        "name": "dock-small",
+        "file": "world/azeroth/elwynn/passivedoodads/smalldock/smalldock.m2",
+        "fileDataID": 189904,
+        "bytes": 92980
+      },
+      {
+        "name": "tacklebox",
+        "file": "world/expansion03/doodads/worgen/items/worgen_tacklebox_01.m2",
+        "fileDataID": 306217,
+        "bytes": 327664
+      },
+      {
+        "name": "fishing-bucket-2",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_bucket02.m2",
+        "fileDataID": 984207,
+        "bytes": 303868
+      },
+      {
+        "name": "fishing-net-1",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_net01.m2",
+        "fileDataID": 984216,
+        "bytes": 1239844
+      },
+      {
+        "name": "fishing-barrel",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_barrel01.m2",
+        "fileDataID": 984194,
+        "bytes": 398340
+      },
+      {
+        "name": "cattails-gilneas",
+        "file": "world/expansion03/doodads/gilneas/bushes/gilneas_cattails01.m2",
+        "fileDataID": 326435,
+        "bytes": 47644
+      },
+      {
+        "name": "lilypads-gilneas",
+        "file": "world/expansion03/doodads/gilneas/lilypads/gilneas_lilypads01.m2",
+        "fileDataID": 343459,
+        "bytes": 264936
+      },
+      {
+        "name": "lantern-garrison",
+        "file": "world/expansion05/doodads/human/doodads/6hu_garrison_lantern.m2",
+        "fileDataID": 960094,
+        "bytes": 323264
+      },
+      {
+        "name": "fishing-basket",
+        "file": "world/expansion02/doodads/generic/tuskar/crate/ts_fishingbasket_01.m2",
+        "fileDataID": 195270,
+        "bytes": 109680
       }
     ]
   }

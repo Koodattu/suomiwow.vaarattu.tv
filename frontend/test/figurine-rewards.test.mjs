@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FISH, QUESTS, WHEEL, boostedQuality, claimQuest, dailyCatchesLeft, fishOf, landCatch, moveFavorite, rollCatch, setFavoriteQuality, showcaseOf, toggleFavorite, crateState, dayKey, grantReward, openCrate, parseRecords, questBoard, readRecords, recordPull, spinWheel, startQuestPeriods, weekKey, wheelSegment } from "../src/lib/figurine-collection.ts";
+import { ANGLER_TOP, FISH, QUESTS, WHEEL, anglerScore, boostedQuality, catchScore, claimQuest, dailyCatchesLeft, fishOf, landCatch, moveFavorite, rollCatch, setFavoriteQuality, showcaseOf, toggleFavorite, crateState, dayKey, grantReward, openCrate, parseRecords, questBoard, readRecords, recordPull, spinWheel, startQuestPeriods, weekKey, wheelSegment } from "../src/lib/figurine-collection.ts";
 
 const store = () => { const data = new Map(); return { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 const day = (date, hour = 12) => new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
@@ -52,6 +52,9 @@ test("the day's first three catches are a box, a figure and a box, then fish of 
   assert.ok(caught.weight >= low && caught.weight <= high && caught.best && caught.first);
   const again = landCatch(roll, now, memory);
   assert.deepEqual([again.best, again.first], [false, false]);
+  // Both go on the anglers' board, scored the same.
+  assert.equal(again.score, caught.score);
+  assert.deepEqual(readRecords(memory).angler.map(({ score }) => score), [caught.score, caught.score]);
   assert.deepEqual(readRecords(memory).fish[caught.fish], { count: 2, best: caught.weight, golden: 0, galaxy: 0 });
   assert.equal(readRecords(memory).stats.fish, 5);
   assert.equal(dailyCatchesLeft(readRecords(memory), day("2026-11-02")), 3, "a new day brings three more");
@@ -110,4 +113,25 @@ test("boosts lift a roll, never lower it; periods use local days and ISO weeks; 
   assert.deepEqual(parsed.boons, { boxes: 0, boost: null });
   assert.deepEqual(parsed.daily, { crate: null, streak: 7, spin: null, catch: null, caught: 0 });
   assert.equal(parsed.stats.opened, 0); assert.equal(parsed.stats.fish, 4);
+});
+
+test("a catch scores its rarity, its size for its kind and its finish, and the ten best make the anglers' score", () => {
+  // Rarity points, times one to two across the kind's weight range, times the finish.
+  assert.equal(catchScore("smallfish", 0.2, "standard"), 10);
+  assert.equal(catchScore("smallfish", 0.6, "standard"), 20);
+  assert.equal(catchScore("mightfish", 40, "galaxy"), 1500);
+  assert.equal(catchScore("eel", 6, "golden"), 180);
+  assert.equal(catchScore("boot", 2.6, "galaxy"), 0, "junk scores nothing");
+  const memory = store(), now = day("2026-11-01");
+  for (let i = 0; i < 3; i++) landCatch(rollCatch(readRecords(memory), () => 0.5, now), now, memory);
+  landCatch({ kind: "fish", fish: "boot", weight: 2, quality: "standard" }, now, memory);
+  for (let i = 0; i < 12; i++) landCatch({ kind: "fish", fish: "smallfish", weight: 0.2 + i * 0.03, quality: "standard" }, now, memory);
+  const board = readRecords(memory).angler;
+  assert.equal(board.length, ANGLER_TOP);
+  assert.ok(board.every(({ fish }) => fish === "smallfish"), "the boot never makes the board");
+  assert.deepEqual(board.map(({ score }) => score), [...board.map(({ score }) => score)].sort((a, b) => b - a));
+  assert.equal(anglerScore(readRecords(memory)), board.reduce((total, { score }) => total + score, 0));
+  // Stored scores are worked out again on reading.
+  const forged = parseRecords(JSON.stringify({ angler: [{ fish: "salmon", weight: 12, quality: "standard", score: 99999, at: "2026-11-01T10:00:00.000Z" }, { fish: "nope", weight: 1, quality: "standard", at: "2026-11-01T10:00:00.000Z" }] }));
+  assert.deepEqual(forged.angler.map(({ fish, score }) => [fish, score]), [["salmon", 120]]);
 });

@@ -40,7 +40,8 @@ export const STATION_SPECS: Record<Station, StationSpec> = {
   // A working yard off the south-west corner; its two machines face a shared approach.
   recycler: { at: [-8.16, 8.16], face: [-4, 4.8], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
   forge: { at: [-3, 11.4], face: [-2.4, 5.6], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
-  pond: { at: [POND.x, POND.z], face: [4, 10], width: 6, back: -3, front: 3, shot: { height: 2.4, distance: 8.5, target: 0.6, fit: 8.5 } },
+  // The pond is seen from behind the foot of its dock, over the whole dock to the water beyond.
+  pond: { at: [POND.x, POND.z], face: [4, 10], width: 6, back: -3, front: 3, shot: { height: 3.6, distance: 10, target: 0.1, fit: 6, reach: 1.75 } },
 };
 export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([name, spec]) => {
   const [fx, fz] = spec.face ?? [0, 0];

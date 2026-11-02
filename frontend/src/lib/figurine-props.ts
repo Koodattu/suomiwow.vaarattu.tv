@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import type { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { restoreFigurineMaterials } from "@/lib/figurine-materials";
+import type { FishId } from "@/lib/figurine-collection";
 
 // Game props that dress the stations, exported with the local wow.export worker
 // (provenance: the "stations" and "facilities" entries of /figurines/world/source-models.json).
@@ -53,6 +54,20 @@ export const STATION_PROPS = {
   fishingRod: "/figurines/world/models/fishing-pole.glb",
   bobber: "/figurines/world/models/fishing-bobber.glb",
   boot: "/figurines/world/models/boot-junk.glb",
+  // The pond's dock and dressing: Elwynn's small dock with a lantern, the worgen tackle box, the
+  // bucket of the catch (the fish log), a barrel, net and creel of fish, cattails, flowering lily
+  // pads, and the forest's rocks for its bank.
+  dock: "/figurines/world/models/dock-small.glb",
+  dockLantern: "/figurines/world/models/lantern-garrison.glb",
+  tacklebox: "/figurines/world/models/tacklebox.glb",
+  fishBucket: "/figurines/world/models/fishing-bucket-2.glb",
+  fishBarrel: "/figurines/world/models/fishing-barrel.glb",
+  fishNet: "/figurines/world/models/fishing-net-1.glb",
+  creel: "/figurines/world/models/fishing-basket.glb",
+  cattails: "/figurines/world/models/cattails-gilneas.glb",
+  lilyFlowers: "/figurines/world/models/lilypads-gilneas.glb",
+  rock: "/figurines/world/models/rock-1.glb",
+  rockSmall: "/figurines/world/models/rock-2.glb",
   fishGreen: "/figurines/world/models/fish-dead-green.glb",
   fishOrange: "/figurines/world/models/fish-dead-orange.glb",
   fishBlue: "/figurines/world/models/fish-dead-blue.glb",
@@ -65,6 +80,12 @@ export const STATION_PROPS = {
   fishSpiny: "/figurines/world/models/fish-draenor-3.glb",
 } as const;
 export type StationProp = keyof typeof STATION_PROPS;
+// The game model each catch shows as (in the world, and baked for the fish log by
+// scripts/bake-fish-cards.mjs).
+export const FISH_PROP: Record<FishId, StationProp> = {
+  smallfish: "fishGreen", mudsnapper: "fishOrange", catfish: "fishPale", blackmouth: "fishBlue", firefin: "fishSpiny",
+  deviate: "fishPurple", yellowtail: "fishGold", eel: "fishEel", salmon: "fishPink", mightfish: "fishBig", boot: "boot",
+};
 export type PlaceProp = ReturnType<typeof propPlacer>;
 // `height` sizes a prop by its height; `length`, if given, by its longest level extent instead.
 type Placement = { height: number; length?: number; x?: number; y?: number; z?: number; yaw?: number; shadow?: boolean };
