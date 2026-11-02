@@ -1,5 +1,5 @@
 {
-  "note": "Doodads optimized with worker/optimizer (meshopt, WebP max 512px); dirt.png from the texture job.",
+  "note": "Historical source export records, not the deployed asset inventory. Registered runtime GLBs use Meshopt and KTX2 ETC1S; retired exports remain in local authoring history. See docs/collectibles-assets.md. dirt.png is from the texture job.",
   "models": {
     "state": "complete",
     "id": "world-models-002",

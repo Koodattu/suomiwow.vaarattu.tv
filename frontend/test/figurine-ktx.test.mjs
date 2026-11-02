@@ -2,6 +2,21 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
 
+test("served models belong to active catalogs or world loader registries", async () => {
+  const root = new URL("../public/figurines/", import.meta.url);
+  const expected = new Set();
+  for (const filename of (await fs.readdir(new URL("../src/data/figurines/", import.meta.url))).filter(name => /^community-\d+\.json$/.test(name))) {
+    const catalog = JSON.parse(await fs.readFile(new URL(`../src/data/figurines/${filename}`, import.meta.url)));
+    for (const figure of catalog.characters) expected.add(figure.model.split("?")[0].replace("/figurines/", ""));
+  }
+  for (const filename of ["figurine-forest.ts", "figurine-props.ts"]) {
+    const source = await fs.readFile(new URL(`../src/lib/${filename}`, import.meta.url), "utf8");
+    for (const match of source.matchAll(/"\/figurines\/(world\/models\/[^"\s]+\.glb)"/g)) expected.add(match[1]);
+  }
+  const served = (await fs.readdir(root, { recursive: true })).filter(file => file.endsWith(".glb")).map(file => file.replaceAll("\\", "/"));
+  assert.deepEqual(served.sort(), [...expected].sort(), "remove retired assets and register new models before serving them");
+});
+
 test("all public GLBs use embedded ETC1S with mipmaps and bounded texture payloads", async () => {
   const root = new URL("../public/", import.meta.url);
   const files = (await fs.readdir(root, { recursive: true })).filter(file => file.endsWith(".glb"));

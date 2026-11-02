@@ -1,5 +1,8 @@
 # Local collectible prototypes
 
+For current import/conversion commands, use [Collectibles: local asset workflow](collectibles-assets.md).
+The dated notes below preserve project history and may describe superseded assets/settings.
+
 The game is available by direct link only while it is a work in progress:
 - `/collectibles`: focused blind-box opening and figure reveal, with an image-only
   SuomiWoW logo in the top left that returns to the main site.
