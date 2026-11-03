@@ -196,6 +196,7 @@ export default function FigurineWorld() {
   // or either's button), and the tackle under the pointer.
   const [pondSheet, setPondSheet] = useState<PondSheet | null>(null);
   const [hoverPart, setHoverPart] = useState<PondPart | null>(null);
+  const [buttonPart, setButtonPart] = useState<PondPart | null>(null);
   const [result, setResult] = useState<PanelResult | null>(null);
   const busy = !!pending;
   // A prize figure: any figure of a released series, at a rolled quality.
@@ -406,7 +407,7 @@ export default function FigurineWorld() {
       interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
       machines={machines} onMachine={operateMachine} onMachineDone={machineDone} onIntroDone={() => setIntroDone(true)} onHoverStation={setPointed} action={facilityAction} onActionDone={actionDone} onActionCue={actionCue} poke={poke} panelWidth={panelWidth}
-      onFacilityPart={(station, part) => { if (station === "pond") pondPart(part); else if (station === "crate" && part === "chest") openDailyChest(); }} onHoverPart={(part) => setHoverPart(part as PondPart | null)}
+      onFacilityPart={(station, part) => { if (station === "pond") pondPart(part); else if (station === "crate" && part === "chest") openDailyChest(); }} onHoverPart={(part) => setHoverPart(part as PondPart | null)} highlightedPart={view === "pond" && !pondSheet ? buttonPart : null}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={(key) => inspect(key)} onHoverFigure={setHovered}
       onStatus={(status) => {
         setWebglUnavailable(status === "webgl");
@@ -420,7 +421,7 @@ export default function FigurineWorld() {
     {records.boons.boost && revealedWorld && <p className={panelStyles.hudBoons}>
       {records.boons.boost && <span data-quality={records.boons.boost}>{t("world.rewards.boostNext", { quality: t(`quality.${records.boons.boost}`) })}</span>}
     </p>}
-    {view === "pond" && revealedWorld && <PondHud records={records} line={line} result={result?.station === "pond" ? result : null} busy={busy} hovered={hoverPart} sheet={pondSheet}
+    {view === "pond" && revealedWorld && <PondHud records={records} line={line} result={result?.station === "pond" ? result : null} busy={busy} hovered={hoverPart} sheet={pondSheet} onHover={setButtonPart}
       onCast={cast} onHook={hook} onDismiss={dismissCatch} onSheet={openSheet} onBack={leavePond} />}
     {view === "crate" && revealedWorld && <ChestHud ready={crate.ready} day={crate.day} busy={busy} result={result?.station === "crate" ? result : null} onOpen={openDailyChest} onBack={back} />}
     {isStation(view) && view !== "shop" && view !== "pond" && view !== "crate" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back} actions={panelActions}

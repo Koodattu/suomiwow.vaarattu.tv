@@ -88,7 +88,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, onHoverPart, panelWidth = 420 }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, onHoverPart, highlightedPart = null, panelWidth = 420 }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -152,12 +152,13 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   // tackle box), or is under the pointer (null when none is).
   onFacilityPart?: (station: Station, part: string) => void;
   onHoverPart?: (part: string | null) => void;
+  highlightedPart?: string | null;
   // World mode: how wide the docked panel is on wide screens, so stations slide clear of it.
   panelWidth?: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, panelWidth });
-  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, panelWidth }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, panelWidth]);
+  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, highlightedPart, panelWidth });
+  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, highlightedPart, panelWidth }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, highlightedPart, panelWidth]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error" | "webgl">("empty");
   const [filename, setFilename] = useState("");
   const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone, onActionCue, onFacilityPart, onHoverPart });
@@ -885,7 +886,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       hoveredStation = station;
       hoveredMachine = pick?.kind === "machine" ? pick.pick : null;
       const part = pick?.kind === "part" ? pick.part : null;
-      if (part !== hoveredPart) { hoveredPart = part; facilities.forEach((facility) => facility.hover(part)); callbacks.current.onHoverPart?.(part); }
+      if (part !== hoveredPart) { hoveredPart = part; callbacks.current.onHoverPart?.(part); }
       hoverTape = peelable() && event.pointerType === "mouse" && hits([tape.mesh, tape.hit]);
       hovering = hoverTape || (tappable() && event.pointerType === "mouse" && hits(boxMeshes));
       renderer.domElement.style.cursor = hovering ? "grab" : pick && pick.kind !== "back" ? "pointer" : "";
@@ -923,7 +924,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (opened) { released = peel; callbacks.current.onBoxTap?.(); }
       else { peelTarget = 0; if (peel > 0.05) released = -1; }
     };
-    const clearPartHover = () => { hoveredPart = null; facilities.forEach((facility) => facility.hover(null)); callbacks.current.onHoverPart?.(null); };
+    const clearPartHover = () => { hoveredPart = null; callbacks.current.onHoverPart?.(null); };
     const onPointerLeave = () => { hovering = hoverTape = false; press = null; hoveredSeries = null; hoveredStation = null; hoveredMachine = null; clearPartHover(); if (!grab) renderer.domElement.style.cursor = ""; };
     renderer.domElement.addEventListener("pointerdown", onPointerDown, { capture: true });
     renderer.domElement.addEventListener("pointerup", letGo);
@@ -1172,7 +1173,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           group.visible = flight !== null || (current.view !== "opening" && current.view !== "viewer") || !(near || (local.z < extent.back && local.length() < 16));
         }
         shop?.update(hoveredSeries, delta, idle);
-        facilities.forEach((facility) => facility.update(delta, idle));
+        facilities.forEach((facility) => {
+          facility.hover(!flight && current.view === facility.kind ? current.highlightedPart ?? hoveredPart : null);
+          facility.update(delta, idle);
+        });
         if (!reduced) statues?.update(delta);
         for (const station of Object.keys(stationGlow) as (keyof typeof stationGlow)[]) stationGlow[station] = THREE.MathUtils.damp(stationGlow[station], hoveredStation === station ? 1 : 0, 9, delta);
         glowing.forEach((materials, view) => materials.forEach((material) => { material.emissiveIntensity = stationGlow[view] * 0.07; }));

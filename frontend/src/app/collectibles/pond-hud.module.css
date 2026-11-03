@@ -1,34 +1,23 @@
-/* The pond's controls over the world: a line of story above the controls, a centred catch, and a
-   bar of buttons at the bottom. No panels: text carries a shadow, buttons are glass over water. */
-.story { position: absolute; z-index: 3; bottom: max(108px, calc(env(safe-area-inset-bottom) + 98px)); left: 50%; width: min(640px, calc(100vw - 32px)); transform: translateX(-50%); text-align: center; pointer-events: none; color: #fff6e2; text-shadow: 0 1px 2px rgba(0, 0, 0, .9), 0 0 18px rgba(0, 0, 0, .55); }
-.story p { margin: 0; font: italic 400 clamp(18px, 2.4vw, 24px)/1.25 Georgia, serif; letter-spacing: .01em; animation: storyIn .5s ease-out both; }
-.story small { display: block; margin-top: 6px; font: 500 13px/1.4 system-ui, sans-serif; color: #e9dfc9; opacity: .85; }
-.story[data-tone="miss"] p { color: #f3c9b8; }
-.story[data-tone="bite"] p { font-style: normal; font-weight: 700; font-size: clamp(26px, 3.6vw, 36px); color: #ffd257; letter-spacing: .04em; animation: bite .32s ease-in-out infinite alternate; }
-@keyframes storyIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-@keyframes bite { from { transform: scale(1); } to { transform: scale(1.06); } }
-
 /* Equal side tracks keep Cast on the screen centre, regardless of their contents. */
 .bar { position: absolute; z-index: 3; left: 50%; bottom: max(22px, calc(env(safe-area-inset-bottom) + 12px)); transform: translateX(-50%); width: min(920px, calc(100vw - 32px)); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; }
 .left, .right { display: flex; align-items: center; gap: 10px; }
 .left { justify-content: flex-end; }
-.back { padding: 10px 4px; min-height: 44px; border: 0; background: none; color: #f3e4c7; font: 500 14px system-ui, sans-serif; cursor: pointer; text-shadow: 0 1px 3px #000; }
-.back:hover { color: #fff6e2; text-decoration: underline; }
+.back { display: inline-flex; flex-shrink: 0; align-items: center; gap: 2px; padding: 10px 14px; min-height: 44px; border: 0; background: none; color: #f3e4c7; font: 500 14px system-ui, sans-serif; cursor: pointer; text-shadow: 0 1px 3px #000; border-radius: 999px; transition: background .15s, color .15s; }
+.back:hover, .back:focus-visible { color: #fff6e2; background: rgba(240, 217, 168, .14); }
 .right { justify-content: flex-start; }
-.side { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; min-height: 48px; padding: 0 16px; border: 1px solid rgba(240, 217, 168, .35); border-radius: 999px; background: rgba(10, 16, 26, .62); backdrop-filter: blur(6px); color: #f3e4c7; font: 500 14px system-ui, sans-serif; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); transition: background .15s, border-color .15s, transform .12s; }
-.side:hover { background: rgba(10, 16, 26, .8); border-color: rgba(240, 217, 168, .7); transform: translateY(-1px); }
+.side { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; min-height: 48px; padding: 0 16px; border: 1px solid rgba(240, 217, 168, .35); border-radius: 999px; background: rgba(10, 16, 26, .62); backdrop-filter: blur(6px); color: #f3e4c7; font: 500 14px system-ui, sans-serif; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); transition: background .15s, border-color .15s, filter .15s; }
+.side:hover, .side[data-highlighted="true"] { background: rgba(70, 65, 53, .8); border-color: rgba(255, 232, 185, .8); filter: brightness(1.2); }
 .side em { padding: 2px 8px; border-radius: 999px; background: rgba(214, 187, 134, .18); color: #ffd77a; font: 600 12px system-ui, sans-serif; font-style: normal; }
 .glyph { width: 20px; height: 20px; flex: none; }
-.action { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 190px; min-height: 64px; padding: 0 30px; border: 1px solid #f0d9a8; border-radius: 999px; background: linear-gradient(180deg, #f1d9a4, #c9a35e); color: #1b1408; font: 700 20px/1 Georgia, serif; letter-spacing: .04em; cursor: pointer; box-shadow: 0 10px 34px rgba(214, 170, 90, .35), inset 0 1px 0 rgba(255, 255, 255, .55); transition: transform .12s, box-shadow .12s, filter .12s; }
-.action:hover:enabled { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(214, 170, 90, .45), inset 0 1px 0 rgba(255, 255, 255, .55); }
-.action:active:enabled { transform: translateY(1px) scale(.98); }
+.action { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 190px; min-height: 64px; padding: 0 30px; border: 1px solid #f0d9a8; border-radius: 999px; background: linear-gradient(180deg, #f1d9a4, #c9a35e); color: #1b1408; font: 700 20px/1 Georgia, serif; letter-spacing: .04em; cursor: pointer; box-shadow: 0 10px 34px rgba(214, 170, 90, .35), inset 0 1px 0 rgba(255, 255, 255, .55); transition: box-shadow .12s, filter .12s; }
+.action:hover:enabled, .action[data-highlighted="true"]:enabled { filter: brightness(1.18); box-shadow: 0 14px 40px rgba(214, 170, 90, .45), inset 0 1px 0 rgba(255, 255, 255, .55); }
+.action:active:enabled { filter: brightness(1.08); }
 .action:disabled { filter: grayscale(.5) brightness(.75); cursor: default; }
 .action[data-strike="true"] { background: linear-gradient(180deg, #ffe590, #f0a530); animation: strike .32s ease-in-out infinite alternate; }
-@keyframes strike { to { transform: scale(1.07); box-shadow: 0 0 46px rgba(255, 190, 70, .8), inset 0 1px 0 rgba(255, 255, 255, .55); } }
+@keyframes strike { to { box-shadow: 0 0 46px rgba(255, 190, 70, .8), inset 0 1px 0 rgba(255, 255, 255, .55); } }
 .bar button:focus-visible, .log button:focus-visible { outline: 2px solid #f5ddb4; outline-offset: 3px; }
 
 .catchDismiss { position: absolute; inset: 0; z-index: 2; border: 0; background: transparent; color: #e9dfc9; cursor: pointer; }
-.catchDismiss span { position: absolute; top: calc(50% + 164px); left: 0; width: 100%; font: 500 12px system-ui, sans-serif; text-align: center; text-shadow: 0 1px 3px #000; }
 .catchDismiss:focus-visible { outline: 2px solid #f5ddb4; outline-offset: -6px; }
 
 /* Details sit just beneath the catch, which the scene holds at the screen centre. */
@@ -110,7 +99,6 @@
 
 @media (max-width: 860px) { .side em { display: none; } }
 @media (max-width: 700px) {
-  .story { bottom: max(100px, calc(env(safe-area-inset-bottom) + 90px)); }
   .bar { gap: 8px; width: calc(100vw - 24px); }
   .left, .right { gap: 6px; }
   .side { min-height: 46px; padding: 0 12px; font-size: 13px; }
@@ -125,4 +113,4 @@
   .catchFish .fishPicture { width: 56px; }
 }
 @media (max-width: 560px) { .side span, .side em { display: none; } .side { padding: 0 11px; } .back { font-size: 12px; } .bar { gap: 6px; } .left { gap: 4px; } }
-@media (prefers-reduced-motion: reduce) { .story p, .banner, .action, .logBackdrop, .log { animation: none; } .side, .action { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .banner, .action, .logBackdrop, .log { animation: none; } .side, .action { transition: none; } }

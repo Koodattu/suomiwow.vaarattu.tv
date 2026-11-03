@@ -297,25 +297,6 @@
         "strike": "Vedä!",
         "back": "Takaisin",
         "controls": "Kalastus",
-        "story": {
-          "cast": "Siima lentää…",
-          "wait": "Odota…",
-          "nibble": "Jokin näykkii…",
-          "bite": "Tärppi!"
-        },
-        "how": {
-          "idle": "Napauta onkea tai paina Heitä.",
-          "wait": "Anna näykkimisen olla. Kun koho sukeltaa, vedä.",
-          "bite": "Napauta kohoa tai paina Vedä, nyt!"
-        },
-        "parts": {
-          "rod": "Onkivapa: heitä",
-          "bobber": "Koho: heitä",
-          "bucket": "Kalasanko: kalakirjasi",
-          "board": "Kalastajien taulu: tulokset"
-        },
-        "missed": "Liian hidas. Se pääsi karkuun.",
-        "spooked": "Liian aikaisin. Säikäytit sen.",
         "weight": "{weight} lb",
         "banner": {
           "new": "Uusi saalis!",

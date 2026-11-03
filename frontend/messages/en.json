@@ -297,25 +297,6 @@
         "strike": "Strike!",
         "back": "Back",
         "controls": "Fishing",
-        "story": {
-          "cast": "The line sails out…",
-          "wait": "Wait for it…",
-          "nibble": "Something's nibbling…",
-          "bite": "Bite!"
-        },
-        "how": {
-          "idle": "Tap the rod, or press Cast.",
-          "wait": "Leave the nibbles. When the bobber plunges, strike.",
-          "bite": "Tap the bobber or press Strike, now!"
-        },
-        "parts": {
-          "rod": "Fishing rod: cast",
-          "bobber": "Bobber: cast",
-          "bucket": "Fish bucket: your fish log",
-          "board": "Anglers' board: rankings"
-        },
-        "missed": "Too slow. It got away.",
-        "spooked": "Too soon. You scared it off.",
         "weight": "{weight} lb",
         "banner": {
           "new": "New catch!",
