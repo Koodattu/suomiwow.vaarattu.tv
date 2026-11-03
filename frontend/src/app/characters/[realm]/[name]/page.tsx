@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { characterScoringBosses } from "@/lib/raid-encounters";
+import { buildCharacterPerformance, getPerformanceMetrics, performanceBossKey, type PerformanceMetric } from "@/lib/character-performance";
 import { Boss, CharacterProfileChoice, CharacterProfileLookupResponse, CharacterProfileResponse, CharacterRaidReportsResponse, RaidInfo } from "@/types";
 import { useRaids } from "@/lib/queries";
 import { buildRaidOrderIndex, compareRaidIdsByListOrder } from "@/lib/raid-priority";
@@ -229,7 +230,18 @@ function getMetricIcon(metric: string | null) {
 }
 
 function RankingsMetricCell({ row, compact = false }: { row: Pick<CharacterRanking, "metric">; compact?: boolean }) {
+  const t = useTranslations("characterProfile.performance");
   const metric = row.metric?.toUpperCase() ?? "DPS";
+
+  if (row.metric === "mixed") return (
+    <div className="flex items-center justify-end gap-1.5 text-amber-300">
+      <span className="flex -space-x-1" aria-hidden="true">
+        <Image src={getMetricIcon("dps")} alt="" width={16} height={16} className="h-4 w-4" />
+        <Image src={getMetricIcon("hps")} alt="" width={16} height={16} className="h-4 w-4" />
+      </span>
+      <span className="font-semibold">{t("mixed")}</span>
+    </div>
+  );
 
   return (
     <div className={`flex items-center text-gray-300 ${compact ? "justify-end gap-1.5" : "gap-2"}`}>
@@ -237,6 +249,13 @@ function RankingsMetricCell({ row, compact = false }: { row: Pick<CharacterRanki
       <span className="font-semibold">{metric}</span>
     </div>
   );
+}
+
+function BossRoleIcon({ role, pulls }: { role: string; pulls: number }) {
+  const t = useTranslations("characterProfile.performance");
+  const label = t(role === "healer" ? "healer" : role === "tank" ? "tank" : "damage");
+  const icon = role === "tank" ? "/icons/roleicon_tank.png" : getMetricIcon(role === "healer" ? "hps" : "dps");
+  return <Image src={icon} alt={label} title={t("rolePulls", { role: label, count: pulls })} width={14} height={14} className="h-3.5 w-3.5" />;
 }
 
 function getMechanicsScoreValue(row: CharacterMechanic, scoreKind: MechanicsScoreKind) {
@@ -267,10 +286,11 @@ function MechanicsScoreCell({ row, scoreKind, compact = false }: { row?: Charact
 }
 
 function MechanicsBossScoreCell({ row, scoreKind, compact = false }: { row?: CharacterMechanic; scoreKind: MechanicsScoreKind; compact?: boolean }) {
-  if (!row) return <span className="text-gray-600">-</span>;
+  const t = useTranslations("characterProfile.performance");
+  if (!row) return <span className="text-gray-600" title={t("noMechanics")}>-</span>;
 
   return (
-    <span className="inline-flex flex-col items-center gap-0.5 tabular-nums">
+    <span className="inline-flex flex-col items-center gap-0.5 tabular-nums" title={scoreKind === "combined" && row.parseScore === null ? t("noParse") : undefined}>
       <MechanicsScoreCell row={row} scoreKind={scoreKind} compact={compact} />
       <span className="text-[11px] font-medium leading-none text-gray-500">{formatEarlyDeaths(row)}</span>
     </span>
@@ -278,7 +298,8 @@ function MechanicsBossScoreCell({ row, scoreKind, compact = false }: { row?: Cha
 }
 
 function RankingsBossParseCell({ row, classId, compact = false }: { row?: CharacterRanking; classId: number; compact?: boolean }) {
-  if (!row || row.rankPercent === null) return <span className="text-gray-600">-</span>;
+  const t = useTranslations("characterProfile.performance");
+  if (!row || row.rankPercent === null) return <span className="text-gray-600" title={t("noParse")}>-</span>;
 
   const parsePercent = Math.floor(row.rankPercent);
   const specIcon = row.specName ? getSpecIconUrl(classId, row.specName) : undefined;
@@ -821,9 +842,13 @@ export default function CharacterProfilePage({ params }: PageProps) {
   const [timelineReportsError, setTimelineReportsError] = useState<string | null>(null);
   const [isNameHistoryOpen, setIsNameHistoryOpen] = useState(false);
   const [activePerformanceTab, setActivePerformanceTab] = useState<CharacterPerformanceTab>("rankings");
+  const [performanceMetric, setPerformanceMetric] = useState<PerformanceMetric>("all");
   const timelineReportsRequestId = useRef(0);
   const { data: raids = [], isLoading: isLoadingRaids, error: raidsError } = useRaids();
   const profile = lookup?.type === "profile" ? lookup : null;
+  const availableMetrics = useMemo(() => getPerformanceMetrics(profile), [profile]);
+  const showMetricControl = availableMetrics.has("dps") && availableMetrics.has("hps");
+  const performance = useMemo(() => buildCharacterPerformance(profile, showMetricControl ? performanceMetric : "all"), [profile, performanceMetric, showMetricControl]);
   const choices = lookup?.type === "choices" ? lookup : null;
 
   useEffect(() => {
@@ -999,13 +1024,13 @@ export default function CharacterProfilePage({ params }: PageProps) {
   }, [profile, raids]);
   const raidReportCount = raidTimelineRows.reduce((total, row) => (row.type === "appearance" ? total + row.reportCount : total), 0);
   const rankingRaidGroups = useMemo<RankingRaidGroup[]>(() => {
-    if (!profile?.rankings.length) return [];
+    if (!performance.rankings.length) return [];
 
     const raidById = new Map(raids.map((raid) => [raid.id, raid]));
     const raidOrderIndex = buildRaidOrderIndex(raids);
     const groups = new Map<number, { zoneId: number; raidName: string; raid?: RaidInfo; allStars: CharacterRanking[]; bossRankings: Map<number, CharacterRanking[]> }>();
 
-    profile.rankings.forEach((row) => {
+    performance.rankings.forEach((row) => {
       const group = groups.get(row.zoneId) ?? {
         zoneId: row.zoneId,
         raidName: row.raidName,
@@ -1050,10 +1075,10 @@ export default function CharacterProfilePage({ params }: PageProps) {
           })),
         };
       });
-  }, [profile, raids, bossesByRaid]);
+  }, [performance, raids, bossesByRaid]);
 
-  const survivalRaidGroups = useMemo<MechanicsRaidGroup[]>(() => buildMechanicsRaidGroups(profile?.mechanics, raids, bossesByRaid, "survival"), [profile, raids, bossesByRaid]);
-  const combinedRaidGroups = useMemo<MechanicsRaidGroup[]>(() => buildMechanicsRaidGroups(profile?.mechanics, raids, bossesByRaid, "combined"), [profile, raids, bossesByRaid]);
+  const survivalRaidGroups = useMemo<MechanicsRaidGroup[]>(() => buildMechanicsRaidGroups(performance.mechanics, raids, bossesByRaid, "survival"), [performance, raids, bossesByRaid]);
+  const combinedRaidGroups = useMemo<MechanicsRaidGroup[]>(() => buildMechanicsRaidGroups(performance.mechanics, raids, bossesByRaid, "combined"), [performance, raids, bossesByRaid]);
 
   if (loading || isLoadingRaids) {
     return (
@@ -1292,20 +1317,35 @@ export default function CharacterProfilePage({ params }: PageProps) {
             <div>
               <h2 className="text-lg font-semibold text-white">Performance</h2>
               <p className="text-sm text-gray-400">{activePerformanceConfig.description}</p>
+              {performance.rebuiltZones.size > 0 && <p className="mt-1 max-w-xl text-xs text-gray-500">{tCharacterProfile("performance.selectionHint")}</p>}
             </div>
-            <div className="inline-flex self-start rounded-md bg-gray-950/70 p-1 ring-1 ring-white/10">
-              {CHARACTER_PERFORMANCE_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActivePerformanceTab(tab.id)}
-                  className={`min-h-10 rounded px-3 py-2 text-sm font-semibold transition-[background-color,color,transform] active:scale-[0.96] ${
-                    activePerformanceTab === tab.id ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              {showMetricControl && (
+                <div role="group" aria-label={tCharacterProfile("performance.metricFilter")} className="inline-flex rounded-md bg-gray-950/70 p-1 ring-1 ring-white/10">
+                  {(["all", "dps", "hps"] as const).map(metric => (
+                    <button key={metric} type="button" aria-pressed={performanceMetric === metric}
+                      onClick={() => setPerformanceMetric(metric)}
+                      className={`min-h-10 rounded px-3 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${performanceMetric === metric ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}>
+                      {tCharacterProfile(`performance.${metric}`)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="inline-flex self-start rounded-md bg-gray-950/70 p-1 ring-1 ring-white/10">
+                {CHARACTER_PERFORMANCE_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    aria-pressed={activePerformanceTab === tab.id}
+                    onClick={() => setActivePerformanceTab(tab.id)}
+                    className={`min-h-10 rounded px-3 py-2 text-sm font-semibold transition-[background-color,color,transform] active:scale-[0.96] ${
+                      activePerformanceTab === tab.id ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1350,7 +1390,7 @@ export default function CharacterProfilePage({ params }: PageProps) {
                             <td className="px-3 py-4">
                               <RankingsMetricCell row={group.bestAllStars} compact />
                             </td>
-                            <td className="px-3 py-4 text-right font-semibold tabular-nums text-gray-100">{formatScore(group.bestAllStars.score)}</td>
+                            <td className="px-3 py-4 text-right font-semibold tabular-nums text-gray-100" title={performance.rebuiltZones.has(group.zoneId) ? tCharacterProfile("performance.rankingTotal") : undefined}>{formatScore(group.bestAllStars.score)}</td>
                           </>
                         ) : (
                           <>
@@ -1375,6 +1415,12 @@ export default function CharacterProfilePage({ params }: PageProps) {
                                   className="h-7 w-7 shrink-0 rounded object-cover ring-1 ring-white/10"
                                 />
                                 <RankingsBossParseCell row={bossColumn.bestRanking} classId={character.classID} compact />
+                                {performance.selectedBosses.has(performanceBossKey(group.zoneId, bossColumn.encounterId)) && (
+                                  <BossRoleIcon {...performance.selectedBosses.get(performanceBossKey(group.zoneId, bossColumn.encounterId))!} />
+                                )}
+                                {bossColumn.bestRanking?.rankPercent === null && performance.rebuiltZones.has(group.zoneId) && (
+                                  <span className="sr-only">{tCharacterProfile("performance.noParse")}</span>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1439,7 +1485,7 @@ export default function CharacterProfilePage({ params }: PageProps) {
                           <td className="px-3 py-4">
                             <RankingsMetricCell row={group.bestOverall} compact />
                           </td>
-                          <td className="px-3 py-4 text-right">
+                          <td className="px-3 py-4 text-right" title={activePerformanceTab === "combined" && performance.rebuiltZones.has(group.zoneId) ? tCharacterProfile("performance.combinedTotal") : undefined}>
                             <MechanicsScoreCell row={group.bestOverall} scoreKind={activeMechanicsScoreKind} />
                           </td>
                           <td className="px-3 py-4 text-right font-semibold tabular-nums text-gray-100">{formatEarlyDeaths(group.bestOverall)}</td>
@@ -1473,6 +1519,9 @@ export default function CharacterProfilePage({ params }: PageProps) {
                                 <IconImage iconFilename={bossColumn.boss?.iconUrl} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded object-cover ring-1 ring-white/10" />
                               )}
                               <MechanicsBossScoreCell row={bossColumn.bestMechanic} scoreKind={activeMechanicsScoreKind} compact />
+                              {performance.selectedBosses.has(performanceBossKey(group.zoneId, bossColumn.encounterId)) && (
+                                <BossRoleIcon {...performance.selectedBosses.get(performanceBossKey(group.zoneId, bossColumn.encounterId))!} />
+                              )}
                             </div>
                           ))}
                         </div>

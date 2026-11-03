@@ -140,6 +140,27 @@
     "forgeHint": "Tap a figure to place three · Strike with the hammer",
     "forgeEmpty": "Own 3 of one figure at the same quality to trade it up",
     "world": {
+      "overview": {
+        "facilities": "Facilities",
+        "labels": {
+          "shop": "Shop",
+          "gallery": "Collection",
+          "pond": "Fishing",
+          "crate": "Chest",
+          "wheel": "Wheel",
+          "quests": "Quests",
+          "recycler": "Recycle",
+          "forge": "Forge",
+          "trading": "Trade",
+          "mail": "Gifts",
+          "feed": "Feed",
+          "fame": "Fame",
+          "leaderboard": "Ranks"
+        },
+        "openBoxes": "Boxes",
+        "boxCost": "1 coin per box",
+        "back": "Back"
+      },
       "close": "Close",
       "stations": {
         "gallery": "Collection",
@@ -186,20 +207,34 @@
         "clear": "Clear"
       },
       "crate": {
-        "body": "A free box every day. Come back days in a row: the seventh day's crate also guarantees a golden roll.",
+        "body": "A free coin every day. Come back days in a row: the seventh day also guarantees a golden roll.",
         "day": "Day {day}",
         "open": "Open today's crate",
         "got": "Day {day}: {reward}",
         "day7": "Golden roll",
-        "next": "Day {day}'s crate opens {time}"
+        "next": "Day {day}'s crate opens {time}",
+        "title": "Daily treasure",
+        "action": "Open chest",
+        "opening": "Opening…",
+        "invitation": "A little treasure, just for you.",
+        "hint": "Tap the chest or press Space to open.",
+        "anticipation": "Something good is waiting inside.",
+        "reward": "+1 coin",
+        "collect": "Collect",
+        "dismissReward": "Tap anywhere to collect",
+        "goldenReward": "A golden roll is yours, too.",
+        "claimed": "Claimed",
+        "comeBack": "Come back tomorrow for another treasure.",
+        "controls": "Daily chest controls",
+        "back": "Back"
       },
       "wheel": {
         "body": "One free spin a day.",
         "spin": "Spin",
         "prizes": {
-          "box1": "+1 box",
-          "box2": "+2 boxes",
-          "box3": "+3 boxes",
+          "coin1": "+1 coin",
+          "coin2": "+2 coins",
+          "coin3": "+3 coins",
           "golden": "a golden boost",
           "galaxy": "a galaxy boost",
           "figure": "a random figure"
@@ -220,11 +255,11 @@
         "send": "Send gift"
       },
       "quests": {
-        "body": "Daily, weekly and monthly quests. Finish them for more boxes.",
+        "body": "Daily, weekly and monthly quests. Finish them to earn coins.",
         "daily": "Daily",
         "weekly": "Weekly",
         "monthly": "Monthly",
-        "reward": "{count, plural, one {+# box} other {+# boxes}}",
+        "reward": "{count, plural, one {+# coin} other {+# coins}}",
         "claim": "Claim",
         "items": {
           "open3": "Open 3 boxes",
@@ -280,42 +315,58 @@
         "body": "Trade figures with other players: offer yours, ask for theirs, and both accept."
       },
       "pond": {
+        "dismissCatch": "Tap anywhere to dismiss",
         "cast": "Cast",
-        "castAgain": "Cast again",
         "strike": "Strike!",
-        "phase": {
-          "idle": "The line is in",
-          "cast": "Casting…",
-          "wait": "Waiting for a bite",
-          "bite": "Bite!"
-        },
-        "how": {
-          "idle": "Tap the rod to cast.",
-          "cast": "There it goes.",
-          "wait": "Leave the little nibbles. When the bobber plunges, tap it.",
-          "bite": "Tap the bobber now!"
-        },
-        "missed": "Too slow: it got away.",
-        "spooked": "Too soon: you scared it off.",
-        "prizeCatch": "Prize catch",
+        "back": "Back",
+        "controls": "Fishing",
         "weight": "{weight} lb",
-        "newKind": "New to your log!",
-        "best": "Your biggest of its kind yet!",
-        "prizes": "Today's prize catches",
-        "prize": {
-          "box": "A box",
-          "figure": "A figure"
+        "banner": {
+          "new": "New catch!",
+          "best": "Personal best!",
+          "caught": "Caught",
+          "treasure": "Treasure!",
+          "figure": "You fished up a figurine!",
+          "joins": "joins your collection",
+          "coins": "Coins!",
+          "earned": "{count, plural, one {+# coin} other {+# coins}}"
         },
-        "prizesDone": "All three landed. The fish keep biting.",
-        "log": "Fish log"
+        "log": "Fish log",
+        "closeLog": "Close the fish log",
+        "logSummary": "{kinds} of {total} kinds · {count, plural, one {# catch} other {# catches}}",
+        "logRecord": "Record: {name}, {weight} lb",
+        "logCount": "×{count}",
+        "logBest": "Best {weight} lb",
+        "logMissing": "Not caught yet",
+        "unknown": "???",
+        "rarity": {
+          "junk": "Junk",
+          "common": "Common",
+          "uncommon": "Uncommon",
+          "rare": "Rare",
+          "epic": "Epic"
+        },
+        "rankings": "Rankings",
+        "board": "Anglers' board",
+        "closeBoard": "Close the anglers' board",
+        "boardIntro": "Every fish scores. Your ten best catches make your score.",
+        "standings": "Standings",
+        "you": "You",
+        "standingsSoon": "Guild standings arrive with Discord sign-in.",
+        "bestTen": "Your best catches · {count} of {total}",
+        "boardEmpty": "Nothing on the board yet. Land a fish to score.",
+        "points": "{points, plural, one {# pt} other {# pts}}",
+        "gain": "+{points, plural, one {# pt} other {# pts}}",
+        "scoring": "Scoring",
+        "scoringSize": "× its size for its kind, 1 to 2",
+        "scoringFinish": "× golden {golden}, galaxy {galaxy}"
       },
       "rewards": {
-        "boxes": "{count, plural, one {# box} other {# boxes}}",
         "boost": "{quality} boost",
         "figure": "{name} joins your collection",
-        "banked": "Boxes banked ×{count}",
         "boostNext": "Next box: {quality} or better",
-        "bankedHint": "Banked boxes are for when boxes become limited."
+        "coins": "{count, plural, one {# coin} other {# coins}}",
+        "balance": "Coins: {count}"
       }
     },
     "tradedUp": "Traded up!",
@@ -336,7 +387,12 @@
     "galleryRetry": "Reload model",
     "weaponsHeld": "Weapons in hand",
     "weaponsSheathed": "Weapons sheathed",
-    "openAnother": "Open another"
+    "openAnother": "Open another",
+    "coinsLabel": "Coins",
+    "coinsHelp": "Earned through play. Start with 3 coins; 1 regenerates every 4 hours. No purchases.",
+    "pullToOpenCoin": "Pull the tape to open · 1 coin",
+    "openBoxCoin": "Open box · 1 coin",
+    "noCoins": "No coins · Fish, claim daily rewards or complete quests."
   },
   "horseRace": {
     "label": "Race through the final two bosses",
@@ -3303,7 +3359,23 @@
   },
   "characterProfile": {
     "firstSeen": "First Seen",
-    "lastSeen": "Last Seen"
+    "lastSeen": "Last Seen",
+    "performance": {
+      "metricFilter": "Performance metric",
+      "all": "All",
+      "dps": "DPS",
+      "hps": "HPS",
+      "mixed": "Mixed",
+      "damage": "Damage",
+      "healer": "Healer",
+      "tank": "Tank",
+      "rolePulls": "{role}: {count, plural, one {# recorded pull} other {# recorded pulls}}",
+      "selectionHint": "All selects the most-played role on each boss, including wipes. Raid summaries reflect the selected bosses.",
+      "rankingTotal": "Sum of All Star points for the selected boss parses.",
+      "combinedTotal": "Average of the available combined boss scores. Bosses without a compatible parse or mechanics score are excluded.",
+      "noParse": "No kill parse for this role.",
+      "noMechanics": "No evaluated mechanics data for this role."
+    }
   },
   "accountProfile": {
     "mostSeenCharacter": "Most seen character",

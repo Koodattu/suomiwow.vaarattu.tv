@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 registerHooks({
   resolve(specifier, context, next) {
@@ -9,11 +10,52 @@ registerHooks({
     return next(specifier, context);
   },
 });
-const { STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, viewPose } = await import("../src/lib/figurine-world.ts");
-const { forestLayout, groveLayout, marketLayout } = await import("../src/lib/figurine-forest.ts");
+const { STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, COBBLE_RADIUS, PATHS, FOREST_CLEARINGS, viewPose, isStation } = await import("../src/lib/figurine-world.ts");
+const { buildForest, forestLayout, groveLayout, marketLayout, POND, SECRET_BARREL } = await import("../src/lib/figurine-forest.ts");
 
 const PLAZA = PLAZA_RADIUS;
 const stations = Object.entries(STATIONS);
+test("overview foliage clearance hides only foreground blockers and restores their original instances", async t => {
+  t.mock.method(GLTFLoader.prototype, "loadAsync", async () => {
+    const scene = new THREE.Group(), tree = new THREE.Mesh(new THREE.BoxGeometry(8, 10, 8), new THREE.MeshStandardMaterial());
+    tree.position.y = 5; scene.add(tree); return { scene };
+  });
+  const root = new THREE.Group(); root.position.set(4, 0, 2); root.rotation.y = 0.2;
+  const forest = buildForest(root, [
+    { model: "tree", x: 0, z: 20, yaw: 0, size: 0.5 },
+    { model: "tree", x: 0, z: -20, yaw: 0, size: 0.5 },
+    { model: "tree", x: 30, z: 15, yaw: 0, size: 0.5 },
+  ]);
+  await forest.ready; root.updateMatrixWorld(true);
+  const mesh = forest.group.children[0], matrix = new THREE.Matrix4();
+  const original = [0, 1, 2].map(i => { mesh.getMatrixAt(i, matrix); return matrix.clone(); });
+  const target = root.localToWorld(new THREE.Vector3(0, 1.5, 0));
+  forest.clearView(root.localToWorld(new THREE.Vector3(0, 8, 30)), target);
+  mesh.getMatrixAt(0, matrix); assert.equal(matrix.determinant(), 0, "the canopy between the camera and pedestal clears");
+  for (const i of [1, 2]) { mesh.getMatrixAt(i, matrix); assert.ok(matrix.equals(original[i]), "side and background trees remain"); }
+  forest.clearView(root.localToWorld(new THREE.Vector3(0, 80, 30)), target);
+  mesh.getMatrixAt(0, matrix); assert.ok(matrix.equals(original[0]), "looking over the canopy restores the tree");
+  forest.clearView(root.localToWorld(new THREE.Vector3(0, 8, 30)), target);
+  forest.clearView(null, target);
+  for (let i = 0; i < 3; i++) { mesh.getMatrixAt(i, matrix); assert.ok(matrix.equals(original[i]), "leaving overview restores all original placements"); }
+});
+test("overview pulls straight back from the opening camera while keeping the pedestal centered", () => {
+  assert.equal(isStation("overview"), false);
+  const home = { offset: new THREE.Vector3(0.6, 2.1, 9.6), target: new THREE.Vector3(0, 1.5, 0) };
+  for (const aspect of [16 / 9, 390 / 844]) {
+    const camera = new THREE.PerspectiveCamera(36, aspect, 0.4, 140);
+    const framing = THREE.MathUtils.clamp(0.85 / aspect, 1, 1.6);
+    const opening = viewPose("opening", framing, home, aspect);
+    const pose = viewPose("overview", framing, home, aspect);
+    camera.position.copy(pose.position); camera.lookAt(pose.target); camera.updateMatrixWorld();
+    assert.ok(pose.target.equals(opening.target), "both views orbit the same pedestal target");
+    const closeOffset = opening.position.clone().sub(opening.target), wideOffset = pose.position.clone().sub(pose.target);
+    assert.ok(Math.abs(wideOffset.length() - 17) < 1e-9, "overview starts inside the clearing at every aspect ratio");
+    assert.ok(wideOffset.normalize().distanceTo(closeOffset.normalize()) < 1e-9, "zooming out keeps the opening angle");
+    const center = home.target.clone().project(camera);
+    assert.ok(Math.abs(center.x) < 1e-9 && Math.abs(center.y) < 1e-9, "the pedestal target projects to the exact screen center");
+  }
+});
 // A point inside a station's footprint, with `margin` to spare all round.
 const inside = (name, point, margin = 0) => {
   const { position, rotation } = STATIONS[name], spec = STATION_SPECS[name];
@@ -21,17 +63,18 @@ const inside = (name, point, margin = 0) => {
   return Math.abs(local.x) < spec.width / 2 + margin && local.z > spec.back - margin && local.z < spec.front + margin;
 };
 
-test("the everyday stations ring the square; the rest stand further out, each turned toward it", () => {
+test("all facilities stay within a few steps of the plaza in neighbouring groups", () => {
   assert.equal(stations.length, 13);
-  const core = ["shop", "gallery", "quests", "crate", "wheel"];
   for (const [name, { position }] of stations) {
-    if (core.includes(name)) assert.ok(position.length() < 14.5, `${name} is too far from the square`);
-    else assert.ok(position.length() > 18, `${name} crowds the square`);
+    assert.ok(position.length() - COBBLE_RADIUS < (name === "pond" ? 8 : 1.5), `${name} is too far from the plaza edge`);
+  }
+  for (const [a, b] of [["shop", "wheel"], ["crate", "quests"], ["gallery", "mail"], ["recycler", "forge"], ["feed", "leaderboard"], ["leaderboard", "fame"]]) {
+    assert.ok(STATIONS[a].position.distanceTo(STATIONS[b].position) < 7.5, `${a} and ${b} should share a neighbourhood`);
   }
   for (const [name, { position, rotation }] of stations) {
     const facing = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
     assert.ok(facing.dot(position.clone().negate().normalize()) > 0.3, `${name} turns its back on the square`);
-    assert.ok(position.length() > 11 && position.length() < PLAZA + 4, `${name} stands about the square`);
+    assert.ok(position.length() > 10.5 && position.length() < PLAZA + 4, `${name} stands about the square`);
   }
   // Neighbours keep a gap: no station's front corners stand inside another station.
   for (const [a] of stations) for (const [b, { position, rotation }] of stations) if (a !== b) {
@@ -39,6 +82,37 @@ test("the everyday stations ring the square; the rest stand further out, each tu
     for (const x of [-spec.width / 2, spec.width / 2]) for (const z of [spec.back, spec.front]) {
       const corner = new THREE.Vector3(x, 0, z).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation).add(position);
       assert.ok(!inside(a, corner, 0.3), `${b} crowds ${a}`);
+    }
+  }
+});
+
+test("figures occupy inner and outer edges, with an open centre and a dry pond bank", () => {
+  const inner = STATUE_SPOTS.filter(({ position }) => position.length() < 12);
+  assert.ok(inner.length >= 6 && inner.length <= 10, "showcase should have both inner and outer layers");
+  for (const { number, position } of STATUE_SPOTS) {
+    assert.ok(position.length() > 8.5 && position.length() < 21, `figure ${number} should be near the facilities, outside the plaza centre`);
+    assert.ok(position.distanceTo(STATIONS.pond.position) > POND.radius + 1, `figure ${number} stands in the pond or its reeds`);
+    assert.ok(stations.some(([, station]) => station.position.distanceTo(position) < 7), `figure ${number} is isolated from the facilities`);
+  }
+  assert.deepEqual(STATION_SPECS.pond.at, [POND.x, POND.z], "water and forest exclusion must move together");
+  assert.deepEqual(STATION_SPECS.pond.at, [6.9, 16.9], "the pond stays put while the other facilities move inward");
+  const barrelDistance = Math.hypot(SECRET_BARREL.x - POND.x, SECRET_BARREL.z - POND.z);
+  assert.ok(barrelDistance > POND.radius + 5, "secret barrel stays clear of the pond and its tackle targets");
+});
+
+test("paths leave through gaps and stay open through the generated woods", () => {
+  const scenery = forestLayout(PLAZA, 11, marketLayout(), LAMP_SPOTS, FOREST_CLEARINGS);
+  const obstacles = [
+    ...scenery.map(({ model, x, z }) => ({ name: model, position: new THREE.Vector3(x, 0, z) })),
+    ...STATUE_SPOTS.map(({ number, position }) => ({ name: `figure ${number}`, position })),
+  ];
+  for (const path of PATHS) for (let index = 1; index < path.length; index++) {
+    const [x, z] = path[index], [px, pz] = path[index - 1];
+    const steps = Math.ceil(Math.hypot(x - px, z - pz) / 0.5);
+    for (let step = 0; step <= steps; step++) {
+      const point = new THREE.Vector3(px + (x - px) * step / steps, 0, pz + (z - pz) * step / steps);
+      for (const [name] of stations) assert.ok(!inside(name, point, 0.3), `path crosses ${name}`);
+      for (const obstacle of obstacles) assert.ok(point.distanceTo(obstacle.position) > 1.2, `${obstacle.name} blocks the path near ${point.x.toFixed(1)},${point.z.toFixed(1)}`);
     }
   }
 });

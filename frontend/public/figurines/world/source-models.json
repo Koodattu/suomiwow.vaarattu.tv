@@ -1,5 +1,5 @@
 {
-  "note": "Doodads optimized with worker/optimizer (meshopt, WebP max 512px); dirt.png from the texture job.",
+  "note": "Historical source export records, not the deployed asset inventory. Registered runtime GLBs use Meshopt and KTX2 ETC1S; retired exports remain in local authoring history. See docs/collectibles-assets.md. dirt.png is from the texture job.",
   "models": {
     "state": "complete",
     "id": "world-models-002",
@@ -201,7 +201,8 @@
       "facility-models-001",
       "facility-models-002",
       "fish-models-001",
-      "boot-models-001"
+      "boot-models-001",
+      "pond-models-001"
     ],
     "build": {
       "Region": "eu",
@@ -473,7 +474,142 @@
         "file": "world/expansion05/doodads/human/doodads/6hu_salvageyard_junkboot01.m2",
         "fileDataID": 955699,
         "bytes": 23140
+      },
+      {
+        "name": "dock-small",
+        "file": "world/azeroth/elwynn/passivedoodads/smalldock/smalldock.m2",
+        "fileDataID": 189904,
+        "bytes": 92980
+      },
+      {
+        "name": "tacklebox",
+        "file": "world/expansion03/doodads/worgen/items/worgen_tacklebox_01.m2",
+        "fileDataID": 306217,
+        "bytes": 327664
+      },
+      {
+        "name": "fishing-bucket-2",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_bucket02.m2",
+        "fileDataID": 984207,
+        "bytes": 303868
+      },
+      {
+        "name": "fishing-net-1",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_net01.m2",
+        "fileDataID": 984216,
+        "bytes": 1239844
+      },
+      {
+        "name": "fishing-barrel",
+        "file": "world/expansion05/doodads/human/doodads/6hu_fishing_barrel01.m2",
+        "fileDataID": 984194,
+        "bytes": 398340
+      },
+      {
+        "name": "cattails-gilneas",
+        "file": "world/expansion03/doodads/gilneas/bushes/gilneas_cattails01.m2",
+        "fileDataID": 326435,
+        "bytes": 47644
+      },
+      {
+        "name": "lilypads-gilneas",
+        "file": "world/expansion03/doodads/gilneas/lilypads/gilneas_lilypads01.m2",
+        "fileDataID": 343459,
+        "bytes": 264936
+      },
+      {
+        "name": "lantern-garrison",
+        "file": "world/expansion05/doodads/human/doodads/6hu_garrison_lantern.m2",
+        "fileDataID": 960094,
+        "bytes": 323264
+      },
+      {
+        "name": "fishing-basket",
+        "file": "world/expansion02/doodads/generic/tuskar/crate/ts_fishingbasket_01.m2",
+        "fileDataID": 195270,
+        "bytes": 109680
       }
     ]
+  },
+  "dailyChest": {
+    "state": "complete",
+    "id": "daily-chest-models-001",
+    "build": {
+      "Region": "eu",
+      "BuildConfig": "d718abcc42604d8efbd35aecfa5bb75b",
+      "CDNConfig": "9529b048134c5f9375bbe754b8edc5ef",
+      "KeyRing": "3ca57fe7319a297346440e4d2a03a0cd",
+      "BuildId": "70575",
+      "VersionsName": "12.1.5.70575",
+      "ProductConfig": "53020d32e1a25648c8e1eafd5771935f",
+      "Product": "wow"
+    },
+    "exporterVersion": "0.2.19",
+    "workerSha256": "facb7c2c8e29ce53455287aa991785d561f34659c716b75592b247092f51c75a",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "startupMs": 21488,
+    "kind": "models",
+    "models": [
+      {
+        "name": "treasurechest01",
+        "file": "world/skillactivated/containers/treasurechest01.m2",
+        "fileDataID": 219372,
+        "bytes": 617656
+      }
+    ],
+    "searched": 0,
+    "search": null,
+    "durationMs": 2237,
+    "warnings": [],
+    "animations": true,
+    "runtime": {
+      "file": "/figurines/world/models/treasurechest01.glb",
+      "bytes": 120944,
+      "geometry": "EXT_meshopt_compression",
+      "textures": "KHR_texture_basisu (ETC1S)",
+      "clips": [
+        "Open (ID 148 variation 0)",
+        "Opened (ID 149 variation 0)",
+        "Close (ID 146 variation 0)"
+      ]
+    }
+  },
+  "coins": {
+    "state": "complete",
+    "id": "coins-2026-11-03-models-001",
+    "build": {
+      "Region": "eu",
+      "BuildConfig": "d718abcc42604d8efbd35aecfa5bb75b",
+      "CDNConfig": "9529b048134c5f9375bbe754b8edc5ef",
+      "KeyRing": "3ca57fe7319a297346440e4d2a03a0cd",
+      "BuildId": "70575",
+      "VersionsName": "12.1.5.70575",
+      "ProductConfig": "53020d32e1a25648c8e1eafd5771935f",
+      "Product": "wow"
+    },
+    "exporterVersion": "0.2.19",
+    "workerSha256": "facb7c2c8e29ce53455287aa991785d561f34659c716b75592b247092f51c75a",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "startupMs": 21241,
+    "kind": "models",
+    "models": [
+      {
+        "name": "treasuregoblin-coinpile",
+        "file": "spells/treasuregoblin_coinpile.m2",
+        "fileDataID": 916363,
+        "bytes": 245540
+      }
+    ],
+    "searched": 0,
+    "search": null,
+    "durationMs": 153,
+    "warnings": [],
+    "runtime": {
+      "file": "/figurines/world/models/treasuregoblin-coinpile.glb",
+      "bytes": 63236,
+      "geometry": "EXT_meshopt_compression",
+      "textures": "KHR_texture_basisu (ETC1S)",
+      "icon": "/figurines/world/coin.webp"
+    }
   }
 }

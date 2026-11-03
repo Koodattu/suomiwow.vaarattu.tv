@@ -12,7 +12,7 @@ import CharacterIdentityLink from "../models/CharacterIdentityLink";
 import CharacterIdentityResolution from "../models/CharacterIdentityResolution";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
 import CharacterMedia from "../models/CharacterMedia";
-import CharacterMechanicsLeaderboard from "../models/CharacterMechanicsLeaderboard";
+import CharacterMechanicsLeaderboard, { IProfileBossScore } from "../models/CharacterMechanicsLeaderboard";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
 import CharacterRaidAchievementSummary, {
   CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
@@ -355,6 +355,7 @@ export type CharacterProfileResponse = {
     identityConfidence: string | null;
     scoreVersion: number;
     raidFightCoverage: number;
+    profileBossScores?: IProfileBossScore[];
     updatedAt?: Date;
   }>;
   mythicPlus: CharacterMythicPlusProfileResponse;
@@ -3366,6 +3367,7 @@ class CharacterService {
         identityConfidence: row.identityConfidence ?? null,
         scoreVersion: row.scoreVersion ?? 1,
         raidFightCoverage: row.raidFightCoverage ?? 0,
+        ...(row.profileBossScores !== undefined ? { profileBossScores: row.profileBossScores } : {}),
         updatedAt: row.updatedAt,
       })),
       mythicPlus,

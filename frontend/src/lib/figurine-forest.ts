@@ -45,11 +45,12 @@ const CASTERS = new Set<ForestModel>(["tree", "bareTree", "bush", "stump", "hays
 // WoW models face +x; this yaw turns one at (x, z) toward the plaza centre.
 const facingCentre = (x: number, z: number) => Math.atan2(z, -x);
 
-// The market lane behind the shop: a tent with a stall of produce, a wagon, a signpost up the
-// lane (no faction banners: the market takes no side), stock by the trading post and in the
-// tinkers' yard, and hay at the edge of the trees. A barrel washed up in the reeds on the far bank
-// of the fishing pond hides the secret series' box, its broken side turned toward the pond's view.
-export const SECRET_BARREL = { x: 17.2, z: 23.8, toward: [9.4, 12.6] as [number, number] };
+// Scenery backs the plaza's neighbourhoods: market canvas, produce, a wagon and stored stock
+// to the west; supplies behind the workshop; and a signpost on the outgoing north path.
+// A discarded barrel just beyond the shop's side edge hides the secret box. The barrel
+// is visible through the gap from the plaza, while its broken opening faces away.
+export const POND = { x: 6.9, z: 16.9, radius: 4.2 };
+export const SECRET_BARREL = { x: -12.5, z: -6.5, toward: [-17, -8] as [number, number] };
 export function marketLayout(): Placement[] {
   const at = (model: ForestModel, x: number, z: number, extra: Partial<Placement> = {}): Placement => ({ model, x, z, yaw: facingCentre(x, z), size: 0.5, ...extra });
   const table = (x: number, z: number) => {
@@ -58,16 +59,16 @@ export function marketLayout(): Placement[] {
     const on = (model: ForestModel, along: number, across: number, size = 0.5) => at(model, x + along * c + across * s, z - along * s + across * c, { y: top, yaw: yaw + across * 2, size });
     return [at("table", x, z), on("cheese", 0.35, -0.9), on("cheese", 0.1, -0.55, 0.9), on("bread", -0.3, 0.1), on("bread", -0.2, 0.4, 0.2), on("fruit", 0.2, 0.75), on("lantern", -0.4, -1.3)];
   };
-  // The broken opening faces local -z; turn it toward the pond's camera.
+  // The broken opening faces local -z; keep its intact back toward the plaza.
   const [tx, tz] = SECRET_BARREL.toward;
   return [
-    at("tent", -10.4, -22.8), at("wagon", 12.8, -21.6, { yaw: 2.6 }), at("signpost", -1.8, -27.4, { yaw: 1.2 }),
-    at("crate", -6.8, -23.6, { yaw: 0.5 }), at("crate", -7.4, -22.8, { yaw: -0.3, size: 0.2 }), at("barrel", 8.6, -24.6),
-    at("haystack", -17.2, -15.6, { yaw: 0.8, size: 0.4 }), at("haystack", -18.2, -13.8, { yaw: 2.1, size: 0.7 }),
+    at("tent", -22.3, -7.2), at("wagon", -19.6, 5.2, { yaw: 0.3 }), at("signpost", 0.8, -20.5, { yaw: 1.2 }),
+    at("crate", -16.4, -9.4, { yaw: 0.5 }), at("crate", -17.1, -8.8, { yaw: -0.3, size: 0.2 }), at("barrel", 14.8, -12.8),
+    at("haystack", -20.8, 8.6, { yaw: 0.8, size: 0.4 }), at("haystack", -21.7, 7.2, { yaw: 2.1, size: 0.7 }),
     // Stock behind the tinkers' yard.
-    at("crate", -24.6, -6.4, { yaw: 0.3 }), at("crate", -25.2, -5.4, { yaw: -0.2, size: 0.2 }), at("crate", -24.7, -6.3, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -23.6, -7.6),
+    at("crate", -12.8, 14.8, { yaw: 0.3 }), at("crate", -13.4, 15.8, { yaw: -0.2, size: 0.2 }), at("crate", -12.9, 14.9, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -7.3, 17.5),
     at("barrel", SECRET_BARREL.x, SECRET_BARREL.z, { yaw: Math.atan2(SECRET_BARREL.x - tx, SECRET_BARREL.z - tz), secretSeries: "community-000" }),
-    ...table(-13.4, -18.6), ...table(9.2, -27.4),
+    ...table(-16.8, -12.8), ...table(-18, 2.5),
   ];
 }
 // True if (x, z) is clear of the market's footprints.
@@ -78,12 +79,14 @@ export function groveLayout(): Placement[] {
   const tree = (x: number, z: number, size: number, model: ForestModel = "tree"): Placement => ({ model, x, z, yaw: x * 1.7 + z, size });
   const low = (model: ForestModel, x: number, z: number, size = 0.5): Placement => ({ model, x, z, yaw: x * 2.3 - z, size });
   return [
-    tree(-14.4, -10.8, 0.15), tree(12.8, -17.4, 0.3), tree(-16.8, 11.6, 0.35), tree(22.6, -6.4, 0.3, "bareTree"), tree(-8.6, 16.4, 0.2),
-    tree(-22.4, -12.4, 0.5), tree(4.2, -28.6, 0.4), tree(-19.8, 17.6, 0.15, "bareTree"), tree(23.6, 14.6, 0.45), tree(-7.4, -19.4, 0.05, "bareTree"),
-    low("bush", -12.4, -7.8, 0.7), low("bushSmall", -16, -7.4), low("bush", 11.2, -14.6, 0.4), low("bushSmall", 16.8, -4.6, 0.3),
-    low("bush", -15.2, 9.2, 0.5), low("rock", -6.8, 13.6, 0.6), low("rockSmall", -6, 14.4), low("bush", 6.4, 16.2, 0.8),
-    low("stump", 18.8, -9.6, 0.4), low("rock", -22.8, 7.6, 0.5), low("bushSmall", 1.6, -19.4, 0.2), low("rock", 21.4, -1.4, 0.4),
-    low("bush", 3.4, -14.4, 0.3), low("bushSmall", -2.8, -15.6, 0.6), low("stump", -13.6, 12.6, 0.2), low("bush", 15.6, 12.8, 0.5),
+    // Canopies frame each neighbourhood from behind, leaving its front and the path mouths open.
+    tree(-14.8, -14.3, 0.15), tree(8, -19.8, 0.3), tree(-20.2, 15.6, 0.35), tree(19.2, -8.4, 0.3, "bareTree"), tree(-7.2, 23.8, 0.2),
+    tree(-23.4, -12.4, 0.5), tree(4.2, -28.6, 0.4), tree(-19.8, 19.6, 0.15, "bareTree"), tree(20.6, 12.6, 0.45), tree(-8.9, -20.4, 0.05, "bareTree"),
+    // Uneven pockets of planting separate groups; low rocks soften the cobble and water edges.
+    low("bush", -14.9, -7.3, 0.5), low("bushSmall", -15.8, -7.9), low("bush", 10.8, -15.2, 0.4), low("bushSmall", 18.8, -4.1, 0.3),
+    low("bush", -14.8, 8.4, 0.5), low("rock", -2.1, 15.3, 0.6), low("rockSmall", -1.4, 16.1), low("bush", 16, 18.8, 0.5),
+    low("stump", 17.4, -10.6, 0.4), low("rock", -17, 7.8, 0.5), low("bushSmall", 2.8, -19.4, 0.2), low("rock", 18.4, 0.4, 0.4),
+    low("bush", 6.2, -16.2, 0.3), low("bushSmall", -5.8, -16, 0.6), low("stump", -15.6, 13.8, 0.2), low("bush", 15.9, 12.4, 0.5),
   ];
 }
 // Open ground the woods keep clear of: every station, and the paths.
@@ -95,7 +98,6 @@ const PATH_ANGLE = Math.PI, PATH_HALF = 0.13;
 // The opening shot starts 2.6 times as far out as the home camera and swings in from up to 0.35 rad
 // round: nothing tall stands in that lane short of its starting point. The fishing pond lies in it.
 const LANE = { from: -0.15, to: 0.6, radius: 29 };
-export const POND = { x: 13.6, z: 19.4, radius: 4.2 };
 const nearPond = (x: number, z: number) => Math.hypot(x - POND.x, z - POND.z) < POND.radius + 3.5;
 const inLane = (angle: number, radius: number) => radius < LANE.radius && Math.atan2(Math.sin(angle), Math.cos(angle)) > LANE.from && Math.atan2(Math.sin(angle), Math.cos(angle)) < LANE.to;
 const angularGap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
@@ -132,6 +134,9 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   if (ktx2Loader) loader.setKTX2Loader(ktx2Loader);
   const matrix = new THREE.Matrix4(), place = new THREE.Matrix4(), quaternion = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  const occluders: { bounds: THREE.Box3; hidden: boolean; parts: { mesh: THREE.InstancedMesh; index: number; matrix: THREE.Matrix4 }[] }[] = [];
+  const sight = new THREE.Ray(), sightEnd = new THREE.Vector3(), intersection = new THREE.Vector3(), clearance = new THREE.Box3();
+  const hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
   const byModel = new Map<ForestModel, Placement[]>();
   placements.forEach((placement) => byModel.set(placement.model, [...(byModel.get(placement.model) ?? []), placement]));
   const loads = [...byModel].map(async ([model, spots]) => {
@@ -141,6 +146,8 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
       gltf.scene.updateMatrixWorld(true);
       const bounds = new THREE.Box3().setFromObject(gltf.scene), [low, high] = HEIGHTS[model];
       const unit = 1 / Math.max(bounds.max.y - bounds.min.y, 1e-3);
+      const foliage = model === "tree" || model === "bareTree" || model === "bush" || model === "bushSmall";
+      const blockers = foliage ? spots.map(() => ({ bounds: new THREE.Box3(), hidden: false, parts: [] as { mesh: THREE.InstancedMesh; index: number; matrix: THREE.Matrix4 }[] })) : [];
       gltf.scene.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
         const instances = new THREE.InstancedMesh(object.geometry, object.material, spots.length);
@@ -148,6 +155,10 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
           const scale = (low + (high - low) * spot.size) * unit;
           place.compose(new THREE.Vector3(spot.x, (spot.y ?? 0) - bounds.min.y * scale - 0.02, spot.z), quaternion.setFromAxisAngle(up, spot.yaw), new THREE.Vector3(scale, scale, scale));
           instances.setMatrixAt(index, matrix.multiplyMatrices(place, object.matrixWorld));
+          if (foliage) {
+            blockers[index].bounds.copy(bounds).applyMatrix4(place);
+            blockers[index].parts.push({ mesh: instances, index, matrix: matrix.clone() });
+          }
         });
         instances.userData.secretSeries = spots.map((spot) => spot.secretSeries ?? null);
         instances.computeBoundingSphere();
@@ -155,11 +166,30 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
         if (model === "tree" || model === "bareTree" || model === "bush") (Array.isArray(object.material) ? object.material : [object.material]).forEach((material) => onSway?.(material));
         group.add(instances);
       });
+      occluders.push(...blockers);
       return { model, top: bounds.max.y, unit, bounds };
     } catch { return null; }
   });
   const ready = Promise.all(loads);
-  return { group, ready, async mountSecretBox(id: string, box: THREE.Object3D) {
+  return { group, ready, clearView(camera: THREE.Vector3 | null, target: THREE.Vector3) {
+    // Keep the pedestal visible when its orbit passes through the surrounding canopy.
+    let distance = 0;
+    if (camera) {
+      sight.origin.copy(camera); group.worldToLocal(sight.origin);
+      sightEnd.copy(target); group.worldToLocal(sightEnd);
+      sight.direction.copy(sightEnd).sub(sight.origin); distance = sight.direction.length(); sight.direction.normalize();
+    }
+    for (const blocker of occluders) {
+      clearance.copy(blocker.bounds).expandByScalar(2.5);
+      const hidden = !!camera && (clearance.containsPoint(sight.origin) || !!sight.intersectBox(clearance, intersection) && intersection.distanceTo(sight.origin) < distance);
+      if (hidden === blocker.hidden) continue;
+      blocker.hidden = hidden;
+      for (const part of blocker.parts) {
+        part.mesh.setMatrixAt(part.index, hidden ? hiddenMatrix : part.matrix);
+        part.mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+  }, async mountSecretBox(id: string, box: THREE.Object3D) {
     const spot = placements.find((entry) => entry.secretSeries === id);
     if (!spot) return;
     const asset = (await ready).find((entry) => entry?.model === spot.model);

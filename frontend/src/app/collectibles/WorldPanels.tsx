@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { DAILY_CATCHES, FISH, acquiredId, bestQuality, canSpin, crateReward, crateState, dailyCatchesLeft, fishOf, questBoard, type Catch, type FigurineCollection, type FigurineQuality, type FigurineRecords, type MachineItem, type QuestPeriod, type Reward } from "@/lib/figurine-collection";
+import { acquiredId, bestQuality, canSpin, questBoard, type Catch, type FigurineCollection, type FigurineQuality, type FigurineRecords, type MachineItem, type QuestPeriod, type Reward } from "@/lib/figurine-collection";
 import { findFigure } from "@/lib/figurine-series";
 import type { Station } from "@/lib/figurine-world";
 import type { CastResult } from "@/lib/figurine-facilities";
@@ -18,23 +18,17 @@ export type MachinePanel = { kind: "recycler" | "forge"; slots: MachineItem[]; g
 // What a station's last action brought, shown once its animation has played.
 export type PanelResult = { station: "crate"; day: number; reward: Reward } | { station: "wheel"; reward: Reward; figure?: MachineItem }
   | { station: "pond"; caught: Catch; figure?: MachineItem } | { station: "pond"; missed: Exclude<CastResult, "caught"> };
-// Where the line is: being cast, waiting (nibbles come and go), or bitten.
-export type LinePhase = "cast" | "wait" | "bite";
+// Where the line is: being cast, waiting, nibbled at (for a moment), or bitten.
+export type LinePhase = "cast" | "wait" | "nibble" | "bite";
 // The daily stations' actions, and whether one is playing now.
 export type PanelActions = {
-  busy: boolean; result: PanelResult | null; now: Date; line: LinePhase | null;
-  onCrate: () => void; onSpin: () => void; onCast: () => void; onHook: () => void; onClaim: (id: string) => void;
+  busy: boolean; result: PanelResult | null; now: Date;
+  onSpin: () => void; onClaim: (id: string) => void;
 };
 type Props = CatalogueActions & {
   view: Station; collection: FigurineCollection; records: FigurineRecords; series: PanelSeries[];
   onClose: () => void; machine?: MachinePanel; actions: PanelActions;
 };
-// Each fish's colour in the log, after its game model.
-const FISH_COLOR: Record<string, string> = {
-  smallfish: "#7fc65a", mudsnapper: "#e39a5a", catfish: "#b9c8a4", blackmouth: "#6b8fd0", firefin: "#e2683a",
-  deviate: "#9a7ae0", yellowtail: "#e8c060", eel: "#4a8fe0", salmon: "#e8a0a8", mightfish: "#79b04a", boot: "#8a6a48",
-};
-
 export default function WorldPanel(props: Props) {
   const t = useTranslations("figurineLab.world");
   const { view, onClose, machine } = props;
@@ -81,11 +75,11 @@ function MachinePicker({ machine, series }: Props & { machine: MachinePanel }) {
   </>;
 }
 
-// A reward in words: boxes banked, a boost, a figure.
+// A reward in words: coins earned, a boost, a figure.
 function useRewardText() {
   const t = useTranslations("figurineLab");
   return (reward: Reward, figure?: MachineItem) => [
-    reward.boxes ? t("world.rewards.boxes", { count: reward.boxes }) : null,
+    reward.coins ? t("world.rewards.coins", { count: reward.coins }) : null,
     reward.boost ? t("world.rewards.boost", { quality: t(`quality.${reward.boost}`) }) : null,
     figure ? t("world.rewards.figure", { name: findFigure(figure.key)?.character.name ?? "" }) : null,
   ].filter(Boolean).join(" · ");
@@ -118,29 +112,11 @@ function Station({ view, collection, records, series, actions }: Props) {
   const firstAt = (quality: FigurineQuality) => Object.entries(records.acquired).filter(([id]) => id.endsWith(`|${quality}`)).map(([, at]) => at).sort()[0];
   const date = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium", timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
   const until = (period: QuestPeriod) => format.relativeTime(nextTurn(period, now), now);
-  if (view === "crate") {
-    const state = crateState(records, now), done = state.ready ? state.day - 1 : state.day;
-    return <>
-      <p className={styles.note}>{t("world.crate.body")}</p>
-      <ol className={styles.track} style={{ "--done": done / 6 } as CSSProperties}>{Array.from({ length: 7 }, (_, index) => {
-        const day = index + 1;
-        return <li key={day} data-done={day <= done} data-today={state.ready && day === state.day} data-final={day === 7}>
-          <span className={styles.coin}>{day <= done ? "✓" : day === 7 ? "★" : day}</span>
-          <small>{day === 7 ? t("world.crate.day7") : t("world.crate.day", { day })}</small>
-        </li>;
-      })}</ol>
-      {shown?.station === "crate" && <ResultCard tone={shown.reward.boost}><b>{t("world.crate.got", { day: shown.day, reward: rewardText(shown.reward) })}</b></ResultCard>}
-      {state.ready
-        ? <button type="button" className={styles.cta} disabled={busy} onClick={actions.onCrate}>{t("world.crate.open")}<span>{rewardText(crateReward(state.day))}</span></button>
-        : <p className={styles.wait}>{t("world.crate.next", { day: state.day >= 7 ? 1 : state.day + 1, time: until("daily") })}</p>}
-      <Boons records={records} />
-    </>;
-  }
   if (view === "wheel") {
     const ready = canSpin(records, now);
     return <>
       <p className={styles.note}>{t("world.wheel.body")}</p>
-      <ul className={styles.prizes}>{(["box1", "box2", "box3", "golden", "galaxy", "figure"] as const).map((prize) => <li key={prize} data-prize={prize}><i />{t(`world.wheel.prizes.${prize}`)}</li>)}</ul>
+      <ul className={styles.prizes}>{(["coin1", "coin2", "coin3", "golden", "galaxy", "figure"] as const).map((prize) => <li key={prize} data-prize={prize}><i />{t(`world.wheel.prizes.${prize}`)}</li>)}</ul>
       {shown?.station === "wheel" && <ResultCard figure={shown.figure} tone={shown.reward.boost ?? shown.figure?.quality}><span>{t("world.wheel.wonLabel")}</span><b>{rewardText(shown.reward, shown.figure)}</b></ResultCard>}
       {ready ? <button type="button" className={styles.cta} disabled={busy} onClick={actions.onSpin}>{t("world.wheel.spin")}<span>{t("world.wheel.free")}</span></button>
         : <p className={styles.wait}>{busy ? t("world.wheel.spinning") : t("world.wheel.next", { time: until("daily") })}</p>}
@@ -199,59 +175,14 @@ function Station({ view, collection, records, series, actions }: Props) {
       <li key={id}><span>{t(`world.leaderboard.items.${id}`)}</span><b>{t("world.leaderboard.you")} · {value}</b></li>)}</ul>
     <p className={styles.meta}>{t("world.leaderboard.signIn")}</p>
   </>;
-  if (view === "pond") return <Pond records={records} actions={actions} shown={shown?.station === "pond" ? shown : null} />;
   return <><p className={styles.note}>{t("world.trading.body")}</p>{soon}</>;
-}
-
-// The fishing pond: what the line is doing and what to do about it, the day's three prize
-// catches, what came up last, and the log of every kind caught.
-function Pond({ records, actions, shown }: { records: FigurineRecords; actions: PanelActions; shown: Extract<PanelResult, { station: "pond" }> | null }) {
-  const t = useTranslations("figurineLab");
-  const { line, now } = actions, left = dailyCatchesLeft(records, now);
-  const caughtToday = DAILY_CATCHES.length - left;
-  const prize = (reward: Reward) => reward.figure ? "figure" : "box";
-  return <>
-    <div className={styles.line} data-phase={line ?? "idle"} aria-live="polite">
-      <b>{t(`world.pond.phase.${line ?? "idle"}`)}</b>
-      <span>{t(`world.pond.how.${line ?? "idle"}`)}</span>
-    </div>
-    {line ? <button type="button" className={styles.cta} data-strike={line === "bite"} disabled={line === "cast"} onClick={actions.onHook}>{t("world.pond.strike")}</button>
-      : <button type="button" className={styles.cta} disabled={actions.busy} onClick={actions.onCast}>{t(shown ? "world.pond.castAgain" : "world.pond.cast")}</button>}
-    {shown && ("missed" in shown
-      ? <ResultCard tone="miss"><b>{t(`world.pond.${shown.missed}`)}</b></ResultCard>
-      : shown.caught.kind === "daily"
-        ? <ResultCard figure={shown.figure}><span>{t("world.pond.prizeCatch")}</span><b>{shown.figure ? t("world.rewards.figure", { name: findFigure(shown.figure.key)?.character.name ?? "" }) : t("world.rewards.boxes", { count: shown.caught.reward.boxes ?? 1 })}</b></ResultCard>
-        : <ResultCard tone={shown.caught.quality}>
-          <span className={styles.fishName}><i style={{ "--fish": FISH_COLOR[shown.caught.fish] } as CSSProperties} />{fishOf(shown.caught.fish)?.name}</span>
-          <b>{t("world.pond.weight", { weight: shown.caught.weight })}{shown.caught.quality !== "standard" && <em data-quality={shown.caught.quality}> · {t(`quality.${shown.caught.quality}`)}</em>}</b>
-          {(shown.caught.first || shown.caught.best) && <small>{t(shown.caught.first ? "world.pond.newKind" : "world.pond.best")}</small>}
-        </ResultCard>)}
-    <section className={styles.prizeCatches}>
-      <h3>{t("world.pond.prizes")}</h3>
-      <ol>{DAILY_CATCHES.map((reward, index) => <li key={index} data-done={index < caughtToday} data-next={index === caughtToday}>
-        <span>{index < caughtToday ? "✓" : prize(reward) === "figure" ? "?" : "▣"}</span>{t(`world.pond.prize.${prize(reward)}`)}
-      </li>)}</ol>
-      {left === 0 && <p className={styles.meta}>{t("world.pond.prizesDone")}</p>}
-    </section>
-    <section className={styles.fishLog}>
-      <h3>{t("world.pond.log")} <span>{FISH.filter((entry) => records.fish[entry.id]).length}/{FISH.length}</span></h3>
-      <ul>{FISH.map((entry) => {
-        const log = records.fish[entry.id];
-        return <li key={entry.id} data-caught={!!log}>
-          <i style={{ "--fish": log ? FISH_COLOR[entry.id] : "#3a3f48" } as CSSProperties} />
-          <span>{log ? entry.name : "???"}</span>
-          {log && <small>×{log.count} · {t("world.pond.weight", { weight: log.best })}{log.golden > 0 && <em data-quality="golden"> ★{log.golden}</em>}{log.galaxy > 0 && <em data-quality="galaxy"> ✦{log.galaxy}</em>}</small>}
-        </li>;
-      })}</ul>
-    </section>
-  </>;
 }
 
 function Boons({ records }: { records: FigurineRecords }) {
   const t = useTranslations("figurineLab");
-  if (!records.boons.boxes && !records.boons.boost) return null;
+  if (!records.boons.coins && !records.boons.boost) return null;
   return <p className={styles.boons}>
-    {records.boons.boxes > 0 && <span>{t("world.rewards.banked", { count: records.boons.boxes })}</span>}
+    {records.boons.coins > 0 && <span>{t("world.rewards.balance", { count: records.boons.coins })}</span>}
     {records.boons.boost && <span data-quality={records.boons.boost}>{t("world.rewards.boostNext", { quality: t(`quality.${records.boons.boost}`) })}</span>}
   </p>;
 }

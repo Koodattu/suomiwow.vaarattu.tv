@@ -165,32 +165,34 @@ export function machineChanges(slots: readonly MachineItem[], outcome: MachineOu
 // Records kept beside the collection, session-only like it: when each figure was first acquired at
 // each quality (the museum), the newest golden and galaxy pulls (the feed), counters for quests,
 // the favourites (in the player's order; the first sixteen stand in the display cabinet and about
-// the world), the day's crate, spin and catches, the fish caught, the quests' periods, and rewards
-// earned but not yet used.
+// the world), the day's crate, spin and catches, the fish caught and the best of them (the anglers'
+// board), the quests' periods, and rewards earned but not yet used.
 export type PullSource = "box" | "forge" | "wheel" | "pond";
 export type FeedEntry = { key: string; quality: FigurineQuality; at: string; source: PullSource };
 export const STAT_NAMES = ["opened", "recycled", "tradedUp", "spins", "fish", "galaxy", "crates"] as const;
 export type FigurineStats = Record<(typeof STAT_NAMES)[number], number>;
-// Rewards: boxes banked for when boxes are limited, and a boost the next box opened rolls at least.
-export type Boons = { boxes: number; boost: FigurineQuality | null };
+// Rewards: coins earned through play, and a boost the next box opened rolls at least.
+export type Boons = { coins: number; boost: FigurineQuality | null };
 // The day each daily thing was last done (local "YYYY-MM-DD"), the crate's streak (1-7), and how
 // many of that day's prize catches have been landed.
 export type Daily = { crate: string | null; streak: number; spin: string | null; catch: string | null; caught: number };
 // The fish log: per species, how many, the heaviest, and how many came up golden or galaxy.
 export type FishLog = Readonly<Record<string, { count: number; best: number; golden: number; galaxy: number }>>;
+// The anglers' board: the player's best catches by score, at most ANGLER_TOP of them.
+export type AnglerCatch = { fish: FishId; weight: number; quality: FigurineQuality; score: number; at: string };
 export type QuestPeriod = "daily" | "weekly" | "monthly";
 // Each period's quests count from the stats as they were when the period began.
 export type QuestState = Record<QuestPeriod, { key: string; base: FigurineStats; claimed: string[] }>;
 export type FigurineRecords = {
   acquired: Readonly<Record<string, string>>; feed: readonly FeedEntry[]; stats: FigurineStats; favorites: readonly MachineItem[];
-  boons: Boons; daily: Daily; quests: QuestState | null; fish: FishLog;
+  boons: Boons; coinAt: string | null; daily: Daily; quests: QuestState | null; fish: FishLog; angler: readonly AnglerCatch[];
 };
 export const SHOWCASE_SLOTS = 16, FEED_LENGTH = 10;
 export const RECORDS_KEY = "suomiwow-figurine-records-v1";
 const ZERO_STATS = Object.freeze(Object.fromEntries(STAT_NAMES.map((name) => [name, 0]))) as FigurineStats;
 const EMPTY_RECORDS: FigurineRecords = Object.freeze({
   acquired: {}, feed: [], stats: ZERO_STATS, favorites: [],
-  boons: { boxes: 0, boost: null }, daily: { crate: null, streak: 0, spin: null, catch: null, caught: 0 }, quests: null, fish: {},
+  boons: { coins: 0, boost: null }, coinAt: null, daily: { crate: null, streak: 0, spin: null, catch: null, caught: 0 }, quests: null, fish: {}, angler: [],
 });
 let cachedRecords: FigurineRecords | null = null;
 const FIGURE_KEY = /^[a-z0-9-]+:[a-z0-9-]+$/;
@@ -216,13 +218,19 @@ export function parseRecords(raw: string | null): FigurineRecords {
       const log = (entry ?? {}) as Record<string, unknown>, best = Number(log.best);
       return [id, { count: whole(log.count), best: Number.isFinite(best) ? Math.max(0, best) : 0, golden: whole(log.golden), galaxy: whole(log.galaxy) }];
     }));
-    const boons = { boxes: whole(value.boons?.boxes), boost: isQuality(value.boons?.boost) && value.boons.boost !== "standard" ? value.boons.boost : null };
+    // Scores are worked out again rather than trusted, so a change to the scoring rescores the board.
+    const angler = topCatches((Array.isArray(value.angler) ? value.angler : []).flatMap((entry: Partial<AnglerCatch> | null) => {
+      const weight = Number(entry?.weight);
+      return entry && fishOf(String(entry.fish)) && Number.isFinite(weight) && weight > 0 && isQuality(entry.quality) && isDate(entry.at)
+        ? [{ fish: entry.fish as FishId, weight, quality: entry.quality, score: catchScore(entry.fish as FishId, weight, entry.quality), at: entry.at }] : [];
+    }));
+    const boons = { coins: whole(value.boons?.coins), boost: isQuality(value.boons?.boost) && value.boons.boost !== "standard" ? value.boons.boost : null };
     const daily = { crate: isDay(value.daily?.crate) ? value.daily.crate : null, streak: Math.min(7, whole(value.daily?.streak)), spin: isDay(value.daily?.spin) ? value.daily.spin : null, catch: isDay(value.daily?.catch) ? value.daily.catch : null, caught: Math.min(DAILY_CATCHES.length, whole(value.daily?.caught)) };
     const period = (entry: { key?: unknown; base?: unknown; claimed?: unknown } | undefined) => entry && typeof entry.key === "string"
       ? { key: entry.key, base: statsOf(entry.base), claimed: Array.isArray(entry.claimed) ? entry.claimed.filter((id): id is string => typeof id === "string") : [] } : null;
     const periods = value.quests && { daily: period(value.quests.daily), weekly: period(value.quests.weekly), monthly: period(value.quests.monthly) };
     const quests = periods && periods.daily && periods.weekly && periods.monthly ? periods as QuestState : null;
-    return { acquired, feed, stats: statsOf(value.stats), favorites, boons, daily, quests, fish };
+    return { acquired, feed, stats: statsOf(value.stats), favorites, boons, coinAt: isDate(value.coinAt) ? value.coinAt : null, daily, quests, fish, angler };
   } catch { return EMPTY_RECORDS; }
 }
 export function readRecords(store: Store | null = sessionStore()): FigurineRecords {
@@ -305,21 +313,41 @@ export function weekKey(now: Date) {
 }
 export const monthKey = (now: Date) => `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
 const higher = (a: FigurineQuality | null, b: FigurineQuality | null) => !a ? b : !b ? a : qualityRank(a) >= qualityRank(b) ? a : b;
-const grant = (boons: Boons, reward: Reward): Boons => ({ boxes: boons.boxes + (reward.boxes ?? 0), boost: higher(boons.boost, reward.boost ?? null) });
-export type Reward = { boxes?: number; boost?: FigurineQuality; figure?: boolean };
-// Banks a reward's boxes and boost. The daily actions mark themselves done at once but grant
+const grant = (boons: Boons, reward: Reward): Boons => ({ coins: boons.coins + (reward.coins ?? 0), boost: higher(boons.boost, reward.boost ?? null) });
+export type Reward = { coins?: number; boost?: FigurineQuality; figure?: boolean };
+// Banks a reward's coins and boost. The daily actions mark themselves done at once but grant
 // this way when their animation has played, so nothing gives away what is coming.
 export function grantReward(reward: Reward, store: Store | null = sessionStore()) {
   updateRecords((records) => ({ ...records, boons: grant(records.boons, reward) }), store);
 }
 
-// The daily crate: once a day, a box; days in a row build a streak to seven, whose crate also
+// Alpha wallet: stored with the collection in this browser tab, with no backend or purchases.
+export const STARTING_COINS = 3, COIN_INTERVAL_MS = 4 * 60 * 60 * 1000;
+export function regenerateCoins(now = new Date(), store: Store | null = sessionStore()) {
+  const records = readRecords(store), time = now.getTime();
+  if (!Number.isFinite(time)) return 0;
+  const previous = records.coinAt ? Date.parse(records.coinAt) : null;
+  const earned = previous === null ? STARTING_COINS : Math.max(0, Math.floor((time - previous) / COIN_INTERVAL_MS));
+  if (previous !== null && !earned) return 0;
+  writeRecords({ ...records, boons: grant(records.boons, { coins: earned }),
+    coinAt: new Date(previous === null ? time : previous + earned * COIN_INTERVAL_MS).toISOString() }, store);
+  return earned;
+}
+// Called by every box-opening input; never lets the balance go below zero.
+export function spendCoin(store: Store | null = sessionStore()) {
+  const records = readRecords(store);
+  if (records.boons.coins < 1) return false;
+  writeRecords({ ...records, boons: { ...records.boons, coins: records.boons.coins - 1 } }, store);
+  return true;
+}
+
+// The daily crate: once a day, a coin; days in a row build a streak to seven, whose crate also
 // guarantees a golden roll, and then it starts over. A missed day starts it over too.
 export function crateState({ daily }: FigurineRecords, now = new Date()) {
   const today = dayKey(now), continues = daily.crate === yesterday(now) && daily.streak < 7;
   return { ready: daily.crate !== today, day: daily.crate === today ? daily.streak : continues ? daily.streak + 1 : 1 };
 }
-export const crateReward = (day: number): Reward => day >= 7 ? { boxes: 1, boost: "golden" } : { boxes: 1 };
+export const crateReward = (day: number): Reward => day >= 7 ? { coins: 1, boost: "golden" } : { coins: 1 };
 export function openCrate(now = new Date(), store: Store | null = sessionStore()): { day: number; reward: Reward } | null {
   const state = crateState(readRecords(store), now);
   if (!state.ready) return null;
@@ -329,10 +357,10 @@ export function openCrate(now = new Date(), store: Store | null = sessionStore()
 }
 
 // The lucky wheel: eight segments, one spin a day. The pointer is at the top; segment 0 starts there
-// and they run clockwise. Weights favour banked boxes; galaxy is rare.
+// and they run clockwise. Weights favour banked coins; galaxy is rare.
 export const WHEEL = [
-  { prize: { boxes: 1 }, weight: 24 }, { prize: { boost: "golden" }, weight: 9 }, { prize: { boxes: 2 }, weight: 12 }, { prize: { figure: true }, weight: 10 },
-  { prize: { boxes: 1 }, weight: 24 }, { prize: { boost: "golden" }, weight: 9 }, { prize: { boost: "galaxy" }, weight: 2 }, { prize: { boxes: 3 }, weight: 10 },
+  { prize: { coins: 1 }, weight: 24 }, { prize: { boost: "golden" }, weight: 9 }, { prize: { coins: 2 }, weight: 12 }, { prize: { figure: true }, weight: 10 },
+  { prize: { coins: 1 }, weight: 24 }, { prize: { boost: "golden" }, weight: 9 }, { prize: { boost: "galaxy" }, weight: 2 }, { prize: { coins: 3 }, weight: 10 },
 ] as const satisfies readonly { prize: Reward; weight: number }[];
 export function wheelSegment(random: number) {
   if (!(random >= 0 && random < 1)) throw new Error("Invalid roll");
@@ -349,11 +377,11 @@ export function spinWheel(random: number, now = new Date(), store: Store | null 
 }
 
 // The fishing pond. Cast, wait for the bite, hook it in time. The day's first three catches are
-// prizes (a box, a figure, a box); after that the pond gives fish, and now and then a boot. Bigger
+// prizes (a coin, a figure, a coin); after that the pond gives fish, and now and then a boot. Bigger
 // fish are rarer; any catch can come up golden or, rarely, galaxy. Classic Azeroth catches,
 // smallest to largest: `weight` in pounds, `length` how long one shows in the world (units),
 // `odds` how often it bites against the others.
-export const DAILY_CATCHES: readonly Reward[] = [{ boxes: 1 }, { figure: true }, { boxes: 1 }];
+export const DAILY_CATCHES: readonly Reward[] = [{ coins: 1 }, { figure: true }, { coins: 1 }];
 export const FISH = [
   { id: "smallfish", name: "Brilliant Smallfish", weight: [0.2, 0.6], length: 0.28, odds: 20 },
   { id: "mudsnapper", name: "Longjaw Mud Snapper", weight: [0.5, 1.4], length: 0.36, odds: 18 },
@@ -369,10 +397,26 @@ export const FISH = [
 ] as const satisfies readonly { id: string; name: string; weight: readonly [number, number]; length: number; odds: number; junk?: boolean }[];
 export type FishId = (typeof FISH)[number]["id"];
 export const fishOf = (id: string) => FISH.find((entry) => entry.id === id);
+// How often a kind bites, as a word (in the game's item colours in the fish log): the odds are
+// relative to the others.
+export type FishRarity = "junk" | "common" | "uncommon" | "rare" | "epic";
+export const fishRarity = (fish: (typeof FISH)[number]): FishRarity => "junk" in fish ? "junk" : fish.odds >= 15 ? "common" : fish.odds >= 7 ? "uncommon" : fish.odds >= 4 ? "rare" : "epic";
+// The anglers' board. A catch scores its kind's rarity, times one to two for its size within its
+// kind's range, times its finish; junk scores nothing. A player's ten best catches make their score.
+export const RARITY_POINTS: Readonly<Record<FishRarity, number>> = { junk: 0, common: 10, uncommon: 25, rare: 60, epic: 150 };
+export const FINISH_TIMES: Readonly<Record<FigurineQuality, number>> = { standard: 1, golden: 2, galaxy: 5 };
+export const ANGLER_TOP = 10;
+export function catchScore(id: FishId, weight: number, quality: FigurineQuality) {
+  const fish = fishOf(id)!, [low, high] = fish.weight, size = Math.min(1, Math.max(0, (weight - low) / (high - low)));
+  return Math.round(RARITY_POINTS[fishRarity(fish)] * (1 + size) * FINISH_TIMES[quality]);
+}
+const topCatches = (catches: AnglerCatch[]) => catches.filter(({ score }) => score > 0).sort((a, b) => b.score - a.score || a.at.localeCompare(b.at)).slice(0, ANGLER_TOP);
+export const anglerScore = ({ angler }: FigurineRecords) => angler.reduce((total, { score }) => total + score, 0);
 // What is on the line: rolled when the line goes out, landed only if it is hooked in time.
 export type CatchRoll = { kind: "daily"; index: number; reward: Reward } | { kind: "fish"; fish: FishId; weight: number; quality: FigurineQuality };
-// A landed catch: a fish also says if it was the heaviest of its kind yet, or the first.
-export type Catch = Extract<CatchRoll, { kind: "daily" }> | (Extract<CatchRoll, { kind: "fish" }> & { best: boolean; first: boolean });
+// A landed catch: a fish also says if it was the heaviest of its kind yet, or the first, and
+// what it scores.
+export type Catch = Extract<CatchRoll, { kind: "daily" }> | (Extract<CatchRoll, { kind: "fish" }> & { best: boolean; first: boolean; score: number });
 export const dailyCatchesLeft = ({ daily }: FigurineRecords, now = new Date()) => DAILY_CATCHES.length - (daily.catch === dayKey(now) ? daily.caught : 0);
 export function rollCatch(records: FigurineRecords, random: () => number, now = new Date()): CatchRoll {
   const left = dailyCatchesLeft(records, now);
@@ -384,21 +428,22 @@ export function rollCatch(records: FigurineRecords, random: () => number, now = 
   const finish = random(), quality: FigurineQuality = finish < 0.012 ? "galaxy" : finish < 0.072 ? "golden" : "standard";
   return { kind: "fish", fish: fish.id, weight, quality };
 }
-// Lands what was hooked: a prize counts toward the day's three; a fish goes in the log.
+// Lands what was hooked: a prize counts toward the day's three; a fish goes in the log, and on the
+// anglers' board if it is among the best.
 export function landCatch(roll: CatchRoll, now = new Date(), store: Store | null = sessionStore()): Catch {
   const today = dayKey(now);
   if (roll.kind === "daily") {
     updateRecords((current) => ({ ...current, daily: { ...current.daily, catch: today, caught: (current.daily.catch === today ? current.daily.caught : 0) + 1 }, stats: bump(current.stats, { fish: 1 }) }), store);
     return roll;
   }
-  const before = readRecords(store).fish[roll.fish];
+  const before = readRecords(store).fish[roll.fish], score = catchScore(roll.fish, roll.weight, roll.quality);
   updateRecords((current) => {
     const log = current.fish[roll.fish] ?? { count: 0, best: 0, golden: 0, galaxy: 0 };
     return { ...current, stats: bump(current.stats, { fish: 1 }), fish: { ...current.fish, [roll.fish]: {
       count: log.count + 1, best: Math.max(log.best, roll.weight), golden: log.golden + (roll.quality === "golden" ? 1 : 0), galaxy: log.galaxy + (roll.quality === "galaxy" ? 1 : 0),
-    } } };
+    } }, angler: topCatches([...current.angler, { fish: roll.fish, weight: roll.weight, quality: roll.quality, score, at: now.toISOString() }]) };
   }, store);
-  return { ...roll, best: !before || roll.weight > before.best, first: !before };
+  return { ...roll, best: !before || roll.weight > before.best, first: !before, score };
 }
 
 // Using a boost: the next box opened rolls at least this quality.
@@ -408,7 +453,7 @@ export function spendBoost(store: Store | null = sessionStore()) {
 }
 
 // Quests: daily, weekly and monthly, each counted from the period's start. A finished quest is
-// claimed for banked boxes. `stat` counts up; `complete` is checked against the collection.
+// claimed for banked coins. `stat` counts up; `complete` is checked against the collection.
 export type Quest = { id: string; period: QuestPeriod; goal: number; reward: number; stat?: keyof FigurineStats; complete?: true };
 export const QUESTS: readonly Quest[] = [
   { id: "open3", period: "daily", stat: "opened", goal: 3, reward: 1 },
@@ -443,7 +488,7 @@ export function claimQuest(id: string, completeSeries: boolean, now = new Date()
   if (!quest || !quest.done || quest.claimed) return 0;
   const state = questState(records, now);
   updateRecords((current) => ({
-    ...current, boons: grant(current.boons, { boxes: quest.reward }),
+    ...current, boons: grant(current.boons, { coins: quest.reward }),
     quests: { ...state, [quest.period]: { ...state[quest.period], claimed: [...state[quest.period].claimed, id] } },
   }), store);
   return quest.reward;

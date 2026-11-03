@@ -4,9 +4,16 @@ import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 // Hover glow for solid props: a back-facing shell pushed out along smoothed normals, drawn
 // additively and brightest at the silhouette. Shells exist only while something is hovered.
 const SHELL_VERTEX = `uniform float width; varying float vRim;
+#include <common>
+#include <skinning_pars_vertex>
 void main() {
-  vec3 n = normalize(normal);
-  vec4 view = modelViewMatrix * vec4(position + n * width, 1.0);
+  #include <beginnormal_vertex>
+  #include <skinbase_vertex>
+  #include <skinnormal_vertex>
+  #include <begin_vertex>
+  #include <skinning_vertex>
+  vec3 n = normalize(objectNormal);
+  vec4 view = modelViewMatrix * vec4(transformed + n * width, 1.0);
   vRim = 1.0 - abs(dot(normalize(normalMatrix * n), normalize(-view.xyz)));
   gl_Position = projectionMatrix * view;
 }`;
@@ -34,7 +41,14 @@ export function hoverOutline(meshes: THREE.Mesh[], color: THREE.ColorRepresentat
     side: THREE.BackSide, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
   });
   const shells = meshes.map((mesh) => {
-    const shell = new THREE.Mesh(shellGeometry(mesh.geometry), material);
+    // An animated prop's outline must follow the same bones as its visible surface.
+    const shell = mesh instanceof THREE.SkinnedMesh
+      ? new THREE.SkinnedMesh(mesh.geometry, material)
+      : new THREE.Mesh(shellGeometry(mesh.geometry), material);
+    if (shell instanceof THREE.SkinnedMesh && mesh instanceof THREE.SkinnedMesh) {
+      shell.bind(mesh.skeleton, mesh.bindMatrix);
+      shell.frustumCulled = false;
+    }
     shell.visible = false; shell.raycast = () => {}; shell.renderOrder = 1; shell.userData.outline = true;
     mesh.add(shell);
     return shell;

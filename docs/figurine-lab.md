@@ -1,5 +1,8 @@
 # Local collectible prototypes
 
+For current import/conversion commands, use [Collectibles: local asset workflow](collectibles-assets.md).
+The dated notes below preserve project history and may describe superseded assets/settings.
+
 The game is available by direct link only while it is a work in progress:
 - `/collectibles`: focused blind-box opening and figure reveal, with an image-only
   SuomiWoW logo in the top left that returns to the main site.
@@ -368,30 +371,48 @@ camera, so swapping between a box and a figure never moves it, and returning fro
 where the camera was left. The opening shot flies in from far out and plays to its end before
 the world takes any input (taps, drags or keys).
 
-The world is a forest clearing round a cobbled square (`figurine-world.ts`). What a player uses
-every day stands round the square's ragged edge, a few steps from the pedestal and facing it: the
-shop and the collection's display cabinet at the back, the quest board and the daily crate to the
-left, the lucky wheel to the right. Worn dirt paths (`PATHS`) lead on between them to the rest,
-further out among the trees on their own trodden ground (`PATCHES`): the market lane behind the
-shop (the trading post and the mailbox, with a tent, a wagon and produce tables), the scrying ball
-behind the cabinet, the tinkers' yard down the west path (the recycler and the forge), the hall of
-fame and the leaderboards down the east path, and the fishing pond down its own path to the
-south-east. Each station has a position and a point it faces (`STATION_SPECS`). Trees, bushes and
-rocks stand between them (`groveLayout` in `figurine-forest.ts`); the woods keep clear of every
-station and path. Nothing is signposted: each facility is its game props
+The world is a forest clearing round a cobbled square (`figurine-world.ts`). Facilities form an
+uneven ring around its ragged edge, sharing small forecourts rather than standing on an exact
+circle. The shop, lucky wheel and trading post occupy the west; the daily crate and quest board
+flank the north path; the collection and mailbox sit to the north-east; the scrying ball,
+leaderboards and hall of fame share the east garden; and the recycler and forge share the
+south-west yard. The fishing pond opens off the south-east corner. Most facility origins are
+13.5–15.6 units from the centre, within 4.5 units of the cobbled edge; the pond is about 18.3 units
+out to leave room for its water and dock. This is a first arrangement guided by the exported
+layout sketch, not an exact import of its positions or rotations.
+
+Worn dirt paths (`PATHS`) leave through gaps between groups. Overlapping, irregular dirt patches
+(`PATCHES`) connect their approaches to the plaza. Market canvas, produce and the wagon sit
+behind the west-side stalls; crates and barrels back the workshop. Trees, bushes and rocks
+(`groveLayout` in `figurine-forest.ts`) frame these groups from behind and soften their edges.
+`FOREST_CLEARINGS` keeps generated vegetation away from facilities, figures, lamps and sampled
+points along the full length of each path. Each station faces its local approach (`STATION_SPECS`).
+The sixteen showcase figures occupy an inner layer beside facilities and an outer layer by
+gardens and paths, leaving the centre of the plaza open. The pond's forest exclusion and station
+position share `POND`; the secret barrel sits beyond the shop's side edge, visible through the gap from the plaza.
+
+Facilities sit roughly 2-3 world units closer to the center, with nearby figures and path mouths
+adjusted to keep the tighter ring clear. The fishing pond stays in its original position.
+The existing camera limits, fog and station framing remain unchanged. Each facility is its game props
 (`figurine-facilities.ts`), there to be found. Pointing at one names it in the HUD; tapping one
 flies the camera there and opens its panel (`WorldPanels.tsx`), docked right on wide screens or as
-a bottom sheet on phones, with the station framed in the space beside or above it. Tap empty
-ground, the panel's close button or Esc to come back. Keyboard: S shop, C collection, M recycler,
-U trade-up forge, Q quests, W lucky wheel, F fishing pond (Space casts and strikes there), D daily
-crate, 1-9 pick a series (in the shop), Enter opens the sealed box.
-`test/figurine-layout.test.mjs` checks that the everyday stations stand within reach of the
-square and the rest further out, and that no station, figure, lamp, tree or market prop stands in
-another station or in the line from its camera, on a wide screen or a phone's backed-off shot.
+a bottom sheet on phones, with the station framed in the space beside or above it. The pond has
+no panel: its controls lie over the world (below). Tap empty ground, the panel's close button or
+Esc to come back. Keyboard: S shop, C collection, M recycler, U trade-up forge, Q quests, W lucky
+wheel, F fishing pond (Space casts and strikes there, L opens the fish log), D daily crate, 1-9
+pick a series (in the shop), Enter opens the sealed box.
+`test/figurine-layout.test.mjs` checks facility reach and grouping, the figures' inner/outer
+distribution, dry pond banks, open paths through the generated woods, and clearance between
+stations, figures, lamps, trees and props. It also checks station camera sightlines on wide
+screens and a phone's backed-off shot. Existing KTX2 ETC1S models are reused for this arrangement.
 
-The secret Series 000 box hides in a broken barrel washed up in the reeds on the fishing pond's
-far bank (`SECRET_BARREL` in `figurine-forest.ts`), its broken side turned toward the pond's
-camera: the one view that can find it.
+The secret Series 000 box hides in a broken barrel at (-12.5, -6.5), just behind the shop's side edge
+(`SECRET_BARREL` in `figurine-forest.ts`). Its intact back faces the plaza; the broken opening
+faces away from the plaza. The barrel remains visible from the center and the home camera,
+but sits clear of the shop and wheel instead of in front of either facility. Normal foreground occlusion still applies.
+Station picking ignores hidden objects and ancestors, but preserves invisible helper targets
+for small controls. Pond ripples never participate in picking and stop updating after fading.
+At the pond only its tackle takes taps (`test/figurine-picking.test.mjs`).
 
 In the shop, the sealed box opens by pulling its tape. Once five boxes have been opened that way,
 an "Open box" button opens it without the tape, and after every opening "Open another" drops a new
@@ -408,18 +429,34 @@ months go by the player's own clock):
 - The lucky wheel: one spin a day. It turns five times and stops on one of eight weighted prizes
   (1, 2 or 3 boxes, a golden or a rare galaxy boost, or a random figure); the panel lists them in
   their segments' colours.
-- The fishing pond: tap the rod resting on the dock (or the water) to cast. The bobber plops and
-  bobs; a fish may nibble (small dips: leave them); then it bites, the bobber plunges, and a tap
-  on the bobber or the water within about a second hooks it. Too soon scares the fish off; too
-  late and it is gone, and nothing is landed either way. The day's first three catches are prizes
-  (a box, a figure, a box: a wrapped gift or a little chest leaps out); after that the pond gives
-  ten kinds of classic Azeroth fish, from the Brilliant Smallfish to the rare Mightfish, and now
-  and then a Soggy Boot, each of a fair weight for its kind and sometimes golden or, rarely,
-  galaxy. The catch leaps from the water to hang over the dock, sized by its kind and weight. The
-  panel's fish log keeps, per kind, how many, the heaviest and the golden and galaxy ones.
-  The catch is rolled as the line goes out (`rollCatch`) and recorded only when hooked
-  (`landCatch`). Fish, bobber, rod and boot models are wow.export doodad exports (WebP textures
-  for now: see the open item below).
+- The fishing pond (scene in `figurine-facilities.ts`, controls in `PondHud.tsx`): seen from the
+  foot of its dock, low over the water, as an angler sees it. A ragged shore of wet mud fades into
+  the grass, with half-sunk rocks, cattail beds, reeds and flowering lily pads; a Redridge
+  boardwalk runs out on pilings with a lantern; across the water hang a net and a rack of fish,
+  with a barrel of the catch, a fishing chair and a beached rowboat. Only the tackle takes taps:
+  the rod in its holder at the dock's end casts (and strikes while the line is out), the bobber
+  strikes, and the open tackle box on the dock opens the fish log. The water does nothing, so a
+  stray tap never casts. Pointing at a piece names what it does, and the rod or the box lifts a
+  little. A line of story along the top says what the water is doing; along the bottom are the
+  fish log, the one action (Cast, then Strike) and Back. The bobber plops and bobs; a fish may
+  nibble (small dips: leave them); then it bites: the bobber plunges, a "!" springs up over it and
+  a gold ring closes in on it over about a second, in which a tap hooks it. Too soon scares the
+  fish off; too late and it is gone, and nothing is landed either way. The day's first three
+  catches are prizes (a box, a figure, a box), and the pond shows rather than lists them: while any
+  remain, something glints gold under the water with motes rising from it, the story says so,
+  and a prize cast lands the bobber on the glint; once they are landed, only fish stir. After that
+  the pond gives ten kinds of classic Azeroth fish, from the Brilliant Smallfish to the rare
+  Mightfish, and now and then a Soggy Boot, each of a fair weight for its kind and sometimes golden
+  or, rarely, galaxy. The catch leaps from the water to hang before the camera, sized by its kind
+  and weight, with a banner naming it (a new kind or a personal best is called out); on the next
+  cast a fish drops into the bucket on the dock. The fish log is a gallery: a card per kind, in
+  order of size, its rarity in the game's item colours. Caught kinds show their picture, how many,
+  the heaviest and the golden and galaxy ones; the rest are shadows of their shape. The pictures
+  are baked from the same models by `node frontend/scripts/bake-fish-cards.mjs` (it serves a page
+  that renders them in a browser and saves `public/figurines/world/fish/<id>.webp`); re-bake when
+  a catch's model changes. The catch is rolled as the line goes out (`rollCatch`) and recorded
+  only when hooked (`landCatch`). The fish, tackle, dock and pond dressing are wow.export doodad
+  exports (see the open item below).
 - The quest giver: daily, weekly and monthly quests (open boxes, recycle, trade up, spin, fish,
   open crates, pull a galaxy, complete a series), counted from each period's start, each period
   showing when it resets; a finished quest is claimed for boxes.
@@ -430,9 +467,12 @@ spent by it. A figure prize joins the collection and, when golden or galaxy, the
 placeholders: the trading post, the gifting post, the hall of fame and the leaderboards (they need
 the collection on the server and Discord sign-in) and the latest pulls (this session's own).
 
-Open item: the 13 fishing models (`fish-*.glb`, `fishing-*.glb`, `boot-junk.glb`) still carry
-WebP textures, because no KTX2 encoder was installed when they were added; the KTX2 check in
-`test/figurine-ktx.test.mjs` fails on them until they are converted like the other world models.
+Open item: the ten pond props added with the reworked pond (`dock-boardwalk`, `dock-pylon`,
+`lantern-garrison`, `tacklebox`, `fishing-bucket-2`, `fishing-barrel`, `fishing-net-1`,
+`fishing-basket`, `cattails-gilneas` and `lilypads-gilneas`, export job `pond-models-001`) still
+carry WebP textures, because no KTX2 encoder was installed when they were added. The KTX2 check in
+`test/figurine-ktx.test.mjs` fails on them until they are converted with
+`scripts/convert-figurine-assets.mjs` like the other world models (then bump `PROP_VERSION`).
 
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.

@@ -162,3 +162,9 @@
 .qualityBadge[data-quality="golden"] { background: linear-gradient(90deg, #ffe7a3, #e0a93a 60%, #fff0c2); color: #3a2506; box-shadow: 0 0 18px rgba(255, 200, 90, .55); }
 .qualityBadge[data-quality="galaxy"] { background: linear-gradient(90deg, #2a1660, #6d3fd8 45%, #2b7fd8); color: #f1e9ff; box-shadow: 0 0 18px rgba(140, 100, 255, .6); }
 @media (prefers-reduced-motion: reduce) { .qualityBadge { animation: none; } }
+
+.coinBalance { position: absolute; z-index: 4; top: max(62px, calc(env(safe-area-inset-top) + 46px)); right: 18px; display: flex; align-items: center; gap: 6px; min-width: 96px; padding: 3px 15px 3px 5px; border: 1px solid rgba(236, 201, 120, .4); border-radius: 999px; background: rgba(15, 20, 26, .78); color: #ffdf88; box-shadow: 0 3px 16px #0005; }
+.coinBalance img { width: 48px; height: 48px; object-fit: contain; }
+.coinBalance span { display: flex; flex-direction: column; gap: 1px; }
+.coinBalance b { font: 700 20px/1.1 Georgia, serif; font-variant-numeric: tabular-nums; }
+.coinBalance small { font: 500 11px system-ui, sans-serif; color: #e8d4a8; }

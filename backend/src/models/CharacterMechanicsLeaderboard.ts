@@ -21,6 +21,13 @@ export interface IMechanicsBossScore {
   rankPercent: number | null;
 }
 
+// Character-page results only. Never used as the raid-wide leaderboard/CCG input.
+export interface IProfileBossScore extends IMechanicsBossScore {
+  role: "dps" | "healer" | "tank";
+  metric: "dps" | "hps";
+  allStarsPoints: number | null;
+}
+
 export interface ICharacterMechanicsLeaderboard extends Document {
   zoneId: number;
   difficulty: number;
@@ -61,6 +68,7 @@ export interface ICharacterMechanicsLeaderboard extends Document {
   averageDeathPercent: number | null;
   deathDataAvailable: boolean;
   bossScores: IMechanicsBossScore[];
+  profileBossScores?: IProfileBossScore[];
   scoreVersion: number;
   raidFightCoverage: number;
   eligibleFightCount: number;
@@ -73,26 +81,24 @@ export interface ICharacterMechanicsLeaderboard extends Document {
   updatedAt: Date;
 }
 
-const MechanicsBossScoreSchema = new Schema<IMechanicsBossScore>(
-  {
-    encounterId: { type: Number, required: true },
-    encounterName: { type: String, required: true },
-    score: { type: Number, default: null },
-    parseScore: { type: Number, default: null },
-    survivalScore: { type: Number, default: null },
-    survivalPercentile: { type: Number, default: null },
-    pulls: { type: Number, default: 0 },
-    evaluatedPulls: { type: Number, default: 0 },
-    deaths: { type: Number, default: 0 },
-    survivedPulls: { type: Number, default: 0 },
-    earlyDeaths: { type: Number, default: 0 },
-    averageDeathPercent: { type: Number, default: null },
-    deathDataAvailable: { type: Boolean, default: false },
-    specName: { type: String, required: true },
-    rankPercent: { type: Number, default: null },
-  },
-  { _id: false },
-);
+const mechanicsBossScoreFields = {
+  encounterId: { type: Number, required: true },
+  encounterName: { type: String, required: true },
+  score: { type: Number, default: null },
+  parseScore: { type: Number, default: null },
+  survivalScore: { type: Number, default: null },
+  survivalPercentile: { type: Number, default: null },
+  pulls: { type: Number, default: 0 },
+  evaluatedPulls: { type: Number, default: 0 },
+  deaths: { type: Number, default: 0 },
+  survivedPulls: { type: Number, default: 0 },
+  earlyDeaths: { type: Number, default: 0 },
+  averageDeathPercent: { type: Number, default: null },
+  deathDataAvailable: { type: Boolean, default: false },
+  specName: { type: String, required: true },
+  rankPercent: { type: Number, default: null },
+};
+const MechanicsBossScoreSchema = new Schema<IMechanicsBossScore>(mechanicsBossScoreFields, { _id: false });
 
 const CharacterMechanicsLeaderboardSchema = new Schema<ICharacterMechanicsLeaderboard>(
   {
@@ -135,6 +141,17 @@ const CharacterMechanicsLeaderboardSchema = new Schema<ICharacterMechanicsLeader
     averageDeathPercent: { type: Number, default: null },
     deathDataAvailable: { type: Boolean, default: false },
     bossScores: { type: [MechanicsBossScoreSchema], default: [] },
+    profileBossScores: {
+      type: [new Schema<IProfileBossScore>({
+        ...mechanicsBossScoreFields,
+        specName: { type: String, default: "" },
+        role: { type: String, enum: ["dps", "healer", "tank"], required: true },
+        metric: { type: String, enum: ["dps", "hps"], required: true },
+        allStarsPoints: { type: Number, default: null },
+      }, { _id: false })],
+      // Absence means this raid has not yet been rebuilt with profile results.
+      default: undefined,
+    },
     scoreVersion: { type: Number, default: CHARACTER_MECHANICS_SCORE_VERSION },
     raidFightCoverage: { type: Number, default: 0 },
     eligibleFightCount: { type: Number, default: 0 },

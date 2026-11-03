@@ -2,7 +2,7 @@ import { isCharacterScoringEncounter, characterScoringEncounterFilter, raidLairs
 import mongoose from "mongoose";
 import { MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } from "../config/character-eligibility";
 import { CURRENT_RAID_IDS } from "../config/guilds";
-import CharacterMechanicsLeaderboard, { CHARACTER_MECHANICS_SCORE_VERSION, IMechanicsBossScore } from "../models/CharacterMechanicsLeaderboard";
+import CharacterMechanicsLeaderboard, { CHARACTER_MECHANICS_SCORE_VERSION, IMechanicsBossScore, IProfileBossScore } from "../models/CharacterMechanicsLeaderboard";
 import Character from "../models/Character";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
 import Fight, { IFightCombatant, IPlayerDeath } from "../models/Fight";
@@ -100,6 +100,7 @@ type ParseRow = {
   totalKills: number;
   partition: number;
   updatedAt: Date;
+  allStarsPoints?: number;
 };
 
 type MechanicsFight = {
@@ -209,6 +210,7 @@ class CharacterMechanicsService {
           totalKills: { $first: "$totalKills" },
           partition: { $first: "$partition" },
           updatedAt: { $first: "$updatedAt" },
+          allStarsPoints: { $first: "$allStars.points" },
         },
       },
     ]).allowDiskUse(true)) as ParseRow[];
@@ -240,6 +242,12 @@ class CharacterMechanicsService {
     this.normalizeBossSurvivalScores(bossEntries);
 
     const overallEntries = this.buildOverallEntries(bossEntries, identities);
+    // Normalize a separate population: off-role participants must not change
+    // the existing leaderboard, tier-list or CCG scores (including percentiles).
+    const profileScores = this.buildProfileBossScores(zoneId, parseRows.filter(row => isCharacterScoringEncounter(zoneId, row.encounterId)), survivalBuild);
+    for (const entry of overallEntries) {
+      entry.profileBossScores = profileScores.get(this.getCharacterKey(entry.characterId)) ?? [];
+    }
     const entries = [...bossEntries, ...overallEntries];
     for (const lair of raidLairs(zoneId)) {
       if (isCharacterScoringEncounter(zoneId, lair.id)) continue;
@@ -687,6 +695,7 @@ class CharacterMechanicsService {
     parseRows: ParseRow[],
     survivalBuild: SurvivalBuild,
     guildByCharacter: Map<string, { name: string; realm: string }>,
+    allRoles = false,
   ): { bossEntries: any[]; identities: Map<string, RaidIdentityResolution> } {
     const rolePulls = new Map<string, Map<Role, number>>();
     const roleEvidence = new Map<string, Set<Role>>();
@@ -739,25 +748,40 @@ class CharacterMechanicsService {
       // Older rosters can omit specs. Infer their role only when the raid evidence is unambiguous.
       const role = recordedRole === "unknown" && roleEvidence.get(characterKey)?.size === 1
         ? identity.role : recordedRole;
-      if (role !== identity.role) continue;
+      if (role === "unknown" || (!allRoles && role !== identity.role)) continue;
       const roleKey = `${characterKey}|${encounterId}|${role}`;
       const current = statsByBossRole.get(roleKey);
       if (!current) statsByBossRole.set(roleKey, { ...stats });
       else for (const field of Object.keys(stats) as Array<keyof SurvivalStats>) current[field] += stats[field];
     }
 
+    if (allRoles) {
+      // Keep parse-only bosses visible without inventing survival data or pulls.
+      for (const key of parseByBossRole.keys()) {
+        if (!statsByBossRole.has(key) && identities.has(key.split("|")[0])) {
+          statsByBossRole.set(key, { pulls: 0, evaluatedPulls: 0, deaths: 0, survivedPulls: 0, earlyDeaths: 0, scoreTotal: 0, deathPercentTotal: 0, earlyDeathSeverityTotal: 0 });
+        }
+      }
+    }
     const updatedAt = new Date();
     const bossEntries = Array.from(statsByBossRole).flatMap(([key, stats]) => {
-      const [characterKey, encounterIdValue] = key.split("|");
+      const [characterKey, encounterIdValue, recordedRole] = key.split("|");
       const character = survivalBuild.characters.get(characterKey)!;
       const identity = identities.get(characterKey)!;
       const encounterId = Number(encounterIdValue);
+      const role = allRoles ? recordedRole as Role : identity.role;
+      const metric = role === "healer" ? "hps" : "dps";
       // Off-role kills can still supply the raid metric (for example, Restoration DPS).
       // Prefer a role-matched parse and retain the role-specific mechanics population.
-      const row = parseByBossRole.get(key) ?? parseByBossMetric.get(`${characterKey}|${encounterId}|${identity.metric}`);
-      const representative = representativeParse.get(`${characterKey}|${identity.role}`);
+      const row = parseByBossRole.get(key) ?? (allRoles ? undefined : parseByBossMetric.get(`${characterKey}|${encounterId}|${identity.metric}`));
+      const representative = representativeParse.get(`${characterKey}|${role}`);
       const survival = this.summarizeSurvivalStats(stats);
-      if (survival.survivalScore === null) return [];
+      if (!allRoles && survival.survivalScore === null) return [];
+      const specName = allRoles
+        ? row?.specName ?? representative?.specName ?? Array.from(survivalBuild.specPullsByCharacter.get(characterKey) ?? [])
+          .filter(([spec]) => tryResolveRole(character.classID, spec) === role)
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? ""
+        : row?.specName ?? identity.specName;
       const guild = guildByCharacter.get(characterKey);
       const parseScore = row ? this.roundScore(row.rankPercent) : null;
       return [{
@@ -767,14 +791,14 @@ class CharacterMechanicsService {
         type: "boss",
         encounterId,
         encounterName: survivalBuild.encounters.get(encounterId) ?? row?.encounterName ?? "",
-        metric: identity.metric,
-        role: identity.role,
-        specName: row?.specName ?? identity.specName,
-        bestSpecName: row?.specName ?? identity.specName,
+        metric,
+        role,
+        specName,
+        bestSpecName: specName,
         identityMethod: identity.method,
         identityConfidence: identity.confidence,
         ilvl: row?.ilvl ?? representative?.ilvl ?? 0,
-        score: parseScore === null ? null : this.combineScores(parseScore, survival.survivalScore),
+        score: parseScore === null || survival.survivalScore === null ? null : this.combineScores(parseScore, survival.survivalScore),
         parseScore,
         ...survival,
         survivalPercentile: null,
@@ -782,7 +806,8 @@ class CharacterMechanicsService {
         medianPercent: row?.medianPercent ?? 0,
         totalKills: row?.totalKills ?? 0,
         bestAmount: row?.bestAmount ?? 0,
-        deathDataAvailable: true,
+        deathDataAvailable: survival.survivalScore !== null,
+        ...(allRoles ? { allStarsPoints: row?.allStarsPoints ?? null } : {}),
         bossScores: [],
         scoreVersion: CHARACTER_MECHANICS_SCORE_VERSION,
         raidFightCoverage: survivalBuild.coverage,
@@ -795,6 +820,23 @@ class CharacterMechanicsService {
       }];
     });
     return { bossEntries, identities };
+  }
+
+  private buildProfileBossScores(zoneId: number, parseRows: ParseRow[], survivalBuild: SurvivalBuild): Map<string, IProfileBossScore[]> {
+    const { bossEntries } = this.buildBossEntries(zoneId, parseRows, survivalBuild, new Map(), true);
+    this.normalizeBossSurvivalScores(bossEntries);
+    const byCharacter = new Map<string, IProfileBossScore[]>();
+    for (const entry of bossEntries) {
+      const scores = byCharacter.get(this.getCharacterKey(entry.characterId)) ?? [];
+      const { encounterId, encounterName, role, metric, specName, rankPercent, allStarsPoints,
+        score, parseScore, survivalScore, survivalPercentile, pulls, evaluatedPulls, deaths,
+        survivedPulls, earlyDeaths, averageDeathPercent, deathDataAvailable } = entry;
+      scores.push({ encounterId, encounterName, role, metric, specName, rankPercent, allStarsPoints,
+        score, parseScore, survivalScore, survivalPercentile, pulls, evaluatedPulls, deaths,
+        survivedPulls, earlyDeaths, averageDeathPercent, deathDataAvailable });
+      byCharacter.set(this.getCharacterKey(entry.characterId), scores);
+    }
+    return byCharacter;
   }
 
   private resolveRaidIdentities(

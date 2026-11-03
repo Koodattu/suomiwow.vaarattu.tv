@@ -140,6 +140,27 @@
     "forgeHint": "Napauta hahmoa asettaaksesi kolme · Iske vasaralla",
     "forgeEmpty": "Kerää 3 samaa hahmoa samaa laatua jalostaaksesi sen",
     "world": {
+      "overview": {
+        "facilities": "Toiminnot",
+        "labels": {
+          "shop": "Kauppa",
+          "gallery": "Kokoelma",
+          "pond": "Kalastus",
+          "crate": "Arkku",
+          "wheel": "Pyörä",
+          "quests": "Tehtävät",
+          "recycler": "Kierrätys",
+          "forge": "Paja",
+          "trading": "Vaihto",
+          "mail": "Lahjat",
+          "feed": "Saaliit",
+          "fame": "Kunnia",
+          "leaderboard": "Sijat"
+        },
+        "openBoxes": "Laatikot",
+        "boxCost": "1 kolikko / laatikko",
+        "back": "Takaisin"
+      },
       "close": "Sulje",
       "stations": {
         "gallery": "Kokoelma",
@@ -186,20 +207,34 @@
         "clear": "Tyhjennä"
       },
       "crate": {
-        "body": "Ilmainen laatikko joka päivä. Tule päivittäin: seitsemännen päivän arkku takaa myös kultaheiton.",
+        "body": "Ilmainen kolikko joka päivä. Tule päivittäin: seitsemäntenä päivänä saat myös kultaheiton.",
         "day": "Päivä {day}",
         "open": "Avaa päivän arkku",
         "got": "Päivä {day}: {reward}",
         "day7": "Kultaheitto",
-        "next": "Päivän {day} arkku aukeaa {time}"
+        "next": "Päivän {day} arkku aukeaa {time}",
+        "title": "Päivän aarre",
+        "action": "Avaa arkku",
+        "opening": "Avataan…",
+        "invitation": "Pieni aarre juuri sinulle.",
+        "hint": "Avaa napauttamalla arkkua tai painamalla välilyöntiä.",
+        "anticipation": "Sisällä odottaa jotain hyvää.",
+        "reward": "+1 kolikko",
+        "collect": "Kerää",
+        "dismissReward": "Kerää napauttamalla ruutua",
+        "goldenReward": "Saat myös kultaheiton.",
+        "claimed": "Lunastettu",
+        "comeBack": "Tule huomenna hakemaan uusi aarre.",
+        "controls": "Päivän arkun toiminnot",
+        "back": "Takaisin"
       },
       "wheel": {
         "body": "Yksi ilmainen pyöräytys päivässä.",
         "spin": "Pyöräytä",
         "prizes": {
-          "box1": "+1 laatikko",
-          "box2": "+2 laatikkoa",
-          "box3": "+3 laatikkoa",
+          "coin1": "+1 kolikko",
+          "coin2": "+2 kolikkoa",
+          "coin3": "+3 kolikkoa",
           "golden": "kultatehostus",
           "galaxy": "galaksitehostus",
           "figure": "satunnainen hahmo"
@@ -220,11 +255,11 @@
         "send": "Lähetä lahja"
       },
       "quests": {
-        "body": "Päivä-, viikko- ja kuukausitehtäviä. Suorita ne saadaksesi lisää laatikoita.",
+        "body": "Päivittäisiä, viikoittaisia ja kuukausittaisia tehtäviä. Suorita niitä ja ansaitse kolikoita.",
         "daily": "Päivä",
         "weekly": "Viikko",
         "monthly": "Kuukausi",
-        "reward": "{count, plural, one {+# laatikko} other {+# laatikkoa}}",
+        "reward": "{count, plural, one {+# kolikko} other {+# kolikkoa}}",
         "claim": "Lunasta",
         "items": {
           "open3": "Avaa 3 laatikkoa",
@@ -280,42 +315,58 @@
         "body": "Vaihda hahmoja muiden pelaajien kanssa: tarjoa omaasi, pyydä heidän omaansa, ja molemmat hyväksyvät."
       },
       "pond": {
+        "dismissCatch": "Sulje napauttamalla ruutua",
         "cast": "Heitä",
-        "castAgain": "Heitä uudelleen",
         "strike": "Vedä!",
-        "phase": {
-          "idle": "Siima on sisällä",
-          "cast": "Heitetään…",
-          "wait": "Odotetaan tärppiä",
-          "bite": "Tärppi!"
-        },
-        "how": {
-          "idle": "Napauta onkea heittääksesi.",
-          "cast": "Sinne menee.",
-          "wait": "Anna pienten nykäisyjen olla. Kun koho sukeltaa, napauta sitä.",
-          "bite": "Napauta kohoa nyt!"
-        },
-        "missed": "Liian hidas: se pääsi karkuun.",
-        "spooked": "Liian aikaisin: säikäytit sen.",
-        "prizeCatch": "Palkintosaalis",
+        "back": "Takaisin",
+        "controls": "Kalastus",
         "weight": "{weight} lb",
-        "newKind": "Uusi kalakirjaan!",
-        "best": "Lajinsa suurin tähän asti!",
-        "prizes": "Päivän palkintosaaliit",
-        "prize": {
-          "box": "Laatikko",
-          "figure": "Hahmo"
+        "banner": {
+          "new": "Uusi saalis!",
+          "best": "Oma ennätys!",
+          "caught": "Saalis",
+          "treasure": "Aarre!",
+          "figure": "Kalastit figuurin!",
+          "joins": "liittyy kokoelmaasi",
+          "coins": "Kolikoita!",
+          "earned": "{count, plural, one {+# kolikko} other {+# kolikkoa}}"
         },
-        "prizesDone": "Kaikki kolme saatu. Kalat syövät yhä.",
-        "log": "Kalakirja"
+        "log": "Kalakirja",
+        "closeLog": "Sulje kalakirja",
+        "logSummary": "{kinds}/{total} lajia · {count, plural, one {# saalis} other {# saalista}}",
+        "logRecord": "Ennätys: {name}, {weight} lb",
+        "logCount": "×{count}",
+        "logBest": "Paras {weight} lb",
+        "logMissing": "Ei vielä saatu",
+        "unknown": "???",
+        "rarity": {
+          "junk": "Roska",
+          "common": "Tavallinen",
+          "uncommon": "Harvinaisehko",
+          "rare": "Harvinainen",
+          "epic": "Eeppinen"
+        },
+        "rankings": "Tulokset",
+        "board": "Kalastajien taulu",
+        "closeBoard": "Sulje kalastajien taulu",
+        "boardIntro": "Jokainen kala tuo pisteitä. Kymmenen parasta saalistasi muodostavat pisteesi.",
+        "standings": "Sijoitukset",
+        "you": "Sinä",
+        "standingsSoon": "Killan tulostaulut tulevat Discord-kirjautumisen myötä.",
+        "bestTen": "Parhaat saaliisi · {count}/{total}",
+        "boardEmpty": "Taulu on vielä tyhjä. Nappaa kala saadaksesi pisteitä.",
+        "points": "{points} p",
+        "gain": "+{points} p",
+        "scoring": "Pisteytys",
+        "scoringSize": "× koko lajissaan, 1–2",
+        "scoringFinish": "× kulta {golden}, galaksi {galaxy}"
       },
       "rewards": {
-        "boxes": "{count, plural, one {# laatikko} other {# laatikkoa}}",
         "boost": "{quality}-tehostus",
         "figure": "{name} liittyy kokoelmaasi",
-        "banked": "Laatikoita säästössä ×{count}",
         "boostNext": "Seuraava laatikko: vähintään {quality}",
-        "bankedHint": "Säästetyt laatikot ovat sitä varten, kun laatikoita rajoitetaan."
+        "coins": "{count, plural, one {# kolikko} other {# kolikkoa}}",
+        "balance": "Kolikot: {count}"
       }
     },
     "tradedUp": "Paranneltu!",
@@ -336,7 +387,12 @@
     "galleryRetry": "Lataa malli uudelleen",
     "weaponsHeld": "Aseet kädessä",
     "weaponsSheathed": "Aseet kannossa",
-    "openAnother": "Avaa toinen"
+    "openAnother": "Avaa toinen",
+    "coinsLabel": "Kolikot",
+    "coinsHelp": "Ansaitse pelaamalla. Alussa saat 3 kolikkoa ja yhden lisää 4 tunnin välein. Ei ostoksia.",
+    "pullToOpenCoin": "Avaa vetämällä teipistä · 1 kolikko",
+    "openBoxCoin": "Avaa laatikko · 1 kolikko",
+    "noCoins": "Ei kolikoita · Kalasta, lunasta päiväpalkintoja tai suorita tehtäviä."
   },
   "horseRace": {
     "label": "Kilpailu kahden viimeisen pomon läpi",
@@ -3303,7 +3359,23 @@
   },
   "characterProfile": {
     "firstSeen": "Ensimmäinen havainto",
-    "lastSeen": "Viimeisin havainto"
+    "lastSeen": "Viimeisin havainto",
+    "performance": {
+      "metricFilter": "Suoritusmittari",
+      "all": "Kaikki",
+      "dps": "DPS",
+      "hps": "HPS",
+      "mixed": "Sekarooli",
+      "damage": "Vahinko",
+      "healer": "Parantaja",
+      "tank": "Tankki",
+      "rolePulls": "{role}: {count, plural, one {# kirjattu yritys} other {# kirjattua yritystä}}",
+      "selectionHint": "Kaikki valitsee kullekin bossille eniten pelatun roolin, myös epäonnistuneet yritykset huomioiden. Raidin yhteenveto perustuu valittuihin bossituloksiin.",
+      "rankingTotal": "Valittujen bossiparsejen All Star -pisteiden summa.",
+      "combinedTotal": "Saatavilla olevien yhdistettyjen bossipisteiden keskiarvo. Bossit, joilta puuttuu rooliin sopiva parse tai mekaniikkapisteet, jätetään pois.",
+      "noParse": "Tälle roolille ei ole tappoparsea.",
+      "noMechanics": "Tälle roolille ei ole arvioitua mekaniikkadataa."
+    }
   },
   "accountProfile": {
     "mostSeenCharacter": "Eniten nähty hahmo",
