@@ -29,8 +29,11 @@ as `daily-chest-models-001/treasurechest01.glb`. Keep its skeleton and Open/Open
 clips through optimization and KTX2 conversion. `figurine-chest.ts` plays Open on
 claim, holds the open pose, and plays Close when the next day's crate becomes ready.
 The fishing prize still uses the separate static `chest-02.glb`.
-The daily chest's printed reward box shares the shop's first released box. Its
-bottom action, Space key and chest tap use the same claim handler. During local
+The daily chest and fishing coin rewards use `spells/treasuregoblin_coinpile.m2`
+(fileDataID 916363), exported as `coins-2026-11-03-models-001` and registered as
+`coin` in `figurine-props.ts`. Its HUD icon is baked from that same model with
+`node scripts/bake-fish-cards.mjs 3211`, then `http://localhost:3211/?coin`.
+The chest's bottom action, Space key and chest tap use the same claim handler. During local
 development, each page load permits one opening without changing the saved daily
 streak; production retains the daily limit. Opening/lift/reward sounds were generated
 with the playground script and mastered offline; prompts and sources are recorded

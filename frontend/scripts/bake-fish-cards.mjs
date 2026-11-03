@@ -1,6 +1,7 @@
 // Bakes a picture of every catch in the fishing pond (public/figurines/world/fish/<id>.webp) for the
 // fish log and the catch banner, from the same game models the pond shows.
 // The models are rendered by a browser, so this serves a bake page and saves what it posts back.
+// Add ?coin to the bake URL to render the currency icon from its game model.
 // Usage: node scripts/bake-fish-cards.mjs [port], then open http://localhost:<port>/
 import http from "node:http";
 import fs from "node:fs/promises";
@@ -17,7 +18,7 @@ const out = path.join(frontend, "public/figurines/world/fish");
 http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://localhost");
-    if (req.method === "POST" && url.pathname === "/fish") {
+    if (req.method === "POST" && (url.pathname === "/fish" || url.pathname === "/coin")) {
       // Same-origin only: the page this server served.
       if (req.headers.origin !== `http://localhost:${port}`) { res.writeHead(403); res.end(); return; }
       const id = url.searchParams.get("id");
@@ -25,7 +26,7 @@ http.createServer(async (req, res) => {
       const chunks = []; let size = 0;
       for await (const chunk of req) { size += chunk.length; if (size > 8_000_000) throw new Error("Picture too large"); chunks.push(chunk); }
       await fs.mkdir(out, { recursive: true });
-      const info = await sharp(Buffer.concat(chunks)).webp({ quality: 86, alphaQuality: 90, effort: 6 }).toFile(path.join(out, `${id}.webp`));
+      const info = await sharp(Buffer.concat(chunks)).webp({ quality: 86, alphaQuality: 90, effort: 6 }).toFile(url.pathname === "/coin" ? path.join(frontend, "public/figurines/world/coin.webp") : path.join(out, `${id}.webp`));
       console.log(`${id}: ${info.width}×${info.height}, ${info.size} bytes`);
       res.end(JSON.stringify({ id, bytes: info.size })); return;
     }

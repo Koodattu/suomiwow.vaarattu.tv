@@ -122,7 +122,7 @@ test("both series have unique figures, translations, silhouettes and class sound
   // Every station prop is on disk and has its game source recorded.
   const props = await readFile(new URL("../src/lib/figurine-props.ts", import.meta.url), "utf8");
   const sources = JSON.parse(await readFile(new URL("../public/figurines/world/source-models.json", import.meta.url), "utf8"));
-  const recorded = new Set([...sources.models.models, ...sources.stations.models, ...sources.facilities.models].map(({ name }) => name));
+  const recorded = new Set([...sources.models.models, ...sources.stations.models, ...sources.facilities.models, ...sources.dailyChest.models, ...sources.coins.models].map(({ name }) => name));
   for (const [, name] of props.matchAll(/"\/figurines\/world\/models\/([a-z0-9-]+)\.glb"/g)) {
     await access(new URL(`../public/figurines/world/models/${name}.glb`, import.meta.url));
     assert.ok(recorded.has(name), name);

@@ -20,7 +20,7 @@ async function pondScene(t) {
   t.after(() => { globalThis.document = previous; globalThis.ProgressEvent = previousProgress; });
   // Keep the actual compressed geometry and node transforms; only GPU textures are omitted.
   t.mock.method(GLTFLoader.prototype, "loadAsync", async function (url) {
-    if (!/dock-small|fishing-pole|fish-uldum-|fish-dead-|fish-draenor-|boot-junk|gift-01|chest-02/.test(url)) return { scene: new THREE.Group() };
+    if (!/dock-small|fishing-pole|fish-uldum-|fish-dead-|fish-draenor-|boot-junk|treasuregoblin-coinpile|community-001/.test(url)) return { scene: new THREE.Group(), animations: [] };
     const bytes = await readFile(new URL(`../public${url.split("?")[0]}`, import.meta.url));
     const length = bytes.readUInt32LE(12), json = JSON.parse(bytes.subarray(20, 20 + length));
     json.buffers[0].uri = `data:application/octet-stream;base64,${bytes.subarray(28 + length).toString("base64")}`;
@@ -30,13 +30,15 @@ async function pondScene(t) {
     return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(JSON.stringify(json), "");
   });
   const root = new THREE.Group(); root.position.set(6.9, 0, 16.9); root.rotation.y = 0.4;
-  const place = propPlacer(), placed = [];
-  const pond = buildFacility(root, "pond", { envMap: new THREE.Texture(), placeProp: (...args) => {
+  const place = propPlacer(), placed = [], figures = [];
+  const pond = buildFacility(root, "pond", { envMap: new THREE.Texture(), loadFigure: (url) => {
+    const ready = new GLTFLoader().loadAsync(url).then(({ scene }) => scene); figures.push(ready); return ready;
+  }, placeProp: (...args) => {
     const result = place(...args); placed.push({ name: args[1], ...result }); return result;
   } });
   await pond.ready;
   t.after(() => pond.dispose());
-  return { root, pond, placed };
+  return { root, pond, placed, figures };
 }
 
 test("the real dock's pilings and click bounds end immediately beneath the ground", async t => {
@@ -87,7 +89,7 @@ test("small catches are enlarged, spin, and dismiss without repeating the reward
   for (let i = 0; i < 20; i++) { pond.update(0.1, 10 + i / 10); pond.present(camera); }
   assert.equal(show.visible, false); assert.equal(backdrop.visible, false);
   assert.equal(model.parent, null); assert.equal(rewards, 1, "dismissal neither grants nor revokes a catch");
-  pond.act({ kind: "cast", catch: { kind: "box" } }, cue => { phase = cue; }, () => {});
+  pond.act({ kind: "cast", catch: { kind: "coin" } }, cue => { phase = cue; }, () => {});
   for (let i = 0; i < 15; i++) pond.update(0.1, 13 + i / 10);
   assert.equal(phase, "splash", "casting after dismissal works");
 });
@@ -112,7 +114,7 @@ test("a landed fish stays centred through camera rotation, zoom and a portrait v
     const centre = new THREE.Box3().setFromObject(catchModel).getCenter(new THREE.Vector3()).project(camera);
     assert.ok(Math.abs(centre.x) < 0.02 && Math.abs(centre.y) < 0.08, `catch is near the viewport centre: ${centre.toArray()}`);
   }
-  pond.act({ kind: "cast", catch: { kind: "box" } }, () => {}, () => {});
+  pond.act({ kind: "cast", catch: { kind: "coin" } }, () => {}, () => {});
   for (let i = 0; i < 8; i++) pond.update(0.1, 11 + i / 10);
   assert.equal(catchModel.parent, null, "casting stows and releases the previous fish");
 });
@@ -158,20 +160,44 @@ test("the reveal joins its display pose smoothly and dismissal follows a fixed a
   assert.equal(show.visible, false); assert.equal(model.parent, null); assert.equal(rewards, 1);
 });
 
-test("every real catch model arrives level and right-side up, then spins around screen-up without tilting", async t => {
+// Measure the mesh rather than assuming its exported X/Y/Z axes follow its body.
+// Unique vertices prevent UV seams from giving one side extra weight.
+function bodyAxes(geometry) {
+  const positions = geometry.attributes.position, unique = new Map();
+  for (let i = 0; i < positions.count; i++) {
+    const point = new THREE.Vector3().fromBufferAttribute(positions, i);
+    unique.set(point.toArray().map(value => value.toFixed(5)).join(","), point);
+  }
+  const points = [...unique.values()], centre = points.reduce((sum, point) => sum.add(point), new THREE.Vector3()).divideScalar(points.length);
+  const covariance = Array.from({ length: 3 }, () => [0, 0, 0]);
+  for (const point of points) {
+    const offset = point.clone().sub(centre).toArray();
+    for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) covariance[row][col] += offset[row] * offset[col] / points.length;
+  }
+  const axes = [];
+  for (let axis = 0; axis < 2; axis++) {
+    const direction = new THREE.Vector3(1, 0.7, 0.3).normalize();
+    const multiply = vector => covariance.map(row => row.reduce((sum, value, col) => sum + value * vector[col], 0));
+    for (let i = 0; i < 80; i++) direction.set(...multiply(direction.toArray())).normalize();
+    const vector = direction.toArray(), magnitude = direction.dot(new THREE.Vector3(...multiply(vector)));
+    axes.push(direction);
+    for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) covariance[row][col] -= magnitude * vector[row] * vector[col];
+  }
+  return axes;
+}
+
+test("actual fish bodies stay level and dorsal fins stay upright through a complete spin", async t => {
   const { root, pond, placed } = await pondScene(t);
   const camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.1, 100);
   camera.position.set(6, 4, 27); camera.lookAt(6.9, 0, 16.9);
   let phase, result, time = 0;
   const frame = delta => { time += delta; pond.update(delta, time); pond.present(camera); };
-  // Authored dorsal/sole/lid axes from the actual models. Firefin is authored along X;
-  // the other fish run along Z. Boots, gifts and chests are already upright along Y.
   const fish = ["smallfish", "mudsnapper", "catfish", "blackmouth", "firefin", "deviate", "yellowtail", "eel", "salmon", "mightfish", "boot"];
   const cases = [
-    ...fish.map(id => ({ visual: { kind: "fish", fish: id, length: 0.6, quality: id === "firefin" ? "golden" : "standard" }, up: id === "boot" ? [0, 1, 0] : id === "firefin" ? [0, 0, 1] : [-1, 0, 0], along: id === "firefin" ? [1, 0, 0] : [0, 0, 1] })),
-    { visual: { kind: "box" }, up: [0, 1, 0] }, { visual: { kind: "figure" }, up: [0, 1, 0] },
+    ...fish.map(id => ({ visual: { kind: "fish", fish: id, length: 0.6, quality: id === "firefin" ? "golden" : "standard" }, up: [0, 1, 0] })),
+    { visual: { kind: "coin" }, up: [-0.809016994, 0, -0.587785252] },
   ];
-  for (const { visual, up, along } of cases) {
+  for (const { visual, up } of cases) {
     phase = result = null; pond.present(camera);
     pond.act({ kind: "cast", catch: visual }, cue => { phase = cue; }, value => { result = value; });
     await placed.at(-1).ready;
@@ -180,17 +206,26 @@ test("every real catch model arrives level and right-side up, then spins around 
     for (let i = 0; i < 150 && !result; i++) frame(0.01);
     assert.equal(result, "caught");
     const model = placed.at(-1).group, holder = model.parent, label = visual.fish ?? visual.kind;
+    const measured = new Map();
+    if (visual.kind === "fish" && label !== "boot") model.traverse(mesh => {
+      if (!mesh.isMesh) return;
+      const [along, dorsal] = bodyAxes(mesh.geometry);
+      if (along.dot(label === "firefin" ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)) < 0) along.negate();
+      if (dorsal.dot(label === "firefin" ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(-1, 0, 0)) < 0) dorsal.negate();
+      measured.set(mesh, { along, dorsal });
+    });
     assert.equal(holder.rotation.y, 0, `${label}: no display spin leaks into its arrival pose`);
     const assertUpright = () => {
       root.updateMatrixWorld(true);
       const cameraInverse = camera.quaternion.clone().invert();
       model.traverse(mesh => {
         if (!mesh.isMesh) return;
-        const screenUp = new THREE.Vector3(...up).transformDirection(mesh.matrixWorld).applyQuaternion(cameraInverse);
-        assert.ok(screenUp.distanceTo(new THREE.Vector3(0, 1, 0)) < 1e-6, `${label}: its top must point to screen-up, got ${screenUp.toArray()}`);
-        if (along && label !== "boot") {
-          const body = new THREE.Vector3(...along).transformDirection(mesh.matrixWorld).applyQuaternion(cameraInverse);
-          assert.ok(Math.abs(body.y) < 1e-6, `${label}: its body must stay level`);
+        const axes = measured.get(mesh);
+        const screenUp = (axes ? axes.dorsal.clone() : new THREE.Vector3(...up)).transformDirection(mesh.matrixWorld).applyQuaternion(cameraInverse);
+        assert.ok(screenUp.distanceTo(new THREE.Vector3(0, 1, 0)) < 0.002, `${label}: its actual dorsal axis must point up, got ${screenUp.toArray()}`);
+        if (axes) {
+          const body = axes.along.clone().transformDirection(mesh.matrixWorld).applyQuaternion(cameraInverse);
+          assert.ok(Math.abs(body.y) < 0.002, `${label}: its actual body must stay level`);
           if (holder.rotation.y === 0) assert.ok(Math.abs(body.x) > 0.999, `${label}: show its flank on arrival`);
         }
       });
@@ -198,8 +233,72 @@ test("every real catch model arrives level and right-side up, then spins around 
     assertUpright();
     camera.position.set(11, 7, 24); camera.lookAt(6.9, 0, 16.9); camera.rotateZ(0.15);
     pond.present(camera); assertUpright();
-    for (let i = 0; i < 12; i++) frame(0.1);
-    assert.ok(holder.rotation.y > 0.5, `${label}: the upright model still spins`); assertUpright();
+    for (let i = 0; i < 72; i++) { frame(0.1); assertUpright(); }
+    assert.ok(holder.rotation.y > 0.5, `${label}: the upright model still spins`);
+    assertUpright();
     pond.poke("dismiss"); for (let i = 0; i < 8; i++) frame(0.1);
   }
+});
+
+
+test("a caught coin faces the camera and flies into the HUD icon at the correct screen position", async t => {
+  const { root, pond, placed } = await pondScene(t);
+  const camera = new THREE.PerspectiveCamera(36, 9 / 16, 0.1, 100);
+  camera.position.set(8, 6, 26); camera.lookAt(6.9, 0, 16.9);
+  const target = { x: 0.72, y: 0.86, width: 0.12 };
+  let cue, result, time = 0; const cues = [];
+  const frame = delta => { time += delta; pond.update(delta, time); pond.present(camera, false, target); };
+  pond.act({ kind: "cast", catch: { kind: "coin" } }, value => { cue = value; cues.push(value); }, value => { result = value; });
+  await placed.at(-1).ready;
+  for (let i = 0; i < 80 && cue !== "bite"; i++) frame(0.1);
+  pond.poke("hook"); for (let i = 0; i < 120 && !result; i++) frame(0.01);
+  assert.equal(result, "caught");
+  const coin = placed.at(-1).group, show = coin.parent.parent;
+  assert.equal(cues.includes("coinCollected"), false);
+  const descendants = new Set(); coin.traverse(object => descendants.add(object));
+  coin.traverse(object => {
+    if (object.isSkinnedMesh) assert.ok(object.skeleton.bones.every(bone => descendants.has(bone)), "even without animation clips, the coin must use its own posed skeleton");
+  });
+  root.updateMatrixWorld(true);
+  const face = new THREE.Vector3(0, 1, 0).transformDirection(coin.matrixWorld).applyQuaternion(camera.quaternion.clone().invert());
+  assert.ok(face.distanceTo(new THREE.Vector3(0, 0, 1)) < 1e-6, "the coin's face points toward the camera, not edge-on");
+  frame(4); assert.equal(show.visible, true, "the coin waits for player dismissal");
+  pond.poke("dismiss"); for (let i = 0; i < 7; i++) frame(0.1);
+  root.updateMatrixWorld(true);
+  const destination = show.getWorldPosition(new THREE.Vector3()).project(camera);
+  assert.ok(Math.abs(destination.x - target.x) < 1e-6 && Math.abs(destination.y - target.y) < 1e-6, `HUD destination ${destination.toArray()}`);
+  assert.equal(show.visible, false);
+  frame(2); assert.equal(cues.filter(cue => cue === "coinCollected").length, 1, "pulse the counter once, on arrival");
+});
+
+test("figure catches display the awarded character model and release it on dismissal", async t => {
+  const { root, pond, placed, figures } = await pondScene(t);
+  const camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.1, 100);
+  camera.position.set(6, 4, 27); camera.lookAt(6.9, 0, 16.9);
+  let cue, result, time = 0;
+  const frame = delta => { time += delta; pond.update(delta, time); pond.present(camera); };
+  pond.act({ kind: "cast", catch: { kind: "figure", model: "/figurines/community-001/roidy.glb", quality: "golden" } }, value => { cue = value; }, value => { result = value; });
+  const figure = await figures[0]; await Promise.resolve();
+  const meshes = []; figure.traverse(object => { if (object.isMesh) meshes.push(object); });
+  assert.ok(meshes.length > 3, "the actual character's body and equipment were loaded");
+  assert.ok(!placed.some(prop => prop.name === "chest"), "no treasure chest substitutes for the figure");
+  for (let i = 0; i < 80 && cue !== "bite"; i++) frame(0.1);
+  pond.poke("hook"); for (let i = 0; i < 14; i++) frame(0.1);
+  assert.equal(result, "caught");
+  root.updateMatrixWorld(true);
+  const up = new THREE.Vector3(0, 1, 0).transformDirection(figure.matrixWorld).applyQuaternion(camera.quaternion.clone().invert());
+  assert.ok(up.distanceTo(new THREE.Vector3(0, 1, 0)) < 1e-6, "the collectible stays upright");
+  const show = figure.parent.parent.parent;
+  assert.ok(show.visible);
+  let disposed = false; meshes[0].geometry.addEventListener("dispose", () => { disposed = true; });
+  const startScale = show.scale.x;
+  pond.poke("dismiss"); frame(0.35);
+  root.updateMatrixWorld(true);
+  const halfway = show.getWorldPosition(new THREE.Vector3()).project(camera);
+  assert.ok(halfway.x < -0.5 && halfway.y > 0.5, "the figure flies up and off-screen, away from the lake");
+  assert.ok(show.scale.x > startScale * 0.85, "the figure stays substantial during its exit");
+  frame(0.35); root.updateMatrixWorld(true);
+  const exit = show.getWorldPosition(new THREE.Vector3()).project(camera);
+  assert.ok(exit.x < -1 && exit.y > 1, "the figure leaves the viewport before disappearing");
+  assert.equal(show.visible, false); assert.ok(disposed, "the catch releases its own model resources");
 });

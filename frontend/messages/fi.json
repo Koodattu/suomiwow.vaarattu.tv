@@ -186,7 +186,7 @@
         "clear": "Tyhjennä"
       },
       "crate": {
-        "body": "Ilmainen laatikko joka päivä. Tule päivittäin: seitsemännen päivän arkku takaa myös kultaheiton.",
+        "body": "Ilmainen kolikko joka päivä. Tule päivittäin: seitsemäntenä päivänä saat myös kultaheiton.",
         "day": "Päivä {day}",
         "open": "Avaa päivän arkku",
         "got": "Päivä {day}: {reward}",
@@ -198,7 +198,9 @@
         "invitation": "Pieni aarre juuri sinulle.",
         "hint": "Avaa napauttamalla arkkua tai painamalla välilyöntiä.",
         "anticipation": "Sisällä odottaa jotain hyvää.",
-        "reward": "Laatikko kokoelmaasi",
+        "reward": "+1 kolikko",
+        "collect": "Kerää",
+        "dismissReward": "Kerää napauttamalla ruutua",
         "goldenReward": "Saat myös kultaheiton.",
         "claimed": "Lunastettu",
         "comeBack": "Tule huomenna hakemaan uusi aarre.",
@@ -209,9 +211,9 @@
         "body": "Yksi ilmainen pyöräytys päivässä.",
         "spin": "Pyöräytä",
         "prizes": {
-          "box1": "+1 laatikko",
-          "box2": "+2 laatikkoa",
-          "box3": "+3 laatikkoa",
+          "coin1": "+1 kolikko",
+          "coin2": "+2 kolikkoa",
+          "coin3": "+3 kolikkoa",
           "golden": "kultatehostus",
           "galaxy": "galaksitehostus",
           "figure": "satunnainen hahmo"
@@ -232,11 +234,11 @@
         "send": "Lähetä lahja"
       },
       "quests": {
-        "body": "Päivä-, viikko- ja kuukausitehtäviä. Suorita ne saadaksesi lisää laatikoita.",
+        "body": "Päivittäisiä, viikoittaisia ja kuukausittaisia tehtäviä. Suorita niitä ja ansaitse kolikoita.",
         "daily": "Päivä",
         "weekly": "Viikko",
         "monthly": "Kuukausi",
-        "reward": "{count, plural, one {+# laatikko} other {+# laatikkoa}}",
+        "reward": "{count, plural, one {+# kolikko} other {+# kolikkoa}}",
         "claim": "Lunasta",
         "items": {
           "open3": "Avaa 3 laatikkoa",
@@ -303,10 +305,10 @@
           "best": "Oma ennätys!",
           "caught": "Saalis",
           "treasure": "Aarre!",
-          "box": "Paketoitu laatikko",
-          "banked": "{count, plural, one {+# laatikko säästöön} other {+# laatikkoa säästöön}}",
-          "chest": "Upponut arkku!",
-          "joins": "liittyy kokoelmaasi"
+          "figure": "Kalastit figuurin!",
+          "joins": "liittyy kokoelmaasi",
+          "coins": "Kolikoita!",
+          "earned": "{count, plural, one {+# kolikko} other {+# kolikkoa}}"
         },
         "log": "Kalakirja",
         "closeLog": "Sulje kalakirja",
@@ -339,12 +341,11 @@
         "scoringFinish": "× kulta {golden}, galaksi {galaxy}"
       },
       "rewards": {
-        "boxes": "{count, plural, one {# laatikko} other {# laatikkoa}}",
         "boost": "{quality}-tehostus",
         "figure": "{name} liittyy kokoelmaasi",
-        "banked": "Laatikoita säästössä ×{count}",
         "boostNext": "Seuraava laatikko: vähintään {quality}",
-        "bankedHint": "Säästetyt laatikot ovat sitä varten, kun laatikoita rajoitetaan."
+        "coins": "{count, plural, one {# kolikko} other {# kolikkoa}}",
+        "balance": "Kolikot: {count}"
       }
     },
     "tradedUp": "Paranneltu!",
@@ -365,7 +366,12 @@
     "galleryRetry": "Lataa malli uudelleen",
     "weaponsHeld": "Aseet kädessä",
     "weaponsSheathed": "Aseet kannossa",
-    "openAnother": "Avaa toinen"
+    "openAnother": "Avaa toinen",
+    "coinsLabel": "Kolikot",
+    "coinsHelp": "Ansaitse pelaamalla. Alussa saat 3 kolikkoa ja yhden lisää 4 tunnin välein. Ei ostoksia.",
+    "pullToOpenCoin": "Avaa vetämällä teipistä · 1 kolikko",
+    "openBoxCoin": "Avaa laatikko · 1 kolikko",
+    "noCoins": "Ei kolikoita · Kalasta, lunasta päiväpalkintoja tai suorita tehtäviä."
   },
   "horseRace": {
     "label": "Kilpailu kahden viimeisen pomon läpi",

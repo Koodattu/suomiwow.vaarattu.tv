@@ -8,7 +8,7 @@ import type { FishId } from "@/lib/figurine-collection";
 
 // Game props that dress the stations, exported with the local wow.export worker
 // (provenance: the "stations" and "facilities" entries of /figurines/world/source-models.json).
-const PROP_VERSION = 5;
+const PROP_VERSION = 6;
 export const STATION_PROPS = {
   gear: "/figurines/world/models/gnome-gear.glb",
   lamp: "/figurines/world/models/gnome-light.glb",
@@ -21,6 +21,7 @@ export const STATION_PROPS = {
   board: "/figurines/world/models/wanted-poster.glb",
   podium: "/figurines/world/models/podium.glb",
   chest: "/figurines/world/models/chest-02.glb",
+  coin: "/figurines/world/models/treasuregoblin-coinpile.glb",
   dailyChest: "/figurines/world/models/treasurechest01.glb",
   goldPile: "/figurines/world/models/gold-pile.glb",
   goldPileSmall: "/figurines/world/models/gold-pile-small.glb",
@@ -88,7 +89,31 @@ export const FISH_PROP: Record<FishId, StationProp> = {
   smallfish: "fishGreen", mudsnapper: "fishOrange", catfish: "fishPale", blackmouth: "fishBlue", firefin: "fishSpiny",
   deviate: "fishPurple", yellowtail: "fishGold", eel: "fishEel", salmon: "fishPink", mightfish: "fishBig", boot: "boot",
 };
+// Corrections in display space, in degrees, measured from the meshes' longitudinal
+// and dorsal axes. These dead-fish doodads lean on their sides even after the
+// quarter-turn that stands them up; spinning that uncorrected pose makes them wobble.
+export const FISH_DISPLAY_CORRECTION: Record<FishId, readonly [number, number, number]> = {
+  smallfish: [-18.489, -2.929, 5.464], mudsnapper: [-15.787, -2.987, -0.855],
+  blackmouth: [-15.787, -2.987, -0.855], deviate: [-17.474, -2.929, 2.215],
+  yellowtail: [0, 0, -4.307], catfish: [0, 0, -4.307], mightfish: [0, 0, -4.307],
+  salmon: [0, 0, -1.106], eel: [-19.647, 0.659, 3.228], firefin: [1.227, 2.476, 0.774],
+  boot: [0, 0, 0],
+};
 export type PlaceProp = ReturnType<typeof propPlacer>;
+// Face the camera, with the coin's authored lower-right rim resting flat at the
+// bottom. Apply the 54° clockwise face rotation after standing the coin upright.
+export function orientCoinModel(root: THREE.Object3D) {
+  root.rotation.set(Math.PI / 2, 0, -Math.PI * 0.3, "ZXY");
+}
+// This spell includes fade/dissolve overlays for its disappearance. Keep the solid
+// coin for the wallet and rewards, where those overlays would wash out its face.
+export function prepareCoinModel(root: THREE.Object3D) {
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    if (materials.every((material) => ["fade", "dissolvemattea"].includes(material.name))) object.visible = false;
+  });
+}
 // `height` sizes a prop by its height; `length`, if given, by its longest level extent instead.
 type Placement = { height: number; length?: number; x?: number; y?: number; z?: number; yaw?: number; shadow?: boolean };
 
@@ -106,6 +131,7 @@ export function propPlacer(ktx2Loader?: KTX2Loader) {
     if (!source) {
       source = loader.loadAsync(`${STATION_PROPS[prop]}?v=${PROP_VERSION}`).then((gltf) => {
         restoreFigurineMaterials(gltf.scene);
+        if (prop === "coin") prepareCoinModel(gltf.scene);
         gltf.scene.animations = gltf.animations;
         return gltf.scene;
       }, () => null);
@@ -113,7 +139,9 @@ export function propPlacer(ktx2Loader?: KTX2Loader) {
     }
     const ready = source.then((model) => {
       if (!model) return group;
-      const copy = model.animations.length ? cloneSkeleton(model) : model.clone(true);
+      // Some spell props (including the coin) have skinning but no animation clips.
+      // Their bones still need to follow this instance's position and rotation.
+      const copy = cloneSkeleton(model);
       const bounds = new THREE.Box3().setFromObject(copy);
       const size = bounds.getSize(new THREE.Vector3()), centre = bounds.getCenter(new THREE.Vector3());
       const scale = length ? length / Math.max(size.x, size.z, 1e-3) : height / Math.max(size.y, 1e-3);

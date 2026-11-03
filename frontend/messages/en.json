@@ -186,7 +186,7 @@
         "clear": "Clear"
       },
       "crate": {
-        "body": "A free box every day. Come back days in a row: the seventh day's crate also guarantees a golden roll.",
+        "body": "A free coin every day. Come back days in a row: the seventh day also guarantees a golden roll.",
         "day": "Day {day}",
         "open": "Open today's crate",
         "got": "Day {day}: {reward}",
@@ -198,7 +198,9 @@
         "invitation": "A little treasure, just for you.",
         "hint": "Tap the chest or press Space to open.",
         "anticipation": "Something good is waiting inside.",
-        "reward": "A box for your collection",
+        "reward": "+1 coin",
+        "collect": "Collect",
+        "dismissReward": "Tap anywhere to collect",
         "goldenReward": "A golden roll is yours, too.",
         "claimed": "Claimed",
         "comeBack": "Come back tomorrow for another treasure.",
@@ -209,9 +211,9 @@
         "body": "One free spin a day.",
         "spin": "Spin",
         "prizes": {
-          "box1": "+1 box",
-          "box2": "+2 boxes",
-          "box3": "+3 boxes",
+          "coin1": "+1 coin",
+          "coin2": "+2 coins",
+          "coin3": "+3 coins",
           "golden": "a golden boost",
           "galaxy": "a galaxy boost",
           "figure": "a random figure"
@@ -232,11 +234,11 @@
         "send": "Send gift"
       },
       "quests": {
-        "body": "Daily, weekly and monthly quests. Finish them for more boxes.",
+        "body": "Daily, weekly and monthly quests. Finish them to earn coins.",
         "daily": "Daily",
         "weekly": "Weekly",
         "monthly": "Monthly",
-        "reward": "{count, plural, one {+# box} other {+# boxes}}",
+        "reward": "{count, plural, one {+# coin} other {+# coins}}",
         "claim": "Claim",
         "items": {
           "open3": "Open 3 boxes",
@@ -303,10 +305,10 @@
           "best": "Personal best!",
           "caught": "Caught",
           "treasure": "Treasure!",
-          "box": "A wrapped box",
-          "banked": "{count, plural, one {+# box, banked} other {+# boxes, banked}}",
-          "chest": "A sunken chest!",
-          "joins": "joins your collection"
+          "figure": "You fished up a figurine!",
+          "joins": "joins your collection",
+          "coins": "Coins!",
+          "earned": "{count, plural, one {+# coin} other {+# coins}}"
         },
         "log": "Fish log",
         "closeLog": "Close the fish log",
@@ -339,12 +341,11 @@
         "scoringFinish": "× golden {golden}, galaxy {galaxy}"
       },
       "rewards": {
-        "boxes": "{count, plural, one {# box} other {# boxes}}",
         "boost": "{quality} boost",
         "figure": "{name} joins your collection",
-        "banked": "Boxes banked ×{count}",
         "boostNext": "Next box: {quality} or better",
-        "bankedHint": "Banked boxes are for when boxes become limited."
+        "coins": "{count, plural, one {# coin} other {# coins}}",
+        "balance": "Coins: {count}"
       }
     },
     "tradedUp": "Traded up!",
@@ -365,7 +366,12 @@
     "galleryRetry": "Reload model",
     "weaponsHeld": "Weapons in hand",
     "weaponsSheathed": "Weapons sheathed",
-    "openAnother": "Open another"
+    "openAnother": "Open another",
+    "coinsLabel": "Coins",
+    "coinsHelp": "Earned through play. Start with 3 coins; 1 regenerates every 4 hours. No purchases.",
+    "pullToOpenCoin": "Pull the tape to open · 1 coin",
+    "openBoxCoin": "Open box · 1 coin",
+    "noCoins": "No coins · Fish, claim daily rewards or complete quests."
   },
   "horseRace": {
     "label": "Race through the final two bosses",

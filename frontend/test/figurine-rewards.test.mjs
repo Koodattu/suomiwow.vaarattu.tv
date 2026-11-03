@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ANGLER_TOP, FISH, QUESTS, WHEEL, anglerScore, boostedQuality, catchScore, claimQuest, dailyCatchesLeft, fishOf, landCatch, moveFavorite, rollCatch, setFavoriteQuality, showcaseOf, toggleFavorite, crateState, dayKey, grantReward, openCrate, parseRecords, questBoard, readRecords, recordPull, spinWheel, startQuestPeriods, weekKey, wheelSegment } from "../src/lib/figurine-collection.ts";
+import { ANGLER_TOP, FISH, QUESTS, WHEEL, anglerScore, boostedQuality, catchScore, claimQuest, dailyCatchesLeft, fishOf, landCatch, moveFavorite, rollCatch, setFavoriteQuality, showcaseOf, toggleFavorite, crateState, dayKey, regenerateCoins, spendCoin, COIN_INTERVAL_MS, RECORDS_KEY, grantReward, openCrate, parseRecords, questBoard, readRecords, recordPull, spinWheel, startQuestPeriods, weekKey, wheelSegment } from "../src/lib/figurine-collection.ts";
 
 const store = () => { const data = new Map(); return { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 const day = (date, hour = 12) => new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
@@ -11,11 +11,11 @@ test("the daily crate opens once a day, builds a streak to seven with a golden b
     const now = day(`2026-11-${String(n).padStart(2, "0")}`);
     assert.equal(crateState(readRecords(memory), now).day, n);
     const { reward } = openCrate(now, memory);
-    assert.deepEqual(reward, n === 7 ? { boxes: 1, boost: "golden" } : { boxes: 1 });
+    assert.deepEqual(reward, n === 7 ? { coins: 1, boost: "golden" } : { coins: 1 });
     grantReward(reward, memory);
     assert.equal(openCrate(day(`2026-11-${String(n).padStart(2, "0")}`, 20), memory), null, "twice in a day");
   }
-  assert.deepEqual(readRecords(memory).boons, { boxes: 7, boost: "golden" });
+  assert.deepEqual(readRecords(memory).boons, { coins: 7, boost: "golden" });
   assert.equal(crateState(readRecords(memory), day("2026-11-08")).day, 1, "after seven it starts over");
   openCrate(day("2026-11-08"), memory);
   assert.equal(crateState(readRecords(memory), day("2026-11-10")).day, 1, "a missed day starts over");
@@ -28,14 +28,14 @@ test("the wheel spins once a day and lands by weight on its eight segments", () 
   assert.deepEqual(counts.map((n) => Math.round(n / 10)), WHEEL.map(({ weight }) => weight));
   const memory = store();
   const first = spinWheel(0.999, day("2026-11-01"), memory);
-  assert.equal(first.segment, 7); assert.equal(readRecords(memory).boons.boxes, 0, "granted only once the spin has played");
-  grantReward(first.reward, memory); assert.equal(readRecords(memory).boons.boxes, 3);
+  assert.equal(first.segment, 7); assert.equal(readRecords(memory).boons.coins, 0, "granted only once the spin has played");
+  grantReward(first.reward, memory); assert.equal(readRecords(memory).boons.coins, 3);
   assert.equal(spinWheel(0.1, day("2026-11-01", 22), memory), null);
   assert.ok(spinWheel(0.1, day("2026-11-02"), memory));
   assert.throws(() => wheelSegment(1));
 });
 
-test("the day's first three catches are a box, a figure and a box, then fish of fair weights; a missed hook lands nothing", () => {
+test("the day's first three catches are a coin, a figure and a coin, then fish of fair weights; a missed hook lands nothing", () => {
   const memory = store(), now = day("2026-11-01"), random = () => 0.5;
   const prizes = [];
   for (let i = 0; i < 3; i++) {
@@ -44,7 +44,7 @@ test("the day's first three catches are a box, a figure and a box, then fish of 
     assert.deepEqual(rollCatch(readRecords(memory), random, now), roll);
     prizes.push(landCatch(roll, now, memory).reward);
   }
-  assert.deepEqual(prizes, [{ boxes: 1 }, { figure: true }, { boxes: 1 }]);
+  assert.deepEqual(prizes, [{ coins: 1 }, { figure: true }, { coins: 1 }]);
   assert.equal(dailyCatchesLeft(readRecords(memory), now), 0);
   const roll = rollCatch(readRecords(memory), random, now), caught = landCatch(roll, now, memory);
   assert.equal(caught.kind, "fish");
@@ -85,7 +85,7 @@ test("favourites keep their order; the first sixteen still owned make the displa
   assert.deepEqual(legacy.favorites, [{ key: "s1:b", quality: "golden" }, { key: "s1:a", quality: "standard" }]);
 });
 
-test("quests count from their period's start, claim once for banked boxes, and turn over", () => {
+test("quests count from their period's start, claim once for banked coins, and turn over", () => {
   const memory = store(), now = day("2026-11-02");
   for (let i = 0; i < 2; i++) recordPull({ key: "s1:a", quality: "standard" }, "box", now, memory);
   startQuestPeriods(now, memory);
@@ -95,7 +95,7 @@ test("quests count from their period's start, claim once for banked boxes, and t
   assert.equal(claimQuest("open3", false, now, memory), 1);
   assert.equal(claimQuest("open3", false, now, memory), 0, "claimed once");
   assert.equal(claimQuest("galaxy", false, now, memory), 0, "not done");
-  assert.equal(readRecords(memory).boons.boxes, 1);
+  assert.equal(readRecords(memory).boons.coins, 1);
   const tomorrow = questBoard(readRecords(memory), false, day("2026-11-03")).find((quest) => quest.id === "open3");
   assert.deepEqual([tomorrow.progress, tomorrow.claimed], [0, false]);
   assert.equal(questBoard(readRecords(memory), true, now).find((quest) => quest.id === "series").done, true);
@@ -109,8 +109,8 @@ test("boosts lift a roll, never lower it; periods use local days and ISO weeks; 
   assert.equal(dayKey(day("2026-11-01", 23)), "2026-11-01");
   assert.equal(weekKey(day("2026-01-01")), "2026-W01");
   assert.equal(weekKey(day("2026-11-01")), "2026-W44");
-  const parsed = parseRecords(JSON.stringify({ boons: { boxes: -2, boost: "standard" }, daily: { crate: "nope", streak: 40 }, stats: { opened: "x", fish: 4 } }));
-  assert.deepEqual(parsed.boons, { boxes: 0, boost: null });
+  const parsed = parseRecords(JSON.stringify({ boons: { coins: -2, boost: "standard" }, daily: { crate: "nope", streak: 40 }, stats: { opened: "x", fish: 4 } }));
+  assert.deepEqual(parsed.boons, { coins: 0, boost: null });
   assert.deepEqual(parsed.daily, { crate: null, streak: 7, spin: null, catch: null, caught: 0 });
   assert.equal(parsed.stats.opened, 0); assert.equal(parsed.stats.fish, 4);
 });
@@ -134,4 +134,42 @@ test("a catch scores its rarity, its size for its kind and its finish, and the t
   // Stored scores are worked out again on reading.
   const forged = parseRecords(JSON.stringify({ angler: [{ fish: "salmon", weight: 12, quality: "standard", score: 99999, at: "2026-11-01T10:00:00.000Z" }, { fish: "nope", weight: 1, quality: "standard", at: "2026-11-01T10:00:00.000Z" }] }));
   assert.deepEqual(forged.angler.map(({ fish, score }) => [fish, score]), [["salmon", 120]]);
+});
+
+
+test("the session wallet starts with three coins, regenerates every four hours and preserves partial intervals", () => {
+  const memory = store(), start = day("2026-11-03");
+  assert.equal(regenerateCoins(start, memory), 3);
+  assert.equal(regenerateCoins(start, memory), 0, "mounting twice cannot grant twice");
+  assert.equal(regenerateCoins(new Date(+start + COIN_INTERVAL_MS - 1), memory), 0);
+  assert.equal(regenerateCoins(new Date(+start + COIN_INTERVAL_MS), memory), 1);
+  assert.equal(regenerateCoins(new Date(+start + COIN_INTERVAL_MS * 3.5), memory), 2);
+  assert.equal(readRecords(memory).boons.coins, 6);
+  assert.equal(readRecords(memory).coinAt, new Date(+start + COIN_INTERVAL_MS * 3).toISOString());
+  // Reading saved records retains the remaining half interval, with no duplicate reward.
+  assert.equal(parseRecords(memory.getItem(RECORDS_KEY)).boons.coins, 6);
+  assert.equal(regenerateCoins(new Date(+start + COIN_INTERVAL_MS * 4), memory), 1);
+  assert.equal(regenerateCoins(start, memory), 0, "a backwards clock cannot grant coins");
+});
+
+test("each box costs one coin; empty wallets cannot spend, boosts are preserved and failures can refund", () => {
+  const memory = store();
+  assert.equal(spendCoin(memory), false);
+  grantReward({ coins: 2, boost: "golden" }, memory);
+  assert.equal(spendCoin(memory), true); assert.equal(readRecords(memory).boons.coins, 1);
+  assert.equal(spendCoin(memory), true); assert.equal(spendCoin(memory), false);
+  assert.deepEqual(readRecords(memory).boons, { coins: 0, boost: "golden" });
+  grantReward({ coins: 1 }, memory); // Failed model load refunds the reserved coin.
+  assert.equal(readRecords(memory).boons.coins, 1);
+});
+
+test("old box rewards are discarded and invalid coin values never become spendable", () => {
+  const legacy = parseRecords(JSON.stringify({ boons: { boxes: 99, boost: "golden" } }));
+  assert.deepEqual(legacy.boons, { coins: 0, boost: "golden" });
+  for (const coins of [-1, 1.5, "4", null, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(parseRecords(JSON.stringify({ boons: { coins } })).boons.coins, 0);
+  }
+  const memory = store(); memory.setItem(RECORDS_KEY, JSON.stringify(legacy));
+  regenerateCoins(day("2026-11-03"), memory);
+  assert.equal(readRecords(memory).boons.coins, 3);
 });

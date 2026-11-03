@@ -73,9 +73,9 @@ test("dragging the pond and returning to the starting point does not cast on rel
   let casts = 0, turns = 0;
   handlers.runInNewContext({
     aim() {}, grab: null, shake: null, looking: null, immersive: true,
-    press: { x: 50, y: 50, moved: false, pick: { kind: "part", station: "pond", part: "rod" } },
+    press: { x: 50, y: 50, moved: false, pick: { kind: "part", station: "pond", part: "water" } },
     panning: () => false, directed: () => true, state: { current: { view: "pond" } },
-    steer: () => { turns++; }, pickAt: () => ({ kind: "part", station: "pond", part: "rod" }), samePick: () => true,
+    steer: () => { turns++; }, pickAt: () => ({ kind: "part", station: "pond", part: "water" }), samePick: () => true,
     unlockFigurineAudio() {}, callbacks: { current: { onFacilityPart: () => { casts++; } } },
   });
   assert.equal(turns, 2); assert.equal(casts, 0);

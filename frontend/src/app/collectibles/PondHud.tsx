@@ -67,9 +67,9 @@ function CatchBanner({ result, quality }: { result: Extract<PanelResult, { caugh
     return <div className={styles.banner} data-quality={figure?.quality} role="status">
       {figure && <span className={styles.bannerPortrait}><Portrait figureKey={figure.key} quality={figure.quality} /></span>}
       <div>
-        <small>{t(figure ? "banner.chest" : "banner.treasure")}</small>
-        <b>{figure ? name : t("banner.box")}</b>
-        <span>{figure ? `${figure.quality !== "standard" ? `${quality(figure.quality)} · ` : ""}${t("banner.joins")}` : t("banner.banked", { count: caught.reward.boxes ?? 1 })}</span>
+        <small>{t(figure ? "banner.figure" : "banner.treasure")}</small>
+        <b>{figure ? name : t("banner.coins")}</b>
+        <span>{figure ? `${figure.quality !== "standard" ? `${quality(figure.quality)} · ` : ""}${t("banner.joins")}` : t("banner.earned", { count: caught.reward.coins ?? 1 })}</span>
       </div>
     </div>;
   }

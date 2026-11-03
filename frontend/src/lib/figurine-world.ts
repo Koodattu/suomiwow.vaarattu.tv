@@ -29,7 +29,7 @@ export const STATION_SPECS: Record<Station, StationSpec> = {
   wheel: { at: [-11.8, -2.8], face: [-5.6, 0], width: 4.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
   trading: { at: [-11.5, 3.4], face: [-5.6, 1.6], width: 5.4, back: -2, front: 2.2, shot: big(4.6) },
   // Daily errands flank the outgoing north path, on the same patch of worn ground.
-  crate: { at: [-3.7, -11.2], face: [-0.8, -4.8], width: 3.1, back: -0.8, front: 1.1, shot: small(3.2, 1) },
+  crate: { at: [-3.7, -11.2], face: [-0.8, -4.8], width: 3.1, back: -0.8, front: 1.1, shot: small(3.2, 0.55) },
   quests: { at: [1.6, -11.6], face: [-0.4, -4.8], width: 4.5, back: -0.6, front: 1.3, shot: small(4.8, 1.5) },
   gallery: { at: [6.92, -9.36], face: [3.2, -4.8], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
   mail: { at: [10.6, -6.4], face: [4.8, -3.2], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },

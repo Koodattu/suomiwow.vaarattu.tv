@@ -58,7 +58,7 @@ test("pond ripples never intercept clicks and stop growing after fading, includi
   const outside = new THREE.Raycaster(new THREE.Vector3(41.5, 10, 0), new THREE.Vector3(0, -1, 0));
   assert.equal(outside.intersectObjects(rings).length, 0);
   for (let cast = 0; cast < 5; cast++) {
-    pond.act({ kind: "cast", catch: { kind: "box" } }, () => {}, () => {});
+    pond.act({ kind: "cast", catch: { kind: "coin" } }, () => {}, () => {});
     for (let frame = 0; frame < 15; frame++) pond.update(0.1, 0);
     const active = rings.find(ring => ring.visible);
     assert.ok(active, "casting still creates a visible splash");
@@ -73,7 +73,7 @@ test("pond ripples never intercept clicks and stop growing after fading, includi
   }
 });
 
-test("only the pond's tackle takes taps, its glint follows the prizes left and hover outlines do not move props", async t => {
+test("pond water and golden glint take taps, while tackle outlines stay still and ground stays inactive", async t => {
   const previous = globalThis.document;
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
   const paint = new Proxy({}, { get: (_, key) => key === "createLinearGradient" || key === "createRadialGradient" ? () => ({ addColorStop() {} }) : key === "createImageData" ? (width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }) : () => {}, set: () => true });
@@ -88,22 +88,28 @@ test("only the pond's tackle takes taps, its glint follows the prizes left and h
   await pond.ready;
   const parts = new Map();
   root.traverse(object => { if (object.userData.part) parts.set(object.userData.part, object); });
-  assert.deepEqual([...parts.keys()].sort(), ["board", "bobber", "bucket", "rod"]);
-  // A ray straight down on open water finds the water but no part above it, so a stray tap never casts.
+  assert.deepEqual([...parts.keys()].sort(), ["board", "bobber", "bucket", "rod", "water"]);
+  // Open water is a fishing target even away from the bobber and glint.
   root.updateMatrixWorld(true);
   const partOf = (hit) => { for (let object = hit.object; object; object = object.parent) if (object.userData.part) return object.userData.part; return null; };
   const down = new THREE.Raycaster(new THREE.Vector3(2.2, 10, -1.2), new THREE.Vector3(0, -1, 0));
   // Sprites (glows, the bite mark) measure against a camera.
   down.camera = new THREE.PerspectiveCamera(); down.camera.position.set(0, 10, 0); down.camera.updateMatrixWorld();
   const water = down.intersectObject(root, true).filter(isVisibleHit);
-  assert.ok(water.length > 0 && water.every(hit => partOf(hit) === null));
+  assert.ok(water.length > 0 && water.every(hit => partOf(hit) === "water"));
+  assert.equal(pickFacilityPart(down, root), "water");
   // The glint shows while prize catches remain and fades once none do.
   const glows = () => root.children.filter(object => object.geometry?.type === "PlaneGeometry" && object.material.map);
   pond.setPrizes(3); pond.update(5, 1);
   assert.ok(glows().length === 2 && glows().every(glow => glow.visible));
+  const golden = new THREE.Raycaster(new THREE.Vector3(-1.75, 10, -0.9), down.ray.direction); golden.camera = down.camera;
+  root.updateMatrixWorld(true);
+  assert.equal(pickFacilityPart(golden, root), "water", "the golden effect does not block the pond beneath it");
   pond.setPrizes(0); for (let frame = 0; frame < 30; frame++) pond.update(0.2, 1 + frame);
   assert.ok(glows().every(glow => !glow.visible));
-  assert.equal(pickFacilityPart(down, root), null);
+  assert.equal(pickFacilityPart(down, root), "water", "the pond stays clickable once prizes run out");
+  const outside = new THREE.Raycaster(new THREE.Vector3(15, 10, 15), down.ray.direction); outside.camera = down.camera;
+  assert.equal(pickFacilityPart(outside, root), null);
   for (const name of ["rod", "bucket", "board"]) {
     const part = parts.get(name), rest = part.position.clone(), rotation = part.quaternion.clone(), shells = [];
     part.traverse(object => { if (object.userData.outline) shells.push(object); });
@@ -111,6 +117,12 @@ test("only the pond's tackle takes taps, its glint follows the prizes left and h
     pond.hover(name); pond.update(1, 40);
     assert.ok(shells.every(shell => shell.visible), `${name} glows on hover`);
     assert.ok(part.position.equals(rest) && part.quaternion.angleTo(rotation) < 1e-6, `${name} stays in place`);
+    if (name === "rod") {
+      pond.hover(pickFacilityPart(down, root)); pond.update(1, 40);
+      assert.ok(shells.every(shell => shell.visible), "open water highlights the rod");
+      pond.hover(pickFacilityPart(golden, root)); pond.update(1, 40);
+      assert.ok(shells.every(shell => shell.visible), "the golden area highlights the rod");
+    }
     pond.hover(null); pond.update(1, 41);
     assert.ok(shells.every(shell => !shell.visible), `${name} glow clears`);
   }
@@ -119,7 +131,7 @@ test("only the pond's tackle takes taps, its glint follows the prizes left and h
   assert.equal(shells, 0, "outline shells are released with the scene");
 });
 
-test("a rod target behind decoration is clickable, but hidden controls and open water are not", () => {
+test("tackle takes priority over water and decoration, and hidden controls cannot steal taps", () => {
   const root = new THREE.Group(), rod = new THREE.Group(); rod.userData.part = "rod";
   const target = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 2.8), new THREE.MeshBasicMaterial({ visible: false }));
   rod.add(target); root.add(rod);
@@ -128,4 +140,8 @@ test("a rod target behind decoration is clickable, but hidden controls and open 
   assert.equal(pickFacilityPart(ray, root), "rod");
   rod.visible = false;
   assert.equal(pickFacilityPart(ray, root), null);
+  decoration.userData.part = "water";
+  assert.equal(pickFacilityPart(ray, root), "water");
+  rod.visible = true;
+  assert.equal(pickFacilityPart(ray, root), "rod", "nearer water does not swallow a tackle hit");
 });

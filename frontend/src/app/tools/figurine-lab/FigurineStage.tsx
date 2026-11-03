@@ -88,7 +88,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, onHoverPart, highlightedPart = null, panelWidth = 420 }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, onHoverPart, highlightedPart = null, coinTarget, panelWidth = 420 }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -153,12 +153,13 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onFacilityPart?: (station: Station, part: string) => void;
   onHoverPart?: (part: string | null) => void;
   highlightedPart?: string | null;
+  coinTarget?: () => { x: number; y: number; width?: number } | null;
   // World mode: how wide the docked panel is on wide screens, so stations slide clear of it.
   panelWidth?: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, highlightedPart, panelWidth });
-  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, highlightedPart, panelWidth }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, highlightedPart, panelWidth]);
+  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, highlightedPart, coinTarget, panelWidth });
+  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, highlightedPart, coinTarget, panelWidth }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked, highlightedPart, coinTarget, panelWidth]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error" | "webgl">("empty");
   const [filename, setFilename] = useState("");
   const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone, onActionCue, onFacilityPart, onHoverPart });
@@ -289,9 +290,9 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const group = machineGroups[kind];
       return [kind, group && worldSetup ? builders[kind](group, { envMap: environment, placeProp }) : null];
     })) as Record<FigurineMachine, ReturnType<typeof buildRecycler> | null>;
+    const catchLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
     const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, {
-      placeProp, envMap: environment,
-      rewardBox: kind === "crate" ? boxCopy(worldSetup.series.find((entry) => entry.released)?.id ?? "") : null,
+      placeProp, envMap: environment, loadFigure: async (url) => (await catchLoader.loadAsync(url)).scene,
     }) }] : []) : [];
     // The showcase's statues load their figures like the pedestal does, one at a time.
     const statueLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
@@ -675,7 +676,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         actedRun = run;
         const facility = facilities.find((entry) => entry.kind === station);
         const sound = (cue: ActionCue) => {
-          if (cue === "chestOpen" || cue === "chestLift" || cue === "chestReward") playFigurineCue(cue);
+          if (cue === "coinCollected") playFigurineCue("sparkle", { intensity: 0.4 });
+          else if (cue === "chestOpen" || cue === "chestLift" || cue === "chestReward") playFigurineCue(cue);
           else if (cue === "tick") playFigurineCue("tap", { intensity: 0.35 });
           else if (cue === "nibble") playFigurineCue("tap", { intensity: 0.2 });
           else if (cue === "splash" || cue === "bite") { playFigurineCue("drop", { intensity: cue === "bite" ? 0.9 : 0.6 }); if (cue === "bite") playFigurineCue("rattle", { intensity: 0.5 }); }
@@ -1273,8 +1275,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       controls.maxDistance = orbiting ? Math.max(15, camera.position.distanceTo(controls.target)) : Infinity;
       // Timed by the frame delta, so auto-rotation turns at the same speed on any refresh rate.
       controls.update(delta); if (!reduced) mixer?.update(delta);
-      facilities.find((facility) => facility.kind === "pond")?.present(currentView === "pond" ? camera : null, reduced);
-      facilities.find((facility) => facility.kind === "crate")?.present(currentView === "crate" ? camera : null, reduced);
+      facilities.find((facility) => facility.kind === "pond")?.present(currentView === "pond" ? camera : null, reduced, state.current.coinTarget?.() ?? null);
+      facilities.find((facility) => facility.kind === "crate")?.present(currentView === "crate" ? camera : null, reduced, state.current.coinTarget?.() ?? null);
       const cameraShake = cinematic ? (bursting ? motion.shake : build.knock * 0.3) : 0;
       if (cameraShake > 0) camera.position.add(velocity.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(cameraShake * 0.13));
       if (worldGpuReady) renderer.render(scene, camera);

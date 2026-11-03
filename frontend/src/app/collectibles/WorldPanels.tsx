@@ -75,11 +75,11 @@ function MachinePicker({ machine, series }: Props & { machine: MachinePanel }) {
   </>;
 }
 
-// A reward in words: boxes banked, a boost, a figure.
+// A reward in words: coins earned, a boost, a figure.
 function useRewardText() {
   const t = useTranslations("figurineLab");
   return (reward: Reward, figure?: MachineItem) => [
-    reward.boxes ? t("world.rewards.boxes", { count: reward.boxes }) : null,
+    reward.coins ? t("world.rewards.coins", { count: reward.coins }) : null,
     reward.boost ? t("world.rewards.boost", { quality: t(`quality.${reward.boost}`) }) : null,
     figure ? t("world.rewards.figure", { name: findFigure(figure.key)?.character.name ?? "" }) : null,
   ].filter(Boolean).join(" · ");
@@ -116,7 +116,7 @@ function Station({ view, collection, records, series, actions }: Props) {
     const ready = canSpin(records, now);
     return <>
       <p className={styles.note}>{t("world.wheel.body")}</p>
-      <ul className={styles.prizes}>{(["box1", "box2", "box3", "golden", "galaxy", "figure"] as const).map((prize) => <li key={prize} data-prize={prize}><i />{t(`world.wheel.prizes.${prize}`)}</li>)}</ul>
+      <ul className={styles.prizes}>{(["coin1", "coin2", "coin3", "golden", "galaxy", "figure"] as const).map((prize) => <li key={prize} data-prize={prize}><i />{t(`world.wheel.prizes.${prize}`)}</li>)}</ul>
       {shown?.station === "wheel" && <ResultCard figure={shown.figure} tone={shown.reward.boost ?? shown.figure?.quality}><span>{t("world.wheel.wonLabel")}</span><b>{rewardText(shown.reward, shown.figure)}</b></ResultCard>}
       {ready ? <button type="button" className={styles.cta} disabled={busy} onClick={actions.onSpin}>{t("world.wheel.spin")}<span>{t("world.wheel.free")}</span></button>
         : <p className={styles.wait}>{busy ? t("world.wheel.spinning") : t("world.wheel.next", { time: until("daily") })}</p>}
@@ -180,9 +180,9 @@ function Station({ view, collection, records, series, actions }: Props) {
 
 function Boons({ records }: { records: FigurineRecords }) {
   const t = useTranslations("figurineLab");
-  if (!records.boons.boxes && !records.boons.boost) return null;
+  if (!records.boons.coins && !records.boons.boost) return null;
   return <p className={styles.boons}>
-    {records.boons.boxes > 0 && <span>{t("world.rewards.banked", { count: records.boons.boxes })}</span>}
+    {records.boons.coins > 0 && <span>{t("world.rewards.balance", { count: records.boons.coins })}</span>}
     {records.boons.boost && <span data-quality={records.boons.boost}>{t("world.rewards.boostNext", { quality: t(`quality.${records.boons.boost}`) })}</span>}
   </p>;
 }

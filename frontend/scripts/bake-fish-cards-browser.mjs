@@ -1,3 +1,4 @@
+const coinMode = new URLSearchParams(location.search).has("coin");
 // Renders every catch of the fishing pond as a card picture and posts each back to the bake server.
 // Fish doodads lie on their sides: each is stood on its belly, its flank to the camera and its head
 // to the left, turned a little toward the light. Each is framed by what it draws (a first render
@@ -9,9 +10,9 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { restoreFigurineMaterials } from "/lib/figurine-materials.ts";
 import { FISH } from "/lib/figurine-collection.ts";
-import { FISH_PROP, STATION_PROPS } from "/lib/figurine-props.ts";
+import { FISH_PROP, STATION_PROPS, prepareCoinModel, orientCoinModel } from "/lib/figurine-props.ts";
 
-const CARD_W = 400, CARD_H = 250, SUPERSAMPLE = 2, MARGIN = 0.86;
+const CARD_W = coinMode ? 256 : 400, CARD_H = coinMode ? 256 : 250, SUPERSAMPLE = 2, MARGIN = 0.86;
 // Models whose head points another way than the rule makes it, turned to match the rest.
 const TURN = { catfish: Math.PI, yellowtail: Math.PI, salmon: Math.PI, mightfish: Math.PI };
 const status = document.querySelector("#status"), cards = document.querySelector("#cards");
@@ -60,9 +61,10 @@ function frame(root) {
   look(middleX - width / 2, middleX + width / 2, middleY - height / 2, middleY + height / 2, z);
 }
 
-for (const fish of FISH) {
-  const gltf = await loader.loadAsync(STATION_PROPS[FISH_PROP[fish.id]]);
-  const root = pose(gltf.scene, TURN[fish.id]);
+for (const fish of coinMode ? [{ id: "coin" }] : FISH) {
+  const gltf = await loader.loadAsync(coinMode ? STATION_PROPS.coin : STATION_PROPS[FISH_PROP[fish.id]]);
+  const root = coinMode ? gltf.scene : pose(gltf.scene, TURN[fish.id]);
+  if (coinMode) { restoreFigurineMaterials(root); prepareCoinModel(root); orientCoinModel(root); }
   scene.add(root); frame(root);
   renderer.clear(); renderer.render(scene, camera);
   const card = document.createElement("canvas"); card.width = CARD_W; card.height = CARD_H;
@@ -71,6 +73,6 @@ for (const fish of FISH) {
   cards.append(card);
   scene.remove(root);
   const png = await new Promise((resolve) => card.toBlob(resolve, "image/png"));
-  log(`${fish.id} saved ${await (await fetch(`/fish?id=${fish.id}`, { method: "POST", body: png })).text()}`);
+  log(`${fish.id} saved ${await (await fetch(`/${coinMode ? "coin" : "fish"}?id=${fish.id}`, { method: "POST", body: png })).text()}`);
 }
 log("DONE");

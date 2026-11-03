@@ -1,11 +1,14 @@
 import * as THREE from "three";
 import { hoverOutline } from "@/lib/figurine-glow";
 import { woodTexture } from "@/lib/figurine-shop";
-import { FISH_PROP, type PlaceProp } from "@/lib/figurine-props";
+import { FISH_PROP, FISH_DISPLAY_CORRECTION, orientCoinModel, type PlaceProp } from "@/lib/figurine-props";
 import { WHEEL, type FigurineQuality, type FishId } from "@/lib/figurine-collection";
 import { applyFinish, releaseFinishes } from "@/lib/figurine-finish";
 import { WORLD_TEXTURES } from "@/lib/figurine-world";
-import { dailyChestAnimation, chestRewardPose } from "@/lib/figurine-chest";
+import { figurineBodyBounds, figurineScale, restoreFigurineMaterials } from "@/lib/figurine-materials";
+import { disposeFigurineObject } from "@/lib/figurine-cache";
+import { dailyChestAnimation, chestRewardPresentation } from "@/lib/figurine-chest";
+import { coinCollectionFlight } from "@/lib/figurine-coin-flight";
 
 // The plaza's facilities other than the shop and the two machines. Each is a small scene of game
 // props, some round a hand-built centrepiece, standing in the world unsigned: a mailbox is just a
@@ -16,16 +19,16 @@ export type Facility = "gallery" | "crate" | "wheel" | "mail" | "quests" | "feed
 // open, the pond casts a line with `catch` on the end of it. Cues mark moments worth a sound (and,
 // at the pond, what the line is doing); `done` ends the action, the pond's with how it went.
 export type FacilityAction = { kind: "spin"; segment: number } | { kind: "cast"; catch: CatchVisual } | { kind: "open" };
-export type ActionCue = "tick" | "splash" | "nibble" | "bite" | "escape" | "catch" | "burst" | "chestOpen" | "chestLift" | "chestReward";
+export type ActionCue = "tick" | "splash" | "nibble" | "bite" | "escape" | "catch" | "burst" | "chestOpen" | "chestLift" | "chestReward" | "coinCollected";
 export type CastResult = "caught" | "missed" | "spooked";
-// What comes up when a line is hooked: a prize (a wrapped box, a little chest holding a figure),
+// What comes up when a line is hooked: a prize (a coin or the awarded figure),
 // or a fish (or boot) of the given length, at its finish.
-export type CatchVisual = { kind: "box" } | { kind: "figure" } | { kind: "fish"; fish: FishId; length: number; quality: FigurineQuality };
+export type CatchVisual = { kind: "coin" } | { kind: "figure"; model: string; quality: FigurineQuality } | { kind: "fish"; fish: FishId; length: number; quality: FigurineQuality };
 // How each wheel prize is painted: its label and colour.
 const PRIZE_PAINT = (prize: (typeof WHEEL)[number]["prize"]) => "boost" in prize
   ? prize.boost === "galaxy" ? { label: "✦", color: "#6b45c8", ink: "#f1e9ff" } : { label: "★", color: "#e8c165", ink: "#3a2506" }
   : "figure" in prize ? { label: "?", color: "#1f8a86", ink: "#e9fffd" }
-  : { label: `+${prize.boxes}`, color: ["#2f6fae", "#3e8f52", "#c2412e"][prize.boxes - 1], ink: "#fff4dc" };
+  : { label: `+${prize.coins}`, color: ["#2f6fae", "#3e8f52", "#c2412e"][prize.coins - 1], ink: "#fff4dc" };
 
 function canvas(width: number, height: number) {
   const element = document.createElement("canvas");
@@ -49,7 +52,7 @@ function rippleNormals() {
   const map = new THREE.CanvasTexture(element); map.wrapS = map.wrapT = THREE.RepeatWrapping;
   return map;
 }
-export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, envMap, rewardBox }: { placeProp: PlaceProp; envMap: THREE.Texture; rewardBox?: THREE.Object3D | null }) {
+export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, envMap, loadFigure }: { placeProp: PlaceProp; envMap: THREE.Texture; loadFigure?: (url: string) => Promise<THREE.Group> }) {
   // What the hover outline wraps: built parts now, game props once they have loaded.
   const frame: THREE.Mesh[] = [], props: Promise<THREE.Group>[] = [];
   // The action playing now, stepped each frame; null when idle.
@@ -63,7 +66,9 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   let chestAnimation: ReturnType<typeof dailyChestAnimation> = null;
   // The pond's glint (while prize catches remain), and the tackle under the pointer.
   let setPrizes: ((left: number) => void) | null = null, hover: ((part: string | null) => void) | null = null;
-  let presentCatch: ((camera: THREE.PerspectiveCamera | null, reducedMotion: boolean) => void) | null = null;
+  let presentCatch: ((camera: THREE.PerspectiveCamera | null, reducedMotion: boolean, coinTarget: { x: number; y: number; width?: number } | null) => void) | null = null;
+  let clearCatch: (() => void) | null = null;
+  let coinCollected: (() => void) | null = null;
   const partOutlines = new Map<string, ReturnType<typeof hoverOutline>>();
   let hoveredPart: string | null = null, disposed = false;
   // Sparks of gold for rewards: additive sprites flung up and falling back.
@@ -149,50 +154,42 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     const chest = prop("dailyChest", 0.95, 0, 0.1, -Math.PI / 2);
     chest.group.userData.part = "chest";
     hover = (part) => { hoveredPart = part; };
-    const reward = new THREE.Group(); parent.add(reward);
-    if (rewardBox) {
-      const bounds = new THREE.Box3().setFromObject(rewardBox), size = bounds.getSize(new THREE.Vector3());
-      const scale = 0.72 / Math.max(size.y, 0.001);
-      rewardBox.position.copy(bounds.getCenter(new THREE.Vector3())).multiplyScalar(-scale);
-      rewardBox.scale.setScalar(scale); reward.add(rewardBox);
-      rewardBox.traverse((object) => { object.raycast = () => {}; });
-    }
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkMap, color: 0xffc66b, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
-    glow.position.set(0, 0.65, 0.2); glow.scale.set(1.8, 2.1, 1); glow.raycast = () => {}; parent.add(glow);
-    let rewardTime = -1, rewardComplete: (() => void) | null = null, rewardCue: ((cue: ActionCue) => void) | null = null;
-    let reduced = false;
-    presentCatch = (_, reducedMotion) => { reduced = reducedMotion; };
-    const poseReward = (time: number) => {
-      const pose = chestRewardPose(time, reduced);
-      reward.position.set(0, pose.y, pose.z); reward.scale.setScalar(pose.scale); reward.rotation.y = pose.turn;
-      return pose;
-    };
-    poseReward(0);
-    let claimed = false;
+    const coin = placeProp(parent, "coin", { height: 0.5, length: 0.75 });
+    const reward = chestRewardPresentation(parent, coin.group, sparkMap, burst, () => coinCollected?.());
+    presentCatch = (camera, reducedMotion, target) => reward.present(camera, reducedMotion, target);
+    clearCatch = reward.reset;
+    pokes.dismiss = reward.dismiss;
+    props.push(coin.ready.then((group) => {
+      if (disposed) return group;
+      const holder = group.parent!;
+      holder.remove(group); orientCoinModel(group);
+      group.position.sub(new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()));
+      holder.add(group);
+      group.traverse((object) => { object.raycast = () => {}; });
+      return group;
+    }));
+    let claimed = false, opening = false;
     const chestReady = chest.ready.then((group) => {
       if (disposed) return;
       chestAnimation = dailyChestAnimation(group);
       chestAnimation?.setClaimed(claimed);
     });
-    animate.push((delta, time) => {
+    animate.push((delta) => {
       chestAnimation?.update(delta);
-      if (rewardTime < 0) return;
-      rewardTime += delta;
-      const pose = poseReward(rewardTime);
-      if (pose.settled && !reduced) reward.position.y += Math.sin(time * 1.8) * 0.025;
-      glow.material.opacity = pose.glow * (pose.settled ? 0.35 : 0.65);
-      if (pose.settled && rewardComplete) {
-        const done = rewardComplete; rewardComplete = null;
-        rewardCue?.("chestReward"); burst(reward.position); done();
-      }
+      reward.update(delta);
     });
     actions.open = (_, cue, done) => {
-      void chestReady.then(() => {
+      if (opening) return;
+      opening = true;
+      coinCollected = () => cue("coinCollected");
+      void Promise.all([chestReady, coin.ready]).then(() => {
         if (disposed) return;
-        reward.visible = true; rewardTime = -1; poseReward(0);
-        rewardComplete = done; rewardCue = cue;
+        reward.reset();
         cue("chestOpen");
-        const reveal = () => { rewardTime = 0; cue("chestLift"); };
+        const reveal = () => {
+          cue("chestLift");
+          reward.begin(() => { opening = false; cue("chestReward"); done(); });
+        };
         if (chestAnimation) chestAnimation.open(reveal, () => {});
         else reveal(); // A failed model download must not block the reward.
       });
@@ -204,8 +201,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     paintStreak = (opened: number, today: number | null) => {
       claimed = today === null;
       chestAnimation?.setClaimed(claimed);
-      if (!claimed && !rewardComplete) { rewardTime = -1; poseReward(0); glow.material.opacity = 0; }
-      if (rewardTime < 0 && !rewardComplete) reward.visible = !claimed;
+      if (!claimed && !opening) reward.reset();
       streak.fillStyle = "#2a1a10"; streak.fillRect(0, 0, 512, 96);
       for (let day = 1; day <= 7; day++) {
         const x = 40 + (day - 1) * 72, lit = day <= opened;
@@ -364,7 +360,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       { radius: (r) => r * 0.3, y: 0.025, color: "#163a43" }, { radius: (r) => r * 0.62, y: 0.025, color: "#1d4d55" },
       { radius: (r) => r * 0.86, y: 0.025, color: "#2d6363" }, { radius: (r) => r + 0.08, y: 0.025, color: "#4a6143" },
     ], { y: 0.025, color: "#12333c" }), water);
-    pond.receiveShadow = true; parent.add(pond); frame.push(pond);
+    pond.receiveShadow = true; pond.userData.part = "water"; parent.add(pond); frame.push(pond);
     animate.push((_, time) => { shimmer.offset.set(time * 0.012, time * 0.02); });
     // The bank: a low lip of wet mud at the water's edge drying to dirt, fading into the grass.
     const mud = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
@@ -578,8 +574,8 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     const closing = add(new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd257, transparent: true, opacity: 0, depthWrite: false }), 0, 0.04, 0);
     closing.castShadow = false; closing.visible = false; closing.raycast = () => {};
     // The catch on show: it leaps from the water to hang before the camera, finished
-    // like its quality, until dismissal or the next cast sends it into the bucket.
-    const SHOW = new THREE.Vector3(), BUCKET = new THREE.Vector3(bucketX, DOCK.deck + 0.2, bucketZ);
+    // like its quality, until dismissal or the next cast collects it.
+    const SHOW = new THREE.Vector3(), WALLET = new THREE.Vector3(), FIGURE_EXIT = new THREE.Vector3(), BUCKET = new THREE.Vector3(bucketX, DOCK.deck + 0.2, bucketZ);
     const REVEAL_SECONDS = 1.1, STOW_SECONDS = 0.7;
     const smooth = (k: number) => k * k * (3 - 2 * k);
     const arc = (k: number) => 16 * k * k * (1 - k) * (1 - k);
@@ -589,20 +585,27 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     const catchBackdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: sparkMap, color: 0x000000, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
     catchBackdrop.name = "pond-catch-backdrop";
     catchBackdrop.visible = false; catchBackdrop.raycast = () => {}; presentation.add(catchBackdrop);
-    let displayScale = 0.5, stowScale = 0.5, stowSpin = 0, revealProgress = 0, displayTime = 0, reducedCatchMotion = false;
+    let walletScale = 0.05, displayScale = 0.5, stowScale = 0.5, stowSpin = 0, revealProgress = 0, displayTime = 0, reducedCatchMotion = false;
     const launchRotation = new THREE.Quaternion(), stowRotation = new THREE.Quaternion(), stowFrom = new THREE.Vector3();
+    const coinFlip = new THREE.Quaternion(), flipAxis = new THREE.Vector3(1, 0, 0);
+    let coinFlight: ReturnType<typeof coinCollectionFlight> | null = null;
     const bucketRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, bucket.rotation.y, Math.PI / 3));
     // Anchor the landed model to the viewport, including while the player looks around.
     const screenCatch = new THREE.Vector3(), viewRotation = new THREE.Quaternion();
-    presentCatch = (camera, reducedMotion) => {
+    presentCatch = (camera, reducedMotion, coinTarget) => {
       presentation.visible = !!camera;
       if (!camera) return;
       reducedCatchMotion = reducedMotion;
-      displayScale = 0.5 * Math.min(1, camera.aspect / 0.8);
+      displayScale = (shown?.kind === "coin" ? 0.35 : shown?.kind === "figure" ? 0.32 : 0.5) * Math.min(1, camera.aspect / 0.8);
       camera.updateWorldMatrix(true, false);
       // Close enough to stay in front of the dock even at the nearest allowed camera zoom.
       screenCatch.set(0, 0.04, -3).applyMatrix4(camera.matrixWorld);
       SHOW.copy(parent.worldToLocal(screenCatch));
+      const halfHeight = 3 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      const target = coinTarget ?? { x: 0.9, y: 0.8 };
+      walletScale = (coinTarget?.width ?? 0.08) * halfHeight * camera.aspect / 1.4;
+      WALLET.copy(parent.worldToLocal(screenCatch.set(target.x * halfHeight * camera.aspect, target.y * halfHeight, -3).applyMatrix4(camera.matrixWorld)));
+      FIGURE_EXIT.copy(parent.worldToLocal(screenCatch.set(-1.5 * halfHeight * camera.aspect, 1.5 * halfHeight, -3).applyMatrix4(camera.matrixWorld)));
       parent.getWorldQuaternion(viewRotation).invert().multiply(camera.quaternion);
       // One pose calculation owns the whole flight and the resting display. At k=1 the
       // position, scale and rotation already equal the display pose, so nothing snaps.
@@ -612,6 +615,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
           show.position.lerpVectors(current.out, SHOW, k);
           if (!reducedMotion) show.position.y += arc(revealProgress) * 1.1;
           show.quaternion.slerpQuaternions(launchRotation, viewRotation, k);
+          if (shown?.kind === "coin" && !reducedMotion) show.quaternion.multiply(coinFlip.setFromAxisAngle(flipAxis, Math.PI * 2 * k));
         } else { show.position.copy(SHOW); show.quaternion.copy(viewRotation); }
         show.scale.setScalar(THREE.MathUtils.lerp(0.22, displayScale, k));
       }
@@ -621,34 +625,64 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       catchBackdrop.scale.set(Math.min(height * 1.15, height * camera.aspect * 0.95), height * 0.72, 1);
     };
     const holder = new THREE.Group(); show.add(holder);
+    let catchFigure: THREE.Group | null = null, catchReady = true;
     let shown: CatchVisual | null = null, queued: CatchVisual | null = null, stowing = -1;
-    const clearShow = () => { show.visible = catchBackdrop.visible = false; catchBackdrop.material.opacity = 0; show.scale.setScalar(1); holder.children.forEach((child) => releaseFinishes(child)); holder.clear(); holder.rotation.y = 0; shown = null; stowing = -1; revealProgress = displayTime = 0; };
+    const clearShow = () => { show.visible = catchBackdrop.visible = false; catchBackdrop.material.opacity = 0; show.scale.setScalar(1); holder.children.forEach((child) => releaseFinishes(child)); holder.clear(); if (catchFigure) { disposeFigurineObject(catchFigure); catchFigure = null; } holder.rotation.set(0, 0, 0); shown = null; stowing = -1; revealProgress = displayTime = 0; };
+    clearCatch = clearShow;
+    const placeFigure = (visual: Extract<CatchVisual, { kind: "figure" }>) => {
+      const group = new THREE.Group(); holder.add(group);
+      const ready = (loadFigure ? loadFigure(visual.model) : Promise.reject(new Error("No figure loader"))).then((model) => {
+        if (disposed || group.parent !== holder) { disposeFigurineObject(model); return group; }
+        restoreFigurineMaterials(model); model.rotation.y = -Math.PI / 2;
+        model.scale.multiplyScalar(figurineScale(figurineBodyBounds(model), model.name) * 0.8);
+        // Measure the body before parenting so the base sits at the feet, not a dangling weapon.
+        const body = figurineBodyBounds(model), centre = body.getCenter(new THREE.Vector3()), size = body.getSize(new THREE.Vector3());
+        const radius = THREE.MathUtils.clamp(Math.max(size.x, size.z) * 0.42, 0.35, 0.65);
+        const pedestal = new THREE.Group(); pedestal.name = "pond-figure-pedestal";
+        const stone = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.08, 0.1, 32), new THREE.MeshStandardMaterial({ color: 0x202635, roughness: 0.48, metalness: 0.25 }));
+        stone.position.y = -0.065;
+        const rim = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.03, 32), new THREE.MeshStandardMaterial({ color: 0xc69b48, roughness: 0.3, metalness: 0.75 }));
+        rim.position.y = -0.015;
+        pedestal.add(stone, rim); pedestal.position.set(centre.x, body.min.y, centre.z);
+        // Keep tall equipment and the base inside the space above the catch details.
+        const bounds = new THREE.Box3().setFromObject(model);
+        const height = bounds.max.y - Math.min(bounds.min.y, body.min.y - 0.115);
+        group.scale.setScalar(Math.min(1, 1.8 / height));
+        group.add(model, pedestal); catchFigure = group;
+        if (visual.quality !== "standard") applyFinish(model, visual.quality, envMap);
+        return group;
+      }, () => group);
+      return { group, ready };
+    };
     const showCatch = (visual: CatchVisual) => {
-      clearShow(); shown = visual;
-      const placed = visual.kind === "box" ? placeProp(holder, "gift", { height: 0.4, yaw: 0.4 })
-        : visual.kind === "figure" ? placeProp(holder, "chest", { height: 0.45, yaw: -Math.PI / 2 })
+      clearShow(); shown = visual; catchReady = false;
+      const placed = visual.kind === "coin" ? placeProp(holder, "coin", { height: 0.5, length: 1.4 })
+        : visual.kind === "figure" ? placeFigure(visual)
         : placeProp(holder, FISH_PROP[visual.fish], { height: 1, length: THREE.MathUtils.clamp(visual.length * 2, 1.4, 1.9) });
       void placed.ready.then((group) => {
         if (group.parent !== holder) return;
         // Measure and centre in the model's own space, independent of the camera or the last
-        // catch's rotation. The fish-card baker uses the same authored-axis correction.
+        // catch's rotation. Correct the authored lean before the holder's upright spin.
         holder.remove(group);
+        if (visual.kind === "coin") orientCoinModel(group);
         if (visual.kind === "fish" && visual.fish !== "boot") {
-          const size = new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3());
-          group.rotation.set(size.y < size.x && size.y < size.z ? -Math.PI / 2 : 0, size.z > size.x ? Math.PI / 2 : 0, 0);
+          group.rotation.set(-Math.PI / 2, visual.fish === "firefin" ? 0 : Math.PI / 2, 0);
+          const [x, y, z] = FISH_DISPLAY_CORRECTION[visual.fish].map(THREE.MathUtils.degToRad);
+          group.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)));
         }
         if (visual.kind === "fish" && visual.quality !== "standard") applyFinish(group, visual.quality, envMap);
         const centre = new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3());
         group.position.sub(centre);
-        holder.add(group);
+        holder.add(group); catchReady = true;
         group.traverse((object) => { object.raycast = () => {}; });
       });
     };
-    // Last catch away: a fish (or boot) drops into the bucket; a prize vanishes in a sparkle.
+    // Fish and boots go into the bucket; coins fly to the HUD; figures fly off-screen.
     const stow = () => {
       if (!show.visible || !shown || stowing >= 0) return;
       stowing = 0; stowScale = show.scale.x; stowSpin = holder.rotation.y;
       stowFrom.copy(show.position); stowRotation.copy(show.quaternion);
+      if (shown.kind === "coin") coinFlight = coinCollectionFlight(viewRotation);
     };
     animate.push((delta) => {
       const shade = show.visible && stowing < 0 ? THREE.MathUtils.smoothstep(revealProgress, 0.35, 1) * 0.65 : 0;
@@ -662,15 +696,25 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       if (stowing < 0) return;
       stowing += delta;
       const k = Math.min(1, stowing / STOW_SECONDS), eased = smooth(k);
-      if (shown?.kind === "fish") {
+      if (shown?.kind === "coin") {
+        show.position.lerpVectors(stowFrom, WALLET, eased);
+        show.quaternion.slerpQuaternions(stowRotation, viewRotation, eased);
+        holder.rotation.y = Math.atan2(Math.sin(stowSpin), Math.cos(stowSpin)) * (1 - eased);
+        if (!reducedCatchMotion) coinFlight?.(show.position, show.quaternion, eased);
+      } else if (shown?.kind === "fish") {
         show.position.lerpVectors(stowFrom, BUCKET, eased);
         if (!reducedCatchMotion) show.position.y += arc(k) * 0.35;
         show.quaternion.slerpQuaternions(stowRotation, bucketRotation, eased);
         if (!reducedCatchMotion) holder.rotation.y = stowSpin + 0.9 * STOW_SECONDS * (k - k * k / 2);
+      } else if (shown?.kind === "figure" && !reducedCatchMotion) {
+        show.position.lerpVectors(stowFrom, FIGURE_EXIT, eased);
+        holder.rotation.y = stowSpin + 0.9 * stowing;
       }
-      show.scale.setScalar(THREE.MathUtils.lerp(stowScale, 0.015, eased));
+      const endScale = shown?.kind === "coin" ? walletScale : shown?.kind === "figure" && !reducedCatchMotion ? stowScale * 0.85 : 0.015;
+      show.scale.setScalar(THREE.MathUtils.lerp(stowScale, endScale, eased));
       if (k >= 1) {
         if (shown?.kind !== "fish") burst(show.position.clone(), 0xffe6a0);
+        if (shown?.kind === "coin") coinCollected?.();
         const next = queued; queued = null; clearShow();
         if (next) showCatch(next);
       }
@@ -691,6 +735,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     let current: Line | null = null;
     actions.cast = (action, cue, done) => {
       if (action.kind !== "cast") return;
+      coinCollected = () => cue("coinCollected");
       stow(); fishing = true;
       const prize = action.catch.kind !== "fish";
       const out = prize ? GLINT.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3))
@@ -728,6 +773,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
           if (since > 0.45 && since - 1 / 60 <= 0.45) splash(out, 1);
           if (since >= BITE_WINDOW) { state.phase = "lost"; state.at = t; state.result = "missed"; cue("escape"); }
         } else if (state.phase === "hooked") {
+          if (!catchReady) { state.at = t; return true; }
           // The rod jerks up; the catch leaps from the water to its place before the camera.
           rod.rotation.x = REST - 0.36 + Math.min(1, since / 0.18) * 0.9 - Math.max(0, Math.min(1, (since - 0.6) / 0.8)) * 0.6;
           sag = 0;
@@ -767,7 +813,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     };
     setPrizes = (left) => { glintWanted = left > 0 ? 1 : 0; };
     // Use the same gold silhouette as the other world controls, without moving the tackle.
-    hover = (part) => { hoveredPart = part; };
+    hover = (part) => { hoveredPart = part === "water" ? "rod" : part; };
     // Back at rest: the rod settles in its holder, the bobber hangs from its tip.
     animate.push((delta, time) => {
       clock = time;
@@ -790,7 +836,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   const ready = Promise.all(props).then((groups) => {
     if ((kind === "pond" || kind === "crate") && !disposed) {
       const parts: THREE.Object3D[] = [];
-      parent.traverse((object) => { if (object.userData.part) parts.push(object); });
+      parent.traverse((object) => { if (object.userData.part && object.userData.part !== "water") parts.push(object); });
       for (const part of parts) {
         const meshes: THREE.Mesh[] = [];
         part.traverse((object) => { if (object instanceof THREE.Mesh && !object.userData.outline && (Array.isArray(object.material) ? object.material : [object.material]).some((material) => material.visible)) meshes.push(object); });
@@ -809,8 +855,8 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     setPrizes(left: number) { setPrizes?.(left); },
     // The working part under the pointer.
     hover(part: string | null) { hover?.(part); },
-    present(camera: THREE.PerspectiveCamera | null, reducedMotion = false) { presentCatch?.(camera, reducedMotion); },
-    dispose() { disposed = true; chestAnimation?.dispose(); partOutlines.forEach((outline) => outline.dispose()); },
+    present(camera: THREE.PerspectiveCamera | null, reducedMotion = false, coinTarget: { x: number; y: number; width?: number } | null = null) { presentCatch?.(camera, reducedMotion, coinTarget); },
+    dispose() { disposed = true; clearCatch?.(); chestAnimation?.dispose(); partOutlines.forEach((outline) => outline.dispose()); },
     // Acts out an action this facility has (the wheel spins, the pond casts, the crate opens).
     act(action: FacilityAction, cue: (cue: ActionCue) => void, done: (result?: CastResult) => void) {
       const run = actions[action.kind];
