@@ -2163,9 +2163,31 @@ export type CharacterProfileResponse = {
     identityConfidence: CharacterRaidIdentityConfidence | null;
     scoreVersion: number;
     raidFightCoverage: number;
+    profileBossScores?: CharacterProfileBossScore[];
     updatedAt?: string;
   }>;
   mythicPlus: CharacterMythicPlusProfile;
+};
+
+export type CharacterProfileBossScore = {
+  encounterId: number;
+  encounterName: string;
+  role: "dps" | "healer" | "tank";
+  metric: "dps" | "hps";
+  specName: string;
+  rankPercent: number | null;
+  allStarsPoints: number | null;
+  score: number | null;
+  parseScore: number | null;
+  survivalScore: number | null;
+  survivalPercentile: number | null;
+  pulls: number;
+  evaluatedPulls: number;
+  deaths: number;
+  survivedPulls: number;
+  earlyDeaths: number;
+  averageDeathPercent: number | null;
+  deathDataAvailable: boolean;
 };
 
 export type CharacterProfileChoice = {

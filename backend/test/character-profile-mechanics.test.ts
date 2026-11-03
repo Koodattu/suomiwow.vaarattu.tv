@@ -25,6 +25,11 @@ test("character profiles preserve missing combined scores and distinguish them f
     parseScore: score === null ? null : index === 1 ? 0 : 99.7,
     survivalScore: 90, survivalPercentile: 49.1, deathDataAvailable: true, pulls: 7, evaluatedPulls: 7,
   }));
+  const profileBossScores = [
+    { encounterId: 1, role: "dps", metric: "dps", pulls: 6, score: 0, rankPercent: 0 },
+    { encounterId: 2, role: "healer", metric: "hps", pulls: 172, score: null, rankPercent: null },
+  ];
+  const overall = { ...rows[0], type: "overall", encounterId: null, profileBossScores };
   t.mock.method(characterService as any, "findCanonicalRouteCharacters", async () => [character]);
   t.mock.method(characterService as any, "resolveContinuityContext", async () => ({
     isCombined: false, rootCharacter: null, requestedCharacterId: null, canonicalIds: [character.wclCanonicalCharacterId],
@@ -33,7 +38,7 @@ test("character profiles preserve missing combined scores and distinguish them f
   t.mock.method(CharacterReportAppearance, "aggregate", () => ({ collation: async () => [] }));
   t.mock.method(CharacterRaidParticipation, "find", () => queryResult([]) as any);
   t.mock.method(CharacterLeaderboard, "find", () => queryResult([]) as any);
-  t.mock.method(CharacterMechanicsLeaderboard, "find", () => queryResult(rows) as any);
+  t.mock.method(CharacterMechanicsLeaderboard, "find", () => queryResult([...rows, overall]) as any);
   t.mock.method(Character, "findOne", () => queryResult(null) as any);
   t.mock.method(Raid, "find", () => queryResult([{ id: 53, name: "The Venomous Abyss" }]) as any);
 
@@ -46,4 +51,6 @@ test("character profiles preserve missing combined scores and distinguish them f
   assert.equal(byBoss.get(2)?.score, 0);
   assert.equal(byBoss.get(2)?.parseScore, 0);
   assert.equal(byBoss.get(3)?.score, 74.4);
+  assert.deepEqual(byBoss.get(null)?.profileBossScores, profileBossScores);
+  assert.equal(byBoss.get(1)?.profileBossScores, undefined, "older rows must not look rebuilt");
 });

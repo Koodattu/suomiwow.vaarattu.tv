@@ -3351,7 +3351,23 @@
   },
   "characterProfile": {
     "firstSeen": "Ensimmäinen havainto",
-    "lastSeen": "Viimeisin havainto"
+    "lastSeen": "Viimeisin havainto",
+    "performance": {
+      "metricFilter": "Suoritusmittari",
+      "all": "Kaikki",
+      "dps": "DPS",
+      "hps": "HPS",
+      "mixed": "Sekarooli",
+      "damage": "Vahinko",
+      "healer": "Parantaja",
+      "tank": "Tankki",
+      "rolePulls": "{role}: {count, plural, one {# kirjattu yritys} other {# kirjattua yritystä}}",
+      "selectionHint": "Kaikki valitsee kullekin bossille eniten pelatun roolin, myös epäonnistuneet yritykset huomioiden. Raidin yhteenveto perustuu valittuihin bossituloksiin.",
+      "rankingTotal": "Valittujen bossiparsejen All Star -pisteiden summa.",
+      "combinedTotal": "Saatavilla olevien yhdistettyjen bossipisteiden keskiarvo. Bossit, joilta puuttuu rooliin sopiva parse tai mekaniikkapisteet, jätetään pois.",
+      "noParse": "Tälle roolille ei ole tappoparsea.",
+      "noMechanics": "Tälle roolille ei ole arvioitua mekaniikkadataa."
+    }
   },
   "accountProfile": {
     "mostSeenCharacter": "Eniten nähty hahmo",

@@ -1,5 +1,34 @@
 # Mechanics scoring and rebuilding
 
+## Character-profile boss roles
+
+The character profile now has a separate `profileBossScores` array on each rebuilt
+overall mechanics record. It retains boss results for every known role and
+normalizes that population separately. The existing raid-dominant role, `bossScores`,
+leaderboard scores, tier lists, CCG eligibility and score version remain unchanged.
+Profile parses must match the played role and its metric; the legacy off-role
+damage-parse fallback is retained only for the existing scoring consumers.
+
+The profile's **All / DPS / HPS** control selects one role per boss using recorded
+pull counts, including wipes and likely resets (resets still do not contribute to
+the mechanics evaluation). Equal counts prefer DPS, then healer, then tank,
+independently of score quality. DPS includes tanks but never pools their mechanics
+with damage-dealer mechanics. All three Performance tabs use the same selection.
+Parse-only boss results have zero known pulls and no mechanics/combined score.
+Unknown hybrid roles are still included only when role evidence is unambiguous.
+
+Profile Rankings totals sum the selected parses' All Star points. Mechanics
+summaries average the available selected boss percentiles; Combined summaries
+average the available selected combined boss scores, without treating missing
+values as zero. These display summaries are not inputs to tier lists or CCG.
+
+No database migration or index change is required. The existing nightly mechanics
+job populates the optional field for **current raids**, using already stored data.
+Use **Admin → Manual Actions → All Raids → Calculate Mechanics Scores** to populate
+historical raids as well. The existing 90% coverage gate applies. Until a raid is
+rebuilt, the profile retains its previous display. No full-history/WCL refresh or
+CCG snapshot/publication is required just to enable this display.
+
 Score version 5 aggregates Mythic survival by character, boss, and role. Specializations within the same role share mechanics; tank, DPS, and healer pulls stay separate. The character's most-played raid role is selected by summing its known-role pulls across specs. A representative spec within that role remains available for display.
 
 Each boss retains the spec of its selected performance parse. Overall spec filters select the character's representative spec without recalculating mechanics from a subset of bosses.

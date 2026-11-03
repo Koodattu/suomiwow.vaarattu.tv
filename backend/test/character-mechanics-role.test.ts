@@ -49,8 +49,82 @@ function build(inputFights: any[], parses: any[], classID = 10) {
   };
   const { bossEntries: bosses, identities } = mechanics.buildBossEntries(53, parses, survivalBuild, new Map());
   mechanics.normalizeBossSurvivalScores(bosses);
-  return { bosses, overall: mechanics.buildOverallEntries(bosses, identities)[0], stats };
+  return { bosses, overall: mechanics.buildOverallEntries(bosses, identities)[0], stats, survivalBuild };
 }
+
+test("profile boss roles retain DPS and healing without changing tier-list or CCG results", async () => {
+  const parses = [
+    parse(3470, "enhancement", 95, { classID: 9, allStarsPoints: 110 }),
+    parse(3429, "enhancement", 55, { classID: 9, allStarsPoints: 70 }),
+    parse(3379, "restoration", 60, { classID: 9, role: "healer", metric: "hps", allStarsPoints: 80 }),
+    // Off-role damage must not become the DPS-role parse on the profile.
+    parse(3379, "restoration", 99, { classID: 9, role: "healer" }),
+    parse(3445, "enhancement", 0, { classID: 9, allStarsPoints: 0 }),
+  ];
+  const legacy = build([
+    ...fights(3470, "enhancement", 6), ...fights(3429, "enhancement", 2),
+    ...fights(3429, "restoration", 172, true),
+    ...fights(3379, "enhancement", 3), ...fights(3379, "restoration", 25),
+  ], parses, 9);
+  const before = JSON.parse(JSON.stringify(legacy.overall));
+  assert.equal(legacy.overall.role, "healer");
+  assert.equal(legacy.overall.pulls, 197);
+  const profile = mechanics.buildProfileBossScores(53, parses, legacy.survivalBuild).get(String(characterId));
+  assert.deepEqual(JSON.parse(JSON.stringify(legacy.overall)), before, "profile normalization cannot mutate legacy scores");
+  const bossRole = (id: number, role: string) => profile.find((row: any) => row.encounterId === id && row.role === role);
+  assert.equal(bossRole(3470, "dps").pulls, 6);
+  assert.equal(bossRole(3470, "dps").allStarsPoints, 110);
+  assert.equal(bossRole(3429, "dps").pulls, 2);
+  assert.equal(bossRole(3429, "healer").pulls, 172);
+  assert.equal(bossRole(3429, "healer").parseScore, null);
+  assert.equal(bossRole(3429, "healer").score, null);
+  assert.equal(typeof bossRole(3429, "healer").survivalPercentile, "number");
+  assert.equal(bossRole(3379, "dps").parseScore, null, "Restoration damage cannot fill Enhancement performance");
+  assert.equal(bossRole(3379, "healer").parseScore, 60);
+  assert.equal(bossRole(3445, "dps").pulls, 0);
+  assert.equal(bossRole(3445, "dps").rankPercent, 0);
+  assert.equal(bossRole(3445, "dps").survivalPercentile, null);
+  assert.equal(bossRole(3445, "dps").score, null);
+
+  const enriched = { ...legacy.overall, profileBossScores: profile };
+  const document = new CharacterMechanicsLeaderboard(enriched);
+  await document.validate();
+  assert.deepEqual(JSON.parse(JSON.stringify(document.toObject().profileBossScores)), profile);
+  assert.equal(new CharacterMechanicsLeaderboard(legacy.overall).profileBossScores, undefined);
+  const generatedAt = new Date("2026-11-03T00:00:00Z");
+  const entry = (row: any) => (characterTierListService as any).createGeneratedEntry({
+    scope: "global", raid: { id: 53, name: "The Venomous Abyss" }, mechanicsRow: row,
+    participation: { ...character, classID: 9, characterKey: String(characterId), sourceUpdatedAt: generatedAt }, generatedAt,
+  });
+  assert.deepEqual(entry(enriched), entry(legacy.overall));
+  assert.deepEqual(resolveCcgCharacterMechanicsStatus([enriched]), resolveCcgCharacterMechanicsStatus([legacy.overall]));
+  assert.equal(shouldPublishCcgCardSnapshot(
+    { ...entry(legacy.overall), tierGrade: "D", mythicPlusScore: null },
+    { ...entry(enriched), tierGrade: "D", mythicPlusScore: null },
+  ), false);
+});
+
+test("off-role profile participants cannot change the legacy percentile population", () => {
+  const peer = { ...character, characterId: new mongoose.Types.ObjectId(), wclCanonicalCharacterId: 2, name: "OtherShaman", classID: 9 };
+  const peerFights = [...fights(1, "enhancement", 30, true), ...fights(2, "restoration", 100)].map(fight => ({
+    ...fight, reportCode: `peer-${fight.reportCode}`,
+    combatants: fight.combatants.map(row => ({ ...row, name: peer.name })),
+    deaths: fight.deaths.map(row => ({ ...row, name: peer.name })),
+  }));
+  const input = [...fights(1, "enhancement", 40), ...peerFights];
+  const survival = { stats: new Map(), characters: new Map(), specPullsByCharacter: new Map(), unknownSpecPullsByCharacter: new Map(),
+    encounters: new Map([[1, "Boss 1"], [2, "Boss 2"]]), coverage: 1, fights: input.length, eligibleFights: input.length };
+  mechanics.addSurvivalStats(input, [], [{ ...character, classID: 9 }, peer], new Map(input.map(fight => [fight.reportCode, "EU"])),
+    survival.stats, survival.specPullsByCharacter, survival.unknownSpecPullsByCharacter, survival.characters);
+  const legacy = mechanics.buildBossEntries(53, [], survival, new Map()).bossEntries;
+  mechanics.normalizeBossSurvivalScores(legacy);
+  const mainBoss = legacy.find((row: any) => String(row.characterId) === String(characterId));
+  assert.equal(mainBoss.survivalPercentile, 50);
+  const profile = mechanics.buildProfileBossScores(53, [], survival);
+  assert.equal(profile.get(String(characterId))[0].survivalPercentile, 100);
+  assert.equal(profile.get(String(peer.characterId)).find((row: any) => row.encounterId === 1).survivalPercentile, 0);
+  assert.equal(mainBoss.survivalPercentile, 50);
+});
 
 test("Yolobolt's role includes all 111 pulls and progression changes mechanics without diluting parses", async () => {
   const killedBossFights = [
@@ -277,6 +351,8 @@ test("the published mechanics build counts Nymrissa once and keeps Kith'ix out o
   const overall = () => written.find(row => row.type === "overall");
   await mechanics.buildZoneMechanicsLeaderboard(53);
   assert.equal(overall().parseScore, 80);
+  assert.equal(overall().profileBossScores[0].encounterId, 3470);
+  assert.equal(overall().profileBossScores[0].role, "dps");
   assert.equal(resolveCcgCharacterMechanicsStatus([overall()]).eligible, false);
 
   input.push(...fights(3379, "demonology", 20));
@@ -291,7 +367,7 @@ test("the published mechanics build counts Nymrissa once and keeps Kith'ix out o
   input.push(...fights(3513, "destruction", 200, true));
   parses.push(parse(3513, "destruction", 100));
   const result = await mechanics.buildZoneMechanicsLeaderboard(53);
-  for (const field of ["parseScore", "survivalScore", "survivalPercentile", "score", "pulls", "deaths", "specName", "bossScores"]) {
+  for (const field of ["parseScore", "survivalScore", "survivalPercentile", "score", "pulls", "deaths", "specName", "bossScores", "profileBossScores"]) {
     assert.deepEqual(overall()[field], withNymrissa[field], `Kith'ix changed ${field}`);
   }
   assert.equal(result.eligibleFights, 50, "Kith'ix must not affect aggregate coverage");

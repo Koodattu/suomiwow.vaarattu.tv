@@ -3351,7 +3351,23 @@
   },
   "characterProfile": {
     "firstSeen": "First Seen",
-    "lastSeen": "Last Seen"
+    "lastSeen": "Last Seen",
+    "performance": {
+      "metricFilter": "Performance metric",
+      "all": "All",
+      "dps": "DPS",
+      "hps": "HPS",
+      "mixed": "Mixed",
+      "damage": "Damage",
+      "healer": "Healer",
+      "tank": "Tank",
+      "rolePulls": "{role}: {count, plural, one {# recorded pull} other {# recorded pulls}}",
+      "selectionHint": "All selects the most-played role on each boss, including wipes. Raid summaries reflect the selected bosses.",
+      "rankingTotal": "Sum of All Star points for the selected boss parses.",
+      "combinedTotal": "Average of the available combined boss scores. Bosses without a compatible parse or mechanics score are excluded.",
+      "noParse": "No kill parse for this role.",
+      "noMechanics": "No evaluated mechanics data for this role."
+    }
   },
   "accountProfile": {
     "mostSeenCharacter": "Most seen character",
