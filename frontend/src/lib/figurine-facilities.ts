@@ -5,6 +5,7 @@ import { FISH_PROP, type PlaceProp } from "@/lib/figurine-props";
 import { WHEEL, type FigurineQuality, type FishId } from "@/lib/figurine-collection";
 import { applyFinish, releaseFinishes } from "@/lib/figurine-finish";
 import { WORLD_TEXTURES } from "@/lib/figurine-world";
+import { dailyChestAnimation, chestRewardPose } from "@/lib/figurine-chest";
 
 // The plaza's facilities other than the shop and the two machines. Each is a small scene of game
 // props, some round a hand-built centrepiece, standing in the world unsigned: a mailbox is just a
@@ -15,7 +16,7 @@ export type Facility = "gallery" | "crate" | "wheel" | "mail" | "quests" | "feed
 // open, the pond casts a line with `catch` on the end of it. Cues mark moments worth a sound (and,
 // at the pond, what the line is doing); `done` ends the action, the pond's with how it went.
 export type FacilityAction = { kind: "spin"; segment: number } | { kind: "cast"; catch: CatchVisual } | { kind: "open" };
-export type ActionCue = "tick" | "splash" | "nibble" | "bite" | "escape" | "catch" | "burst";
+export type ActionCue = "tick" | "splash" | "nibble" | "bite" | "escape" | "catch" | "burst" | "chestOpen" | "chestLift" | "chestReward";
 export type CastResult = "caught" | "missed" | "spooked";
 // What comes up when a line is hooked: a prize (a wrapped box, a little chest holding a figure),
 // or a fish (or boot) of the given length, at its finish.
@@ -48,7 +49,7 @@ function rippleNormals() {
   const map = new THREE.CanvasTexture(element); map.wrapS = map.wrapT = THREE.RepeatWrapping;
   return map;
 }
-export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, envMap }: { placeProp: PlaceProp; envMap: THREE.Texture }) {
+export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, envMap, rewardBox }: { placeProp: PlaceProp; envMap: THREE.Texture; rewardBox?: THREE.Object3D | null }) {
   // What the hover outline wraps: built parts now, game props once they have loaded.
   const frame: THREE.Mesh[] = [], props: Promise<THREE.Group>[] = [];
   // The action playing now, stepped each frame; null when idle.
@@ -59,6 +60,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   const play = (step: (t: number) => boolean) => { acting = { step, t: 0 }; };
   // The crate's streak board, repainted when the streak changes.
   let paintStreak: ((opened: number, today: number | null) => void) | null = null;
+  let chestAnimation: ReturnType<typeof dailyChestAnimation> = null;
   // The pond's glint (while prize catches remain), and the tackle under the pointer.
   let setPrizes: ((left: number) => void) | null = null, hover: ((part: string | null) => void) | null = null;
   let presentCatch: ((camera: THREE.PerspectiveCamera | null, reducedMotion: boolean) => void) | null = null;
@@ -144,20 +146,66 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     glass.position.set(0, (height + PLINTH) / 2, DEPTH / 2 + 0.02); glass.renderOrder = 2; glass.raycast = () => {}; parent.add(glass);
   } else if (kind === "crate") {
     // Daily crate: a chest with gold spilling beside it, and a seven-day streak board on two posts.
-    const chest = prop("chest", 0.95, 0, 0.1, -Math.PI / 2).group;
-    actions.open = (_, cue, done) => play((t) => {
-      const hop = t < 0.9 ? Math.abs(Math.sin(t * Math.PI * 3.3)) * (1 - t / 0.9) * 0.18 : 0;
-      chest.position.y = hop; chest.rotation.z = Math.sin(t * 40) * 0.04 * Math.max(0, 1 - t / 0.9);
-      chest.scale.setScalar(t > 0.9 && t < 1.15 ? 1 + Math.sin((t - 0.9) / 0.25 * Math.PI) * 0.12 : 1);
-      if (t >= 0.9 && t - 1 / 60 < 0.9) { burst(new THREE.Vector3(0, 0.9, 0.1)); cue("burst"); }
-      if (t > 2.2) { done(); return false; }
-      return true;
+    const chest = prop("dailyChest", 0.95, 0, 0.1, -Math.PI / 2);
+    chest.group.userData.part = "chest";
+    hover = (part) => { hoveredPart = part; };
+    const reward = new THREE.Group(); parent.add(reward);
+    if (rewardBox) {
+      const bounds = new THREE.Box3().setFromObject(rewardBox), size = bounds.getSize(new THREE.Vector3());
+      const scale = 0.72 / Math.max(size.y, 0.001);
+      rewardBox.position.copy(bounds.getCenter(new THREE.Vector3())).multiplyScalar(-scale);
+      rewardBox.scale.setScalar(scale); reward.add(rewardBox);
+      rewardBox.traverse((object) => { object.raycast = () => {}; });
+    }
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkMap, color: 0xffc66b, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    glow.position.set(0, 0.65, 0.2); glow.scale.set(1.8, 2.1, 1); glow.raycast = () => {}; parent.add(glow);
+    let rewardTime = -1, rewardComplete: (() => void) | null = null, rewardCue: ((cue: ActionCue) => void) | null = null;
+    let reduced = false;
+    presentCatch = (_, reducedMotion) => { reduced = reducedMotion; };
+    const poseReward = (time: number) => {
+      const pose = chestRewardPose(time, reduced);
+      reward.position.set(0, pose.y, pose.z); reward.scale.setScalar(pose.scale); reward.rotation.y = pose.turn;
+      return pose;
+    };
+    poseReward(0);
+    let claimed = false;
+    const chestReady = chest.ready.then((group) => {
+      if (disposed) return;
+      chestAnimation = dailyChestAnimation(group);
+      chestAnimation?.setClaimed(claimed);
     });
+    animate.push((delta, time) => {
+      chestAnimation?.update(delta);
+      if (rewardTime < 0) return;
+      rewardTime += delta;
+      const pose = poseReward(rewardTime);
+      if (pose.settled && !reduced) reward.position.y += Math.sin(time * 1.8) * 0.025;
+      glow.material.opacity = pose.glow * (pose.settled ? 0.35 : 0.65);
+      if (pose.settled && rewardComplete) {
+        const done = rewardComplete; rewardComplete = null;
+        rewardCue?.("chestReward"); burst(reward.position); done();
+      }
+    });
+    actions.open = (_, cue, done) => {
+      void chestReady.then(() => {
+        if (disposed) return;
+        reward.visible = true; rewardTime = -1; poseReward(0);
+        rewardComplete = done; rewardCue = cue;
+        cue("chestOpen");
+        const reveal = () => { rewardTime = 0; cue("chestLift"); };
+        if (chestAnimation) chestAnimation.open(reveal, () => {});
+        else reveal(); // A failed model download must not block the reward.
+      });
+    };
     prop("goldPile", 0.13, -1.1, 0.55, 0.3);
     prop("goldPileSmall", 0.09, 1.08, 0.55, 1.4);
     // The streak board: a coin per day, gilded once that day's crate is opened; today's is ringed.
     const [streakCanvas, streak] = canvas(512, 96), streakMap = srgb(streakCanvas);
     paintStreak = (opened: number, today: number | null) => {
+      claimed = today === null;
+      chestAnimation?.setClaimed(claimed);
+      if (!claimed && !rewardComplete) { rewardTime = -1; poseReward(0); glow.material.opacity = 0; }
+      if (rewardTime < 0 && !rewardComplete) reward.visible = !claimed;
       streak.fillStyle = "#2a1a10"; streak.fillRect(0, 0, 512, 96);
       for (let day = 1; day <= 7; day++) {
         const x = 40 + (day - 1) * 72, lit = day <= opened;
@@ -740,7 +788,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     });
   }
   const ready = Promise.all(props).then((groups) => {
-    if (kind === "pond" && !disposed) {
+    if ((kind === "pond" || kind === "crate") && !disposed) {
       const parts: THREE.Object3D[] = [];
       parent.traverse((object) => { if (object.userData.part) parts.push(object); });
       for (const part of parts) {
@@ -762,7 +810,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     // The working part under the pointer.
     hover(part: string | null) { hover?.(part); },
     present(camera: THREE.PerspectiveCamera | null, reducedMotion = false) { presentCatch?.(camera, reducedMotion); },
-    dispose() { disposed = true; partOutlines.forEach((outline) => outline.dispose()); },
+    dispose() { disposed = true; chestAnimation?.dispose(); partOutlines.forEach((outline) => outline.dispose()); },
     // Acts out an action this facility has (the wheel spins, the pond casts, the crate opens).
     act(action: FacilityAction, cue: (cue: ActionCue) => void, done: (result?: CastResult) => void) {
       const run = actions[action.kind];

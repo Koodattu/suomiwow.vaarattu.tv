@@ -191,7 +191,19 @@
         "open": "Open today's crate",
         "got": "Day {day}: {reward}",
         "day7": "Golden roll",
-        "next": "Day {day}'s crate opens {time}"
+        "next": "Day {day}'s crate opens {time}",
+        "title": "Daily treasure",
+        "action": "Open chest",
+        "opening": "Opening…",
+        "invitation": "A little treasure, just for you.",
+        "hint": "Tap the chest or press Space to open.",
+        "anticipation": "Something good is waiting inside.",
+        "reward": "A box for your collection",
+        "goldenReward": "A golden roll is yours, too.",
+        "claimed": "Claimed",
+        "comeBack": "Come back tomorrow for another treasure.",
+        "controls": "Daily chest controls",
+        "back": "Back"
       },
       "wheel": {
         "body": "One free spin a day.",

@@ -32,6 +32,10 @@ export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; vo
   // The drawn figure's CCG card quip, chosen at play time; never pitch-shifted.
   quip: { files: [], volume: 1 },
   drop: { files: ["drop-a", "drop-b"], volume: 0.6, jitter: 0.04 },
+  // Timed to the native lid, the box's ascent, and its final reward pose.
+  chestOpen: { files: ["chest-open"], volume: 0.7 },
+  chestLift: { files: ["chest-lift"], volume: 0.45 },
+  chestReward: { files: ["chest-reward"], volume: 0.65 },
 };
 // Cue files live in /figurines/audio; quips are full paths into the CCG's quip folder.
 const sourceFor = (file: string) => file.startsWith("/") ? file : `/figurines/audio/${file}.mp3`;

@@ -1,0 +1,5 @@
+.title { position: absolute; z-index: 3; top: max(35px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; color: #f6e4bd; text-shadow: 0 2px 8px #000; }
+.title span { font: 600 11px system-ui, sans-serif; letter-spacing: .2em; text-transform: uppercase; color: #d8bc82; }
+.title h1 { margin: 5px 0 0; font: 400 clamp(22px, 3vw, 32px)/1.2 Georgia, serif; }
+.action { min-width: 210px; }
+@media (max-width: 700px) { .title { top: max(85px, calc(env(safe-area-inset-top) + 70px)); } .action { min-width: 175px; padding-inline: 18px; font-size: 17px; } }

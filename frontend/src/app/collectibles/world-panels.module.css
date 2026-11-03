@@ -54,18 +54,6 @@
 @keyframes strike { to { transform: scale(1.04); box-shadow: 0 0 34px rgba(255, 190, 70, .65); } }
 .wait { margin: 0; padding: 12px; border: 1px dashed rgba(214, 187, 134, .3); border-radius: 10px; font-size: 13px; text-align: center; color: #c4b99f; }
 
-/* The crate's streak: seven coins on a track, filled up to the days opened; the seventh a star. */
-.track { list-style: none; margin: 4px 0 0; padding: 0; position: relative; display: grid; grid-template-columns: repeat(7, 1fr); }
-.track::before, .track::after { content: ""; position: absolute; top: 17px; left: calc(100% / 14); height: 3px; border-radius: 2px; }
-.track::before { right: calc(100% / 14); background: rgba(255, 255, 255, .1); }
-.track::after { width: calc((100% - 100% / 7) * var(--done)); background: linear-gradient(90deg, #9c7430, #f1d48a); }
-.track li { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 10px; color: #8f9aa7; text-align: center; }
-.coin { display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid #4d4230; border-radius: 50%; background: #141b26; color: #a99d84; font: 700 13px Georgia, serif; }
-.track li[data-final="true"] .coin { width: 40px; height: 40px; margin-top: -3px; border-color: #8a7550; color: #ffd77a; font-size: 18px; }
-.track li[data-done="true"] .coin { border-color: #f1d48a; background: radial-gradient(circle at 35% 30%, #fff1c4, #d9a845 60%, #8a6220); color: #3a2506; }
-.track li[data-today="true"] .coin { border-color: #fff3da; box-shadow: 0 0 0 4px rgba(255, 215, 122, .18); animation: today 1.6s ease-in-out infinite; }
-.track li[data-today="true"] small { color: #fff3da; }
-@keyframes today { 50% { box-shadow: 0 0 0 7px rgba(255, 215, 122, .1), 0 0 18px rgba(255, 215, 122, .4); } }
 
 /* The wheel's prizes, each with its segment's colour. */
 .prizes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
@@ -137,8 +125,5 @@
   .panel { top: auto; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; max-height: 52svh; animation-name: sheetIn; }
   .panel[data-wide="catalogue"] { top: max(64px, env(safe-area-inset-top)); width: auto; max-height: none; bottom: max(8px, env(safe-area-inset-bottom)); }
   @keyframes sheetIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-  .track .coin { width: 30px; height: 30px; font-size: 12px; }
-  .track li[data-final="true"] .coin { width: 34px; height: 34px; }
-  .track::before, .track::after { top: 15px; }
 }
-@media (prefers-reduced-motion: reduce) { .panel, .result, .claim, .cta, .track li .coin { animation: none; } .card, .cta { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .panel, .result, .claim, .cta { animation: none; } .card, .cta { transition: none; } }

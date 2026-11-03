@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { acquiredId, bestQuality, canSpin, crateReward, crateState, questBoard, type Catch, type FigurineCollection, type FigurineQuality, type FigurineRecords, type MachineItem, type QuestPeriod, type Reward } from "@/lib/figurine-collection";
+import { acquiredId, bestQuality, canSpin, questBoard, type Catch, type FigurineCollection, type FigurineQuality, type FigurineRecords, type MachineItem, type QuestPeriod, type Reward } from "@/lib/figurine-collection";
 import { findFigure } from "@/lib/figurine-series";
 import type { Station } from "@/lib/figurine-world";
 import type { CastResult } from "@/lib/figurine-facilities";
@@ -23,7 +23,7 @@ export type LinePhase = "cast" | "wait" | "nibble" | "bite";
 // The daily stations' actions, and whether one is playing now.
 export type PanelActions = {
   busy: boolean; result: PanelResult | null; now: Date;
-  onCrate: () => void; onSpin: () => void; onClaim: (id: string) => void;
+  onSpin: () => void; onClaim: (id: string) => void;
 };
 type Props = CatalogueActions & {
   view: Station; collection: FigurineCollection; records: FigurineRecords; series: PanelSeries[];
@@ -112,24 +112,6 @@ function Station({ view, collection, records, series, actions }: Props) {
   const firstAt = (quality: FigurineQuality) => Object.entries(records.acquired).filter(([id]) => id.endsWith(`|${quality}`)).map(([, at]) => at).sort()[0];
   const date = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium", timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
   const until = (period: QuestPeriod) => format.relativeTime(nextTurn(period, now), now);
-  if (view === "crate") {
-    const state = crateState(records, now), done = state.ready ? state.day - 1 : state.day;
-    return <>
-      <p className={styles.note}>{t("world.crate.body")}</p>
-      <ol className={styles.track} style={{ "--done": done / 6 } as CSSProperties}>{Array.from({ length: 7 }, (_, index) => {
-        const day = index + 1;
-        return <li key={day} data-done={day <= done} data-today={state.ready && day === state.day} data-final={day === 7}>
-          <span className={styles.coin}>{day <= done ? "✓" : day === 7 ? "★" : day}</span>
-          <small>{day === 7 ? t("world.crate.day7") : t("world.crate.day", { day })}</small>
-        </li>;
-      })}</ol>
-      {shown?.station === "crate" && <ResultCard tone={shown.reward.boost}><b>{t("world.crate.got", { day: shown.day, reward: rewardText(shown.reward) })}</b></ResultCard>}
-      {state.ready
-        ? <button type="button" className={styles.cta} disabled={busy} onClick={actions.onCrate}>{t("world.crate.open")}<span>{rewardText(crateReward(state.day))}</span></button>
-        : <p className={styles.wait}>{t("world.crate.next", { day: state.day >= 7 ? 1 : state.day + 1, time: until("daily") })}</p>}
-      <Boons records={records} />
-    </>;
-  }
   if (view === "wheel") {
     const ready = canSpin(records, now);
     return <>

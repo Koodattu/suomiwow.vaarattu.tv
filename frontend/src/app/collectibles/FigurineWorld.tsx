@@ -8,13 +8,14 @@ import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
 import { createFigurineFileCache } from "@/lib/figurine-cache";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
-import { MACHINE_SLOTS, addToCollection, boostedQuality, claimQuest, crateState, dailyCatchesLeft, fishOf, grantReward, landCatch, moveFavorite, openCrate, rollCatch, setFavoriteQuality, showcaseOf, spendBoost, spinWheel, startQuestPeriods, toggleFavorite, type CatchRoll, type PullSource, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
+import { MACHINE_SLOTS, addToCollection, boostedQuality, claimQuest, crateReward, crateState, dailyCatchesLeft, fishOf, grantReward, landCatch, moveFavorite, openCrate, rollCatch, setFavoriteQuality, showcaseOf, spendBoost, spinWheel, startQuestPeriods, toggleFavorite, type CatchRoll, type PullSource, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, RELEASED_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
 import type { StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
 import type { MachinePick } from "@/lib/figurine-machine";
 import { isStation, type Station } from "@/lib/figurine-world";
 import WorldPanel, { type LinePhase, type PanelResult, type PanelSeries } from "./WorldPanels";
 import PondHud, { type PondPart, type PondSheet } from "./PondHud";
+import ChestHud from "./ChestHud";
 import type { ActionCue, CastResult, CatchVisual, FacilityAction } from "@/lib/figurine-facilities";
 import panelStyles from "./world-panels.module.css";
 import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
@@ -186,6 +187,9 @@ export default function FigurineWorld() {
   const [facilityAction, setFacilityAction] = useState<{ run: number; station: "crate" | "wheel" | "pond"; action: FacilityAction } | null>(null);
   // A cast carries what is on the line (and the figure, for the figure prize) until it is hooked or lost.
   const [pending, setPending] = useState<{ run: number; result: PanelResult | null; source?: PullSource; roll?: CatchRoll; figure?: MachineItem } | null>(null);
+  const chestClaiming = useRef(false);
+  // Development preview: one opening per page load, without changing the saved daily streak.
+  const [previewChestClaimed, setPreviewChestClaimed] = useState(false);
   const [line, setLine] = useState<LinePhase | null>(null);
   const [poke, setPoke] = useState<{ n: number; station: "pond"; kind: "hook" | "dismiss" } | null>(null);
   // The pond's sheets (the fish log from its bucket, the anglers' board from the board on the bank,
@@ -206,6 +210,7 @@ export default function FigurineWorld() {
   };
   function actionDone(run: number, cast?: CastResult) {
     if (!pending || pending.run !== run) return;
+    if (pending.result?.station === "crate") chestClaiming.current = false;
     let outcome = pending.result;
     // A cast lands its catch only if it was hooked in time.
     if (pending.roll) {
@@ -259,12 +264,21 @@ export default function FigurineWorld() {
   const pondPart = (part: string) => { if (part === "bucket") openSheet("log"); else if (part === "board") openSheet("board"); else if (part === "rod" || part === "bobber") fishTap(); };
   const leavePond = () => { setPondSheet(null); back(); };
   const prizes = dailyCatchesLeft(records, now);
-  const crate = crateState(records, now);
+  const dailyCrate = crateState(records, now);
+  const crate = process.env.NODE_ENV === "development" ? { ...dailyCrate, ready: !previewChestClaimed } : dailyCrate;
+  const openDailyChest = () => {
+    if (busy || chestClaiming.current || !crate.ready) return;
+    chestClaiming.current = true;
+    const opened = process.env.NODE_ENV === "development"
+      ? { day: crate.day, reward: crateReward(crate.day) } : openCrate(now);
+    if (!opened) { chestClaiming.current = false; return; }
+    setPreviewChestClaimed(true);
+    act("crate", { kind: "open" }, { station: "crate", ...opened });
+  };
   const streak = useMemo(() => ({ opened: crate.ready ? crate.day - 1 : crate.day, today: crate.ready ? crate.day : null }), [crate.ready, crate.day]);
   const completeSeries = FIGURINE_SERIES.some((entry) => entry.characters.every((character) => collection[figureKey(entry.id, character.id)]));
   const panelActions = {
     busy, result, now,
-    onCrate: () => { const opened = openCrate(now); if (opened) act("crate", { kind: "open" }, { station: "crate", ...opened }); },
     onSpin: () => {
       const spun = spinWheel(Math.random(), now);
       if (spun) act("wheel", { kind: "spin", segment: spun.segment }, { station: "wheel", reward: spun.reward, figure: spun.reward.figure ? prizeFigure() : undefined }, "wheel");
@@ -338,6 +352,7 @@ export default function FigurineWorld() {
       else if (view === "shop" && /^[1-9]$/.test(key) && ALL_SERIES[Number(key) - 1]) pickSeries(ALL_SERIES[Number(key) - 1]);
       else if (view === "opening" && state.phase === "sealed" && series && !webglUnavailable && (key === "enter" || key === " ") && !(event.target instanceof Element && event.target.closest("button, a"))) { event.preventDefault(); open(); }
       // At the pond, Space casts, and strikes once the line is out.
+      else if (view === "crate" && key === " " && !(event.target instanceof Element && event.target.closest("button, a"))) { event.preventDefault(); openDailyChest(); }
       else if (view === "pond" && key === " " && !(event.target instanceof Element && event.target.closest("button, a"))) { event.preventDefault(); fishTap(); }
       else if (view === "pond" && key === "l") openSheet("log");
       else if (view === "pond" && key === "b") openSheet("board");
@@ -391,7 +406,7 @@ export default function FigurineWorld() {
       interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
       machines={machines} onMachine={operateMachine} onMachineDone={machineDone} onIntroDone={() => setIntroDone(true)} onHoverStation={setPointed} action={facilityAction} onActionDone={actionDone} onActionCue={actionCue} poke={poke} panelWidth={panelWidth}
-      onFacilityPart={(station, part) => { if (station === "pond") pondPart(part); }} onHoverPart={(part) => setHoverPart(part as PondPart | null)}
+      onFacilityPart={(station, part) => { if (station === "pond") pondPart(part); else if (station === "crate" && part === "chest") openDailyChest(); }} onHoverPart={(part) => setHoverPart(part as PondPart | null)}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={(key) => inspect(key)} onHoverFigure={setHovered}
       onStatus={(status) => {
         setWebglUnavailable(status === "webgl");
@@ -407,7 +422,8 @@ export default function FigurineWorld() {
     </p>}
     {view === "pond" && revealedWorld && <PondHud records={records} line={line} result={result?.station === "pond" ? result : null} busy={busy} hovered={hoverPart} sheet={pondSheet}
       onCast={cast} onHook={hook} onDismiss={dismissCatch} onSheet={openSheet} onBack={leavePond} />}
-    {isStation(view) && view !== "shop" && view !== "pond" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back} actions={panelActions}
+    {view === "crate" && revealedWorld && <ChestHud ready={crate.ready} day={crate.day} busy={busy} result={result?.station === "crate" ? result : null} onOpen={openDailyChest} onBack={back} />}
+    {isStation(view) && view !== "shop" && view !== "pond" && view !== "crate" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back} actions={panelActions}
       onInspect={(key, finish) => inspect(key, finish)} machine={machinePanel}
       onFavorite={(item) => { unlockFigurineAudio(); toggleFavorite(item); }} onMoveFavorite={(key, to) => moveFavorite(key, to)} onFavoriteQuality={(key, finish) => setFavoriteQuality(key, finish)} />}
     <div className={styles.worldLoader} data-done={revealedWorld} role="status" aria-hidden={revealedWorld}>

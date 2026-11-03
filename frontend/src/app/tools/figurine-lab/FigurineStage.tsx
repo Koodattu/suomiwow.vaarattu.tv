@@ -288,7 +288,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const group = machineGroups[kind];
       return [kind, group && worldSetup ? builders[kind](group, { envMap: environment, placeProp }) : null];
     })) as Record<FigurineMachine, ReturnType<typeof buildRecycler> | null>;
-    const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, { placeProp, envMap: environment }) }] : []) : [];
+    const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, {
+      placeProp, envMap: environment,
+      rewardBox: kind === "crate" ? boxCopy(worldSetup.series.find((entry) => entry.released)?.id ?? "") : null,
+    }) }] : []) : [];
     // The showcase's statues load their figures like the pedestal does, one at a time.
     const statueLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
     const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: (url) => statueLoader.loadAsync(url), cubbies: facilities.find((facility) => facility.kind === "gallery")?.cubbies }) : null;
@@ -671,7 +674,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         actedRun = run;
         const facility = facilities.find((entry) => entry.kind === station);
         const sound = (cue: ActionCue) => {
-          if (cue === "tick") playFigurineCue("tap", { intensity: 0.35 });
+          if (cue === "chestOpen" || cue === "chestLift" || cue === "chestReward") playFigurineCue(cue);
+          else if (cue === "tick") playFigurineCue("tap", { intensity: 0.35 });
           else if (cue === "nibble") playFigurineCue("tap", { intensity: 0.2 });
           else if (cue === "splash" || cue === "bite") { playFigurineCue("drop", { intensity: cue === "bite" ? 0.9 : 0.6 }); if (cue === "bite") playFigurineCue("rattle", { intensity: 0.5 }); }
           else if (cue === "escape") playFigurineCue("drop", { intensity: 0.25 });
@@ -784,9 +788,9 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const pickAt = (): Pick | null => {
       const view = state.current.view;
       if ((flight && flight.t < 0.6) || !immersive || !navigable()) return null;
-      if (view === "pond" && groups.pond) {
-        const part = pickFacilityPart(raycaster, groups.pond);
-        return part ? { kind: "part", station: "pond", part } : null;
+      if ((view === "pond" || view === "crate") && groups[view]) {
+        const part = pickFacilityPart(raycaster, groups[view]!);
+        return part ? { kind: "part", station: view, part } : null;
       }
       // Only the stations are targets; glows and sprites never block what is behind them.
       const roots = stationGroups;
@@ -930,8 +934,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const homeTarget = controls.target.clone();
     // The station panel's size (world-panels.module.css): docked right, or a bottom sheet below this width.
     const PANEL_SHEET_WIDTH = 700;
-    // The stations with a panel: all but the shop and the pond, whose controls lie over the world.
-    const panelled = (view: WorldView) => isStation(view) && view !== "shop" && view !== "pond";
+    // The shop, pond and chest use the full scene with controls over the world.
+    const panelled = (view: WorldView) => isStation(view) && view !== "shop" && view !== "pond" && view !== "crate";
     // The share of the screen a docked panel covers on wide screens.
     const panelShare = (view: WorldView) => { const width = renderer.domElement.clientWidth; return panelled(view) && width > PANEL_SHEET_WIDTH ? Math.min(state.current.panelWidth + 16, width * 0.7) / width : 0; };
     // A station is framed to fit beside its panel, not behind it.
@@ -1266,6 +1270,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       // Timed by the frame delta, so auto-rotation turns at the same speed on any refresh rate.
       controls.update(delta); if (!reduced) mixer?.update(delta);
       facilities.find((facility) => facility.kind === "pond")?.present(currentView === "pond" ? camera : null, reduced);
+      facilities.find((facility) => facility.kind === "crate")?.present(currentView === "crate" ? camera : null, reduced);
       const cameraShake = cinematic ? (bursting ? motion.shake : build.knock * 0.3) : 0;
       if (cameraShake > 0) camera.position.add(velocity.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(cameraShake * 0.13));
       if (worldGpuReady) renderer.render(scene, camera);

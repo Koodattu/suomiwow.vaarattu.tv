@@ -1,0 +1,27 @@
+{
+  "generator": "playground/generate_sfx.py",
+  "mastering": "Leading silence trimmed at -48 dB; loudnorm -18 LUFS / -2 dBTP; 8 ms fade-in; 44.1 kHz MP3 160 kbps.",
+  "clips": [
+    {
+      "source": "chest-open-20261103T121006981770Z-01.mp3",
+      "runtime": "chest-open.mp3",
+      "prompt": "A heavy fantasy treasure chest opening: immediate solid iron latch clack, then a rich wooden lid creak and slow metal hinge groan, ending with a soft weighty wooden stop. Close detailed tactile game foley, warm low body, clean isolated sound. No voice, no music, no ambience.",
+      "durationSeconds": 2.8,
+      "model": "eleven_text_to_sound_v3"
+    },
+    {
+      "source": "chest-lift-20261103T121018846828Z-01.mp3",
+      "runtime": "chest-lift.mp3",
+      "prompt": "A small enchanted reward box floating out of a treasure chest. A soft rising warm airy whoosh with delicate golden magical particles, gently accelerating upward, bright but rounded and pleasant. One isolated fantasy game sound effect. No voice, no melody, no harsh high frequencies.",
+      "durationSeconds": 1.5,
+      "model": "eleven_text_to_sound_v3"
+    },
+    {
+      "source": "chest-reward-20261103T121022023756Z-01.mp3",
+      "runtime": "chest-reward.mp3",
+      "prompt": "A satisfying small fantasy treasure reward: soft warm impact immediately followed by three ascending celesta and rounded golden bell notes resolving into a bright major chord with a delicate shimmering tail. Cozy magical game reward, confident and joyful, short and clean. No voice, no drums, no ambience.",
+      "durationSeconds": 1.8,
+      "model": "eleven_text_to_sound_v3"
+    }
+  ]
+}

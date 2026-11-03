@@ -191,7 +191,19 @@
         "open": "Avaa päivän arkku",
         "got": "Päivä {day}: {reward}",
         "day7": "Kultaheitto",
-        "next": "Päivän {day} arkku aukeaa {time}"
+        "next": "Päivän {day} arkku aukeaa {time}",
+        "title": "Päivän aarre",
+        "action": "Avaa arkku",
+        "opening": "Avataan…",
+        "invitation": "Pieni aarre juuri sinulle.",
+        "hint": "Avaa napauttamalla arkkua tai painamalla välilyöntiä.",
+        "anticipation": "Sisällä odottaa jotain hyvää.",
+        "reward": "Laatikko kokoelmaasi",
+        "goldenReward": "Saat myös kultaheiton.",
+        "claimed": "Lunastettu",
+        "comeBack": "Tule huomenna hakemaan uusi aarre.",
+        "controls": "Päivän arkun toiminnot",
+        "back": "Takaisin"
       },
       "wheel": {
         "body": "Yksi ilmainen pyöräytys päivässä.",

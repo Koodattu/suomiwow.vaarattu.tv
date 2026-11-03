@@ -2,12 +2,13 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import type { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { restoreFigurineMaterials } from "@/lib/figurine-materials";
 import type { FishId } from "@/lib/figurine-collection";
 
 // Game props that dress the stations, exported with the local wow.export worker
 // (provenance: the "stations" and "facilities" entries of /figurines/world/source-models.json).
-const PROP_VERSION = 4;
+const PROP_VERSION = 5;
 export const STATION_PROPS = {
   gear: "/figurines/world/models/gnome-gear.glb",
   lamp: "/figurines/world/models/gnome-light.glb",
@@ -20,6 +21,7 @@ export const STATION_PROPS = {
   board: "/figurines/world/models/wanted-poster.glb",
   podium: "/figurines/world/models/podium.glb",
   chest: "/figurines/world/models/chest-02.glb",
+  dailyChest: "/figurines/world/models/treasurechest01.glb",
   goldPile: "/figurines/world/models/gold-pile.glb",
   goldPileSmall: "/figurines/world/models/gold-pile-small.glb",
   goblinStatue: "/figurines/world/models/goblin-statue.glb",
@@ -102,17 +104,23 @@ export function propPlacer(ktx2Loader?: KTX2Loader) {
     const group = new THREE.Group(); group.position.set(x, y, z); group.rotation.y = yaw; parent.add(group);
     let source = cache.get(prop);
     if (!source) {
-      source = loader.loadAsync(`${STATION_PROPS[prop]}?v=${PROP_VERSION}`).then((gltf) => { restoreFigurineMaterials(gltf.scene); return gltf.scene; }, () => null);
+      source = loader.loadAsync(`${STATION_PROPS[prop]}?v=${PROP_VERSION}`).then((gltf) => {
+        restoreFigurineMaterials(gltf.scene);
+        gltf.scene.animations = gltf.animations;
+        return gltf.scene;
+      }, () => null);
       cache.set(prop, source);
     }
     const ready = source.then((model) => {
       if (!model) return group;
-      const copy = model.clone(true), bounds = new THREE.Box3().setFromObject(copy);
+      const copy = model.animations.length ? cloneSkeleton(model) : model.clone(true);
+      const bounds = new THREE.Box3().setFromObject(copy);
       const size = bounds.getSize(new THREE.Vector3()), centre = bounds.getCenter(new THREE.Vector3());
       const scale = length ? length / Math.max(size.x, size.z, 1e-3) : height / Math.max(size.y, 1e-3);
       copy.scale.setScalar(scale); copy.position.set(-centre.x * scale, -bounds.min.y * scale, -centre.z * scale);
       copy.traverse((object) => { if (object instanceof THREE.Mesh) object.castShadow = object.receiveShadow = shadow; });
       group.add(copy);
+      group.animations = model.animations;
       return group;
     });
     return { group, ready };

@@ -23,6 +23,18 @@ docker compose -f worker/compose.yaml stop
 Prop jobs use `{"kind":"models","search":["fishing"],"limit":200}` to discover
 paths, then `models: [{name, file}]` with returned M2 paths/fileDataIDs to export.
 Results: `worker/data/results/<job-id>/`; inspect `result.json` and `search.json`.
+Animated props use `"animations": true` on a model job. The daily chest is
+`world/skillactivated/containers/treasurechest01.m2` (fileDataID 219372), exported
+as `daily-chest-models-001/treasurechest01.glb`. Keep its skeleton and Open/Opened/Close
+clips through optimization and KTX2 conversion. `figurine-chest.ts` plays Open on
+claim, holds the open pose, and plays Close when the next day's crate becomes ready.
+The fishing prize still uses the separate static `chest-02.glb`.
+The daily chest's printed reward box shares the shop's first released box. Its
+bottom action, Space key and chest tap use the same claim handler. During local
+development, each page load permits one opening without changing the saved daily
+streak; production retains the daily limit. Opening/lift/reward sounds were generated
+with the playground script and mastered offline; prompts and sources are recorded
+in `frontend/src/data/figurines/chest-audio.json`.
 Character provenance: `worker/data/series/<batch>/sources/<figure>.json`, selected
 poses in `selection.json`, optimized files in `models/`. Preserve frozen snapshots;
 use catalog `authoringSeries` (per-character override takes precedence).
