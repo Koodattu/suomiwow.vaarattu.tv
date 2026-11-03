@@ -140,6 +140,27 @@
     "forgeHint": "Tap a figure to place three · Strike with the hammer",
     "forgeEmpty": "Own 3 of one figure at the same quality to trade it up",
     "world": {
+      "overview": {
+        "facilities": "Facilities",
+        "labels": {
+          "shop": "Shop",
+          "gallery": "Collection",
+          "pond": "Fishing",
+          "crate": "Chest",
+          "wheel": "Wheel",
+          "quests": "Quests",
+          "recycler": "Recycle",
+          "forge": "Forge",
+          "trading": "Trade",
+          "mail": "Gifts",
+          "feed": "Feed",
+          "fame": "Fame",
+          "leaderboard": "Ranks"
+        },
+        "openBoxes": "Boxes",
+        "boxCost": "1 coin per box",
+        "back": "Back"
+      },
       "close": "Close",
       "stations": {
         "gallery": "Collection",

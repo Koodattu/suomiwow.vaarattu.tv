@@ -16,8 +16,9 @@ function cameraState(view, idle, reduced = false, width = 1200) {
   const pose = { position: new THREE.Vector3(8, 4, 12), target: new THREE.Vector3(8, 1, 3) };
   const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
   return vm.createContext({
-    THREE, immersive: true, currentView: view, centreShot: null, framing: 1, isStation: view => view !== "opening" && view !== "viewer",
-    homeOffset: new THREE.Vector3(), homeTarget: new THREE.Vector3(),
+    THREE, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer",
+    homeOffset: new THREE.Vector3(0.6, 2.1, 9.6), homeTarget: new THREE.Vector3(0, 1.5, 0),
+    OVERVIEW_DISTANCE: { min: 13, initial: 17, max: 19 },
     shotAspect: () => 1, viewPose: () => ({ position: pose.position.clone(), target: pose.target.clone() }),
     look, lookTarget: { ...look }, screen: new THREE.Vector3(), velocity: new THREE.Vector3(), Y_AXIS: new THREE.Vector3(0, 1, 0),
     renderer: { domElement: { clientWidth: width, clientHeight: 800 } }, PANEL_SHEET_WIDTH: 700, panelShare: () => 0.3,
@@ -51,6 +52,59 @@ test("reduced motion holds a stationary facility shot after arrival", () => {
   state.idle = 100;
   step.runInContext(state);
   assert.ok(arrival.distanceTo(state.camera.position) < 1e-9);
+});
+
+test("overview returns to the saved orbit and leaves manual rotation and zoom untouched", () => {
+  const state = cameraState("overview", 2);
+  state.overviewShot = { position: new THREE.Vector3(-32, 28, -24), target: new THREE.Vector3(0, -4.5, 2) };
+  step.runInContext(state);
+  assert.ok(state.camera.position.distanceTo(state.overviewShot.position) < 1e-9);
+  state.camera.position.set(20, 30, -40);
+  const moved = state.camera.position.clone();
+  step.runInContext(state);
+  assert.ok(state.camera.position.equals(moved), "the director does not reset the overview camera each frame");
+});
+
+test("overview introduction descends from above without moving out into the trees", () => {
+  const from = source.indexOf("      const introducing ="), to = source.indexOf("      // Cinematic camera:", from);
+  const introduce = new vm.Script(`{${ts.transpile(source.slice(from, to))}}`);
+  const state = cameraState("overview", 0);
+  const target = new THREE.Vector3(0, 1.5, 0), offset = state.homeOffset.clone().setLength(17);
+  Object.assign(state, { flight: null, introClock: 0, INTRO_SECONDS: 3, introNotified: false, current: { ready: true }, callbacks: { current: {} }, destination: { position: offset.clone().add(target), target } });
+  introduce.runInContext(state);
+  const startDistance = state.camera.position.distanceTo(state.controls.target);
+  assert.ok(state.camera.position.y > state.destination.position.y + 15, "entrance starts above the clearing");
+  let previousHeight = state.camera.position.y;
+  for (let i = 0; i < 190; i++) {
+    introduce.runInContext(state);
+    assert.ok(Math.hypot(state.camera.position.x - target.x, state.camera.position.z - target.z) < 17, "the whole approach stays inside the clearing");
+    assert.ok(state.camera.position.y <= previousHeight + 1e-9, "the camera descends smoothly");
+    previousHeight = state.camera.position.y;
+  }
+  assert.ok(startDistance > state.camera.position.distanceTo(state.controls.target) * 1.3);
+  assert.ok(Math.abs(state.camera.position.distanceTo(state.controls.target) - state.destination.position.distanceTo(state.destination.target)) < 1e-6);
+});
+
+test("overview enables orbit and zoom, pauses automatic rotation after input, and respects reduced motion", () => {
+  const from = source.indexOf("      const orbiting ="), to = source.indexOf("      // Timed by the frame delta", from);
+  const orbit = new vm.Script(`{${ts.transpile(source.slice(from, to))}}`);
+  const state = cameraState("overview", 0);
+  Object.assign(state, { flight: null, introducing: false, active: false, finished: false, current: { rotate: true }, hovering: false, grab: null, shake: null, userOrbit: { holding: false, released: -Infinity }, now: 5000, AUTO_ROTATE_DELAY: 2.5, AUTO_ROTATE_SPEED: 0.6, autoRotate: 0 });
+  orbit.runInContext(state);
+  assert.equal(state.controls.enabled, true);
+  assert.equal(state.controls.autoRotate, true);
+  assert.equal(state.controls.minDistance, 13);
+  assert.equal(state.controls.maxDistance, 19);
+  state.framing = 1.6; orbit.runInContext(state);
+  assert.equal(state.controls.maxDistance, 19, "portrait framing cannot push the orbit into the trees");
+  assert.ok(state.controls.maxPolarAngle >= Math.acos(state.homeOffset.y / state.homeOffset.length()), "orbit limits allow the opening camera's angle");
+  state.userOrbit.released = state.now;
+  orbit.runInContext(state);
+  assert.equal(state.controls.autoRotate, false);
+  state.userOrbit.released = -Infinity; state.reduced = true;
+  orbit.runInContext(state);
+  assert.equal(state.controls.autoRotate, false);
+  assert.equal(state.controls.enabled, true, "manual camera controls remain available with reduced motion");
 });
 
 test("pond look-around clamps both axes while keeping the camera above the water", () => {

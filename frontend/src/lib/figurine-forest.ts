@@ -134,6 +134,9 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   if (ktx2Loader) loader.setKTX2Loader(ktx2Loader);
   const matrix = new THREE.Matrix4(), place = new THREE.Matrix4(), quaternion = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  const occluders: { bounds: THREE.Box3; hidden: boolean; parts: { mesh: THREE.InstancedMesh; index: number; matrix: THREE.Matrix4 }[] }[] = [];
+  const sight = new THREE.Ray(), sightEnd = new THREE.Vector3(), intersection = new THREE.Vector3(), clearance = new THREE.Box3();
+  const hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
   const byModel = new Map<ForestModel, Placement[]>();
   placements.forEach((placement) => byModel.set(placement.model, [...(byModel.get(placement.model) ?? []), placement]));
   const loads = [...byModel].map(async ([model, spots]) => {
@@ -143,6 +146,8 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
       gltf.scene.updateMatrixWorld(true);
       const bounds = new THREE.Box3().setFromObject(gltf.scene), [low, high] = HEIGHTS[model];
       const unit = 1 / Math.max(bounds.max.y - bounds.min.y, 1e-3);
+      const foliage = model === "tree" || model === "bareTree" || model === "bush" || model === "bushSmall";
+      const blockers = foliage ? spots.map(() => ({ bounds: new THREE.Box3(), hidden: false, parts: [] as { mesh: THREE.InstancedMesh; index: number; matrix: THREE.Matrix4 }[] })) : [];
       gltf.scene.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
         const instances = new THREE.InstancedMesh(object.geometry, object.material, spots.length);
@@ -150,6 +155,10 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
           const scale = (low + (high - low) * spot.size) * unit;
           place.compose(new THREE.Vector3(spot.x, (spot.y ?? 0) - bounds.min.y * scale - 0.02, spot.z), quaternion.setFromAxisAngle(up, spot.yaw), new THREE.Vector3(scale, scale, scale));
           instances.setMatrixAt(index, matrix.multiplyMatrices(place, object.matrixWorld));
+          if (foliage) {
+            blockers[index].bounds.copy(bounds).applyMatrix4(place);
+            blockers[index].parts.push({ mesh: instances, index, matrix: matrix.clone() });
+          }
         });
         instances.userData.secretSeries = spots.map((spot) => spot.secretSeries ?? null);
         instances.computeBoundingSphere();
@@ -157,11 +166,30 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
         if (model === "tree" || model === "bareTree" || model === "bush") (Array.isArray(object.material) ? object.material : [object.material]).forEach((material) => onSway?.(material));
         group.add(instances);
       });
+      occluders.push(...blockers);
       return { model, top: bounds.max.y, unit, bounds };
     } catch { return null; }
   });
   const ready = Promise.all(loads);
-  return { group, ready, async mountSecretBox(id: string, box: THREE.Object3D) {
+  return { group, ready, clearView(camera: THREE.Vector3 | null, target: THREE.Vector3) {
+    // Keep the pedestal visible when its orbit passes through the surrounding canopy.
+    let distance = 0;
+    if (camera) {
+      sight.origin.copy(camera); group.worldToLocal(sight.origin);
+      sightEnd.copy(target); group.worldToLocal(sightEnd);
+      sight.direction.copy(sightEnd).sub(sight.origin); distance = sight.direction.length(); sight.direction.normalize();
+    }
+    for (const blocker of occluders) {
+      clearance.copy(blocker.bounds).expandByScalar(2.5);
+      const hidden = !!camera && (clearance.containsPoint(sight.origin) || !!sight.intersectBox(clearance, intersection) && intersection.distanceTo(sight.origin) < distance);
+      if (hidden === blocker.hidden) continue;
+      blocker.hidden = hidden;
+      for (const part of blocker.parts) {
+        part.mesh.setMatrixAt(part.index, hidden ? hiddenMatrix : part.matrix);
+        part.mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+  }, async mountSecretBox(id: string, box: THREE.Object3D) {
     const spot = placements.find((entry) => entry.secretSeries === id);
     if (!spot) return;
     const asset = (await ready).find((entry) => entry?.model === spot.model);

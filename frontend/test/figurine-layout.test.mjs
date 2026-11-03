@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 registerHooks({
   resolve(specifier, context, next) {
@@ -9,11 +10,52 @@ registerHooks({
     return next(specifier, context);
   },
 });
-const { STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, COBBLE_RADIUS, PATHS, FOREST_CLEARINGS, viewPose } = await import("../src/lib/figurine-world.ts");
-const { forestLayout, groveLayout, marketLayout, POND, SECRET_BARREL } = await import("../src/lib/figurine-forest.ts");
+const { STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, COBBLE_RADIUS, PATHS, FOREST_CLEARINGS, viewPose, isStation } = await import("../src/lib/figurine-world.ts");
+const { buildForest, forestLayout, groveLayout, marketLayout, POND, SECRET_BARREL } = await import("../src/lib/figurine-forest.ts");
 
 const PLAZA = PLAZA_RADIUS;
 const stations = Object.entries(STATIONS);
+test("overview foliage clearance hides only foreground blockers and restores their original instances", async t => {
+  t.mock.method(GLTFLoader.prototype, "loadAsync", async () => {
+    const scene = new THREE.Group(), tree = new THREE.Mesh(new THREE.BoxGeometry(8, 10, 8), new THREE.MeshStandardMaterial());
+    tree.position.y = 5; scene.add(tree); return { scene };
+  });
+  const root = new THREE.Group(); root.position.set(4, 0, 2); root.rotation.y = 0.2;
+  const forest = buildForest(root, [
+    { model: "tree", x: 0, z: 20, yaw: 0, size: 0.5 },
+    { model: "tree", x: 0, z: -20, yaw: 0, size: 0.5 },
+    { model: "tree", x: 30, z: 15, yaw: 0, size: 0.5 },
+  ]);
+  await forest.ready; root.updateMatrixWorld(true);
+  const mesh = forest.group.children[0], matrix = new THREE.Matrix4();
+  const original = [0, 1, 2].map(i => { mesh.getMatrixAt(i, matrix); return matrix.clone(); });
+  const target = root.localToWorld(new THREE.Vector3(0, 1.5, 0));
+  forest.clearView(root.localToWorld(new THREE.Vector3(0, 8, 30)), target);
+  mesh.getMatrixAt(0, matrix); assert.equal(matrix.determinant(), 0, "the canopy between the camera and pedestal clears");
+  for (const i of [1, 2]) { mesh.getMatrixAt(i, matrix); assert.ok(matrix.equals(original[i]), "side and background trees remain"); }
+  forest.clearView(root.localToWorld(new THREE.Vector3(0, 80, 30)), target);
+  mesh.getMatrixAt(0, matrix); assert.ok(matrix.equals(original[0]), "looking over the canopy restores the tree");
+  forest.clearView(root.localToWorld(new THREE.Vector3(0, 8, 30)), target);
+  forest.clearView(null, target);
+  for (let i = 0; i < 3; i++) { mesh.getMatrixAt(i, matrix); assert.ok(matrix.equals(original[i]), "leaving overview restores all original placements"); }
+});
+test("overview pulls straight back from the opening camera while keeping the pedestal centered", () => {
+  assert.equal(isStation("overview"), false);
+  const home = { offset: new THREE.Vector3(0.6, 2.1, 9.6), target: new THREE.Vector3(0, 1.5, 0) };
+  for (const aspect of [16 / 9, 390 / 844]) {
+    const camera = new THREE.PerspectiveCamera(36, aspect, 0.4, 140);
+    const framing = THREE.MathUtils.clamp(0.85 / aspect, 1, 1.6);
+    const opening = viewPose("opening", framing, home, aspect);
+    const pose = viewPose("overview", framing, home, aspect);
+    camera.position.copy(pose.position); camera.lookAt(pose.target); camera.updateMatrixWorld();
+    assert.ok(pose.target.equals(opening.target), "both views orbit the same pedestal target");
+    const closeOffset = opening.position.clone().sub(opening.target), wideOffset = pose.position.clone().sub(pose.target);
+    assert.ok(Math.abs(wideOffset.length() - 17) < 1e-9, "overview starts inside the clearing at every aspect ratio");
+    assert.ok(wideOffset.normalize().distanceTo(closeOffset.normalize()) < 1e-9, "zooming out keeps the opening angle");
+    const center = home.target.clone().project(camera);
+    assert.ok(Math.abs(center.x) < 1e-9 && Math.abs(center.y) < 1e-9, "the pedestal target projects to the exact screen center");
+  }
+});
 // A point inside a station's footprint, with `margin` to spare all round.
 const inside = (name, point, margin = 0) => {
   const { position, rotation } = STATIONS[name], spec = STATION_SPECS[name];

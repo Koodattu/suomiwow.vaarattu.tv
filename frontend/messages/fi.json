@@ -140,6 +140,27 @@
     "forgeHint": "Napauta hahmoa asettaaksesi kolme · Iske vasaralla",
     "forgeEmpty": "Kerää 3 samaa hahmoa samaa laatua jalostaaksesi sen",
     "world": {
+      "overview": {
+        "facilities": "Toiminnot",
+        "labels": {
+          "shop": "Kauppa",
+          "gallery": "Kokoelma",
+          "pond": "Kalastus",
+          "crate": "Arkku",
+          "wheel": "Pyörä",
+          "quests": "Tehtävät",
+          "recycler": "Kierrätys",
+          "forge": "Paja",
+          "trading": "Vaihto",
+          "mail": "Lahjat",
+          "feed": "Saaliit",
+          "fame": "Kunnia",
+          "leaderboard": "Sijat"
+        },
+        "openBoxes": "Laatikot",
+        "boxCost": "1 kolikko / laatikko",
+        "back": "Takaisin"
+      },
       "close": "Sulje",
       "stations": {
         "gallery": "Kokoelma",

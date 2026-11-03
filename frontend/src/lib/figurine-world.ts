@@ -8,11 +8,10 @@ import { buildForest, forestLayout, marketLayout, POND, swayMaterial, type Keep 
 // the scrying ball and honours to the east, and the workshop to the south-west. The pond opens
 // off the south-east corner. Paths leave through the gaps; scenery gathers behind the facilities,
 // while showcase figures stand along both the plaza edge and the outer neighbourhoods.
-// The centre (the pedestal, with a box or an inspected figure) is home; the others are stations.
+// The overview is home; the centre holds the opening pedestal and the other destinations are stations.
 export type Station = "shop" | "gallery" | "recycler" | "forge" | "crate" | "wheel" | "mail" | "quests" | "feed" | "fame" | "leaderboard" | "trading" | "pond";
-export type WorldView = Station | "opening" | "viewer";
-// The views that are stations (everything but the two at the centre).
-export const isStation = (view: WorldView): view is Station => view !== "opening" && view !== "viewer";
+export type WorldView = Station | "overview" | "opening" | "viewer";
+export const isStation = (view: WorldView): view is Station => view !== "overview" && view !== "opening" && view !== "viewer";
 // The cobbled square, and the clearing round it that the woods leave open.
 export const COBBLE_RADIUS = 11.2, PLAZA_RADIUS = 19.5;
 // Each station: where it stands (\`at\`, x and z; +z is toward the home camera) and the point it
@@ -280,7 +279,7 @@ export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: 
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.position.set(x, LAMP_HEAD, z); glow.scale.setScalar(1.8); group.add(glow);
   }
-  return { group, sky, ready: forest.ready, pickSecret: forest.pickSecret, mountSecretBox: forest.mountSecretBox, update(time: number) { wind.value = time; } };
+  return { group, sky, ready: forest.ready, clearView: forest.clearView, pickSecret: forest.pickSecret, mountSecretBox: forest.mountSecretBox, update(time: number) { wind.value = time; } };
 }
 
 // Places a station group in the world.
@@ -295,7 +294,12 @@ export function placeStation(scene: THREE.Scene, station: Station) {
 // share the home shot. Station shots back off until the station's width fits the screen (36°
 // vertical field of view); a shot backed off past the centre looks over the pedestal, whose box
 // steps aside.
+// Fixed world distances keep every viewport's orbit inside the clearing.
+export const OVERVIEW_DISTANCE = { min: 13, initial: 17, max: 19 } as const;
 export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, aspect = 16 / 9) {
+  if (view === "overview") {
+    return { target: home.target.clone(), position: home.offset.clone().setLength(OVERVIEW_DISTANCE.initial).add(home.target) };
+  }
   if (!isStation(view)) return { target: home.target.clone(), position: home.offset.clone().multiplyScalar(framing).add(home.target) };
   const { position, rotation } = STATIONS[view], { shot } = STATION_SPECS[view];
   const offset = new THREE.Vector3(0, shot.height, shot.distance), target = new THREE.Vector3(0, shot.target, 0).add(position);

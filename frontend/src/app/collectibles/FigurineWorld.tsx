@@ -16,6 +16,7 @@ import { isStation, type Station } from "@/lib/figurine-world";
 import WorldPanel, { type LinePhase, type PanelResult, type PanelSeries } from "./WorldPanels";
 import PondHud, { type PondPart, type PondSheet } from "./PondHud";
 import ChestHud from "./ChestHud";
+import OverviewHud, { OverviewBack } from "./OverviewHud";
 import type { ActionCue, CastResult, CatchVisual, FacilityAction } from "@/lib/figurine-facilities";
 import panelStyles from "./world-panels.module.css";
 import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
@@ -23,8 +24,8 @@ import SoundMenu from "./SoundMenu";
 
 const FigurineStage = dynamic(() => import("@/app/tools/figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
-// Where "back" leads: stations return to the centre (to whichever of its views they were left from).
-const parentOf = (view: WorldView): WorldView | null => view === "opening" ? null : "opening";
+// The overview is home; inspected figures can return to the view they came from.
+const parentOf = (view: WorldView): WorldView | null => view === "overview" ? null : "overview";
 const atCentre = (view: WorldView) => view === "opening" || view === "viewer";
 // Keys for the daily stations, beside S, C, M and U.
 const STATION_KEYS: Record<string, Station> = { q: "quests", w: "wheel", f: "pond", d: "crate" };
@@ -42,7 +43,8 @@ const seriesNumber = (id: string) => [...FIGURINE_SERIES, ...UPCOMING_SERIES, SE
 export default function FigurineWorld() {
   const t = useTranslations("figurineLab");
   const nav = useTranslations("ccg.nav");
-  const [view, setView] = useState<WorldView>("opening");
+  const [view, setView] = useState<WorldView>("overview");
+  const [navHover, setNavHover] = useState<Station | "opening" | null>(null);
   const [seriesId, setSeriesId] = useState(FIGURINE_SERIES[0].id);
   const [state, dispatch] = useReducer(boxReducer, initialBox);
   const paidOpening = useRef(false);
@@ -62,7 +64,7 @@ export default function FigurineWorld() {
   const [opened, setOpened] = useState<{ key: string; count: number; quality: FigurineQuality } | null>(null);
   const [upgraded, setUpgraded] = useState<{ key: string; quality: FigurineQuality } | null>(null);
   const [webglUnavailable, setWebglUnavailable] = useState(false);
-  // Stations remember which centre view they were entered from.
+  // Inspecting a collected figure remembers its source view.
   const [origin, setOrigin] = useState<Partial<Record<WorldView, WorldView>>>({});
   const collection = useSyncExternalStore(subscribeCollection, readCollection, emptyCollection);
   const records = useSyncExternalStore(subscribeCollection, readRecords, emptyRecords);
@@ -148,10 +150,9 @@ export default function FigurineWorld() {
     // Leaving a finished opening clears the pedestal for the next box.
     if (next !== "opening" && (state.phase === "revealed" || state.phase === "error")) { setOpened(null); dispatch({ type: "reset" }); }
     if (next !== "viewer") { setInspected(null); setUpgraded(null); }
-    setHovered(null);
-    if (isStation(next) && atCentre(view)) setOrigin((current) => ({ ...current, [next]: view }));
+    setHovered(null); setPointed(null); setNavHover(null);
     setView(next);
-  }, [state.phase, view]);
+  }, [state.phase]);
   const back = useCallback(() => { const parent = origin[view] ?? parentOf(view); if (parent && state.phase !== "loading" && state.phase !== "opening") navigate(parent); }, [view, state.phase, navigate, origin]);
   useEffect(() => { action.current?.focus({ preventScroll: true }); }, [view, state.phase, state.round]);
 
@@ -182,6 +183,7 @@ export default function FigurineWorld() {
     }
   }
   function inspect(key: string, finish?: FigurineQuality) {
+    if (view !== "viewer") setOrigin((current) => ({ ...current, viewer: view }));
     if (state.phase === "revealed" || state.phase === "error") { setOpened(null); dispatch({ type: "reset" }); }
     setInspected({ key, quality: finish ?? bestQuality(collection[key]) ?? "standard" }); setUpgraded(null); setView("viewer");
   }
@@ -382,11 +384,11 @@ export default function FigurineWorld() {
       if (view === "pond" && result?.station === "pond" && "caught" in result && key === "escape") { event.preventDefault(); dismissCatch(); return; }
       if (view === "crate" && result?.station === "crate" && (key === "escape" || key === " ")) { event.preventDefault(); dismissChest(); return; }
       if (key === "escape" || key === "backspace") back();
-      else if (atCentre(view) && key === "s") navigate("shop");
-      else if (atCentre(view) && key === "c") navigate("gallery");
-      else if (atCentre(view) && key === "m") navigate("recycler");
-      else if (atCentre(view) && key === "u") navigate("forge");
-      else if (atCentre(view) && STATION_KEYS[key]) navigate(STATION_KEYS[key]);
+      else if ((atCentre(view) || view === "overview") && key === "s") navigate("shop");
+      else if ((atCentre(view) || view === "overview") && key === "c") navigate("gallery");
+      else if ((atCentre(view) || view === "overview") && key === "m") navigate("recycler");
+      else if ((atCentre(view) || view === "overview") && key === "u") navigate("forge");
+      else if ((atCentre(view) || view === "overview") && STATION_KEYS[key]) navigate(STATION_KEYS[key]);
       else if (view === "shop" && /^[1-9]$/.test(key) && ALL_SERIES[Number(key) - 1]) pickSeries(ALL_SERIES[Number(key) - 1]);
       else if (view === "opening" && state.phase === "sealed" && series && !webglUnavailable && (key === "enter" || key === " ") && !(event.target instanceof Element && event.target.closest("button, a"))) { event.preventDefault(); open(); }
       // At the pond, Space casts, and strikes once the line is out.
@@ -445,11 +447,12 @@ export default function FigurineWorld() {
       <span><b>{records.boons.coins}</b><small>{t("coinsLabel")}</small></span>
     </div>}
     <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
-      interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series || records.boons.coins < 1} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
+      interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series || records.boons.coins < 1} round={state.round} onBoxTap={open} rotate={view === "overview" || view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
       machines={machines} onMachine={operateMachine} onMachineDone={machineDone} onIntroDone={() => setIntroDone(true)} onHoverStation={setPointed} action={facilityAction} onActionDone={actionDone} onActionCue={actionCue} poke={poke} panelWidth={panelWidth}
       onFacilityPart={(station, part) => { if (station === "pond") pondPart(part); else if (station === "crate" && part === "chest") openDailyChest(); }} onHoverPart={(part) => setHoverPart(part === "water" ? "rod" : part as PondPart | null)} highlightedPart={view === "pond" && !pondSheet ? buttonPart : null} coinTarget={coinTarget}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={(key) => inspect(key)} onHoverFigure={setHovered}
+      highlightedStation={view === "overview" ? navHover : null}
       onStatus={(status) => {
         setWebglUnavailable(status === "webgl");
         if (status === "loading") setModel("loading");
@@ -464,6 +467,8 @@ export default function FigurineWorld() {
     </p>}
     {view === "pond" && revealedWorld && <PondHud records={records} line={line} result={result?.station === "pond" ? result : null} busy={busy} hovered={hoverPart} sheet={pondSheet} onHover={setButtonPart}
       onCast={cast} onHook={hook} onDismiss={dismissCatch} onSheet={openSheet} onBack={leavePond} />}
+    {view === "overview" && revealedWorld && <OverviewHud onNavigate={navigate} onHover={setNavHover} hovered={pointed} />}
+    {revealedWorld && (view === "opening" || view === "shop" || view === "viewer") && <OverviewBack onBack={back} disabled={state.phase === "loading" || state.phase === "opening"} />}
     {view === "crate" && revealedWorld && <ChestHud ready={crate.ready} day={crate.day} busy={busy} result={result?.station === "crate" ? result : null} onOpen={openDailyChest} onDismiss={dismissChest} onBack={() => { if (result?.station === "crate") dismissChest(); back(); }} />}
     {isStation(view) && view !== "shop" && view !== "pond" && view !== "crate" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back} actions={panelActions}
       onInspect={(key, finish) => inspect(key, finish)} machine={machinePanel}
@@ -479,7 +484,7 @@ export default function FigurineWorld() {
             {opened && qualityBadge(opened.quality)}
             <h1>{drawn.name}</h1><p>{label(drawn)}</p>
           </> : view === "opening" && state.phase === "error" ? <><h1>{t("drawErrorTitle")}</h1><p>{t(webglUnavailable ? "webglError" : "drawError")}</p></>
-          : pointed && pointed !== view && !(view === "opening" && state.phase !== "sealed") ? <p className={styles.worldHint}>{stationName(pointed)}</p>
+          : view !== "overview" && pointed && pointed !== view && !(view === "opening" && state.phase !== "sealed") ? <p className={styles.worldHint}>{stationName(pointed)}</p>
           : view === "viewer" && viewing && inspected ? <>
             {upgraded && <span className={styles.newBadge}>{t("tradedUp")}</span>}
             {qualityBadge(inspected.quality)}
