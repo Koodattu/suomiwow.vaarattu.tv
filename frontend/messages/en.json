@@ -171,7 +171,7 @@
       "close": "Close",
       "stations": {
         "gallery": "Collection",
-        "crate": "Daily crate",
+        "crate": "Treasure chest",
         "wheel": "Lucky wheel",
         "mail": "Gifting post",
         "quests": "Quest giver",
@@ -217,25 +217,26 @@
         "clear": "Clear"
       },
       "crate": {
-        "body": "A free coin every day. Come back days in a row: the seventh day also guarantees a golden roll.",
+        "body": "Open every 4 hours for 1 coin. Your first opening each day adds 1 streak coin; day 7 adds another 5. Miss a day and the streak restarts.",
         "day": "Day {day}",
-        "open": "Open today's crate",
+        "open": "Open treasure chest",
         "got": "Day {day}: {reward}",
-        "day7": "Golden roll",
-        "next": "Day {day}'s crate opens {time}",
-        "title": "Daily treasure",
+        "day7": "+5 bonus coins",
+        "next": "Chest opens in {time}",
+        "title": "Treasure chest",
         "action": "Open chest",
         "opening": "Opening…",
         "invitation": "A little treasure, just for you.",
         "hint": "Tap the chest or press Space to open.",
         "anticipation": "Something good is waiting inside.",
-        "reward": "+1 coin",
+        "reward": "+{count, plural, one {# coin} other {# coins}}",
         "collect": "Collect",
         "dismissReward": "Tap anywhere to collect",
-        "goldenReward": "A golden roll is yours, too.",
-        "claimed": "Claimed",
-        "comeBack": "Come back tomorrow for another treasure.",
-        "controls": "Daily chest controls",
+        "dailyBonus": "Includes your +1 daily streak coin.",
+        "weeklyBonus": "Includes your +1 daily streak coin and +5 seven-day bonus.",
+        "claimed": "Restocking",
+        "comeBack": "Ready in {hours}h {minutes}m",
+        "controls": "Treasure chest controls",
         "back": "Back"
       },
       "wheel": {
@@ -283,7 +284,7 @@
           "series": "Complete a series",
           "spin1": "Spin the wheel",
           "fish3": "Catch 3 fish",
-          "crates5": "Open 5 daily crates"
+          "crates5": "Open 5 treasure chests"
         },
         "claimed": "Claimed",
         "ready": "{count, plural, one {# reward ready to claim} other {# rewards ready to claim}}",
@@ -499,7 +500,7 @@
     "weaponsSheathed": "Weapons sheathed",
     "openAnother": "Open another",
     "coinsLabel": "Coins",
-    "coinsHelp": "Earned through play. Start with 3 coins; 1 regenerates every 4 hours. No purchases.",
+    "coinsHelp": "Start with 3 coins. Collect 1 from the chest every 4 hours, plus daily streak bonuses. No coin limit or purchases.",
     "pullToOpenCoin": "Pull the tape to open · 1 coin",
     "openBoxCoin": "Open box · 1 coin",
     "noCoins": "No coins · Fish, claim daily rewards or complete quests."

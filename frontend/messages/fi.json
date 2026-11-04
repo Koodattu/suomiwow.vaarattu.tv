@@ -171,7 +171,7 @@
       "close": "Sulje",
       "stations": {
         "gallery": "Kokoelma",
-        "crate": "Päivän arkku",
+        "crate": "Aarrearkku",
         "wheel": "Onnenpyörä",
         "mail": "Lahjaposti",
         "quests": "Tehtävänantaja",
@@ -217,25 +217,26 @@
         "clear": "Tyhjennä"
       },
       "crate": {
-        "body": "Ilmainen kolikko joka päivä. Tule päivittäin: seitsemäntenä päivänä saat myös kultaheiton.",
+        "body": "Avaa arkku 4 tunnin välein ja saat 1 kolikon. Päivän ensimmäinen avaus tuo 1 lisäkolikon; seitsemäntenä päivänä saat vielä 5 lisää. Jos päivä jää väliin, putki alkaa alusta.",
         "day": "Päivä {day}",
-        "open": "Avaa päivän arkku",
+        "open": "Avaa aarrearkku",
         "got": "Päivä {day}: {reward}",
-        "day7": "Kultaheitto",
-        "next": "Päivän {day} arkku aukeaa {time}",
-        "title": "Päivän aarre",
+        "day7": "+5 lisäkolikkoa",
+        "next": "Arkku aukeaa {time} kuluttua",
+        "title": "Aarrearkku",
         "action": "Avaa arkku",
         "opening": "Avataan…",
         "invitation": "Pieni aarre juuri sinulle.",
         "hint": "Avaa napauttamalla arkkua tai painamalla välilyöntiä.",
         "anticipation": "Sisällä odottaa jotain hyvää.",
-        "reward": "+1 kolikko",
+        "reward": "+{count, plural, one {# kolikko} other {# kolikkoa}}",
         "collect": "Kerää",
         "dismissReward": "Kerää napauttamalla ruutua",
-        "goldenReward": "Saat myös kultaheiton.",
-        "claimed": "Lunastettu",
-        "comeBack": "Tule huomenna hakemaan uusi aarre.",
-        "controls": "Päivän arkun toiminnot",
+        "dailyBonus": "Mukana päivän +1 lisäkolikko.",
+        "weeklyBonus": "Mukana päivän +1 lisäkolikko ja seitsemän päivän +5 kolikon bonus.",
+        "claimed": "Täyttyy",
+        "comeBack": "Valmis {hours} t {minutes} min kuluttua",
+        "controls": "Aarrearkun toiminnot",
         "back": "Takaisin"
       },
       "wheel": {
@@ -283,7 +284,7 @@
           "series": "Täydennä sarja",
           "spin1": "Pyöräytä onnenpyörää",
           "fish3": "Nappaa 3 kalaa",
-          "crates5": "Avaa 5 päivän arkkua"
+          "crates5": "Avaa 5 aarrearkkua"
         },
         "claimed": "Lunastettu",
         "ready": "{count, plural, one {# palkinto lunastettavissa} other {# palkintoa lunastettavissa}}",
@@ -499,7 +500,7 @@
     "weaponsSheathed": "Aseet kannossa",
     "openAnother": "Avaa toinen",
     "coinsLabel": "Kolikot",
-    "coinsHelp": "Ansaitse pelaamalla. Alussa saat 3 kolikkoa ja yhden lisää 4 tunnin välein. Ei ostoksia.",
+    "coinsHelp": "Alussa saat 3 kolikkoa. Kerää arkusta 1 kolikko 4 tunnin välein sekä päivittäiset putkibonukset. Ei kolikkorajaa eikä ostoksia.",
     "pullToOpenCoin": "Avaa vetämällä teipistä · 1 kolikko",
     "openBoxCoin": "Avaa laatikko · 1 kolikko",
     "noCoins": "Ei kolikoita · Kalasta, lunasta päiväpalkintoja tai suorita tehtäviä."

@@ -43,8 +43,9 @@ export type StageWorld = {
   labels: ShopLabels;
   // The showcase: the figure on each numbered statue spot round the plaza, or null.
   showcase: ({ key: string; quality: FigurineQuality } | null)[];
-  // The daily crate's streak: days opened, and today's day while it is still to open.
+  // Streak bonuses claimed, and today's day while its bonus is still available.
   streak: { opened: number; today: number | null };
+  chestReady: boolean;
   // The fishing pond's prize catches left today: while any remain, something glints in the water.
   prizes: number;
 };
@@ -174,7 +175,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series), machinesRef = useRef(machines);
   useEffect(() => { labelsRef.current = labels; lineupRef.current = lineup; silhouettesRef.current = silhouettes; worldRef.current = world; seriesRef.current = series; machinesRef.current = machines; });
   // Lets later prop changes reach the running scene without rebuilding the renderer.
-  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; setPrizes: (left: number) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: { n: number; station: Facility; kind: "hook" | "dismiss" }) => void } | null>(null);
+  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; setChestReady: (ready: boolean) => void; setPrizes: (left: number) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: { n: number; station: Facility; kind: "hook" | "dismiss" }) => void } | null>(null);
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
@@ -687,6 +688,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       showBox: () => preparePackaging(mountBox()),
       setCollection, setMachines, setShowcase,
       setStreak: (opened, today) => facilities.forEach((facility) => facility.setStreak(opened, today)),
+      setChestReady: (ready) => facilities.forEach((facility) => facility.setChestReady(ready)),
       setPrizes: (left) => facilities.forEach((facility) => facility.setPrizes(left)),
       act: ({ run, station, action: next }) => {
         if (run === actedRun) return;
@@ -712,7 +714,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         facilities.find((entry) => entry.kind === station)?.poke(kind);
       },
     };
-    if (worldSetup) { setCollection(worldSetup.collection); setShowcase(worldSetup.showcase); facilities.forEach((facility) => { facility.setStreak(worldSetup.streak.opened, worldSetup.streak.today); facility.setPrizes(worldSetup.prizes); }); }
+    if (worldSetup) { setCollection(worldSetup.collection); setShowcase(worldSetup.showcase); facilities.forEach((facility) => { facility.setStreak(worldSetup.streak.opened, worldSetup.streak.today); facility.setChestReady(worldSetup.chestReady); facility.setPrizes(worldSetup.prizes); }); }
     if (machinesRef.current) setMachines(machinesRef.current);
     if (immersive && scenery) void (async () => {
       callbacks.current.onProgress?.(0.1);
@@ -1390,6 +1392,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   useEffect(() => { if (showcase) api.current?.setShowcase(showcase); }, [showcase]);
   const streakOpened = world?.streak.opened, streakToday = world?.streak.today;
   useEffect(() => { if (streakOpened !== undefined) api.current?.setStreak(streakOpened, streakToday ?? null); }, [streakOpened, streakToday]);
+  const chestReady = world?.chestReady;
+  useEffect(() => { if (chestReady !== undefined) api.current?.setChestReady(chestReady); }, [chestReady]);
   const prizes = world?.prizes;
   useEffect(() => { if (prizes !== undefined) api.current?.setPrizes(prizes); }, [prizes]);
   useEffect(() => { if (action) api.current?.act(action); }, [action]);

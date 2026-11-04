@@ -9,7 +9,7 @@ import { boxReducer, chooseFigure, createFigurineDrawQueue, initialBox } from "@
 import coinImage from "../../../public/figurines/world/coin.webp";
 import { createFigurineFileCache } from "@/lib/figurine-cache";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
-import { MACHINE_SLOTS, addToCollection, boostedQuality, claimQuest, crateReward, crateState, dailyCatchesLeft, dayKey, fishOf, grantReward, landCatch, moveFavorite, openCrate, rollCatch, setFavoriteQuality, showcaseOf, spendBoost, regenerateCoins, spendCoin, spinWheel, startQuestPeriods, toggleFavorite, type CatchRoll, type PullSource, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
+import { MACHINE_SLOTS, addToCollection, boostedQuality, claimQuest, COIN_INTERVAL_MS, crateState, dailyCatchesLeft, dayKey, fishOf, grantReward, landCatch, moveFavorite, openCrate, rollCatch, setFavoriteQuality, showcaseOf, spendBoost, initializeCoins, spendCoin, spinWheel, startQuestPeriods, toggleFavorite, type CatchRoll, type PullSource, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, RELEASED_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
 import type { StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
 import type { MachinePick } from "@/lib/figurine-machine";
@@ -85,9 +85,16 @@ export default function FigurineWorld() {
   const [viewport, setViewport] = useState(1280);
   useEffect(() => { const measure = () => setViewport(window.innerWidth); measure(); window.addEventListener("resize", measure); return () => window.removeEventListener("resize", measure); }, []);
   const panelWidth = view === "gallery" ? catalogueWidth(viewport) : 420;
-  // The clock the daily things go by, ticking each minute so a new day shows without a reload.
+  // Refresh daily rewards each minute and the chest at its exact cooldown boundary.
   const [now, setNow] = useState(() => new Date());
-  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 60000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => {
+    const refresh = () => setNow(new Date());
+    const timer = window.setInterval(refresh, 60000);
+    const remaining = records.daily.crateAt ? Date.parse(records.daily.crateAt) + COIN_INTERVAL_MS - Date.now() : 0;
+    const chestTimer = remaining > 0 ? window.setTimeout(refresh, remaining) : undefined;
+    window.addEventListener("focus", refresh);
+    return () => { window.clearInterval(timer); window.clearTimeout(chestTimer); window.removeEventListener("focus", refresh); };
+  }, [records.daily.crateAt]);
   const stationName = (station: Station) => station === "shop" ? t("navShop") : station === "recycler" ? t("stationRecycler") : station === "forge" ? t("stationForge") : t(`world.stations.${station}`);
   const action = useRef<HTMLButtonElement>(null);
   const viewRef = useRef(view);
@@ -215,9 +222,7 @@ export default function FigurineWorld() {
   // A cast carries what is on the line (and the figure, for the figure prize) until it is hooked or lost.
   const [pending, setPending] = useState<{ run: number; result: PanelResult | null; source?: PullSource; roll?: CatchRoll; figure?: MachineItem } | null>(null);
   const chestClaiming = useRef(false);
-  // Development preview: one opening per page load, without changing the saved daily streak.
-  const [previewChestClaimed, setPreviewChestClaimed] = useState(false);
-  // Like the chest preview, fishing prizes restart on reload without spending the saved daily allowance.
+  // Development fishing prizes restart on reload without spending the saved daily allowance.
   const [previewPondCaught, setPreviewPondCaught] = useState(0);
   const pondRecords = process.env.NODE_ENV === "development"
     ? { ...records, daily: { ...records.daily, catch: dayKey(now), caught: previewPondCaught } } : records;
@@ -260,7 +265,7 @@ export default function FigurineWorld() {
     if (!outcome) { setPending(null); return; }
     const figure = "figure" in outcome ? outcome.figure : undefined;
     const reward = outcome.station === "pond" ? ("caught" in outcome && outcome.caught.kind === "daily" ? outcome.caught.reward : null) : outcome.reward;
-    if (reward) grantReward(reward);
+    if (reward && outcome.station !== "crate") grantReward(reward);
     if (figure && pending.source) { addToCollection(figure.key, figure.quality); recordPull(figure, pending.source); }
     setResult(outcome); setPending(null);
   }
@@ -320,18 +325,16 @@ export default function FigurineWorld() {
   const pondPart = (part: string) => { if (part === "bucket") openSheet("log"); else if (part === "board") openSheet("board"); else if (part === "rod" || part === "bobber" || part === "water") fishTap(); };
   const leavePond = () => { setPondSheet(null); back(); };
   const prizes = dailyCatchesLeft(pondRecords, now);
-  const dailyCrate = crateState(records, now);
-  const crate = process.env.NODE_ENV === "development" ? { ...dailyCrate, ready: !previewChestClaimed } : dailyCrate;
+  const crate = crateState(records, now);
   const openDailyChest = () => {
     if (busy || chestClaiming.current || !crate.ready) return;
     chestClaiming.current = true;
-    const opened = process.env.NODE_ENV === "development"
-      ? { day: crate.day, reward: crateReward(crate.day) } : openCrate(now);
+    const claimedAt = new Date(), opened = openCrate(claimedAt);
     if (!opened) { chestClaiming.current = false; return; }
-    setPreviewChestClaimed(true);
+    setNow(claimedAt);
     act("crate", { kind: "open" }, { station: "crate", ...opened });
   };
-  const streak = useMemo(() => ({ opened: crate.ready ? crate.day - 1 : crate.day, today: crate.ready ? crate.day : null }), [crate.ready, crate.day]);
+  const streak = useMemo(() => ({ opened: crate.bonusReady ? crate.day - 1 : crate.day, today: crate.bonusReady ? crate.day : null }), [crate.bonusReady, crate.day]);
   const completeSeries = FIGURINE_SERIES.some((entry) => entry.characters.every((character) => collection[figureKey(entry.id, character.id)]));
   const panelActions = {
     busy, result, now,
@@ -342,7 +345,7 @@ export default function FigurineWorld() {
     onClaim: (id: string) => { unlockFigurineAudio(); claimQuest(id, completeSeries, now); },
   };
   // Quests count from the start of the session, and each new day, week or month from its turn.
-  useEffect(() => { startQuestPeriods(now); regenerateCoins(now); }, [now]);
+  useEffect(() => { startQuestPeriods(now); initializeCoins(now); }, [now]);
   const loadSlots = (kind: FigurineMachine, next: MachineItem[]) => setSlots((current) => ({ ...current, [kind]: next }));
   // A card chosen in the picker. The forge works on three of one kind, so it places all three at once.
   function pickCard(kind: FigurineMachine, item: MachineItem) {
@@ -443,8 +446,8 @@ export default function FigurineWorld() {
       collected: (owned, total) => t("seriesCollected", { got: owned, total }), comingSoon: t("comingSoon"),
     },
     showcase: showcaseOf(records.favorites, collection),
-    streak, prizes,
-  }), [collection, records.favorites, streak, prizes, t]);
+    streak, chestReady: crate.ready, prizes,
+  }), [collection, records.favorites, streak, crate.ready, prizes, t]);
   // The collection lists released series, a secret one once found, then the announced ones.
   const panelSeries: PanelSeries[] = useMemo(() => [...collectionShelves(world.series, collection).filter((entry) => entry.released), ...world.series.filter((entry) => !entry.hidden && !entry.released)]
     .map(({ id, number, released, hidden, keys }) => ({ id, number, released, hidden, keys })), [world.series, collection]);
@@ -496,7 +499,7 @@ export default function FigurineWorld() {
       onCast={cast} onHook={hook} onDismiss={dismissCatch} onSheet={openSheet} onBack={leavePond} />}
     {view === "overview" && revealedWorld && <OverviewHud onNavigate={navigate} onHover={setNavHover} hovered={pointed} />}
     {revealedWorld && view !== "overview" && view !== "pond" && view !== "crate" && <OverviewBack onBack={back} disabled={state.phase === "loading" || state.phase === "opening"} />}
-    {view === "crate" && revealedWorld && <ChestHud ready={crate.ready} day={crate.day} busy={busy} result={result?.station === "crate" ? result : null} onOpen={openDailyChest} onDismiss={dismissChest} onBack={() => { if (result?.station === "crate") dismissChest(); back(); }} />}
+    {view === "crate" && revealedWorld && <ChestHud ready={crate.ready} day={crate.day} remainingMs={crate.remainingMs} bonusReady={crate.bonusReady} busy={busy} result={result?.station === "crate" ? result : null} onOpen={openDailyChest} onDismiss={dismissChest} onBack={() => { if (result?.station === "crate") dismissChest(); back(); }} />}
     {revealedWorld && isOverlayStation(view) && <FacilityOverlay machine={machinePanel} trading={trading} view={view} collection={collection} records={records} series={panelSeries} actions={panelActions} preview={communityPreview} dispatch={dispatchCommunityPreview} onClose={back} />}
     {isStation(view) && !isOverlayStation(view) && view !== "shop" && view !== "pond" && view !== "crate" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back}
       onInspect={(key, finish) => inspect(key, finish)}

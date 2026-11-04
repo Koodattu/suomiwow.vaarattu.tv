@@ -64,6 +64,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   // The crate's streak board, repainted when the streak changes.
   let paintStreak: ((opened: number, today: number | null) => void) | null = null;
   let chestAnimation: ReturnType<typeof dailyChestAnimation> = null;
+  let setChestReady: ((ready: boolean) => void) | undefined;
   // The pond's glint (while prize catches remain), and the tackle under the pointer.
   let setPrizes: ((left: number) => void) | null = null, hover: ((part: string | null) => void) | null = null;
   let presentCatch: ((camera: THREE.PerspectiveCamera | null, reducedMotion: boolean, coinTarget: { x: number; y: number; width?: number } | null) => void) | null = null;
@@ -171,6 +172,11 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       return group;
     }));
     let claimed = false, opening = false;
+    setChestReady = (ready) => {
+      claimed = !ready;
+      chestAnimation?.setClaimed(claimed);
+      if (ready && !opening) reward.reset();
+    };
     const chestReady = chest.ready.then((group) => {
       if (disposed) return;
       chestAnimation = dailyChestAnimation(group);
@@ -203,9 +209,6 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     // The streak board: a coin per day, gilded once that day's crate is opened; today's is ringed.
     const [streakCanvas, streak] = canvas(512, 96), streakMap = srgb(streakCanvas);
     paintStreak = (opened: number, today: number | null) => {
-      claimed = today === null;
-      chestAnimation?.setClaimed(claimed);
-      if (!claimed && !opening) reward.reset();
       streak.fillStyle = "#2a1a10"; streak.fillRect(0, 0, 512, 96);
       for (let day = 1; day <= 7; day++) {
         const x = 40 + (day - 1) * 72, lit = day <= opened;
@@ -870,8 +873,10 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   });
   return {
     frame, ready, cubbies,
-    // Shows the daily crate's streak: days opened, and today's day if it is still to open.
+    // Shows streak bonuses claimed, and today's day if its bonus is still available.
     setStreak(opened: number, today: number | null) { paintStreak?.(opened, today); },
+    // Chest restocks independently of the once-per-day streak bonus.
+    setChestReady(ready: boolean) { setChestReady?.(ready); },
     // The pond: how many prize catches remain today (they glint under the water).
     setPrizes(left: number) { setPrizes?.(left); },
     // The working part under the pointer.

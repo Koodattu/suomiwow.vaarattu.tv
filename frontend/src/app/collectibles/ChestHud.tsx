@@ -6,24 +6,27 @@ import { OverviewBack } from "./OverviewHud";
 import controls from "./pond-hud.module.css";
 import styles from "./chest-hud.module.css";
 
-export default function ChestHud({ ready, day, busy, result, onOpen, onDismiss, onBack }: {
-  ready: boolean; day: number; busy: boolean;
+export default function ChestHud({ ready, day, remainingMs, bonusReady, busy, result, onOpen, onDismiss, onBack }: {
+  ready: boolean; day: number; remainingMs: number; bonusReady: boolean; busy: boolean;
   result: Extract<PanelResult, { station: "crate" }> | null;
   onOpen: () => void; onDismiss: () => void; onBack: () => void;
 }) {
   const t = useTranslations("figurineLab.world.crate");
+  const minutes = Math.ceil(remainingMs / 60000);
   return <>
     <div className={styles.title}><span>{t("day", { day })}</span><h1>{t("title")}</h1></div>
     {result ? <>
       <button type="button" className={controls.catchDismiss} onClick={onDismiss} aria-label={t("dismissReward")} />
       <div className={controls.banner} role="status"><div>
-        <b>{t("reward")}</b>
-        {result.reward.boost && <span>{t("goldenReward")}</span>}
+        <b>{t("reward", { count: result.reward.coins ?? 0 })}</b>
+        {(result.reward.coins ?? 0) > 1 && <span>{t(result.day === 7 ? "weeklyBonus" : "dailyBonus")}</span>}
         <span>{t("dismissReward")}</span>
       </div></div>
     </> : <div className={styles.reward} role="status">
       <p>{busy ? t("opening") : ready ? t("invitation") : t("claimed")}</p>
-      <small>{busy ? t("anticipation") : ready ? t("hint") : t("comeBack")}</small>
+      <small>{busy ? t("anticipation") : ready ? t("hint") : t("comeBack", { hours: Math.floor(minutes / 60), minutes: minutes % 60 })}</small>
+      {!busy && <small>{t("body")}</small>}
+      {!busy && ready && bonusReady && <small>{t(day === 7 ? "weeklyBonus" : "dailyBonus")}</small>}
     </div>}
     <nav className={controls.bar} aria-label={t("controls")}>
       <div className={controls.left}><OverviewBack inline onBack={onBack} /></div>
