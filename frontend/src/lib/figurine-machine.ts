@@ -5,12 +5,12 @@ import { SILHOUETTE } from "@/lib/figurine-packaging";
 import type { PlaceProp } from "@/lib/figurine-props";
 import type { FigurineQuality } from "@/lib/figurine-collection";
 
-// The two machine stations. Each has three card slots, a display and a trigger. Cards are chosen
+// The two workshop stations. Each has three card slots, a display and a trigger. Cards are chosen
 // in the page's picker (a grid that scales to any collection) and fly into the slots; tap a loaded
 // card to take it back, work the trigger to run.
-// - The recycler is a gnomish grinder: the three drop into its hopper, its rollers chew them up,
-//   it shakes and clanks, and a blind box slides out of the chute.
-// - The trade-up forge is an anvil before a rune stele: the three fly onto the anvil, fuse under
+// - The recycler is a furnace: the three are laid on its feed table and thrown in at the top, the
+//   bellows fire it, and a blind box is drawn out of the crucible of molten metal at its foot.
+// - The trade-up forge is an anvil before a carved stele: the three fly onto the anvil, fuse under
 //   three blows of the trip hammer, and the figure rises again one quality up.
 export type MachineCard = { key: string; quality: FigurineQuality; name: string; texture: THREE.Texture | null };
 // `accent` tints the forge's runes with the quality a run would make.
@@ -67,8 +67,8 @@ function backing() {
   return { map, paint };
 }
 
-// The display: what the three would make, or what is missing. Scanlines for the gnomish screen.
-function displayPanel(colors: { back: string; idle: string; ready: string }, scanlines: boolean) {
+// The display: what the three would make, or what is missing.
+function displayPanel(colors: { back: string; idle: string; ready: string }) {
   const [element, context] = canvas(512, 150), map = srgb(element);
   let painted = "";
   const paint = (title: string, detail: string, ready: boolean, working = false) => {
@@ -76,11 +76,10 @@ function displayPanel(colors: { back: string; idle: string; ready: string }, sca
     if (key === painted) return;
     painted = key;
     context.fillStyle = colors.back; context.fillRect(0, 0, 512, 150);
-    if (scanlines) for (let y = 0; y < 150; y += 4) { context.fillStyle = "rgba(0,0,0,.25)"; context.fillRect(0, y, 512, 2); }
     context.textAlign = "center"; context.textBaseline = "middle"; context.shadowBlur = 14;
     context.shadowColor = context.fillStyle = ready || working ? colors.ready : colors.idle;
-    context.font = `700 40px ${scanlines ? "ui-monospace, monospace" : "Georgia, serif"}`; context.letterSpacing = "4px"; context.fillText(title.toUpperCase(), 256, 56, 480);
-    context.font = `500 28px ${scanlines ? "ui-monospace, monospace" : "Georgia, serif"}`; context.letterSpacing = "2px"; context.fillText(detail.toUpperCase(), 256, 108, 480);
+    context.font = "700 40px Georgia, serif"; context.letterSpacing = "4px"; context.fillText(title.toUpperCase(), 256, 56, 480);
+    context.font = "500 28px Georgia, serif"; context.letterSpacing = "2px"; context.fillText(detail.toUpperCase(), 256, 108, 480);
     context.shadowBlur = 0; map.needsUpdate = true;
   };
   return { map, paint };
@@ -187,93 +186,70 @@ function particles(parent: THREE.Object3D, map: THREE.Texture, count: number, bl
   };
 }
 
-const RECYCLER_X = 0.2, BODY_W = 1.9, BODY_H = 1.7, BODY_D = 1.2, LEGS = 0.3;
-const SLOT_Y = LEGS + 1.2, SLOT_GAP = 0.58;
+const RECYCLER_X = 0.1, FURNACE_H = 2.75, FURNACE_Z = -0.75, TABLE_Z = 1, TABLE_TOP = 0.56;
+const SLOT_Y = TABLE_TOP + CARD_H / 2 + 0.02, SLOT_GAP = 0.58;
 const RUN_SECONDS = 3.1, SWALLOW = 0.45, POP = 2.15;
+// Where the crucible stands, and the bellows that fire the furnace.
+const CRUCIBLE = { x: -1.72, z: 0.5 }, BELLOWS = { x: 1.95, z: -0.55 };
 
-export function buildRecycler(parent: THREE.Group, { envMap, placeProp }: { envMap: THREE.Texture; placeProp: PlaceProp }) {
-  const steel = new THREE.MeshStandardMaterial({ color: 0x34495a, metalness: 0.55, roughness: 0.5, envMap, envMapIntensity: 0.7 });
-  const brass = new THREE.MeshStandardMaterial({ color: 0xc89a4a, metalness: 1, roughness: 0.3, envMap });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x15171c, metalness: 0.4, roughness: 0.6 });
-  const slotSpots = [-1, 0, 1].map((step) => new THREE.Vector3(RECYCLER_X + step * SLOT_GAP, SLOT_Y, -0.35 + BODY_D / 2 + 0.035));
+export function buildRecycler(parent: THREE.Group, { placeProp }: { envMap: THREE.Texture; placeProp: PlaceProp }) {
+  const wood = new THREE.MeshStandardMaterial({ map: woodTexture(41, [74, 48, 30]), roughness: 0.75 });
+  const slotSpots = [-1, 0, 1].map((step) => new THREE.Vector3(RECYCLER_X + step * SLOT_GAP, SLOT_Y, TABLE_Z - 0.1));
   const kit = machineKit(parent, { slots: slotSpots });
-  // The machine shakes as a whole while it works; the base stays on the ground.
-  const machine = new THREE.Group(); machine.position.set(RECYCLER_X, 0, -0.35); parent.add(machine);
-  const body = new THREE.Group(); machine.add(body);
-  for (const x of [-1, 1]) for (const z of [-1, 1]) add(machine, new THREE.CylinderGeometry(0.07, 0.09, LEGS, 10), dark, x * (BODY_W / 2 - 0.15), LEGS / 2, z * (BODY_D / 2 - 0.15));
-  kit.frame.push(add(body, new THREE.BoxGeometry(BODY_W, BODY_H, BODY_D), steel, 0, LEGS + BODY_H / 2, 0));
-  for (const y of [LEGS + 0.06, LEGS + BODY_H - 0.06]) add(body, new THREE.BoxGeometry(BODY_W + 0.04, 0.07, BODY_D + 0.04), brass, 0, y, 0);
-  // Rivets along the bands.
-  const rivet = new THREE.SphereGeometry(0.022, 8, 6);
-  for (const y of [LEGS + 0.06, LEGS + BODY_H - 0.06]) for (let i = 0; i < 9; i++) add(body, rivet, brass, -BODY_W / 2 + 0.12 + i * (BODY_W - 0.24) / 8, y, BODY_D / 2 + 0.03, false);
-  // The hopper the cards drop into, with two toothed rollers turning in its throat.
-  const hopperMaterial = brass.clone(); hopperMaterial.side = THREE.DoubleSide;
-  add(body, new THREE.CylinderGeometry(0.62, 0.32, 0.6, 28, 1, true), hopperMaterial, 0, LEGS + BODY_H + 0.3, 0);
-  add(body, new THREE.TorusGeometry(0.62, 0.04, 8, 32).rotateX(Math.PI / 2), brass, 0, LEGS + BODY_H + 0.6, 0);
-  add(body, new THREE.CircleGeometry(0.6, 28).rotateX(-Math.PI / 2), dark, 0, LEGS + BODY_H + 0.03, 0, false);
-  const tooth = new THREE.BoxGeometry(0.5, 0.05, 0.05);
-  const rollers = [-1, 1].map((side) => {
-    const roller = new THREE.Group(); roller.position.set(0, LEGS + BODY_H + 0.13, side * 0.12); body.add(roller);
-    add(roller, new THREE.CylinderGeometry(0.085, 0.085, 0.52, 14).rotateZ(Math.PI / 2), steel, 0, 0, 0, false);
-    for (let i = 0; i < 6; i++) { const mesh = add(roller, tooth, dark, 0, Math.sin(i / 6 * Math.PI * 2) * 0.1, Math.cos(i / 6 * Math.PI * 2) * 0.1, false); mesh.rotation.x = -i / 6 * Math.PI * 2; }
-    return { roller, side };
-  });
-  // Three recessed slots on the front, each a brass frame round a dark well.
-  for (const spot of slotSpots) {
-    const x = spot.x - RECYCLER_X;
-    add(body, new THREE.PlaneGeometry(CARD_W + 0.06, CARD_H + 0.06), dark, x, SLOT_Y, BODY_D / 2 + 0.002, false);
-    for (const [w, h, ox, oy] of [[CARD_W + 0.1, 0.035, 0, (CARD_H + 0.06) / 2], [CARD_W + 0.1, 0.035, 0, -(CARD_H + 0.06) / 2], [0.035, CARD_H + 0.1, (CARD_W + 0.06) / 2, 0], [0.035, CARD_H + 0.1, -(CARD_W + 0.06) / 2, 0]])
-      add(body, new THREE.BoxGeometry(w, h, 0.03), brass, x + ox, SLOT_Y + oy, BODY_D / 2 + 0.015, false);
-  }
-  const display = displayPanel({ back: "#0b1410", idle: "#ffcf7a", ready: "#9dffb0" }, true);
+  const loads: Promise<THREE.Group>[] = [];
+  const prop = (target: THREE.Object3D, ...[name, placement]: [Parameters<PlaceProp>[1], Parameters<PlaceProp>[2]]) => { const placed = placeProp(target, name, placement); loads.push(placed.ready); return placed; };
+  // The furnace shakes as a whole while it works; the table and tools stay put.
+  const furnace = new THREE.Group(); furnace.position.set(RECYCLER_X, 0, FURNACE_Z); parent.add(furnace);
+  prop(furnace, "forgeFurnace", { height: FURNACE_H, yaw: -Math.PI / 2 });
+  // The feed table, its slot marks burned into the top and the display hung from its front.
+  prop(parent, "marketTable", { height: 1, length: 2.3, x: RECYCLER_X, z: TABLE_Z, yaw: -Math.PI / 2 });
+  for (const spot of slotSpots) add(parent, new THREE.BoxGeometry(CARD_W + 0.08, 0.02, 0.14), wood, spot.x, TABLE_TOP + 0.01, spot.z, false);
+  const display = displayPanel({ back: "#1a100a", idle: "#ffcf7a", ready: "#ffe9b0" });
   // The display holds what a run is making until it is done, then shows the machine as it is now.
   let title = "", shown: MachineView | null = null;
-  const screen = add(body, new THREE.PlaneGeometry(1.3, 0.38), new THREE.MeshBasicMaterial({ map: display.map, toneMapped: false }), 0, LEGS + 0.62, BODY_D / 2 + 0.012, false);
+  const screen = add(parent, new THREE.PlaneGeometry(1.15, 0.33), new THREE.MeshBasicMaterial({ map: display.map, toneMapped: false }), RECYCLER_X, 0.32, TABLE_Z + 0.975, false);
   screen.raycast = () => {};
-  add(body, new THREE.BoxGeometry(1.4, 0.48, 0.03), brass, 0, LEGS + 0.62, BODY_D / 2 - 0.01, false);
-  // The output chute: a mouth at the bottom left and a slide down to the ground.
-  const chuteX = -BODY_W / 2 - 0.32;
-  add(machine, new THREE.BoxGeometry(0.62, 0.05, 0.9).rotateX(0.32), brass, chuteX, 0.3, 0.25);
-  for (const side of [-1, 1]) add(machine, new THREE.BoxGeometry(0.03, 0.14, 0.9).rotateX(0.32), brass, chuteX + side * 0.31, 0.36, 0.25);
-  add(machine, new THREE.BoxGeometry(0.66, 0.5, 0.5), steel, chuteX, 0.6, -0.25);
-  // The lever on the right side: tap or pull it once three are loaded.
-  const lever = new THREE.Group(); lever.position.set(BODY_W / 2 + 0.1, LEGS + 1.0, 0.15); machine.add(lever);
-  add(machine, new THREE.CylinderGeometry(0.09, 0.09, 0.08, 16).rotateZ(Math.PI / 2), brass, BODY_W / 2 + 0.06, LEGS + 1.0, 0.15);
-  add(lever, new THREE.CylinderGeometry(0.025, 0.025, 0.62, 10), dark, 0.05, 0.31, 0);
-  const knobMaterial = new THREE.MeshStandardMaterial({ color: 0xc43a2a, roughness: 0.35, emissive: 0xff5a3a, emissiveIntensity: 0 });
-  add(lever, new THREE.SphereGeometry(0.075, 16, 12), knobMaterial, 0.05, 0.64, 0);
-  kit.trigger(add(lever, new THREE.BoxGeometry(0.3, 0.85, 0.3), invisible(), 0.05, 0.4, 0, false));
-  // Game props: the big gear turns behind the left flank, an exhaust pipe, a work lamp, pistons, a bucket.
-  const gear = new THREE.Group(); gear.position.set(-BODY_W / 2 + 0.05, LEGS + 1.35, -BODY_D / 2 + 0.12); body.add(gear);
-  void placeProp(gear, "gear", { height: 1.1 }).ready.then((group) => { group.position.y = -0.55; });
-  placeProp(body, "pipe", { height: 0.75, x: 0.62, y: LEGS + BODY_H, z: -0.35, yaw: -Math.PI / 2 });
-  placeProp(body, "lamp", { height: 0.32, x: -0.72, y: LEGS + BODY_H, z: 0.38, yaw: Math.PI / 2 });
-  const pistons = new THREE.Group(); machine.add(pistons);
-  placeProp(pistons, "pistons", { height: 1.5, x: 0.45, y: 0.2, z: -BODY_D / 2 - 0.12, yaw: Math.PI / 2 });
-  placeProp(parent, "bucket", { height: 0.5, x: RECYCLER_X - 1.55, z: 0.75, yaw: 0.6 });
-  placeProp(parent, "tool", { height: 0.62, x: RECYCLER_X + 1.75, z: 0.55, yaw: -0.4 });
-  // Steam from the pipe, and shreds of card spat from the hopper while it grinds.
+  kit.frame.push(add(parent, new THREE.BoxGeometry(1.25, 0.42, 0.04), wood, RECYCLER_X, 0.32, TABLE_Z + 0.95));
+  // The crucible the run ends in.
+  prop(parent, "forgeCrucible", { height: 0.72, x: RECYCLER_X + CRUCIBLE.x, z: CRUCIBLE.z, yaw: 0.6 });
+  // The bellows beside the furnace: tap them once three are loaded.
+  const bellows = new THREE.Group(); bellows.position.set(RECYCLER_X + BELLOWS.x - 0.1, 0, BELLOWS.z); parent.add(bellows);
+  prop(bellows, "forgeBellows", { height: 1.1, yaw: 0 });
+  kit.trigger(add(bellows, new THREE.BoxGeometry(1, 1.25, 1.5), invisible(), 0, 0.6, 0, false));
+  // Firelight at the furnace's door and throat, heat from its chimney, embers while it burns.
+  const glows = glowMap();
+  const fire = (x: number, y: number, z: number, size: number) => {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glows, color: 0xff8a3a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    sprite.position.set(x, y, z); sprite.scale.setScalar(size); furnace.add(sprite);
+    return sprite;
+  };
+  const door = fire(0, 0.82, 1.28, 1.25), throat = fire(0, FURNACE_H + 0.05, 0, 1.15);
   const [puffCanvas, puff] = canvas(64, 64);
   const cloud = puff.createRadialGradient(32, 32, 0, 32, 32, 32);
   cloud.addColorStop(0, "rgba(255,255,255,.85)"); cloud.addColorStop(1, "rgba(255,255,255,0)");
   puff.fillStyle = cloud; puff.fillRect(0, 0, 64, 64);
-  const steam = particles(machine, srgb(puffCanvas), 8);
-  const [shredCanvas, shred] = canvas(16, 16); shred.fillStyle = "#fff"; shred.fillRect(3, 6, 10, 4);
-  const shreds = particles(machine, srgb(shredCanvas), 24);
-  const shredColors = ["#efe2c4", "#a08a62", "#16121a", "#f2c75c"];
+  const smoke = particles(furnace, srgb(puffCanvas), 10);
+  const embers = particles(furnace, glows, 28, THREE.AdditiveBlending);
+  const emberColors = [0xffb24a, 0xff7a2a, 0xffe08a, 0xf2c75c];
 
   let run: { t: number; swallowed: Card[]; output: MachineOutput; done: () => void; cue: (cue: MachineCue) => void; clanks: number; popped: boolean } | null = null;
-  // What the run made, sliding down the chute; `rest` is its height above the ground at its centre.
+  // What the run made, lifted out of the crucible; `rest` is its height above the ground at its centre.
   let output: THREE.Object3D | null = null, outputCard: Card | null = null, outputClock = 0, outputRest = 0;
-  let ready = false, leverHover = 0, leverPull = 0, gearSpeed = 0.15, puffClock = 0, shredClock = 0;
+  let ready = false, bellowsHover = 0, pump = 0, heat = 0, smokeClock = 0, emberClock = 0;
   const clearOutput = () => {
     if (output) { parent.remove(output); output = null; }
     if (outputCard) { kit.dropCard(outputCard); outputCard = null; }
   };
-  const into = new THREE.Vector3(RECYCLER_X, LEGS + BODY_H + 0.2, -0.35), mouth = new THREE.Vector3(0, LEGS + BODY_H + 0.35, 0);
+  const into = new THREE.Vector3(RECYCLER_X, FURNACE_H + 0.15, FURNACE_Z), mouth = new THREE.Vector3(0, FURNACE_H + 0.05, 0);
 
   return {
     picks: kit.picks, frame: kit.frame,
+    // The outline's meshes, once the game props are in.
+    ready: Promise.all(loads).then((groups) => {
+      const meshes = [...kit.frame];
+      groups.forEach((group) => group.traverse((object) => { if (object instanceof THREE.Mesh && !object.userData.outline) meshes.push(object); }));
+      return meshes;
+    }),
     set(view: MachineView) {
       shown = view;
       if (!run) display.paint(view.title, view.detail, view.ready);
@@ -290,37 +266,34 @@ export function buildRecycler(parent: THREE.Group, { envMap, placeProp }: { envM
     get running() { return !!run; },
     clear() { if (!run) clearOutput(); },
     update(hovered: MachinePick | null, delta: number, time: number) {
-      leverHover = THREE.MathUtils.damp(leverHover, hovered?.kind === "trigger" ? 1 : 0, 10, delta);
-      knobMaterial.emissiveIntensity = (ready ? 0.35 + 0.35 * Math.sin(time * 4) : 0) + leverHover * 0.5;
+      bellowsHover = THREE.MathUtils.damp(bellowsHover, hovered?.kind === "trigger" ? 1 : 0, 10, delta);
       kit.update(hovered, delta);
-      let shake = 0;
+      let shake = 0, burning = false;
       if (run) {
         const previous = run.t;
         run.t += delta;
         const t = run.t;
-        leverPull = t < 0.25 ? t / 0.25 : t < 1.1 ? 1 : Math.max(0, 1 - (t - 1.1) / 0.4);
-        // The three fly up and into the hopper.
+        // The three are thrown up and over into the furnace's throat.
         run.swallowed.forEach((card, index) => {
           const k = THREE.MathUtils.clamp((t - index * 0.08) / SWALLOW, 0, 1), ease = k * k;
           card.group.position.lerpVectors(slotSpots[index], into, ease); card.group.position.y += Math.sin(Math.PI * k) * 0.9;
           card.group.scale.setScalar(1 - 0.75 * ease); card.group.rotation.set(-ease * 1.2, 0, ease * 0.6);
           card.group.visible = k < 1;
         });
-        // It grinds: shakes, clanks, the gear and rollers spin up, steam puffs and shreds fly.
-        const working = t > SWALLOW && t < POP;
-        shake = working ? Math.min(1, (t - SWALLOW) / 0.3) * Math.min(1, (POP - t) / 0.2) : 0;
-        if (working && Math.floor((t - SWALLOW) / 0.24) > run.clanks) { run.clanks++; run.cue("clank"); }
+        // It burns: the bellows pump, the fire roars, smoke and embers leave by the chimney.
+        burning = t > SWALLOW && t < POP;
+        shake = burning ? Math.min(1, (t - SWALLOW) / 0.3) * Math.min(1, (POP - t) / 0.2) : 0;
+        pump = burning ? Math.abs(Math.sin((t - SWALLOW) * 6.5)) : t < SWALLOW ? Math.min(1, t / 0.25) : 0;
+        if (burning && Math.floor((t - SWALLOW) / 0.24) > run.clanks) { run.clanks++; run.cue("clank"); }
         if (previous < SWALLOW && t >= SWALLOW) display.paint(title, "· · ·", false, true);
-        if (working) {
-          puffClock -= delta;
-          if (puffClock <= 0) { puffClock = 0.22; steam.emit(new THREE.Vector3(0.62, LEGS + BODY_H + 0.8, 0), new THREE.Vector3(0.2, 0.9, 0), { life: 1.2, size: 0.25, grow: 0.6 }); }
-          shredClock -= delta;
-          if (shredClock <= 0 && t < POP - 0.5) {
-            shredClock = 0.05;
-            shreds.emit(mouth, new THREE.Vector3((Math.random() - 0.5) * 1.6, 1.4 + Math.random() * 1.2, (Math.random() - 0.2) * 1.2), { life: 0.9, size: 0.06, gravity: 5, color: shredColors[Math.floor(Math.random() * shredColors.length)] });
+        if (burning) {
+          emberClock -= delta;
+          if (emberClock <= 0 && t < POP - 0.3) {
+            emberClock = 0.05;
+            embers.emit(mouth, new THREE.Vector3((Math.random() - 0.5) * 1.4, 1.6 + Math.random() * 1.4, (Math.random() - 0.2) * 1), { life: 0.9, size: 0.07, gravity: 4, color: emberColors[Math.floor(Math.random() * emberColors.length)] });
           }
         }
-        // The output drops out of the chute and slides down to the ground.
+        // What it made is drawn out of the crucible and set down in front of it.
         if (!run.popped && t >= POP) {
           run.popped = true; outputClock = 0;
           if (run.output.kind === "box" && run.output.box) {
@@ -330,22 +303,22 @@ export function buildRecycler(parent: THREE.Group, { envMap, placeProp }: { envM
           run.cue(run.output.kind === "figure" ? "sparkle" : "drop");
         }
         if (t >= RUN_SECONDS) { const done = run.done; run.swallowed.forEach(kit.dropCard); run = null; if (shown) display.paint(shown.title, shown.detail, shown.ready); done(); }
-      }
+      } else pump = THREE.MathUtils.damp(pump, 0, 8, delta);
       if (output) {
         outputClock += delta;
         const k = Math.min(1, outputClock / 0.55), bounce = Math.abs(Math.sin(Math.min(1, outputClock / 0.9) * Math.PI * 2.5)) * (1 - Math.min(1, outputClock / 0.9)) * 0.12;
-        output.position.set(RECYCLER_X + chuteX, THREE.MathUtils.lerp(0.62, outputRest, k) + bounce, -0.35 + THREE.MathUtils.lerp(-0.05, 0.95, k));
+        output.position.set(RECYCLER_X + CRUCIBLE.x, THREE.MathUtils.lerp(0.7, outputRest, k) + Math.sin(Math.PI * k) * 0.55 + bounce, CRUCIBLE.z + THREE.MathUtils.lerp(0, 0.95, k));
         output.rotation.set(0, 0.3 + (outputCard ? Math.sin(time * 1.5) * 0.2 : 0), 0);
       }
-      const grinding = !!run && run.t > SWALLOW && run.t < POP;
-      gearSpeed = THREE.MathUtils.damp(gearSpeed, grinding ? 7 : 0.15, 3, delta);
-      gear.rotation.z += gearSpeed * delta;
-      rollers.forEach(({ roller, side }) => { roller.rotation.x += side * gearSpeed * 1.6 * delta; });
-      lever.rotation.z = -leverPull * 1.5 - leverHover * 0.08;
-      body.position.set(Math.sin(time * 53) * 0.012 * shake, Math.abs(Math.sin(time * 31)) * 0.02 * shake, Math.cos(time * 47) * 0.01 * shake);
-      body.rotation.z = Math.sin(time * 37) * 0.01 * shake;
-      pistons.position.y = Math.max(0, Math.sin(time * 18)) * 0.08 * shake;
-      steam.update(delta, 0.55); shreds.update(delta);
+      // The fire idles low, wakes when three are loaded, and roars through a run.
+      heat = THREE.MathUtils.damp(heat, burning ? 1 : ready ? 0.45 : 0.18, 4, delta);
+      const flicker = 0.85 + 0.15 * Math.sin(time * 11) * Math.sin(time * 7.3);
+      door.material.opacity = (0.35 + heat * 0.65) * flicker; throat.material.opacity = heat * 0.8 * flicker;
+      smokeClock -= delta;
+      if (smokeClock <= 0) { smokeClock = burning ? 0.14 : 0.9; smoke.emit(mouth, new THREE.Vector3(0.12, 0.7 + heat * 0.5, 0), { life: 1.8, size: 0.28, grow: 0.5, color: burning ? 0x54504c : 0x8a8682 }); }
+      bellows.scale.y = 1 - pump * 0.16 - bellowsHover * 0.03 - (ready && !run ? 0.02 + 0.02 * Math.sin(time * 4) : 0);
+      furnace.position.set(RECYCLER_X + Math.sin(time * 53) * 0.012 * shake, Math.abs(Math.sin(time * 31)) * 0.016 * shake, FURNACE_Z + Math.cos(time * 47) * 0.01 * shake);
+      smoke.update(delta, 0.4); embers.update(delta);
     },
   };
 }
@@ -372,9 +345,9 @@ function runeCircle() {
   return map;
 }
 
-const FORGE_X = -0.3, PLINTH_H = 0.9, CAP = 0.1, ANVIL_H = 0.42, STELE_Z = -0.62;
-const FACE_Y = PLINTH_H + CAP + ANVIL_H, ANVIL_X = FORGE_X - 0.1, ANVIL_Z = 0.12;
-const RUNES_Y = 2.08, RUNE_RADIUS = 0.55;
+const FORGE_X = -0.3, PLINTH_H = 0.55, CAP = 0.06, ANVIL_H = 0.8, STELE_Z = -0.9, STELE_FACE = STELE_Z + 0.4;
+const FACE_Y = PLINTH_H + CAP + ANVIL_H, ANVIL_X = FORGE_X - 0.1, ANVIL_Z = 0.22;
+const RUNES_Y = 1.72, RUNE_RADIUS = 0.55;
 // The trip hammer: an arm pivoting on a post right of the plinth, its head striking the anvil face.
 // HIT is the arm angle at which the head's underside meets the face; the pivot sits high enough
 // that the arm passes over the right-hand cradle.
@@ -384,42 +357,37 @@ const PIVOT_X = ANVIL_X + ARM * Math.cos(HIT);
 const MERGE = 0.55, FIRST_STRIKE = 0.95, STRIKE_GAP = 0.5, STRIKES = 3, FUSE = 2.35, FORGE_SECONDS = 3.5;
 
 export function buildForge(parent: THREE.Group, { envMap, placeProp }: { envMap: THREE.Texture; placeProp: PlaceProp }) {
-  const stone = new THREE.MeshStandardMaterial({ color: 0x4a4553, roughness: 0.92 });
-  const darkStone = new THREE.MeshStandardMaterial({ color: 0x302c37, roughness: 0.9 });
+  const stone = new THREE.MeshStandardMaterial({ color: 0x8f8373, roughness: 0.92 });
+  const darkStone = new THREE.MeshStandardMaterial({ color: 0x5c5247, roughness: 0.9 });
   const gold = new THREE.MeshStandardMaterial({ color: 0xd4a63c, metalness: 1, roughness: 0.28, envMap });
   const iron = new THREE.MeshStandardMaterial({ color: 0x2b2d33, metalness: 0.85, roughness: 0.38, envMap, envMapIntensity: 0.9 });
   const wood = new THREE.MeshStandardMaterial({ map: woodTexture(37, [66, 44, 30]), roughness: 0.75 });
   // The three cradles sit round the rune circle, at its top and lower corners.
   const corner = RUNE_RADIUS * Math.cos(Math.PI / 6);
-  const slotSpots = [[0, RUNE_RADIUS], [-corner, -RUNE_RADIUS / 2], [corner, -RUNE_RADIUS / 2]].map(([x, y]) => new THREE.Vector3(FORGE_X + x, RUNES_Y + y, STELE_Z + 0.19));
+  const slotSpots = [[0, RUNE_RADIUS], [-corner, -RUNE_RADIUS / 2], [corner, -RUNE_RADIUS / 2]].map(([x, y]) => new THREE.Vector3(FORGE_X + x, RUNES_Y + y, STELE_FACE + 0.04));
   const kit = machineKit(parent, { slots: slotSpots });
+  const loads: Promise<THREE.Group>[] = [];
+  const prop = (...[name, placement]: [Parameters<PlaceProp>[1], Parameters<PlaceProp>[2]]) => { const placed = placeProp(parent, name, placement); loads.push(placed.ready); return placed; };
 
   // A stone plinth with a gold-edged cap, the display set in its front.
-  kit.frame.push(add(parent, new THREE.BoxGeometry(1.6, PLINTH_H, 1.1), stone, FORGE_X, PLINTH_H / 2, 0));
-  add(parent, new THREE.BoxGeometry(1.75, CAP, 1.22), darkStone, FORGE_X, PLINTH_H + CAP / 2, 0);
-  for (const z of [-1, 1]) add(parent, new THREE.BoxGeometry(1.78, 0.03, 0.03), gold, FORGE_X, PLINTH_H + CAP, z * 0.61, false);
-  add(parent, new THREE.BoxGeometry(1.66, 0.08, 1.16), darkStone, FORGE_X, 0.04, 0);
-  const display = displayPanel({ back: "#160f24", idle: "#f2c75c", ready: "#d9c8ff" }, false);
+  kit.frame.push(add(parent, new THREE.BoxGeometry(1.6, PLINTH_H, 1.1), stone, FORGE_X, PLINTH_H / 2, 0.1));
+  add(parent, new THREE.BoxGeometry(1.75, CAP, 1.22), darkStone, FORGE_X, PLINTH_H + CAP / 2, 0.1);
+  for (const z of [-1, 1]) add(parent, new THREE.BoxGeometry(1.78, 0.03, 0.03), gold, FORGE_X, PLINTH_H + CAP, 0.1 + z * 0.61, false);
+  add(parent, new THREE.BoxGeometry(1.66, 0.08, 1.16), darkStone, FORGE_X, 0.04, 0.1);
+  const display = displayPanel({ back: "#160f24", idle: "#f2c75c", ready: "#d9c8ff" });
   // The display holds what a run is making until it is done, then shows the machine as it is now.
   let title = "", shown: MachineView | null = null;
-  const screen = add(parent, new THREE.PlaneGeometry(1.3, 0.38), new THREE.MeshBasicMaterial({ map: display.map, toneMapped: false }), FORGE_X, 0.5, 0.562, false);
+  const screen = add(parent, new THREE.PlaneGeometry(1.15, 0.33), new THREE.MeshBasicMaterial({ map: display.map, toneMapped: false }), FORGE_X, 0.3, 0.662, false);
   screen.raycast = () => {};
-  add(parent, new THREE.BoxGeometry(1.4, 0.48, 0.03), gold, FORGE_X, 0.5, 0.545, false);
-  // The anvil, hand-built: foot, waist, face and horn (pointing left, toward the board).
-  const anvil = new THREE.Group(); anvil.position.set(ANVIL_X, PLINTH_H + CAP, ANVIL_Z); parent.add(anvil);
-  add(anvil, new THREE.BoxGeometry(0.42, 0.12, 0.3), iron, 0, 0.06, 0);
-  add(anvil, new THREE.BoxGeometry(0.24, 0.16, 0.18), iron, 0, 0.2, 0);
-  add(anvil, new THREE.BoxGeometry(0.6, 0.14, 0.26), iron, 0.04, ANVIL_H - 0.07, 0);
-  add(anvil, new THREE.ConeGeometry(0.1, 0.3, 14).rotateZ(Math.PI / 2), iron, -0.4, ANVIL_H - 0.09, 0);
-  // The rune stele behind: an arched slab, the circle glowing on its face.
-  kit.frame.push(add(parent, new THREE.BoxGeometry(1.7, 2.55, 0.3), stone, FORGE_X, 2.55 / 2, STELE_Z));
-  add(parent, new THREE.CylinderGeometry(0.85, 0.85, 0.3, 32, 1, false, Math.PI / 2, Math.PI).rotateX(Math.PI / 2), stone, FORGE_X, 2.55, STELE_Z);
-  add(parent, new THREE.TorusGeometry(0.85, 0.035, 8, 32, Math.PI), gold, FORGE_X, 2.55, STELE_Z + 0.15, false);
+  add(parent, new THREE.BoxGeometry(1.25, 0.42, 0.03), gold, FORGE_X, 0.3, 0.645, false);
+  // The anvil, and the carved stele behind it with the rune circle glowing on its face.
+  prop("forgeAnvil", { height: ANVIL_H, x: ANVIL_X, y: PLINTH_H + CAP, z: ANVIL_Z, yaw: -Math.PI / 2 });
+  prop("forgeStele", { height: 3.2, x: FORGE_X, z: STELE_Z, yaw: -Math.PI / 2 });
   const runeMaterial = new THREE.MeshBasicMaterial({ map: runeCircle(), color: QUALITY_COLORS.golden, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
-  const runes = add(parent, new THREE.PlaneGeometry(1.5, 1.5), runeMaterial, FORGE_X, RUNES_Y, STELE_Z + 0.152, false);
+  const runes = add(parent, new THREE.PlaneGeometry(1.5, 1.5), runeMaterial, FORGE_X, RUNES_Y, STELE_FACE + 0.01, false);
   runes.raycast = () => {};
   // Gold ledges for the cradles.
-  for (const spot of slotSpots) add(parent, new THREE.BoxGeometry(CARD_W + 0.08, 0.035, 0.1), gold, spot.x, spot.y - CARD_H / 2 - 0.02, STELE_Z + 0.2, false);
+  for (const spot of slotSpots) add(parent, new THREE.BoxGeometry(CARD_W + 0.08, 0.035, 0.1), gold, spot.x, spot.y - CARD_H / 2 - 0.02, STELE_FACE + 0.04, false);
   // The trip hammer on its post.
   add(parent, new THREE.CylinderGeometry(0.07, 0.09, PIVOT_Y + 0.08, 12), iron, PIVOT_X, (PIVOT_Y + 0.08) / 2, ANVIL_Z);
   add(parent, new THREE.CylinderGeometry(0.16, 0.2, 0.12, 12), darkStone, PIVOT_X, 0.06, ANVIL_Z);
@@ -432,16 +400,13 @@ export function buildForge(parent: THREE.Group, { envMap, placeProp }: { envMap:
   const gemMaterial = new THREE.MeshStandardMaterial({ color: 0x6a4fd8, roughness: 0.2, emissive: 0x8f6bff, emissiveIntensity: 0 });
   add(arm, new THREE.OctahedronGeometry(0.05), gemMaterial, -ARM, -HEAD_DROP + 0.11, 0.125, false);
   kit.trigger(add(arm, new THREE.BoxGeometry(ARM + 0.35, 0.65, 0.45), invisible(), -ARM / 2 - 0.05, -0.18, 0, false));
-  // Crystals flanking the stele, glowing with the runes.
-  const crystalMaterial = new THREE.MeshStandardMaterial({ color: 0x7c62e0, roughness: 0.15, metalness: 0.1, emissive: 0x6b4cff, emissiveIntensity: 0.4, transparent: true, opacity: 0.92 });
-  for (const [x, scale, tilt] of [[-0.98, 1, 0.15], [0.98, 0.8, -0.2], [-0.82, 0.55, -0.3]] as const) {
-    const crystal = add(parent, new THREE.OctahedronGeometry(0.16).scale(0.8, 2.2, 0.8), crystalMaterial, FORGE_X + x, 0.34 * scale, STELE_Z + 0.25);
-    crystal.scale.setScalar(scale); crystal.rotation.z = tilt;
-  }
-  placeProp(parent, "bucket", { height: 0.42, x: FORGE_X + 0.55, z: 0.95, yaw: 1.2 });
-  placeProp(parent, "tool", { height: 0.55, x: FORGE_X - 1.25, z: 0.6, yaw: 0.5 });
+  // A brazier either side of the stele, the void-fire one burning in the colour a run would make.
+  prop("forgeBrazier", { height: 0.72, x: FORGE_X - 1.5, z: STELE_Z + 0.75, yaw: 0.5 });
+  prop("forgeBrazierVoid", { height: 1.25, x: FORGE_X + 1.62, z: STELE_Z + 0.75, yaw: -0.4 });
   // The glow where the three fuse, the light pillar the result rises in, and sparks from each blow.
   const glows = glowMap();
+  const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: glows, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  flame.position.set(FORGE_X + 1.62, 1.2, STELE_Z + 0.75); flame.scale.setScalar(0.9); parent.add(flame);
   const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: glows, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   core.position.set(ANVIL_X + 0.04, FACE_Y + 0.08, ANVIL_Z + 0.05); parent.add(core);
   const pillarMaterial = new THREE.MeshBasicMaterial({ map: glows, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide });
@@ -468,6 +433,12 @@ export function buildForge(parent: THREE.Group, { envMap, placeProp }: { envMap:
 
   return {
     picks: kit.picks, frame: kit.frame,
+    // The outline's meshes, once the game props are in.
+    ready: Promise.all(loads).then((groups) => {
+      const meshes = [...kit.frame];
+      groups.forEach((group) => group.traverse((object) => { if (object instanceof THREE.Mesh && !object.userData.outline) meshes.push(object); }));
+      return meshes;
+    }),
     set(view: MachineView) {
       shown = view;
       if (!run) display.paint(view.title, view.detail, view.ready);
@@ -537,7 +508,7 @@ export function buildForge(parent: THREE.Group, { envMap, placeProp }: { envMap:
       runes.rotation.z = -spin;
       runeMaterial.color.copy(run?.color ?? accent);
       runeMaterial.opacity = run ? 0.55 + glow * 0.4 : ready ? 0.7 + 0.2 * Math.sin(time * 3) : 0.38;
-      crystalMaterial.emissiveIntensity = 0.35 + (run ? glow * 1.2 : ready ? 0.25 : 0);
+      flame.material.color.copy(run?.color ?? accent); flame.material.opacity = 0.3 + (run ? glow * 0.7 : ready ? 0.2 + 0.1 * Math.sin(time * 3) : 0);
       sparks.update(delta);
     },
   };

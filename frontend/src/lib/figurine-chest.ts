@@ -82,7 +82,7 @@ export function chestRewardPresentation(parent: THREE.Group, coin: THREE.Group, 
   };
 }
 
-// treasurechest01's native clips, retained by the animated worker export.
+// The chest's native clips, retained by the animated worker export.
 export function dailyChestAnimation(root: THREE.Object3D) {
   const opening = root.animations.find((clip) => clip.name === "Open (ID 148 variation 0)");
   const closing = root.animations.find((clip) => clip.name === "Close (ID 146 variation 0)");

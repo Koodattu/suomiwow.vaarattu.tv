@@ -5,11 +5,13 @@ import { buildForest, forestLayout, marketLayout, POND, swayMaterial, type Keep 
 import { isOverlayStation } from "@/lib/figurine-facility-views";
 
 // The collectibles world: a painted sky bubble over a forest clearing. A cobbled square holds the
-// opening pedestal at its centre. Facilities share small, uneven forecourts around its edge:
-// the market to the west, daily errands to the north, the collection and mail to the north-east,
-// the scrying ball and honours to the east, and the workshop to the south-west. The pond opens
-// off the south-east corner. Paths leave through the gaps; scenery gathers behind the facilities,
-// while showcase figures stand along both the plaza edge and the outer neighbourhoods.
+// opening pedestal at its centre, and four districts stand round its edge, each on its own floor
+// and dressed in its own props. The shop (north-west) has one at each hand: the trading street to
+// the west and the daily fair to the north. The collection cabinet (north-east) leads on to the
+// honours terrace in the east; the working yard lies to the south-west. The pond keeps the
+// south-east to itself, with nothing built near its banks. Paths leave through the gaps; scenery
+// gathers behind the districts, while showcase figures stand along both the plaza edge and the
+// outer neighbourhoods.
 // The overview is home; the centre holds the opening pedestal and the other destinations are stations.
 export type Station = "shop" | "gallery" | "recycler" | "forge" | "crate" | "wheel" | "mail" | "quests" | "feed" | "fame" | "leaderboard" | "trading" | "merchant" | "pond";
 export type WorldView = Station | "overview" | "opening" | "viewer";
@@ -25,24 +27,23 @@ type StationSpec = { at: [number, number]; face?: [number, number]; width: numbe
 const big = (fit: number) => ({ height: 1.2, distance: 6.8, target: 1.6, fit });
 const small = (fit: number, target = 1.3) => ({ height: 1.1, distance: 6.6, target, fit });
 export const STATION_SPECS: Record<Station, StationSpec> = {
-  // The market bends around the west edge, with room for visitors between its stalls.
+  // The shop anchors the north-west; the trading street runs south from it down the west edge.
   shop: { at: [-8.8, -8.2], face: [-4, -2.4], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
-  merchant: { at: [-12.4, -2.3], face: [-5.5, -1.4], width: 3.8, back: -1.6, front: 1.6, shot: small(4.2, 1.25) },
-  trading: { at: [-12, 3.8], face: [-5.6, 2.4], width: 4.8, back: -1.65, front: 1.65, shot: big(4.6) },
-  // Daily errands flank the outgoing north path, on the same patch of worn ground.
-  crate: { at: [-3.7, -11.2], face: [-0.8, -4.8], width: 3.1, back: -0.8, front: 1.1, shot: { height: 3.1, distance: 6.6, target: 0.55, fit: 3.2 } },
-  quests: { at: [1.6, -11.6], face: [-0.4, -4.8], width: 4.5, back: -0.6, front: 1.3, shot: small(4.8, 1.5) },
-  gallery: { at: [6.92, -9.36], face: [3.2, -4.8], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
-  mail: { at: [10.9, -6], face: [4.8, -3.2], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
-  // Gifts and the feed share a little meeting place; honours and scores form the next pair.
-  feed: { at: [12, -2.3], face: [6.4, 0], width: 2.6, back: -0.6, front: 0.8, shot: small(3.4, 1.4) },
-  leaderboard: { at: [12.2, 2.1], face: [6.4, 2], width: 3, back: -1.4, front: 1, shot: small(4, 1.5) },
-  fame: { at: [9.28, 5.52], face: [5.6, 1.6], width: 3.8, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
-  // A working yard off the south-west corner; its two machines face a shared approach.
-  recycler: { at: [-8.8, 8.8], face: [-4, 4.8], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
-  forge: { at: [-3.8, 11.8], face: [-2.4, 5.6], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
-  // The wheel and pond share the southeast leisure corner, with the dock approach left open.
-  wheel: { at: [7.2, 10], face: [4.5, 5.6], width: 4.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
+  merchant: { at: [-13.2, -3.1], face: [-5.5, -1.4], width: 4.4, back: -1.6, front: 1.6, shot: small(4.6, 1.25) },
+  mail: { at: [-13.2, 2.2], face: [-5.6, 1.8], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
+  trading: { at: [-11.9, 6.4], face: [-5.6, 3], width: 4.8, back: -1.65, front: 1.65, shot: big(4.6) },
+  // The daily fair runs east from the shop along the north edge, either side of the north path.
+  crate: { at: [-4.3, -11.3], face: [-1.6, -4.8], width: 3.1, back: -0.8, front: 1.1, shot: { height: 3.1, distance: 6.6, target: 0.55, fit: 3.2 } },
+  quests: { at: [1.2, -13.2], face: [0.4, -5.2], width: 4.5, back: -0.6, front: 1.3, shot: small(4.8, 1.5) },
+  wheel: { at: [6.1, -11.9], face: [2, -5], width: 4.1, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
+  // The collection, then the honours terrace: the scrying ball, the hall and the podium.
+  gallery: { at: [10.2, -7.4], face: [4.4, -3], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
+  feed: { at: [13.2, -0.6], face: [6.4, 0], width: 2.6, back: -1.6, front: 0.8, shot: small(3.4, 1.4) },
+  fame: { at: [14.2, 3.6], face: [6.6, 2], width: 3.8, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
+  leaderboard: { at: [12.1, 7.8], face: [5.8, 3.8], width: 3, back: -1.4, front: 1, shot: small(4, 1.5) },
+  // The working yard, a step beyond the cobbles; its two workshops face a shared approach.
+  recycler: { at: [-9.9, 12.4], face: [-5, 6.4], width: 4.6, back: -2.2, front: 2.1, shot: big(5) },
+  forge: { at: [-3.6, 14.4], face: [-3, 7.4], width: 4, back: -1.5, front: 1, shot: big(4.6) },
   // The pond is seen from behind the foot of its dock, over the whole dock to the water beyond.
   pond: { at: [POND.x, POND.z], face: [4, 10], width: 6, back: -3, front: 3, shot: { height: 3.6, distance: 10, target: 0.1, fit: 6, reach: 1.75 } },
 };
@@ -52,24 +53,24 @@ export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([n
 })) as Record<Station, { position: THREE.Vector3; rotation: number }>;
 // The worn paths off the square, as points along their middles.
 export const PATHS: [number, number][][] = [
-  [[-1.2, -8], [-1.4, -12.5], [-1.1, -18.5], [0.3, -24], [2.4, -30], [3.6, -40]],
-  [[-8.4, -0.4], [-10.5, 0.2], [-12.5, 0.2], [-18.7, -0.8], [-23.6, -1.8], [-31, -4]],
-  [[7.84, -4], [10.4, -4.08], [17, -5.7], [23, -5.4], [30, -3]],
-  [[-5.2, 5.5], [-5.2, 9.12], [-8.2, 15.4], [-10.5, 19.3], [-14, 25]],
+  [[-1.6, -8], [-1.9, -12.5], [-1.4, -18.5], [0.3, -24], [2.4, -30], [3.6, -40]],
+  [[-8.4, -0.4], [-10.5, 0.1], [-12.5, 0.1], [-18.7, -0.8], [-23.6, -1.8], [-31, -4]],
+  [[8.6, -3], [11, -3.1], [17, -5.7], [23, -5.4], [30, -3]],
+  [[-6.2, 6], [-6.1, 10], [-6.2, 15.8], [-9.5, 20], [-14, 25]],
   [[1.7, 10.2], [1.2, 13], [2.1, 16.5], [1.6, 22], [-0.5, 29]],
 ];
 // Overlapping worn patches join each group to the plaza, with irregular grass pockets between.
 export const PATCHES: [number, number, number][] = [
-  [-10.6, -5.2, 3.8], [-11.8, 0.8, 4.3], // The market's linked, uneven forecourts.
-  [-1.44, -10.16, 4.4], [7.76, -7.44, 3.8], // Daily errands and the collection entrance.
-  [11.4, -4.2, 2.8], [10.8, 3.7, 3.7], // Meeting place, then the honours garden.
-  [-6.2, 10.1, 4.1], [6.7, 11.6, 3.2], [3.2, 13.6, 3.5], // Workshops and play.
+  [-10.6, -5.2, 3.8], [-12.6, 1.6, 4.4], // The trading street's uneven forecourts.
+  [-1, -11.2, 4.4], [5.6, -10.6, 3.4], [10.2, -5.8, 3], // The fair, then the collection's entrance.
+  [11.6, 3.4, 3.2], // The honours terrace's foot.
+  [-7, 11.6, 4.8], [-4.4, 15.4, 3.2], // The working yard.
 ];
 // An inner layer beside the facilities and an outer layer at their gardens and paths. Leave
 // the opening pedestal's middle of the plaza empty. Each visitor looks roughly toward it.
 export const STATUE_SPOTS = ([
-  [-8.2, -4], [-12, 7.4], [-8, 5], [-0.64, 9.6], [9.2, 7.6], [13.1, -0.2], [3.6, -8], [-4.8, -7.5],
-  [-6.75, -14.04], [-14.94, -5.49], [-13.14, 9.99], [0.2, 18.5], [12.5, 10.8], [15.5, 5.1], [12.24, -10.35], [5.2, -13.2],
+  [-8.2, -4], [-8.5, 7], [12.6, 1.5], [-0.64, 9.6], [6.5, 7], [9.5, -4.5], [3, -10.5], [-4.8, -7.5],
+  [-6.75, -14.04], [-8.5, -12], [-14.5, 10.2], [-1.5, 12.5], [16.9, 9.6], [17.2, 0.4], [14.6, -8.4], [3.4, -15.6],
 ] as [number, number][]).map(([x, z], index) => ({ number: index + 1, position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(-x, -z) + Math.sin(index * 2.4) * 0.5 }));
 // Lamp posts along the paths.
 export const LAMP_SPOTS: [number, number][] = [[-3.5, -17.5], [4.8, -15.9], [-17, -3], [-15.3, -11.8], [16, -9.6], [17.8, 5.6], [-10.6, 16.1], [0, 15.5]];
@@ -87,6 +88,14 @@ export const FOREST_CLEARINGS: Keep[] = [
 // Classic game textures (Elwynn cobbles and grass, sky layers) exported with the local wow.export
 // worker; the painted fallbacks show until they load. Provenance: /figurines/world/source.json.
 export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", grass: "/figurines/world/grass.png", dirt: "/figurines/world/dirt.png", clouds: "/figurines/world/clouds.jpg" };
+// Each district's floor, laid over the ground with a ragged edge: a texture from the game, the
+// middle of the patch, its half-widths along x and z, its turn, and how much ground a tile covers.
+export const DISTRICT_FLOORS: { texture: string; at: [number, number]; size: [number, number]; turn: number; tile: number; tint?: number; seed: number }[] = [
+  { texture: "/figurines/world/floor-market.png", at: [-13.2, 1.9], size: [4.2, 8.6], turn: 0.12, tile: 3.2, seed: 2 },
+  { texture: "/figurines/world/floor-fair.png", at: [1.2, -13.4], size: [9.6, 3.9], turn: 0, tile: 3, tint: 0xd8c8b8, seed: 3 },
+  { texture: "/figurines/world/floor-honours.png", at: [13.8, 3.3], size: [4.2, 7.8], turn: -0.12, tile: 3, tint: 0xb8b0a2, seed: 5 },
+  { texture: "/figurines/world/floor-yard.png", at: [-7.1, 13.5], size: [6.8, 4.4], turn: -0.3, tile: 3.4, tint: 0xb4aca4, seed: 7 },
+];
 // Canvas x of the painted sun: the direction the stage's key light shines from (-x, +z).
 const SUN_X = 277;
 const LAMP_HEAD = 3.9, GROUND_RADIUS = 92;
@@ -283,6 +292,22 @@ export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: 
   // Painting the fallback costs millions of distance checks. Only do it if the real asset fails.
   const plazaReady = upgrade(plazaMaterial, WORLD_TEXTURES.cobble, signal, 15, false, () => textureFrom(paintedCobbles(), 10));
   const setPlazaDirt = blendGround(plazaMaterial, dirtMask(PLAZA_MESH, true), 15);
+  // District floors sit over the cobbles' rim, so each fades from the square into its own ground.
+  const floorReady = Promise.all(DISTRICT_FLOORS.map(async ({ texture, at, size, turn, tile, tint, seed }) => {
+    const [edgeCanvas, edge] = canvas(256, 256), next = random(seed), wobble = [next() * 6, next() * 6, next() * 6];
+    edge.fillStyle = "#000"; edge.fillRect(0, 0, 256, 256);
+    edge.filter = "blur(7px)"; edge.fillStyle = "#fff"; edge.beginPath();
+    for (let step = 0; step <= 96; step++) {
+      const angle = step / 96 * Math.PI * 2, radius = 104 * (1 + 0.1 * Math.sin(angle * 3 + wobble[0]) + 0.06 * Math.sin(angle * 5 + wobble[1]) + 0.04 * Math.sin(angle * 11 + wobble[2]));
+      edge[step ? "lineTo" : "moveTo"](128 + Math.sin(angle) * radius, 128 + Math.cos(angle) * radius);
+    }
+    edge.fill(); edge.filter = "none";
+    const material = new THREE.MeshStandardMaterial({ color: tint ?? 0xffffff, alphaMap: new THREE.CanvasTexture(edgeCanvas), transparent: true, roughness: 0.95, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(1, 64), material);
+    floor.rotation.set(-Math.PI / 2, 0, turn); floor.scale.set(size[0], size[1], 1); floor.position.set(at[0], -0.008, at[1]); floor.receiveShadow = true; floor.renderOrder = -0.3; group.add(floor);
+    await upgrade(material, texture, signal);
+    if (material.map) { material.map.wrapS = material.map.wrapT = THREE.RepeatWrapping; material.map.repeat.set(size[0] * 2 / tile, size[1] * 2 / tile); material.map.needsUpdate = true; }
+  }));
   // The forest clearing and its lamp posts, each lamp with an additive glow.
   const wind = { value: 0 };
   const forest = buildForest(group, forestLayout(PLAZA_RADIUS, 11, marketLayout(), LAMP_SPOTS, FOREST_CLEARINGS), (material) => swayMaterial(material, wind), ktx2Loader);
@@ -296,7 +321,7 @@ export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: 
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.position.set(x, LAMP_HEAD, z); glow.scale.setScalar(1.8); group.add(glow);
   }
-  return { group, sky, ready: Promise.all([forest.ready, skyReady, grassReady, plazaReady, dirtReady]), dispose() { controller.abort(); }, pickSecret: forest.pickSecret, mountSecretBox: forest.mountSecretBox, update(time: number) { wind.value = time; } };
+  return { group, sky, ready: Promise.all([forest.ready, skyReady, grassReady, plazaReady, dirtReady, floorReady]), dispose() { controller.abort(); }, pickSecret: forest.pickSecret, mountSecretBox: forest.mountSecretBox, update(time: number) { wind.value = time; } };
 }
 
 // Places a station group in the world.

@@ -65,8 +65,8 @@ export function marketLayout(): Placement[] {
     at("tent", -22.3, -7.2), at("wagon", -19.6, 5.2, { yaw: 0.3 }), at("signpost", 0.8, -20.5, { yaw: 1.2 }),
     at("crate", -16.4, -9.4, { yaw: 0.5 }), at("crate", -17.1, -8.8, { yaw: -0.3, size: 0.2 }), at("barrel", 14.8, -12.8),
     at("haystack", -20.8, 8.6, { yaw: 0.8, size: 0.4 }), at("haystack", -21.7, 7.2, { yaw: 2.1, size: 0.7 }),
-    // Stock behind the tinkers' yard.
-    at("crate", -12.8, 14.8, { yaw: 0.3 }), at("crate", -13.4, 15.8, { yaw: -0.2, size: 0.2 }), at("crate", -12.9, 14.9, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -7.3, 17.5),
+    // Stock behind the working yard.
+    at("crate", -12.8, 14.8, { yaw: 0.3 }), at("crate", -13.4, 15.8, { yaw: -0.2, size: 0.2 }), at("crate", -12.9, 14.9, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -5.2, 18.2),
     at("barrel", SECRET_BARREL.x, SECRET_BARREL.z, { yaw: Math.atan2(SECRET_BARREL.x - tx, SECRET_BARREL.z - tz), secretSeries: "community-000" }),
     ...table(-16.8, -12.8), ...table(-18, 2.5),
   ];
@@ -83,10 +83,10 @@ export function groveLayout(): Placement[] {
     tree(-14.8, -14.3, 0.15), tree(8, -19.8, 0.3), tree(-20.2, 15.6, 0.35), tree(19.2, -8.4, 0.3, "bareTree"), tree(-7.2, 23.8, 0.2),
     tree(-23.4, -12.4, 0.5), tree(4.2, -28.6, 0.4), tree(-19.8, 19.6, 0.15, "bareTree"), tree(20.6, 12.6, 0.45), tree(-8.9, -20.4, 0.05, "bareTree"),
     // Low accents at the market/workshop and meeting-place/honours breaks.
-    low("bushSmall", -14.5, 6.4, 0.25), low("bushSmall", 15.2, 0.6, 0.2),
+    low("bushSmall", -16.8, 8.2, 0.25), low("bushSmall", 17.8, -1.6, 0.2),
     // Uneven pockets of planting separate groups; low rocks soften the cobble and water edges.
     low("bush", -14.9, -7.3, 0.5), low("bushSmall", -15.8, -7.9), low("bush", 10.8, -15.2, 0.4), low("bushSmall", 18.8, -4.1, 0.3),
-    low("bush", -14.8, 8.4, 0.5), low("rock", -2.1, 15.3, 0.6), low("rockSmall", -1.4, 16.1), low("bush", 16, 18.8, 0.5),
+    low("bush", -14.8, 8.4, 0.5), low("rock", -0.9, 17.9, 0.6), low("rockSmall", -0.1, 18.8), low("bush", 16, 18.8, 0.5),
     low("stump", 17.4, -10.6, 0.4), low("rock", -17, 7.8, 0.5), low("bushSmall", 2.8, -19.4, 0.2), low("rock", 18.4, 0.4, 0.4),
     low("bush", 6.2, -16.2, 0.3), low("bushSmall", -5.8, -16, 0.6), low("stump", -15.6, 13.8, 0.2), low("bush", 15.9, 12.4, 0.5),
   ];

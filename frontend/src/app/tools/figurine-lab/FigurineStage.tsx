@@ -18,6 +18,7 @@ import { PACKAGING_FALLBACK, PACKAGING_THEMES, BOX_SIZE, createBoxPrints, buildB
 import { STATIONS, WORLD_FOG, OVERVIEW_DISTANCE, buildWorld, isStation, placeStation, viewPose, type Station, type WorldView } from "@/lib/figurine-world";
 import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
 import { buildForge, buildRecycler, type MachineCue, type MachinePick } from "@/lib/figurine-machine";
+import { buildDistricts } from "@/lib/figurine-districts";
 import { buildFacility, type ActionCue, type CastResult, type Facility, type FacilityAction } from "@/lib/figurine-facilities";
 import { buildStatues } from "@/lib/figurine-statues";
 import { portraitAtlas } from "@/lib/figurine-portraits";
@@ -306,6 +307,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, {
       placeProp, envMap: environment, loadFigure: async (url) => (await loadFigure(url)).scene,
     }) }] : []) : [];
+    // Each district's own dressing, behind and between its stations.
+    if (immersive && worldSetup) { const dressing = new THREE.Group(); scene.add(dressing); propsReady.push(buildDistricts(dressing, placeProp)); }
     // The showcase's statues load their figures like the pedestal does, one at a time.
     const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: loadFigure, cubbies: facilities.find((facility) => facility.kind === "gallery")?.cubbies }) : null;
     // Machine cards show the baked portrait sheets.
@@ -334,9 +337,9 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const stackOutlines = new Map([...(shop?.boxes ?? [])].map(([id, meshes]) => { const entry = worldSetup?.series.find((candidate) => candidate.id === id); return [id, hoverOutline(meshes, entry?.released ? accentOf(entry) : 0xb8b0a4, 0.025)]; }));
     const stationOutlines: Partial<Record<Station, ReturnType<typeof hoverOutline>>> = {
       ...(shop && { shop: hoverOutline(shop.frame, GOLD_GLOW, 0.035) }),
-      ...Object.fromEntries((["recycler", "forge"] as const).flatMap((kind) => stationMachines[kind] ? [[kind, hoverOutline(stationMachines[kind].frame, GOLD_GLOW, 0.035)]] : [])),
     };
-    // Facilities are mostly game props: their outlines wrap them once they have loaded.
+    // The workshops and facilities are mostly game props: their outlines wrap them once they have loaded.
+    (["recycler", "forge"] as const).forEach((kind) => void stationMachines[kind]?.ready.then((meshes) => { if (!disposed) stationOutlines[kind] = hoverOutline(meshes, GOLD_GLOW, 0.035); }));
     facilities.forEach((facility) => void facility.ready.then((meshes) => { if (!disposed) stationOutlines[facility.kind] = hoverOutline(meshes, GOLD_GLOW, 0.03); }));
     const pedestalOutline = immersive ? hoverOutline([pedestal.body], GOLD_GLOW, 0.035) : null;
     let boxOutline: ReturnType<typeof hoverOutline> | null = null;

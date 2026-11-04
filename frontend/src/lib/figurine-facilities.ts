@@ -87,12 +87,13 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   });
   const animate: ((delta: number, time: number) => void)[] = [];
   const wood = new THREE.MeshStandardMaterial({ map: woodTexture(50 + kind.length, [78, 50, 30]), roughness: 0.75 });
-  const stone = new THREE.MeshStandardMaterial({ color: 0x8d877c, roughness: 0.9 });
   const gold = new THREE.MeshStandardMaterial({ color: 0xd4a63c, metalness: 1, roughness: 0.3, envMap });
   const add = (geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[], x: number, y: number, z: number, target: THREE.Object3D = parent) => {
     const mesh = new THREE.Mesh(geometry, material); mesh.position.set(x, y, z); mesh.castShadow = mesh.receiveShadow = true; target.add(mesh); return mesh;
   };
   const prop = (name: Parameters<PlaceProp>[1], height: number, x: number, z: number, yaw = -Math.PI / 2, y = 0) => { const placed = placeProp(parent, name, { height, x, y, z, yaw }); props.push(placed.ready); return placed; };
+  // As `prop`, sized by the prop's longest level extent.
+  const long = (name: Parameters<PlaceProp>[1], length: number, x: number, z: number, yaw = -Math.PI / 2, y = 0) => { const placed = placeProp(parent, name, { height: 1, length, x, y, z, yaw }); props.push(placed.ready); return placed; };
   // The display cabinet's sixteen cubbies, in slot order (top row first), for the favourites.
   const cubbies: THREE.Group[] = [];
   if (kind === "gallery") {
@@ -150,8 +151,9 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(inner, height - PLINTH), new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, roughness: 0.04, envMap, envMapIntensity: 2, depthWrite: false }));
     glass.position.set(0, (height + PLINTH) / 2, DEPTH / 2 + 0.02); glass.renderOrder = 2; glass.raycast = () => {}; parent.add(glass);
   } else if (kind === "crate") {
-    // Daily crate: a chest with gold spilling beside it, and a seven-day streak board on two posts.
-    const chest = prop("dailyChest", 0.95, 0, 0.1, -Math.PI / 2);
+    // Daily chest: a gold-banded chest on a heap of coins, with a barrow of gold at its side and a
+    // seven-day streak board hung between two lantern posts behind it.
+    const chest = prop("dailyChest", 1.05, 0, 0.12, -Math.PI / 2, 0.16);
     chest.group.userData.part = "chest";
     hover = (part) => { hoveredPart = part; };
     const coin = placeProp(parent, "coin", { height: 0.5, length: 0.75 });
@@ -194,8 +196,10 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
         else reveal(); // A failed model download must not block the reward.
       });
     };
-    prop("goldPile", 0.13, -1.1, 0.55, 0.3);
-    prop("goldPileSmall", 0.09, 1.08, 0.55, 1.4);
+    long("fairGold", 3, 0, 0.2, 0.5);
+    prop("fairCoins", 0.34, -1.12, 0.78, 0.3);
+    prop("fairCoins", 0.25, 1.1, 0.7, 1.4);
+    prop("fairGoldCart", 0.95, 1.55, -0.05, -Math.PI / 2 - 0.5);
     // The streak board: a coin per day, gilded once that day's crate is opened; today's is ringed.
     const [streakCanvas, streak] = canvas(512, 96), streakMap = srgb(streakCanvas);
     paintStreak = (opened: number, today: number | null) => {
@@ -212,11 +216,12 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       streakMap.needsUpdate = true;
     };
     paintStreak(0, 1);
-    frame.push(add(new THREE.BoxGeometry(1.6, 0.3, 0.05), [wood, wood, wood, wood, new THREE.MeshStandardMaterial({ map: streakMap, roughness: 0.6 }), wood], 0, 1.75, -0.55));
-    for (const x of [-0.75, 0.75]) add(new THREE.CylinderGeometry(0.035, 0.04, 1.9, 8), wood, x, 0.95, -0.6);
+    frame.push(add(new THREE.BoxGeometry(1.9, 0.36, 0.05), [wood, wood, wood, wood, new THREE.MeshStandardMaterial({ map: streakMap, roughness: 0.6 }), wood], 0, 1.86, -0.62));
+    add(new THREE.BoxGeometry(2.3, 0.07, 0.07), wood, 0, 2.08, -0.62);
+    for (const side of [-1, 1]) prop("questPost", 2.5, side * 1.18, -0.66, side * Math.PI / 2);
   } else if (kind === "wheel") {
     // Lucky wheel: a painted wheel of prizes on an A-frame, a pointer at the top; a goblin statue
-    // and a barrel of fireworks beside it. It idles with a slow sway.
+    // and a barrel of fireworks beside it, under bunches of balloons. It idles with a slow sway.
     // Segment i spans canvas angles i·45° to (i+1)·45° clockwise from +x; on the wheel's face that is
     // the same sweep counter-clockwise from +x, so segment i's centre sits at −(i + ½)·45°.
     const [wheelCanvas, paint] = canvas(512, 512);
@@ -238,6 +243,8 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     add(new THREE.ConeGeometry(0.1, 0.24, 4).rotateZ(Math.PI), gold, 0, 2.75, 0.12);
     prop("goblinStatue", 1.1, -1.45, 0.35, -Math.PI / 2 + 0.5);
     prop("fireworks", 0.95, 1.1, 0.25, 0);
+    prop("fairBalloons", 3.4, -2.1, -0.45, 0.6);
+    prop("fairBalloonsBig", 3.7, 2.15, -0.5, 2.4);
     // Idle, it rocks a little; a spin turns it five times over and settles the segment at the top.
     let rest = 0, spun = false;
     animate.push((_, time) => { if (!spun) wheel.rotation.z = rest + Math.sin(time * 0.6) * 0.06; });
@@ -257,67 +264,77 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       });
     };
   } else if (kind === "mail") {
-    // Gifting post: a mailbox, and a table of wrapped gifts.
-    prop("postboxHuman", 1.9, -0.6, -0.05, -Math.PI / 2);
-    frame.push(add(new THREE.BoxGeometry(1.3, 0.08, 0.85), wood, 0.55, 0.68, 0.05));
-    for (const [x, z] of [[0.2, -0.2], [0.9, -0.2], [0.2, 0.3], [0.9, 0.3]]) add(new THREE.CylinderGeometry(0.035, 0.035, 0.68, 6), wood, x, 0.34, z);
-    prop("gift", 0.25, 0.2, 0.12, 0.3, 0.72);
-    prop("giftRed", 0.2, 0.85, 0.12, -0.4, 0.72);
-    prop("giftWhite", 0.16, 0.55, -0.14, 0.9, 0.72);
+    // Gifting post: a post-box, a round table of wrapped gifts, and satchels waiting for the round.
+    prop("mailBox", 2.25, -0.62, -0.05, -Math.PI / 2);
+    prop("marketTableRound", 0.72, 0.62, 0.08, 0.4);
+    prop("gift", 0.25, 0.32, 0.18, 0.3, 0.72);
+    prop("giftRed", 0.2, 0.9, 0.2, -0.4, 0.72);
+    prop("giftWhite", 0.16, 0.62, -0.14, 0.9, 0.72);
+    prop("mailSatchel", 0.62, 1.32, 0.42, 0.7);
+    prop("marketBag", 0.42, -1.3, 0.42, 2);
   } else if (kind === "quests") {
-    // Quest giver: a board of postings under a floating golden "!", scrolls on a crate beside it.
-    prop("wanted", 2.5, 0, -0.2, -Math.PI / 2);
-    prop("wantedWood", 1.5, 1.2, 0.05, -Math.PI / 2 - 0.35);
-    // A full-sized map on a broad WoW supply crate, with room beside the noticeboard.
-    prop("fishingBox", 0.7, -1.4, 0.25, 0.15);
-    prop("scrollMap", 0.14, -1.4, 0.25, 0.15, 0.71);
-    const mark = new THREE.Group(); mark.position.set(0, 3.15, -0.15); parent.add(mark);
+    // Quest giver: the mission board hung by its chains from a beam, under a floating golden "!";
+    // the campaign table with its maps before it, and a barrel of rolled scrolls.
+    for (const side of [-1, 1]) frame.push(add(new THREE.BoxGeometry(0.2, 3.2, 0.2), wood, side * 1.5, 1.6, -0.34));
+    frame.push(add(new THREE.BoxGeometry(3.4, 0.2, 0.22), wood, 0, 3.14, -0.34));
+    prop("questBoard", 2.75, 0, -0.26, -Math.PI / 2, 0.42);
+    prop("questTable", 0.92, 1.42, 0.62, -Math.PI / 2 - 0.3);
+    prop("questScrolls", 1, -1.72, 0.2, -0.4);
+    const mark = new THREE.Group(); mark.position.set(0, 3.75, -0.15); parent.add(mark);
     const glow = new THREE.MeshStandardMaterial({ color: 0xffd24a, emissive: 0xffb81c, emissiveIntensity: 0.9, metalness: 0.3, roughness: 0.35 });
     add(new THREE.BoxGeometry(0.13, 0.42, 0.13), glow, 0, 0.12, 0, mark);
     add(new THREE.SphereGeometry(0.085, 14, 10), glow, 0, -0.25, 0, mark);
-    animate.push((_, time) => { mark.position.y = 3.15 + Math.sin(time * 2) * 0.06; mark.rotation.y = time * 1.2; });
+    animate.push((_, time) => { mark.position.y = 3.75 + Math.sin(time * 2) * 0.06; mark.rotation.y = time * 1.2; });
   } else if (kind === "feed") {
-    // Pull feed: a scrying ball on a pedestal that glimmers with the latest golden and galaxy
-    // pulls, and a crier's bell on a post to ring them in.
-    prop("pedestal", 1, 0, 0.05, -Math.PI / 2);
-    prop("crystalBall", 0.8, 0, 0.05, -Math.PI / 2, 1);
+    // Pull feed: a scrying ball on a runed pedestal that glimmers with the latest golden and galaxy
+    // pulls, with an orrery turning its planets behind it.
+    prop("hallScryPedestal", 2.3, 0, 0.05, -Math.PI / 2);
+    prop("crystalBall", 0.72, 0, 0.05, -Math.PI / 2, 1.18);
+    prop("hallOrrery", 2.9, -0.2, -1.25, -Math.PI / 2 + 0.15);
     const shine = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xb28cff, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending }));
     const [glowCanvas, glowPaint] = canvas(64, 64), gradient = glowPaint.createRadialGradient(32, 32, 0, 32, 32, 32);
     gradient.addColorStop(0, "rgba(255,255,255,1)"); gradient.addColorStop(1, "rgba(255,255,255,0)"); glowPaint.fillStyle = gradient; glowPaint.fillRect(0, 0, 64, 64);
-    shine.material.map = srgb(glowCanvas); shine.position.set(0, 1.5, 0.05); shine.scale.setScalar(1.1); parent.add(shine);
+    shine.material.map = srgb(glowCanvas); shine.position.set(0, 1.55, 0.05); shine.scale.setScalar(1.1); parent.add(shine);
     animate.push((_, time) => { shine.material.opacity = 0.3 + 0.2 * Math.sin(time * 1.7); shine.material.color.setHSL(0.72 + 0.08 * Math.sin(time * 0.4), 0.8, 0.65); });
-    frame.push(add(new THREE.CylinderGeometry(0.05, 0.06, 2.2, 8), wood, 1, 1.1, -0.2));
-    add(new THREE.BoxGeometry(0.5, 0.06, 0.06), wood, 0.85, 2.1, -0.2);
-    const bell = add(new THREE.CylinderGeometry(0.07, 0.17, 0.26, 18, 1, true), gold, 0.68, 1.92, -0.2);
-    (bell.material as THREE.Material).side = THREE.DoubleSide;
-    animate.push((_, time) => { bell.rotation.z = Math.sin(time * 1.3) * 0.12; });
   } else if (kind === "fame") {
-    // Hall of fame: the Elwynn lion on its plinth, a trophy and a museum plaque for the firsts.
-    prop("lion", 2.2, -0.95, -0.15, -Math.PI / 2);
-    frame.push(add(new THREE.BoxGeometry(0.8, 0.85, 0.6), stone, 0.45, 0.425, -0.1));
-    prop("trophy", 0.8, 0.45, -0.1, -Math.PI / 2, 0.85);
-    prop("museumPlaque", 0.32, 1.4, 0.25, -Math.PI / 2 - 0.3);
+    // Hall of fame: a curved memorial wall of carved names round the trophy of the firsts, with a
+    // pedestal either side for the lesser cups.
+    long("hallMemorial", 4.8, 0, -0.45, -Math.PI / 2);
+    prop("hallTrophyGold", 2.3, 0, 0.12, -Math.PI / 2);
+    prop("hallPedestal", 0.72, -1.45, 0.3, -Math.PI / 2 + 0.3);
+    prop("trophy", 0.62, -1.45, 0.3, -Math.PI / 2 + 0.3, 0.72);
+    prop("hallPedestal", 0.72, 1.45, 0.3, -Math.PI / 2 - 0.3);
+    prop("museumPlaque", 0.4, 1.45, 0.3, -Math.PI / 2 - 0.3, 0.72);
   } else if (kind === "leaderboard") {
-    // Leaderboards: a winners' podium (1 in the middle), an obelisk behind, plaques for the boards.
+    // Leaderboards: a winners' podium (1 in the middle) with the champion's shield on its top step,
+    // a carved monument behind, and banners either side.
+    const marble = new THREE.MeshStandardMaterial({ color: 0xcfc8ba, roughness: 0.7 });
     const step = (place: number, height: number, x: number, color: string) => {
       const [numberCanvas, paint] = canvas(128, 128);
       paint.fillStyle = color; paint.fillRect(0, 0, 128, 128);
       paint.fillStyle = "#1c1612"; paint.font = "700 84px Georgia, serif"; paint.textAlign = "center"; paint.textBaseline = "middle"; paint.fillText(String(place), 64, 70);
       const face = new THREE.MeshStandardMaterial({ map: srgb(numberCanvas), roughness: 0.5 });
-      frame.push(add(new THREE.BoxGeometry(0.7, height, 0.7), [stone, stone, stone, stone, face, stone], x, height / 2, 0.15));
+      frame.push(add(new THREE.BoxGeometry(0.7, height, 0.7), [marble, marble, marble, marble, face, marble], x, height / 2, 0.15));
+      add(new THREE.BoxGeometry(0.74, 0.03, 0.74), gold, x, height, 0.15);
     };
     step(2, 0.55, -0.72, "#c9ccd4"); step(1, 0.8, 0, "#e8c165"); step(3, 0.4, 0.72, "#c08a5a");
-    prop("obelisk", 3.1, 0, -0.85, -Math.PI / 2);
-    prop("plaqueSilver", 0.5, -1.15, 0.8, -Math.PI / 2 + 0.3);
-    prop("plaqueBronze", 0.45, 1.15, 0.8, -Math.PI / 2 - 0.3);
+    prop("hallMonument", 3.2, 0, -0.85, -Math.PI / 2);
+    prop("hallTrophyShield", 1.55, 0, 0.15, -Math.PI / 2, 0.81);
+    for (const side of [-1, 1]) prop("hallBanner", 3.3, side * 1.55, -0.7, -Math.PI / 2);
+    prop("trophy", 0.5, -0.72, 0.15, -Math.PI / 2 + 0.3, 0.56);
+    prop("trophy", 0.42, 0.72, 0.15, -Math.PI / 2 - 0.3, 0.41);
   } else if (kind === "merchant") {
-    // The daily merchant has a compact purple carnival booth, distinct from the player market.
-    prop("dealsBooth", 2.6, 0, 0);
+    // The daily merchant trades from a travelling wagon under a purple canopy.
+    long("marketWagon", 4.8, -0.1, -0.2, -Math.PI / 2 + 0.75);
+    prop("marketBarrel", 0.72, 1.9, 0.8, 0.6);
   } else if (kind === "trading") {
-    // Player exchanges use an open canvas market stall with a counter and parcel box.
-    prop("tradingStall", 2.8, 0, 0);
-    prop("counter", 0.65, -0.3, 0.15);
-    prop("postbox", 1.05, 1.45, 0.25, -Math.PI / 2 - 0.2);
+    // Player exchanges happen under a merchant's canopy: wares laid out for swapping on a long
+    // table, a bag-sign at the street and crates of stock at its side.
+    prop("marketCanopy", 3.5, 0, -0.5, -Math.PI / 2);
+    long("marketTable", 2.9, 0, 0.1, -Math.PI / 2);
+    prop("marketWares", 0.7, 0, 0.1, -Math.PI / 2, 0.68);
+    prop("marketSign", 2.35, 2.35, 0.45, -Math.PI / 2 - 0.2);
+    prop("marketCrates", 1.3, -2.2, 0.1, 0.5);
   } else if (kind === "pond") {
     // Fishing pond: a woodland pool with a ragged, muddy shore, cattails, rocks and flowering lily
     // pads, and a short plank dock out from the plaza side (+z). The camera stands at the dock's

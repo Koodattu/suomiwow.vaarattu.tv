@@ -137,7 +137,7 @@ export function buildShop(parent: THREE.Group, { series, envMap, labels }: { ser
     picks, frame,
     ready: Promise.all(stacks.map((stack) => stack.ready)),
     boxes: new Map(stacks.map((stack) => [stack.id, stack.boxes])),
-    // A copy of a series' shop box, for the case's shelf ends and the recycler's chute.
+    // A copy of a series' shop box, for the case's shelf ends and the recycler's crucible.
     boxCopy(id: string) {
       const stack = stacks.find((entry) => entry.id === id);
       if (!stack) return null;

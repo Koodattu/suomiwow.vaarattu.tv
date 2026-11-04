@@ -15,6 +15,7 @@ registerHooks({
 });
 const { STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, COBBLE_RADIUS, PATHS, FOREST_CLEARINGS, viewPose, isStation } = await import("../src/lib/figurine-world.ts");
 const { buildForest, forestLayout, groveLayout, marketLayout, POND, SECRET_BARREL } = await import("../src/lib/figurine-forest.ts");
+const { DISTRICT_DRESSING } = await import("../src/lib/figurine-districts.ts");
 
 const PLAZA = PLAZA_RADIUS;
 const stations = Object.entries(STATIONS);
@@ -98,13 +99,16 @@ const inside = (name, point, margin = 0) => {
 test("all facilities stay within a few steps of the plaza in neighbouring groups", () => {
   assert.equal(stations.length, 14);
   assert.deepEqual(STATION_SPECS.shop.at, [-8.8, -8.2], "the shop remains an anchor");
-  assert.deepEqual(STATION_SPECS.gallery.at, [6.92, -9.36], "the collection remains an anchor");
+  assert.deepEqual(STATION_SPECS.gallery.at, [10.2, -7.4], "the collection anchors the honours side");
   for (const [name, { position }] of stations) {
-    assert.ok(position.length() - COBBLE_RADIUS < (name === "pond" ? 8 : 1.5), `${name} is too far from the plaza edge`);
+    assert.ok(position.length() - COBBLE_RADIUS < (name === "pond" ? 8 : 4.8), `${name} is too far from the plaza edge`);
   }
-  for (const [a, b] of [["shop", "merchant"], ["merchant", "trading"], ["crate", "quests"], ["gallery", "mail"], ["mail", "feed"], ["recycler", "forge"], ["leaderboard", "fame"], ["wheel", "pond"]]) {
-    assert.ok(STATIONS[a].position.distanceTo(STATIONS[b].position) < 7.5, `${a} and ${b} should share a neighbourhood`);
+  // The districts: trading and the daily fair at the shop's hands, honours beside the collection.
+  for (const [a, b] of [["shop", "merchant"], ["merchant", "mail"], ["mail", "trading"], ["shop", "crate"], ["crate", "quests"], ["quests", "wheel"], ["gallery", "feed"], ["feed", "fame"], ["fame", "leaderboard"], ["recycler", "forge"]]) {
+    assert.ok(STATIONS[a].position.distanceTo(STATIONS[b].position) < 8.3, `${a} and ${b} should share a district`);
   }
+  // The pond keeps its banks to itself.
+  for (const [name, { position }] of stations) if (name !== "pond") assert.ok(position.distanceTo(STATIONS.pond.position) > POND.radius + 6, `${name} crowds the pond`);
   for (const [name, { position, rotation }] of stations) {
     const facing = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
     assert.ok(facing.dot(position.clone().negate().normalize()) > 0.3, `${name} turns its back on the square`);
@@ -193,6 +197,21 @@ test("showcase figures, lamps and market stock stand clear of every station and 
   for (const spot of STATUE_SPOTS) {
     for (const prop of [...market, ...lamps]) assert.ok(prop.distanceTo(spot.position) > 1.3, `figure ${spot.number} is crowded`);
     for (const other of STATUE_SPOTS) if (other !== spot) assert.ok(other.position.distanceTo(spot.position) > 2, `figures ${spot.number} and ${other.number} crowd`);
+  }
+});
+
+test("each district's dressing stays off the stations, the paths and the pond's banks", () => {
+  const dressing = Object.values(DISTRICT_DRESSING).flat();
+  assert.ok(new Set(dressing.map(({ prop }) => prop)).size > 20, "the districts look different from one another");
+  const walked = PATHS.flatMap((path) => path.slice(1).flatMap(([x, z], index) => {
+    const [px, pz] = path[index], steps = Math.ceil(Math.hypot(x - px, z - pz) / 0.5);
+    return Array.from({ length: steps + 1 }, (_, step) => new THREE.Vector3(px + (x - px) * step / steps, 0, pz + (z - pz) * step / steps));
+  }));
+  for (const { prop, at: [x, z], y = 0 } of dressing) {
+    const point = new THREE.Vector3(x, 0, z);
+    for (const [name] of stations) assert.ok(!inside(name, point, 0.1), `${prop} at ${x},${z} stands in ${name}`);
+    if (y < 2) for (const step of walked) assert.ok(step.distanceTo(point) > 0.8, `${prop} at ${x},${z} blocks a path`);
+    assert.ok(point.distanceTo(STATIONS.pond.position) > POND.radius + 4, `${prop} at ${x},${z} crowds the pond`);
   }
 });
 

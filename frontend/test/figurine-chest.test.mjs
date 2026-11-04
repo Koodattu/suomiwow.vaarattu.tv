@@ -16,7 +16,7 @@ const { coinCollectionFlight } = await import("../src/lib/figurine-coin-flight.t
 const { pickFacilityPart } = await import("../src/lib/figurine-picking.ts");
 
 // Exercise the deployed geometry, skeleton and clips without a browser image decoder.
-const bytes = await fs.readFile(new URL("../public/figurines/world/models/treasurechest01.glb", import.meta.url));
+const bytes = await fs.readFile(new URL("../public/figurines/world/models/chest-uber.glb", import.meta.url));
 const jsonLength = bytes.readUInt32LE(12), doc = JSON.parse(bytes.subarray(20, 20 + jsonLength));
 doc.materials = doc.materials.map(({ name }) => ({ name }));
 delete doc.images; delete doc.textures;

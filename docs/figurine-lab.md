@@ -431,11 +431,14 @@ months go by the player's own clock):
   their segments' colours.
 - The fishing pond (scene in `figurine-facilities.ts`, controls in `PondHud.tsx`): seen from the
   foot of its dock, low over the water, as an angler sees it. A ragged shore of wet mud fades into
-  the grass, with half-sunk rocks, cattail beds, reeds and flowering lily pads; a Redridge
-  boardwalk runs out on pilings with a lantern; across the water hang a net and a rack of fish,
+  the grass, with half-sunk rocks, cattail beds, reeds and flowering lily pads; Elwynn's small
+  dock runs a short way out on its pilings with a lantern, so a cast carries well beyond it; the
+  anglers' board stands on the bank; across the water hang a net and a rack of fish,
   with a barrel of the catch, a fishing chair and a beached rowboat. Only the tackle takes taps:
   the rod in its holder at the dock's end casts (and strikes while the line is out), the bobber
-  strikes, and the open tackle box on the dock opens the fish log. The water does nothing, so a
+  strikes, the catch bucket on the dock opens the fish log, and the anglers' board (or B) opens
+  the rankings: each catch scores rarity × size × finish, and the best ten make the score
+  (`catchScore`, `anglerScore`); guild standings wait for sign-in. The water does nothing, so a
   stray tap never casts. Pointing at a piece names what it does, and the rod or the box lifts a
   little. A line of story along the top says what the water is doing; along the bottom are the
   fish log, the one action (Cast, then Strike) and Back. The bobber plops and bobs; a fish may
@@ -467,12 +470,26 @@ spent by it. A figure prize joins the collection and, when golden or galaxy, the
 placeholders: the trading post, the gifting post, the hall of fame and the leaderboards (they need
 the collection on the server and Discord sign-in) and the latest pulls (this session's own).
 
-Open item: the ten pond props added with the reworked pond (`dock-boardwalk`, `dock-pylon`,
-`lantern-garrison`, `tacklebox`, `fishing-bucket-2`, `fishing-barrel`, `fishing-net-1`,
-`fishing-basket`, `cattails-gilneas` and `lilypads-gilneas`, export job `pond-models-001`) still
-carry WebP textures, because no KTX2 encoder was installed when they were added. The KTX2 check in
-`test/figurine-ktx.test.mjs` fails on them until they are converted with
-`scripts/convert-figurine-assets.mjs` like the other world models (then bump `PROP_VERSION`).
+The districts. Four neighbourhoods stand round the square, each on its own game floor
+(`DISTRICT_FLOORS` in `figurine-world.ts`) and dressed from `DISTRICT_DRESSING` in
+`figurine-districts.ts`; the Arathor doodads tie them together as one village. The shop (north-west)
+and the pond (south-east) stay put, and nothing is built near the pond's banks.
+
+- Trading, west, on brown fan brick: the merchant's flower-stand wagon (Deals), the mailbox and
+  gift table, and the red canopy with its table of wares (Trading).
+- The daily fair, north, on red brick: the gold-banded chest on its heap of coins with the streak
+  board between lantern posts, the mission board on its beam with the campaign table (Quests), and
+  the wheel under balloons, with a slot machine and ticket booths behind.
+- Honours, east, on pale herringbone, leading on from the collection cabinet: the scrying ball on
+  its runed pedestal with an orrery behind (Feed), the memorial wall and garrison trophy (Hall of
+  Fame), and the podium before a carved monument (Leaderboards).
+- The working yard, south-west, on ash-dark stones: the recycler is a furnace with a feed table,
+  bellows (its trigger) and a crucible the blind box is drawn out of; the forge is an anvil before a
+  carved stele with the rune circle on its face, between two braziers.
+
+The source exports are `plaza-districts-models-001` to `-004` and `plaza-chest-models-001`
+(recorded under `districts` in `source-models.json`), and `district-textures-001` for the floors
+(`districtFloors` in `source.json`). Props seen only from afar are capped at 256px textures.
 
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.

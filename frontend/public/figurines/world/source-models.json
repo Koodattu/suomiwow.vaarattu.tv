@@ -661,5 +661,502 @@
     "durationMs": 679,
     "warnings": [],
     "note": "Trading uses market-stall-kultiras; Deals uses merchant-carnival. Other entries are comparison exports only, retained in the authoring workspace. Runtime models are Meshopt + embedded KTX2 ETC1S, from original PNG exports at a 1024px cap."
+  },
+  "districts": {
+    "state": "complete",
+    "jobs": [
+      "plaza-districts-models-001",
+      "plaza-districts-models-002",
+      "plaza-chest-models-001",
+      "plaza-districts-models-003",
+      "plaza-districts-models-004"
+    ],
+    "build": {
+      "Region": "eu",
+      "BuildConfig": "d718abcc42604d8efbd35aecfa5bb75b",
+      "CDNConfig": "9529b048134c5f9375bbe754b8edc5ef",
+      "KeyRing": "3ca57fe7319a297346440e4d2a03a0cd",
+      "BuildId": "70575",
+      "VersionsName": "12.1.5.70575",
+      "ProductConfig": "53020d32e1a25648c8e1eafd5771935f",
+      "Product": "wow"
+    },
+    "exporterVersion": "0.2.19",
+    "workerSha256": "facb7c2c8e29ce53455287aa991785d561f34659c716b75592b247092f51c75a",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "models": [
+      {
+        "name": "forge-furnace",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_forge01.m2",
+        "fileDataID": 5152462,
+        "bytes": 1363976,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_forge01.m2"
+      },
+      {
+        "name": "forge-bellows",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_forgeblower01.m2",
+        "fileDataID": 5154230,
+        "bytes": 415708,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_forgeblower01.m2"
+      },
+      {
+        "name": "forge-anvil",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_anvil01.m2",
+        "fileDataID": 5152463,
+        "bytes": 330156,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_anvil01.m2"
+      },
+      {
+        "name": "forge-grindstone",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_grindingwheel01.m2",
+        "fileDataID": 5010350,
+        "bytes": 488068,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_grindingwheel01.m2"
+      },
+      {
+        "name": "forge-toolrack",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_toolrack01.m2",
+        "fileDataID": 5152466,
+        "bytes": 823576,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_toolrack01.m2"
+      },
+      {
+        "name": "forge-crucible",
+        "file": "world/expansion05/doodads/dungeon/doodads/6du_bkfoundry_crucible03.m2",
+        "fileDataID": 999280,
+        "bytes": 556420,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion05/doodads/dungeon/doodads/6du_bkfoundry_crucible03.m2"
+      },
+      {
+        "name": "forge-coalbin",
+        "file": "world/expansion05/doodads/orc/doodads/6or_blacksmithing_coalbin01.m2",
+        "fileDataID": 985140,
+        "bytes": 230992,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion05/doodads/orc/doodads/6or_blacksmithing_coalbin01.m2"
+      },
+      {
+        "name": "forge-quench",
+        "file": "world/expansion05/doodads/human/doodads/6hu_blacksmith_tub.m2",
+        "fileDataID": 929428,
+        "bytes": 568460,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion05/doodads/human/doodads/6hu_blacksmith_tub.m2"
+      },
+      {
+        "name": "forge-weaponrack",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_rack02.m2",
+        "fileDataID": 5154236,
+        "bytes": 1164472,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_rack02.m2"
+      },
+      {
+        "name": "forge-toolbox",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_toolbox01.m2",
+        "fileDataID": 5500648,
+        "bytes": 699840,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_toolbox01.m2"
+      },
+      {
+        "name": "forge-stele",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_monument02.m2",
+        "fileDataID": 5222992,
+        "bytes": 863564,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_monument02.m2"
+      },
+      {
+        "name": "forge-brazier",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_brazier02.m2",
+        "fileDataID": 5143780,
+        "bytes": 730904,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_brazier02.m2"
+      },
+      {
+        "name": "forge-brazier-void",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_brazierpurple01.m2",
+        "fileDataID": 5498348,
+        "bytes": 1122148,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_brazierpurple01.m2"
+      },
+      {
+        "name": "hall-monument",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_monument01.m2",
+        "fileDataID": 5149294,
+        "bytes": 729312,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_monument01.m2"
+      },
+      {
+        "name": "hall-memorial",
+        "file": "world/expansion06/doodads/stormwind/7sw_stormwind_footmanmemorial.m2",
+        "fileDataID": 1448324,
+        "bytes": 581092,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion06/doodads/stormwind/7sw_stormwind_footmanmemorial.m2"
+      },
+      {
+        "name": "hall-trophy-gold",
+        "file": "world/expansion05/doodads/human/doodads/6hu_garrison_monument_pve.m2",
+        "fileDataID": 1026827,
+        "bytes": 1581296,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion05/doodads/human/doodads/6hu_garrison_monument_pve.m2"
+      },
+      {
+        "name": "hall-trophy-shield",
+        "file": "world/expansion05/doodads/human/doodads/6hu_garrison_monument_pvp.m2",
+        "fileDataID": 1019064,
+        "bytes": 2045344,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion05/doodads/human/doodads/6hu_garrison_monument_pvp.m2"
+      },
+      {
+        "name": "hall-pedestal",
+        "file": "world/expansion06/doodads/artifact/7af_warrior_pedestal.m2",
+        "fileDataID": 1361365,
+        "bytes": 1218200,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion06/doodads/artifact/7af_warrior_pedestal.m2"
+      },
+      {
+        "name": "hall-scry-pedestal",
+        "file": "world/expansion06/doodads/dalaran/7dl_dalaran_pillarcreationpedestal01.m2",
+        "fileDataID": 1455738,
+        "bytes": 878152,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion06/doodads/dalaran/7dl_dalaran_pillarcreationpedestal01.m2"
+      },
+      {
+        "name": "hall-orrery",
+        "file": "world/expansion06/doodads/nightelf/7ne_moonguard_orrery01.m2",
+        "fileDataID": 1279258,
+        "bytes": 667680,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion06/doodads/nightelf/7ne_moonguard_orrery01.m2"
+      },
+      {
+        "name": "hall-banner",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_bannerstanding01.m2",
+        "fileDataID": 5348719,
+        "bytes": 735864,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_bannerstanding01.m2"
+      },
+      {
+        "name": "hall-banner-dark",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_bannerstanding02.m2",
+        "fileDataID": 5348720,
+        "bytes": 531988,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_bannerstanding02.m2"
+      },
+      {
+        "name": "hall-brazier",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_brazier01.m2",
+        "fileDataID": 5143779,
+        "bytes": 1149652,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_brazier01.m2"
+      },
+      {
+        "name": "hall-flowers",
+        "file": "world/expansion06/doodads/stormwind/7sw_stormwind_flowerarangement01.m2",
+        "fileDataID": 1416595,
+        "bytes": 265968,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion06/doodads/stormwind/7sw_stormwind_flowerarangement01.m2"
+      },
+      {
+        "name": "village-lamp",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_street_lamp01.m2",
+        "fileDataID": 4892003,
+        "bytes": 613592,
+        "job": "plaza-districts-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_street_lamp01.m2"
+      },
+      {
+        "name": "fair-banner",
+        "file": "world/environment/doodad/carnival/carnival_banner01.m2",
+        "fileDataID": 191023,
+        "bytes": 98080,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/environment/doodad/carnival/carnival_banner01.m2"
+      },
+      {
+        "name": "fair-banner-rope",
+        "file": "world/environment/doodad/carnival/carnival_banner02.m2",
+        "fileDataID": 191024,
+        "bytes": 100700,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/environment/doodad/carnival/carnival_banner02.m2"
+      },
+      {
+        "name": "fair-slot",
+        "file": "world/expansion10/doodads/goblin/11go_goblin_gamemachine04.m2",
+        "fileDataID": 5929389,
+        "bytes": 3268444,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/goblin/11go_goblin_gamemachine04.m2"
+      },
+      {
+        "name": "fair-fireworks",
+        "file": "world/goober/g_fireworklauncher01.m2",
+        "fileDataID": 200995,
+        "bytes": 48524,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/goober/g_fireworklauncher01.m2"
+      },
+      {
+        "name": "fair-gold",
+        "file": "world/expansion09/doodads/dragon/10dg_dragon_treasurepile02.m2",
+        "fileDataID": 4217886,
+        "bytes": 836404,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion09/doodads/dragon/10dg_dragon_treasurepile02.m2"
+      },
+      {
+        "name": "fair-coins",
+        "file": "world/expansion10/doodads/11xp_coinstack02.m2",
+        "fileDataID": 5737989,
+        "bytes": 57560,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/11xp_coinstack02.m2"
+      },
+      {
+        "name": "fair-goldcart",
+        "file": "world/expansion04/doodads/goldrush/gold_rush_cart_med.m2",
+        "fileDataID": 852640,
+        "bytes": 372496,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion04/doodads/goldrush/gold_rush_cart_med.m2"
+      },
+      {
+        "name": "fair-lights",
+        "file": "world/environment/doodad/carnival/darkmoon_stringlights_yellow.m2",
+        "fileDataID": 534576,
+        "bytes": 45000,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/environment/doodad/carnival/darkmoon_stringlights_yellow.m2"
+      },
+      {
+        "name": "fair-ticket",
+        "file": "world/environment/doodad/carnival/ticketmaster.m2",
+        "fileDataID": 191040,
+        "bytes": 724124,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/environment/doodad/carnival/ticketmaster.m2"
+      },
+      {
+        "name": "quest-board",
+        "file": "world/expansion06/doodads/artifact/7af_paladin_missionboard01.m2",
+        "fileDataID": 1267054,
+        "bytes": 1371716,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion06/doodads/artifact/7af_paladin_missionboard01.m2"
+      },
+      {
+        "name": "quest-table",
+        "file": "world/expansion07/doodads/human/8hu_kultiras_warcampaign_table01.m2",
+        "fileDataID": 2020272,
+        "bytes": 700992,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion07/doodads/human/8hu_kultiras_warcampaign_table01.m2"
+      },
+      {
+        "name": "quest-scrolls",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_scrollholder01.m2",
+        "fileDataID": 5010351,
+        "bytes": 367876,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_scrollholder01.m2"
+      },
+      {
+        "name": "quest-post",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_lanternpost01.m2",
+        "fileDataID": 5660092,
+        "bytes": 749728,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_lanternpost01.m2"
+      },
+      {
+        "name": "market-wagon",
+        "file": "world/expansion06/doodads/dalaran/7dl_dalaran_wagon_flowerstand.m2",
+        "fileDataID": 1354445,
+        "bytes": 1802664,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion06/doodads/dalaran/7dl_dalaran_wagon_flowerstand.m2"
+      },
+      {
+        "name": "market-wares",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_shopdisplay01.m2",
+        "fileDataID": 5486018,
+        "bytes": 412072,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_shopdisplay01.m2"
+      },
+      {
+        "name": "market-wares-red",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_shopdisplay02.m2",
+        "fileDataID": 5486023,
+        "bytes": 92552,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_shopdisplay02.m2"
+      },
+      {
+        "name": "market-wares-gold",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_shopdisplay04.m2",
+        "fileDataID": 5486025,
+        "bytes": 92556,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_shopdisplay04.m2"
+      },
+      {
+        "name": "market-sign",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_sign_bag01.m2",
+        "fileDataID": 5545936,
+        "bytes": 595184,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_sign_bag01.m2"
+      },
+      {
+        "name": "market-crates",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_crates01.m2",
+        "fileDataID": 5048190,
+        "bytes": 758960,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_crates01.m2"
+      },
+      {
+        "name": "market-stack",
+        "file": "world/expansion05/doodads/orc/doodads/6or_tradingpost_stack03.m2",
+        "fileDataID": 1006564,
+        "bytes": 635476,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion05/doodads/orc/doodads/6or_tradingpost_stack03.m2"
+      },
+      {
+        "name": "market-barrel",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_barrel01.m2",
+        "fileDataID": 5546871,
+        "bytes": 338416,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_barrel01.m2"
+      },
+      {
+        "name": "market-bag",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_bag01.m2",
+        "fileDataID": 5209191,
+        "bytes": 120824,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_bag01.m2"
+      },
+      {
+        "name": "market-table",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_table01.m2",
+        "fileDataID": 4891989,
+        "bytes": 495316,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_table01.m2"
+      },
+      {
+        "name": "market-table-round",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_table_round01.m2",
+        "fileDataID": 4891991,
+        "bytes": 307084,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_table_round01.m2"
+      },
+      {
+        "name": "mail-box",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_mailbox01.m2",
+        "fileDataID": 5210677,
+        "bytes": 527192,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_mailbox01.m2"
+      },
+      {
+        "name": "mail-satchel",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_bag03.m2",
+        "fileDataID": 5645666,
+        "bytes": 316788,
+        "job": "plaza-districts-models-002",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_bag03.m2"
+      },
+      {
+        "name": "chest-uber",
+        "file": "world/expansion06/doodads/dungeon/doodads/7du_challengechestuber01.m2",
+        "fileDataID": 1315888,
+        "bytes": 1558608,
+        "job": "plaza-chest-models-001",
+        "listfile": "world/expansion06/doodads/dungeon/doodads/7du_challengechestuber01.m2"
+      },
+      {
+        "name": "forge-ingots-iron",
+        "file": "world/expansion05/doodads/human/doodads/6hu_blacksmith_ironbarstack_02.m2",
+        "fileDataID": 929376,
+        "bytes": 241060,
+        "job": "plaza-districts-models-003",
+        "listfile": "world/expansion05/doodads/human/doodads/6hu_blacksmith_ironbarstack_02.m2"
+      },
+      {
+        "name": "forge-ingots-silver",
+        "file": "world/expansion05/doodads/human/doodads/6hu_blacksmith_silverbarstack_01.m2",
+        "fileDataID": 929417,
+        "bytes": 239844,
+        "job": "plaza-districts-models-003",
+        "listfile": "world/expansion05/doodads/human/doodads/6hu_blacksmith_silverbarstack_01.m2"
+      },
+      {
+        "name": "forge-ingots-copper",
+        "file": "world/expansion05/doodads/human/doodads/6hu_blacksmith_copperbarstack_01.m2",
+        "fileDataID": 929449,
+        "bytes": 242912,
+        "job": "plaza-districts-models-003",
+        "listfile": "world/expansion05/doodads/human/doodads/6hu_blacksmith_copperbarstack_01.m2"
+      },
+      {
+        "name": "fair-balloons-a",
+        "file": "world/environment/doodad/carnival/balloon_bunch/balloon_bunch_01.m2",
+        "fileDataID": 518956,
+        "bytes": 165848,
+        "job": "plaza-districts-models-003",
+        "listfile": "world/environment/doodad/carnival/balloon_bunch/balloon_bunch_01.m2"
+      },
+      {
+        "name": "fair-balloons-b",
+        "file": "world/environment/doodad/carnival/balloon_bunch/balloon_bunch_02.m2",
+        "fileDataID": 518958,
+        "bytes": 185716,
+        "job": "plaza-districts-models-003",
+        "listfile": "world/environment/doodad/carnival/balloon_bunch/balloon_bunch_02.m2"
+      },
+      {
+        "name": "hall-planter",
+        "file": "world/generic/human/passive doodads/planterboxes/stormwindplanter.m2",
+        "fileDataID": 198395,
+        "bytes": 192804,
+        "job": "plaza-districts-models-003",
+        "listfile": "world/generic/human/passive doodads/planterboxes/stormwindplanter.m2"
+      },
+      {
+        "name": "market-canopy",
+        "file": "world/expansion01/doodads/generic/bloodelf/merchantstand/be_merchantstand01.m2",
+        "fileDataID": 192098,
+        "bytes": 204116,
+        "job": "plaza-districts-models-004",
+        "listfile": "world/expansion01/doodads/generic/bloodelf/merchantstand/be_merchantstand01.m2"
+      }
+    ]
   }
 }

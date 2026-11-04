@@ -76,5 +76,39 @@
   ],
   "searched": 0,
   "durationMs": 2241,
-  "warnings": []
+  "warnings": [],
+  "districtFloors": {
+    "job": "district-textures-001",
+    "build": "12.1.5.70575",
+    "files": {
+      "floor-market.png": {
+        "name": "sw-cobble-brick-brown-01",
+        "file": "tileset/stormwindcity/sw_cobble_brick_brown_01.blp",
+        "fileDataID": 451140,
+        "width": 256,
+        "height": 256
+      },
+      "floor-fair.png": {
+        "name": "sw-cobble-brick-red-01",
+        "file": "tileset/stormwindcity/sw_cobble_brick_red_01.blp",
+        "fileDataID": 451144,
+        "width": 256,
+        "height": 256
+      },
+      "floor-honours.png": {
+        "name": "sw-cobble-brick-white-01",
+        "file": "tileset/stormwindcity/sw_cobble_brick_white_01.blp",
+        "fileDataID": 451148,
+        "width": 256,
+        "height": 256
+      },
+      "floor-yard.png": {
+        "name": "burningsteppsashcracks",
+        "file": "tileset/burningstepps/burningsteppsashcracks.blp",
+        "fileDataID": 186935,
+        "width": 256,
+        "height": 256
+      }
+    }
+  }
 }

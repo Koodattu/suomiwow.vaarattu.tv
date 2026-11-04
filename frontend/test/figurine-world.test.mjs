@@ -118,11 +118,11 @@ test("both series have unique figures, translations, silhouettes and class sound
     await access(new URL(`../public/figurines/${catalog.id}/silhouettes.png`, import.meta.url));
     for (const { classKey } of catalog.characters) for (const variant of ["a", "b"]) await access(new URL(`../public/figurines/audio/class-${classKey}-${variant}.mp3`, import.meta.url));
   }
-  for (const file of ["floor-cobble.png", "grass.png", "dirt.png", "clouds.jpg", "source.json", "source-models.json"]) await access(new URL(`../public/figurines/world/${file}`, import.meta.url));
+  for (const file of ["floor-cobble.png", "floor-market.png", "floor-fair.png", "floor-honours.png", "floor-yard.png", "grass.png", "dirt.png", "clouds.jpg", "source.json", "source-models.json"]) await access(new URL(`../public/figurines/world/${file}`, import.meta.url));
   // Every station prop is on disk and has its game source recorded.
   const props = await readFile(new URL("../src/lib/figurine-props.ts", import.meta.url), "utf8");
   const sources = JSON.parse(await readFile(new URL("../public/figurines/world/source-models.json", import.meta.url), "utf8"));
-  const recorded = new Set([...sources.models.models, ...sources.stations.models, ...sources.facilities.models, ...sources.dailyChest.models, ...sources.coins.models].map(({ name }) => name));
+  const recorded = new Set([...sources.models.models, ...sources.stations.models, ...sources.facilities.models, ...sources.dailyChest.models, ...sources.coins.models, ...sources.districts.models].map(({ name }) => name));
   for (const [, name] of props.matchAll(/"\/figurines\/world\/models\/([a-z0-9-]+)\.glb"/g)) {
     await access(new URL(`../public/figurines/world/models/${name}.glb`, import.meta.url));
     assert.ok(recorded.has(name), name);
