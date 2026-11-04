@@ -110,5 +110,5 @@
   .catches li { grid-template-columns: 26px 56px 1fr auto; gap: 8px; }
   .catchFish .fishPicture { width: 56px; }
 }
-@media (max-width: 560px) { .side span, .side em { display: none; } .side { padding: 0 11px; } .bar { gap: 8px 6px; } .left { gap: 4px; } }
+@media (max-width: 560px) { .side span, .side em { display: none; } .side { padding: 0 9px; } .bar { gap: 8px 6px; } .left { gap: 4px; } }
 @media (prefers-reduced-motion: reduce) { .banner, .action, .logBackdrop, .log { animation: none; } .side, .action { transition: none; } }

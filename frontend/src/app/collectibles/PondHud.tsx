@@ -42,6 +42,7 @@ export default function PondHud({ records, line, result, busy, hovered, sheet, o
     </>}
     <nav className={styles.bar} aria-label={t("controls")}>
       <div className={styles.left}>
+        <OverviewBack inline onBack={onBack} />
         <button type="button" className={styles.side} {...linked("bucket")} onClick={() => onSheet("log")} aria-haspopup="dialog" aria-label={`${t("log")} ${kinds}/${FISH.length}`}>
           <Glyph kind="log" /><span>{t("log")}</span><em>{kinds}/{FISH.length}</em>
         </button>
@@ -52,7 +53,6 @@ export default function PondHud({ records, line, result, busy, hovered, sheet, o
           <Glyph kind="board" /><span>{t("rankings")}</span>{score > 0 && <em>{score}</em>}
         </button>
       </div>
-      <OverviewBack inline onBack={onBack} />
     </nav>
     {sheet === "log" && <FishLog records={records} onClose={() => onSheet(null)} />}
     {sheet === "board" && <AnglersBoard records={records} onClose={() => onSheet(null)} />}

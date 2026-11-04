@@ -966,13 +966,14 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // A station is framed to fit beside its panel, not behind it.
     const shotAspect = (view: WorldView) => camera.aspect * Math.max(0.3, 1 - panelShare(view));
     // Camera director: flies between station poses; the opening view keeps its own cinematic camera.
-    let flight: { from: THREE.Vector3; fromTarget: THREE.Vector3; t: number } | null = null;
+    let flight: { from: THREE.Vector3; fromTarget: THREE.Vector3; t: number; turn?: number } | null = null;
+    const flightFrom = new THREE.Spherical(), flightTo = new THREE.Spherical();
     let currentView: WorldView = state.current.view, displayClock = 0;
     if (immersive && currentView !== "opening") {
       const start = viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, shotAspect(currentView));
       camera.position.copy(start.position); controls.target.copy(start.target);
     }
-    const FLIGHT_SECONDS = 0.95, INTRO_SECONDS = 3;
+    const FLIGHT_SECONDS = 1.25, INTRO_SECONDS = 3;
     // Opening shot, once the loader lifts: from wide, high and centred, the camera zooms in while
     // drifting right, settling just right of head-on; auto-rotation carries the drift on.
     // Any press ends it where it is and hands the camera to the user.
@@ -1004,9 +1005,15 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         const centre = (view: WorldView) => view === "opening" || view === "viewer";
         const flying = !(centre(current.view) && centre(currentView));
         // Leaving the centre remembers its camera, so coming back lands where the user left it.
-        if (flying && centre(currentView) && !orbitOffset) centreShot = { position: camera.position.clone(), target: controls.target.clone() };
-        if (flying && currentView === "overview") overviewShot = { position: camera.position.clone(), target: controls.target.clone() };
-        if (flying) flight = { from: camera.position.clone(), fromTarget: controls.target.clone(), t: 0 };
+        if (flying && !flight && centre(currentView) && !orbitOffset) centreShot = { position: camera.position.clone(), target: controls.target.clone() };
+        if (flying && !flight && currentView === "overview") overviewShot = { position: camera.position.clone(), target: controls.target.clone() };
+        if (flying) {
+          flight = { from: camera.position.clone(), fromTarget: controls.target.clone(), t: 0 };
+          // Drain orbit inertia before the director takes over, retaining the visible departure pose.
+          controls.autoRotate = false; controls.enableDamping = false; controls.update(0); controls.enableDamping = true;
+          camera.position.copy(flight.from); controls.target.copy(flight.fromTarget);
+          autoRotate = 0;
+        }
         introClock = INTRO_SECONDS;
         currentView = current.view; displayClock = 0; press = null; looking = null; Object.assign(lookTarget, { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }); Object.assign(look, lookTarget); grab = null; shake = null; heldTarget.set(0, 0); peelSound?.stop(); peelSound = null;
         clearPartHover();
@@ -1264,9 +1271,21 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (flight && destination) {
         flight.t = reduced ? 1 : Math.min(1, flight.t + Math.min(elapsed, 0.1) / FLIGHT_SECONDS);
         const t = ease(flight.t);
-        camera.position.lerpVectors(flight.from, destination.position, t);
-        camera.position.y += Math.sin(Math.PI * t) * 1.6;
         controls.target.lerpVectors(flight.fromTarget, destination.target, t);
+        // Turn along the shortest arc while moving the focus point. A straight world-space
+        // line can cross the focus, collapsing the viewing distance and flipping the camera.
+        flightFrom.setFromVector3(screen.copy(flight.from).sub(flight.fromTarget));
+        flightTo.setFromVector3(screen.copy(destination.position).sub(destination.target));
+        let turn = Math.atan2(Math.sin(flightTo.theta - flightFrom.theta), Math.cos(flightTo.theta - flightFrom.theta));
+        // Keep the chosen direction when a station's sway crosses the opposite-angle seam.
+        if (flight.turn !== undefined) turn += Math.round((flight.turn - turn) / (2 * Math.PI)) * 2 * Math.PI;
+        flight.turn = turn;
+        camera.position.setFromSphericalCoords(
+          THREE.MathUtils.lerp(flightFrom.radius, flightTo.radius, t),
+          THREE.MathUtils.lerp(flightFrom.phi, flightTo.phi, t),
+          flightFrom.theta + turn * t,
+        ).add(controls.target);
+        camera.position.y += Math.sin(Math.PI * t) * 1.6;
         if (flight.t >= 1) flight = null;
       } else if (destination && isStation(currentView)) {
         camera.position.copy(destination.position);
@@ -1305,14 +1324,15 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       controls.autoRotate = autoRotate > 0;
       controls.autoRotateSpeed = AUTO_ROTATE_SPEED * autoRotate * autoRotate * (3 - 2 * autoRotate);
       controls.enabled = orbiting && !grab && !shake;
-      // update() clamps to the orbit distance limits even when disabled; station shots sit farther out.
-      // Never snaps a camera already farther out (after the opening shot) back in.
+      // These limits belong to manual orbit only, never to the director's flight or station poses.
       controls.minDistance = currentView === "overview" ? OVERVIEW_DISTANCE.min : 3;
       controls.maxDistance = orbiting ? currentView === "overview" ? OVERVIEW_DISTANCE.max : Math.max(15, camera.position.distanceTo(controls.target)) : Infinity;
       controls.minPolarAngle = currentView === "overview" ? Math.PI * 0.08 : 0;
       controls.maxPolarAngle = Math.PI * (currentView === "overview" ? 0.5 : 0.53);
       // Timed by the frame delta, so auto-rotation turns at the same speed on any refresh rate.
-      controls.update(delta); if (!reduced) mixer?.update(delta);
+      if (orbiting) controls.update(delta);
+      else camera.lookAt(controls.target);
+      if (!reduced) mixer?.update(delta);
       if (scenery) {
         scenery.sky.position.copy(camera.position);
         scenery.clearView(currentView === "overview" || flight ? camera.position : null, controls.target);

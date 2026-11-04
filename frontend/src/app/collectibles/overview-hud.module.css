@@ -20,8 +20,8 @@
 .opening > span { font: 400 21px/1.1 Georgia, serif; }
 .opening > small { color: #bcb39d; font: 500 11px system-ui, sans-serif; }
 .opening:hover { filter: brightness(1.25); border-color: #ffe4aa; }
-.back { position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px)); gap: 5px; min-height: 44px; padding: 0 16px 0 10px; border: 0; border-radius: 999px; background: transparent; text-shadow: 0 1px 3px #000; font: 500 14px system-ui, sans-serif; }
-.back[data-inline="true"] { position: static; transform: none; grid-column: 1 / -1; justify-self: center; }
+.back { position: absolute; z-index: 4; left: max(16px, env(safe-area-inset-left)); bottom: max(26px, calc(env(safe-area-inset-bottom) + 22px)); gap: 5px; min-height: 44px; padding: 0 16px 0 10px; border: 0; border-radius: 999px; background: transparent; text-shadow: 0 1px 3px #000; font: 500 14px system-ui, sans-serif; }
+.back[data-inline="true"] { position: static; flex: none; }
 .back svg { width: 18px; height: 18px; }
 .back:hover:enabled { background: #f0d9a82b; }
 .back:disabled { opacity: .4; cursor: default; }
@@ -41,3 +41,6 @@
   .popup .facility { border-radius: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .facility, .groupToggle, .opening, .back, .groupToggle .chevron, .popup[data-open] { transition: none; } .popup[data-open] { transform: none; } }
+
+@media (max-width: 560px) { .back[data-inline="true"] { gap: 2px; padding-inline: 6px; font-size: 12px; } }
+@media (max-width: 380px) { .back { min-width: 40px; padding-inline: 6px; } .back span { display: none; } }

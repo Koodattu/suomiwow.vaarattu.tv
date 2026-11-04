@@ -74,5 +74,5 @@ export default function OverviewHud({ onNavigate, onHover, hovered }: {
 
 export function OverviewBack({ onBack, disabled = false, inline = false }: { onBack: () => void; disabled?: boolean; inline?: boolean }) {
   const t = useTranslations("figurineLab.world.overview");
-  return <button type="button" className={styles.back} data-inline={inline} disabled={disabled} onClick={onBack}><LuChevronLeft aria-hidden="true" />{t("back")}</button>;
+  return <button type="button" className={styles.back} data-inline={inline} disabled={disabled} onClick={onBack} aria-label={t("back")}><LuChevronLeft aria-hidden="true" /><span>{t("back")}</span></button>;
 }

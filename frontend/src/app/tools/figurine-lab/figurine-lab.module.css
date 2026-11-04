@@ -134,7 +134,7 @@
 .newBadge { display: inline-block; margin-bottom: 10px; padding: 4px 12px; border-radius: 999px; background: linear-gradient(90deg, #f3d892, #c6994b); color: #1c1236; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; animation: badgePop .6s .2s cubic-bezier(.2, 1.6, .4, 1) both; }
 @keyframes badgePop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
 .showcase[data-view="viewer"] .revealIdentity h1, .showcase[data-view="viewer"] .revealIdentity p { animation: identityIn .6s ease-out both; }
-.showcase:is([data-view="opening"], [data-view="viewer"], [data-view="shop"]) .showcaseHud { bottom: max(72px, calc(env(safe-area-inset-bottom) + 68px)); }
+.showcase:is([data-view="opening"], [data-view="viewer"], [data-view="shop"]) .showcaseHud { bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px)); }
 @media (prefers-reduced-motion: reduce) { .newBadge, .worldHint, .backChip { animation: none; transition: none; } }
 @media (max-width: 600px) { .backChip { left: 14px; top: 16px; } .worldHint { font-size: 11px; letter-spacing: .1em; } }
 /* Start-up loader over the world: fades out once scenery, boxes, sounds and portraits are ready. */
