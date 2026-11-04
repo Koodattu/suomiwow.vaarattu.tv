@@ -15,7 +15,7 @@ import { CHARGE_CUES, CHARGE_SECONDS, ENTRANCE_CUES, HITSTOP_SECONDS, LAND_AT, R
 import { playFigurineCue, startFigurineLoop, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { figurineBodyBounds, figurineScale, figurineSupport, restoreFigurineMaterials } from "@/lib/figurine-materials";
 import { PACKAGING_FALLBACK, PACKAGING_THEMES, BOX_SIZE, createBoxPrints, buildBlindBox, seriesTheme, type BlindBoxParts, type BoxDesign, type PackagingLabels } from "@/lib/figurine-packaging";
-import { STATIONS, STATION_SPECS, WORLD_FOG, OVERVIEW_DISTANCE, buildWorld, isStation, placeStation, viewPose, type Station, type WorldView } from "@/lib/figurine-world";
+import { STATIONS, WORLD_FOG, OVERVIEW_DISTANCE, buildWorld, isStation, placeStation, viewPose, type Station, type WorldView } from "@/lib/figurine-world";
 import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
 import { buildForge, buildRecycler, type MachineCue, type MachinePick } from "@/lib/figurine-machine";
 import { buildFacility, type ActionCue, type CastResult, type Facility, type FacilityAction } from "@/lib/figurine-facilities";
@@ -1199,13 +1199,6 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           contact.scale.setScalar(2.2); contactMaterial.opacity = model ? 0.45 : 0;
           beam.visible = core.visible = flash.visible = false;
         }
-        for (const [group, name] of stationGroups) {
-          const extent = { x: STATION_SPECS[name].width / 2, back: STATION_SPECS[name].back, front: STATION_SPECS[name].front };
-          if (!group) continue;
-          const local = group.worldToLocal(screen.copy(camera.position)), margin = 1.6;
-          const near = Math.abs(local.x) < extent.x + margin && local.z > extent.back - margin && local.z < extent.front + margin && local.y < 6;
-          group.visible = flight !== null || (current.view !== "opening" && current.view !== "viewer") || !(near || (local.z < extent.back && local.length() < 16));
-        }
         shop?.update(hoveredSeries, delta, idle);
         facilities.forEach((facility) => {
           facility.hover(!flight && current.view === facility.kind ? current.highlightedPart ?? hoveredPart : null);
@@ -1334,8 +1327,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       else camera.lookAt(controls.target);
       if (!reduced) mixer?.update(delta);
       if (scenery) {
+        // Keep scenery stable through flights; only the sky follows the camera.
         scenery.sky.position.copy(camera.position);
-        scenery.clearView(currentView === "overview" || flight ? camera.position : null, controls.target);
       }
       if (scene.fog instanceof THREE.FogExp2) {
         const density = currentView === "overview" ? 0.006 * Math.min(1, 55 / camera.position.distanceTo(controls.target)) : WORLD_FOG.density;

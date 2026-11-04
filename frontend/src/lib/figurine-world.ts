@@ -288,7 +288,7 @@ export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: 
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.position.set(x, LAMP_HEAD, z); glow.scale.setScalar(1.8); group.add(glow);
   }
-  return { group, sky, ready: Promise.all([forest.ready, skyReady, grassReady, plazaReady, dirtReady]), dispose() { controller.abort(); }, clearView: forest.clearView, pickSecret: forest.pickSecret, mountSecretBox: forest.mountSecretBox, update(time: number) { wind.value = time; } };
+  return { group, sky, ready: Promise.all([forest.ready, skyReady, grassReady, plazaReady, dirtReady]), dispose() { controller.abort(); }, pickSecret: forest.pickSecret, mountSecretBox: forest.mountSecretBox, update(time: number) { wind.value = time; } };
 }
 
 // Places a station group in the world.
