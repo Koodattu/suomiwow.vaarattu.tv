@@ -7,8 +7,8 @@ import { restoreFigurineMaterials } from "@/lib/figurine-materials";
 import type { FishId } from "@/lib/figurine-collection";
 
 // Game props that dress the stations, exported with the local wow.export worker
-// (provenance: the "stations" and "facilities" entries of /figurines/world/source-models.json).
-const PROP_VERSION = 6;
+// (provenance: /figurines/world/source-models.json, including the tradingFacilities exports).
+const PROP_VERSION = 7;
 export const STATION_PROPS = {
   gear: "/figurines/world/models/gnome-gear.glb",
   lamp: "/figurines/world/models/gnome-light.glb",
@@ -18,6 +18,8 @@ export const STATION_PROPS = {
   tool: "/figurines/world/models/gnome-tool.glb",
   postbox: "/figurines/world/models/postbox-gnome.glb",
   counter: "/figurines/world/models/shop-counter-b.glb",
+  tradingStall: "/figurines/world/models/market-stall-kultiras.glb",
+  dealsBooth: "/figurines/world/models/merchant-carnival.glb",
   board: "/figurines/world/models/wanted-poster.glb",
   podium: "/figurines/world/models/podium.glb",
   chest: "/figurines/world/models/chest-02.glb",

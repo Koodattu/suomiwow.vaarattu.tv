@@ -82,6 +82,8 @@ export function groveLayout(): Placement[] {
     // Canopies frame each neighbourhood from behind, leaving its front and the path mouths open.
     tree(-14.8, -14.3, 0.15), tree(8, -19.8, 0.3), tree(-20.2, 15.6, 0.35), tree(19.2, -8.4, 0.3, "bareTree"), tree(-7.2, 23.8, 0.2),
     tree(-23.4, -12.4, 0.5), tree(4.2, -28.6, 0.4), tree(-19.8, 19.6, 0.15, "bareTree"), tree(20.6, 12.6, 0.45), tree(-8.9, -20.4, 0.05, "bareTree"),
+    // Low accents at the market/workshop and meeting-place/honours breaks.
+    low("bushSmall", -14.5, 6.4, 0.25), low("bushSmall", 15.2, 0.6, 0.2),
     // Uneven pockets of planting separate groups; low rocks soften the cobble and water edges.
     low("bush", -14.9, -7.3, 0.5), low("bushSmall", -15.8, -7.9), low("bush", 10.8, -15.2, 0.4), low("bushSmall", 18.8, -4.1, 0.3),
     low("bush", -14.8, 8.4, 0.5), low("rock", -2.1, 15.3, 0.6), low("rockSmall", -1.4, 16.1), low("bush", 16, 18.8, 0.5),

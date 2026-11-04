@@ -27,21 +27,22 @@ const small = (fit: number, target = 1.3) => ({ height: 1.1, distance: 6.6, targ
 export const STATION_SPECS: Record<Station, StationSpec> = {
   // The market bends around the west edge, with room for visitors between its stalls.
   shop: { at: [-8.8, -8.2], face: [-4, -2.4], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
-  wheel: { at: [-11.8, -2.8], face: [-5.6, 0], width: 4.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
-  trading: { at: [-11.5, 3.4], face: [-5.6, 1.6], width: 5.4, back: -2, front: 2.2, shot: big(4.6) },
+  merchant: { at: [-12.4, -2.3], face: [-5.5, -1.4], width: 3.8, back: -1.6, front: 1.6, shot: small(4.2, 1.25) },
+  trading: { at: [-12, 3.8], face: [-5.6, 2.4], width: 4.8, back: -1.65, front: 1.65, shot: big(4.6) },
   // Daily errands flank the outgoing north path, on the same patch of worn ground.
   crate: { at: [-3.7, -11.2], face: [-0.8, -4.8], width: 3.1, back: -0.8, front: 1.1, shot: { height: 3.1, distance: 6.6, target: 0.55, fit: 3.2 } },
   quests: { at: [1.6, -11.6], face: [-0.4, -4.8], width: 4.5, back: -0.6, front: 1.3, shot: small(4.8, 1.5) },
   gallery: { at: [6.92, -9.36], face: [3.2, -4.8], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
-  mail: { at: [10.6, -6.4], face: [4.8, -3.2], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
-  // The scrying ball, honours and scores share the east-side garden.
-  feed: { at: [11.4, -1.8], face: [6.4, 0], width: 2.6, back: -0.6, front: 0.8, shot: small(3.4, 1.4) },
-  leaderboard: { at: [12.32, 1.92], face: [6.4, 2], width: 3, back: -1.4, front: 1, shot: small(4, 1.5) },
+  mail: { at: [10.9, -6], face: [4.8, -3.2], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
+  // Gifts and the feed share a little meeting place; honours and scores form the next pair.
+  feed: { at: [12, -2.3], face: [6.4, 0], width: 2.6, back: -0.6, front: 0.8, shot: small(3.4, 1.4) },
+  leaderboard: { at: [12.2, 2.1], face: [6.4, 2], width: 3, back: -1.4, front: 1, shot: small(4, 1.5) },
   fame: { at: [9.28, 5.52], face: [5.6, 1.6], width: 3.8, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
   // A working yard off the south-west corner; its two machines face a shared approach.
-  recycler: { at: [-8.16, 8.16], face: [-4, 4.8], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
-  forge: { at: [-3, 11.4], face: [-2.4, 5.6], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
-  merchant: { at: [6.4, 9.6], face: [3, 4.8], width: 2.8, back: -0.7, front: 1.1, shot: small(3.8, 1.25) },
+  recycler: { at: [-8.8, 8.8], face: [-4, 4.8], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
+  forge: { at: [-3.8, 11.8], face: [-2.4, 5.6], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
+  // The wheel and pond share the southeast leisure corner, with the dock approach left open.
+  wheel: { at: [7.2, 10], face: [4.5, 5.6], width: 4.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
   // The pond is seen from behind the foot of its dock, over the whole dock to the water beyond.
   pond: { at: [POND.x, POND.z], face: [4, 10], width: 6, back: -3, front: 3, shot: { height: 3.6, distance: 10, target: 0.1, fit: 6, reach: 1.75 } },
 };
@@ -52,17 +53,22 @@ export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([n
 // The worn paths off the square, as points along their middles.
 export const PATHS: [number, number][][] = [
   [[-1.2, -8], [-1.4, -12.5], [-1.1, -18.5], [0.3, -24], [2.4, -30], [3.6, -40]],
-  [[-8.4, -0.4], [-10.5, -0.4], [-12.5, 0.2], [-18.7, -0.8], [-23.6, -1.8], [-31, -4]],
+  [[-8.4, -0.4], [-10.5, 0.2], [-12.5, 0.2], [-18.7, -0.8], [-23.6, -1.8], [-31, -4]],
   [[7.84, -4], [10.4, -4.08], [17, -5.7], [23, -5.4], [30, -3]],
   [[-5.2, 5.5], [-5.2, 9.12], [-8.2, 15.4], [-10.5, 19.3], [-14, 25]],
   [[1.7, 10.2], [1.2, 13], [2.1, 16.5], [1.6, 22], [-0.5, 29]],
 ];
 // Overlapping worn patches join each group to the plaza, with irregular grass pockets between.
-export const PATCHES: [number, number, number][] = [[-9.28, -5.6, 4.5], [-10.88, 0.24, 4.8], [-1.44, -10.16, 4.4], [7.76, -7.44, 4.5], [10.4, 1.6, 5], [-6, 9.28, 4.8], [3.2, 13.6, 3.5]];
+export const PATCHES: [number, number, number][] = [
+  [-10.6, -5.2, 3.8], [-11.8, 0.8, 4.3], // The market's linked, uneven forecourts.
+  [-1.44, -10.16, 4.4], [7.76, -7.44, 3.8], // Daily errands and the collection entrance.
+  [11.4, -4.2, 2.8], [10.8, 3.7, 3.7], // Meeting place, then the honours garden.
+  [-6.2, 10.1, 4.1], [6.7, 11.6, 3.2], [3.2, 13.6, 3.5], // Workshops and play.
+];
 // An inner layer beside the facilities and an outer layer at their gardens and paths. Leave
 // the opening pedestal's middle of the plaza empty. Each visitor looks roughly toward it.
 export const STATUE_SPOTS = ([
-  [-8.2, -4], [-12, 7.4], [-8, 5], [-0.64, 9.6], [8.7, 8.1], [13.1, -0.2], [3.6, -8], [-4.8, -7.5],
+  [-8.2, -4], [-12, 7.4], [-8, 5], [-0.64, 9.6], [9.2, 7.6], [13.1, -0.2], [3.6, -8], [-4.8, -7.5],
   [-6.75, -14.04], [-14.94, -5.49], [-13.14, 9.99], [0.2, 18.5], [12.5, 10.8], [15.5, 5.1], [12.24, -10.35], [5.2, -13.2],
 ] as [number, number][]).map(([x, z], index) => ({ number: index + 1, position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(-x, -z) + Math.sin(index * 2.4) * 0.5 }));
 // Lamp posts along the paths.

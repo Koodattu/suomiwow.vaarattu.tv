@@ -311,16 +311,13 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     prop("plaqueSilver", 0.5, -1.15, 0.8, -Math.PI / 2 + 0.3);
     prop("plaqueBronze", 0.45, 1.15, 0.8, -Math.PI / 2 - 0.3);
   } else if (kind === "merchant") {
-    // A compact daily-deals stall, with a gilded goblin sign and three display pads.
-    prop("counter", 0.75, 0, 0);
-    prop("goblinStatue", 1.05, 0, -0.35, -Math.PI / 2, 0.75);
-    for (const x of [-0.85, 0, 0.85]) {
-      frame.push(add(new THREE.CylinderGeometry(0.28, 0.32, 0.08, 24), gold, x, 0.8, 0.48));
-    }
+    // The daily merchant has a compact purple carnival booth, distinct from the player market.
+    prop("dealsBooth", 2.6, 0, 0);
   } else if (kind === "trading") {
-    // Trading post: a shop counter with a gnomish postbox beside it for the parcels.
-    prop("counter", 1.05, 0, 0.1);
-    prop("postbox", 1.5, 2.2, -0.1, -Math.PI / 2 - 0.4);
+    // Player exchanges use an open canvas market stall with a counter and parcel box.
+    prop("tradingStall", 2.8, 0, 0);
+    prop("counter", 0.65, -0.3, 0.15);
+    prop("postbox", 1.05, 1.45, 0.25, -Math.PI / 2 - 0.2);
   } else if (kind === "pond") {
     // Fishing pond: a woodland pool with a ragged, muddy shore, cattails, rocks and flowering lily
     // pads, and a short plank dock out from the plaza side (+z). The camera stands at the dock's

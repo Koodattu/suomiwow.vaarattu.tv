@@ -97,10 +97,12 @@ const inside = (name, point, margin = 0) => {
 
 test("all facilities stay within a few steps of the plaza in neighbouring groups", () => {
   assert.equal(stations.length, 14);
+  assert.deepEqual(STATION_SPECS.shop.at, [-8.8, -8.2], "the shop remains an anchor");
+  assert.deepEqual(STATION_SPECS.gallery.at, [6.92, -9.36], "the collection remains an anchor");
   for (const [name, { position }] of stations) {
     assert.ok(position.length() - COBBLE_RADIUS < (name === "pond" ? 8 : 1.5), `${name} is too far from the plaza edge`);
   }
-  for (const [a, b] of [["shop", "wheel"], ["crate", "quests"], ["gallery", "mail"], ["recycler", "forge"], ["feed", "leaderboard"], ["leaderboard", "fame"]]) {
+  for (const [a, b] of [["shop", "merchant"], ["merchant", "trading"], ["crate", "quests"], ["gallery", "mail"], ["mail", "feed"], ["recycler", "forge"], ["leaderboard", "fame"], ["wheel", "pond"]]) {
     assert.ok(STATIONS[a].position.distanceTo(STATIONS[b].position) < 7.5, `${a} and ${b} should share a neighbourhood`);
   }
   for (const [name, { position, rotation }] of stations) {

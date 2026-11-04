@@ -38,6 +38,13 @@ development, each page load permits one opening without changing the saved daily
 streak; production retains the daily limit. Opening/lift/reward sounds were generated
 with the playground script and mastered offline; prompts and sources are recorded
 in `frontend/src/data/figurines/chest-audio.json`.
+The player Trading stall uses `8hu_kultiras_marketstall01.m2` (1594446), while
+Deals uses the purple `carnie_merchant01.m2` booth (191021). Both were exported in
+`plaza-trading-models-001`, optimized at a 1024px texture cap and converted from
+the original PNGs to embedded ETC1S. Their runtime files are
+`market-stall-kultiras.glb` and `merchant-carnival.glb`; provenance is recorded
+under `tradingFacilities` in `source-models.json`. The other two comparison
+exports remain in local authoring history and are not served.
 Character provenance: `worker/data/series/<batch>/sources/<figure>.json`, selected
 poses in `selection.json`, optimized files in `models/`. Preserve frozen snapshots;
 use catalog `authoringSeries` (per-character override takes precedence).
