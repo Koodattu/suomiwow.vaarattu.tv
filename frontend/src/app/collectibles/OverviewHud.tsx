@@ -46,10 +46,10 @@ export default function OverviewHud({ onNavigate, onHover, hovered }: {
   const group = (name: Group) => {
     const Icon = GROUP_ICONS[name], open = expanded === name;
     return <div key={name} className={styles.group} data-group={name}>
-      <button id={`facility-toggle-${name}`} type="button" className={styles.groupToggle} aria-expanded={open} aria-controls={open ? `facilities-${name}` : undefined} onClick={() => { onHover(null); setExpanded(open ? null : name); }}>
+      <button id={`facility-toggle-${name}`} type="button" className={styles.groupToggle} aria-expanded={open} aria-controls={`facilities-${name}`} onClick={() => { onHover(null); setExpanded(open ? null : name); }}>
         <Icon aria-hidden="true" /><span>{t(`world.overview.groups.${name}`)}</span><LuChevronUp className={styles.chevron} aria-hidden="true" />
       </button>
-      {open && <div id={`facilities-${name}`} className={styles.popup} role="region" aria-labelledby={`facility-toggle-${name}`}>{GROUPS[name].map(facility)}</div>}
+      <div id={`facilities-${name}`} className={styles.popup} data-open={open} inert={!open} aria-hidden={!open} role="region" aria-labelledby={`facility-toggle-${name}`}>{GROUPS[name].map(facility)}</div>
     </div>;
   };
   return <>
