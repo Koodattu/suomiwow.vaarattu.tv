@@ -1,14 +1,14 @@
 import type * as THREE from "three";
 
 /** Upload in short CPU slices so cold loads cannot monopolize the animation thread. */
-export async function uploadFigurineTextures(renderer: Pick<THREE.WebGLRenderer, "initTexture">, root: THREE.Object3D, current: () => boolean) {
+export async function uploadFigurineTextures(renderer: Pick<THREE.WebGLRenderer, "initTexture">, root: THREE.Object3D, current: () => boolean, onProgress?: (fraction: number) => void) {
   const textures = new Set<THREE.Texture>();
   root.traverse((object) => {
     const material = (object as THREE.Mesh).material;
     for (const entry of material ? [material].flat() : [])
       for (const value of Object.values(entry)) if (value?.isTexture) textures.add(value);
   });
-  let sliceStart = -Infinity;
+  let sliceStart = -Infinity, completed = 0;
   for (const texture of textures) {
     if (!current()) return false;
     if (performance.now() - sliceStart >= 4) {
@@ -17,6 +17,7 @@ export async function uploadFigurineTextures(renderer: Pick<THREE.WebGLRenderer,
       sliceStart = performance.now();
     }
     renderer.initTexture(texture);
+    onProgress?.(++completed / textures.size);
   }
   return current();
 }
@@ -29,6 +30,7 @@ export async function warmFigurineScene(
   target: THREE.WebGLRenderTarget,
   current: () => boolean,
   root: THREE.Object3D = scene,
+  onProgress?: (fraction: number) => void,
 ): Promise<boolean> {
   // Restore synchronously: animation frames can run while compileAsync is pending.
   const revealed = <T>(renderTarget: THREE.WebGLRenderTarget | null, run: () => T): T => {
@@ -55,8 +57,12 @@ export async function warmFigurineScene(
   if (!current()) return false;
   await revealed(target, () => renderer.compileAsync(root, camera, scene));
   if (!current()) return false;
+  onProgress?.(1 / 3);
   revealed(target, () => renderer.render(scene, camera));
+  onProgress?.(2 / 3);
   // The canvas uses different tone-mapping/color-space variants than an offscreen target.
   await revealed(null, () => renderer.compileAsync(root, camera, scene));
+  if (!current()) return false;
+  onProgress?.(1);
   return current();
 }

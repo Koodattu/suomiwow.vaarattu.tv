@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
+import { loadFigurineImage } from "@/lib/figurine-image";
 import { buildForest, forestLayout, marketLayout, POND, swayMaterial, type Keep } from "@/lib/figurine-forest";
 
 // The collectibles world: a painted sky bubble over a forest clearing. A cobbled square holds the
@@ -81,7 +82,6 @@ export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", gra
 // Canvas x of the painted sun: the direction the stage's key light shines from (-x, +z).
 const SUN_X = 277;
 const LAMP_HEAD = 3.9, GROUND_RADIUS = 92;
-const loadImage = (url: string) => new Promise<HTMLImageElement | null>((resolve) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => resolve(null); image.src = url; });
 
 const random = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 function canvas(width: number, height: number) {
@@ -216,24 +216,30 @@ function textureFrom(source: HTMLCanvasElement, repeat?: number) {
   return texture;
 }
 // Swaps a painted texture for a real one if the file exists; keeps wrapping and repeat.
-function upgrade(material: THREE.MeshBasicMaterial | THREE.MeshStandardMaterial, url: string, repeat?: number, neutral = false) {
-  new THREE.TextureLoader().load(url, (texture) => {
+async function upgrade(material: THREE.MeshBasicMaterial | THREE.MeshStandardMaterial, url: string, signal: AbortSignal, repeat?: number, neutral = false, fallback?: () => THREE.Texture) {
+  const image = await loadFigurineImage(url, signal);
+  if (signal.aborted) return;
+  if (image) {
+    const texture = new THREE.Texture(image); texture.needsUpdate = true;
     texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
     if (repeat) { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(repeat, repeat); }
     if (neutral) material.color.set(0x8c9a80);
     material.map?.dispose(); material.map = texture; material.needsUpdate = true;
-  }, undefined, () => undefined);
+  } else {
+    if (fallback) { material.map = fallback(); material.needsUpdate = true; }
+  }
 }
 
-// `onSky` runs whenever the sky texture is repainted, so lighting baked from it can follow.
+// Bake lighting once the final sky is painted (also when the optional cloud image fails).
 export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: () => void; ktx2Loader?: KTX2Loader } = {}) {
+  const controller = new AbortController(), { signal } = controller;
   const group = new THREE.Group(); scene.add(group);
   const skyCanvas = paintedSky();
   const skyMaterial = new THREE.MeshBasicMaterial({ map: textureFrom(skyCanvas), side: THREE.BackSide, fog: false, depthWrite: false });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(GROUND_RADIUS + 4, 48, 24), skyMaterial); sky.renderOrder = -1; group.add(sky);
-  void loadImage(WORLD_TEXTURES.clouds).then((clouds) => {
-    if (!clouds) return;
-    paintedSky({ clouds }, skyCanvas); if (skyMaterial.map) skyMaterial.map.needsUpdate = true;
+  const skyReady = loadFigurineImage(WORLD_TEXTURES.clouds, signal).then((clouds) => {
+    if (signal.aborted) return;
+    if (clouds) { paintedSky({ clouds }, skyCanvas); if (skyMaterial.map) skyMaterial.map.needsUpdate = true; }
     onSky?.();
   });
   // Elwynn grass to the horizon, with a cobbled plaza whose edge fades into it.
@@ -242,13 +248,15 @@ export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: 
   const grassMaterial = new THREE.MeshStandardMaterial({ color: 0x2c3a1c, roughness: 1, depthWrite: false });
   const grass = new THREE.Mesh(new THREE.CircleGeometry(GROUND_RADIUS, 128), grassMaterial);
   grass.rotation.x = -Math.PI / 2; grass.position.y = -0.03; grass.receiveShadow = true; grass.renderOrder = -0.5; group.add(grass);
-  upgrade(grassMaterial, WORLD_TEXTURES.grass, 140, true);
+  const grassReady = upgrade(grassMaterial, WORLD_TEXTURES.grass, signal, 140, true);
   // Worn dirt only blends in once both textures exist; until then the grass is plain.
   const setDirt = blendGround(grassMaterial, dirtMask(GROUND_RADIUS), 140);
-  new THREE.TextureLoader().load(WORLD_TEXTURES.dirt, (texture) => {
+  const dirtReady = loadFigurineImage(WORLD_TEXTURES.dirt, signal).then((image) => {
+    if (!image || signal.aborted) return;
+    const texture = new THREE.Texture(image); texture.needsUpdate = true;
     texture.colorSpace = THREE.SRGBColorSpace; texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.anisotropy = 8;
     setDirt(texture); setPlazaDirt(texture);
-  }, undefined, () => undefined);
+  });
   // The square's ragged edge: an irregular outline, softened, as the cobbles' alpha.
   const [fadeCanvas, fade] = canvas(256, 256), PLAZA_MESH = COBBLE_RADIUS * 1.2;
   fade.fillStyle = "#000"; fade.fillRect(0, 0, 256, 256);
@@ -259,12 +267,13 @@ export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: 
     fade[step ? "lineTo" : "moveTo"](128 + Math.sin(angle) * radius, 128 + Math.cos(angle) * radius);
   }
   fade.fill(); fade.filter = "none";
-  const plazaMaterial = new THREE.MeshStandardMaterial({ color: 0xd8d0c2, map: textureFrom(paintedCobbles(), 10), alphaMap: new THREE.CanvasTexture(fadeCanvas), transparent: true, roughness: 0.92, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+  const plazaMaterial = new THREE.MeshStandardMaterial({ color: 0xd8d0c2, alphaMap: new THREE.CanvasTexture(fadeCanvas), transparent: true, roughness: 0.92, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
   const plaza = new THREE.Mesh(new THREE.CircleGeometry(PLAZA_MESH, 96), plazaMaterial);
   // Transparent for its soft edge, so it must draw before every other transparent object
   // (fading box walls, glows); otherwise they clip it and the grass shows through.
   plaza.rotation.x = -Math.PI / 2; plaza.position.y = -0.015; plaza.receiveShadow = true; plaza.renderOrder = -0.4; group.add(plaza);
-  upgrade(plazaMaterial, WORLD_TEXTURES.cobble, 15);
+  // Painting the fallback costs millions of distance checks. Only do it if the real asset fails.
+  const plazaReady = upgrade(plazaMaterial, WORLD_TEXTURES.cobble, signal, 15, false, () => textureFrom(paintedCobbles(), 10));
   const setPlazaDirt = blendGround(plazaMaterial, dirtMask(PLAZA_MESH, true), 15);
   // The forest clearing and its lamp posts, each lamp with an additive glow.
   const wind = { value: 0 };
@@ -279,7 +288,7 @@ export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: 
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.position.set(x, LAMP_HEAD, z); glow.scale.setScalar(1.8); group.add(glow);
   }
-  return { group, sky, ready: forest.ready, clearView: forest.clearView, pickSecret: forest.pickSecret, mountSecretBox: forest.mountSecretBox, update(time: number) { wind.value = time; } };
+  return { group, sky, ready: Promise.all([forest.ready, skyReady, grassReady, plazaReady, dirtReady]), dispose() { controller.abort(); }, pickSecret: forest.pickSecret, mountSecretBox: forest.mountSecretBox, update(time: number) { wind.value = time; } };
 }
 
 // Places a station group in the world.

@@ -36,13 +36,13 @@ async function encode(png,color,codec) {
   const {width,height}=await sharp(png).metadata();
   const powerOfTwo=value=>2**Math.round(Math.log2(value));
   png=await sharp(png).resize(powerOfTwo(width),powerOfTwo(height),{fit:"fill"}).png().toBuffer();
-  const key=createHash("sha256").update(png).update(color?"srgb":"linear").update(codec==="uastc"?"uastc-q2-z9":"").digest("hex");
+  const key=createHash("sha256").update(png).update(color?"srgb":"linear").update(codec==="uastc"?"uastc-q2-rdo0.5-z18":"").digest("hex");
   const name=`${key.slice(0,20)}.ktx2`, filename=path.join(output,name);
   if(!encoding.has(key))encoding.set(key,(async()=>{
     try {await fs.access(filename);}catch(error){
       if(error.code!=="ENOENT")throw error;
       const source=path.join(work,`${key}.png`);await fs.writeFile(source,png);
-      const quality=codec==="uastc"?["--uastc_quality","2","--zcmp","9"]:["--qlevel","255","--clevel","2"];
+      const quality=codec==="uastc"?["--uastc_quality","2","--uastc_rdo_l","0.5","--zcmp","18"]:["--qlevel","255","--clevel","2"];
       await run(encoder,["--t2","--encode",codec,...quality,"--genmipmap","--lower_left_maps_to_s0t0","--assign_oetf",color?"srgb":"linear","--threads","4",filename,source]);
     }
     return name;

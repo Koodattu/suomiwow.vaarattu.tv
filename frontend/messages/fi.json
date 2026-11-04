@@ -142,6 +142,7 @@
     "world": {
       "overview": {
         "facilities": "Toiminnot",
+        "groups": { "play": "Pelaa", "collection": "Kokoelma", "community": "Yhteisö", "craft": "Paja" },
         "labels": {
           "shop": "Kauppa",
           "gallery": "Kokoelma",
@@ -157,7 +158,7 @@
           "fame": "Kunnia",
           "leaderboard": "Sijat"
         },
-        "openBoxes": "Laatikot",
+        "openBoxes": "Avaa laatikko",
         "boxCost": "1 kolikko / laatikko",
         "back": "Takaisin"
       },

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import ts from "typescript";
 import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 // Exercise the stage's actual director without starting React or a WebGL renderer.
 const source = await readFile(new URL("../src/app/tools/figurine-lab/FigurineStage.tsx", import.meta.url), "utf8");
@@ -16,22 +17,23 @@ function cameraState(view, idle, reduced = false, width = 1200) {
   const pose = { position: new THREE.Vector3(8, 4, 12), target: new THREE.Vector3(8, 1, 3) };
   const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
   return vm.createContext({
-    THREE, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer",
+    THREE, active: false, orbitOffset: null, build: { zoom: 1 }, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer",
     homeOffset: new THREE.Vector3(0.6, 2.1, 9.6), homeTarget: new THREE.Vector3(0, 1.5, 0),
     OVERVIEW_DISTANCE: { min: 13, initial: 17, max: 19 },
     shotAspect: () => 1, viewPose: () => ({ position: pose.position.clone(), target: pose.target.clone() }),
     look, lookTarget: { ...look }, screen: new THREE.Vector3(), velocity: new THREE.Vector3(), Y_AXIS: new THREE.Vector3(0, 1, 0),
     renderer: { domElement: { clientWidth: width, clientHeight: 800 } }, PANEL_SHEET_WIDTH: 700, panelShare: () => 0.3,
-    panelled: view => view !== "opening" && view !== "viewer" && view !== "shop" && view !== "pond",
+    panelled: view => view !== "opening" && view !== "viewer" && view !== "shop" && view !== "pond" && view !== "crate",
     camera: new THREE.PerspectiveCamera(36, width / 800), controls: { target: new THREE.Vector3() },
+    flightFrom: new THREE.Spherical(), flightTo: new THREE.Spherical(),
     flight: { from: new THREE.Vector3(0, 3, 9), fromTarget: new THREE.Vector3(0, 1.5, 0), t: 1 },
-    FLIGHT_SECONDS: 0.95, ease: t => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2,
+    FLIGHT_SECONDS: Number(source.match(/const FLIGHT_SECONDS = ([\d.]+)/)[1]), ease: t => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2,
     elapsed: 1 / 60, delta: 1 / 60, idle, reduced,
   });
 }
 
 test("facility flight and settled view meet at the same camera pose", () => {
-  for (const view of ["shop", "quests", "pond", "forge"]) for (const width of [600, 1200]) for (const idle of [2, 17, 100]) {
+  for (const view of ["shop", "gallery", "recycler", "forge", "crate", "wheel", "mail", "quests", "feed", "fame", "leaderboard", "trading", "pond"]) for (const width of [600, 1200]) for (const idle of [2, 17, 100]) {
     const state = cameraState(view, idle, false, width);
     step.runInContext(state);
     assert.equal(state.flight, null);
@@ -133,4 +135,90 @@ test("dragging the pond and returning to the starting point does not cast on rel
     unlockFigurineAudio() {}, callbacks: { current: { onFacilityPart: () => { casts++; } } },
   });
   assert.equal(turns, 2); assert.equal(casts, 0);
+});
+
+// Include the real orbit update: testing the director alone misses constraints applied afterwards.
+const orbitStart = source.indexOf("      const orbiting =");
+const orbitEnd = source.indexOf("      if (scenery)", orbitStart);
+const finishCamera = new vm.Script(`{${ts.transpile(source.slice(orbitStart, orbitEnd))}}`);
+function withOrbit(state) {
+  state.controls = new OrbitControls(state.camera, null);
+  Object.assign(state, { introducing: false, active: false, finished: false, current: { rotate: false }, hovering: false, grab: null, shake: null, userOrbit: { holding: false, released: -Infinity }, now: 5000, AUTO_ROTATE_DELAY: 2.5, AUTO_ROTATE_SPEED: 0.6, autoRotate: 0, mixer: null });
+  return state;
+}
+
+test("return from a close chest shot never jumps to the overview's minimum orbit distance", () => {
+  const state = withOrbit(cameraState("overview", 0, true));
+  state.reduced = false;
+  state.overviewShot = { position: new THREE.Vector3(0, 5, 16), target: new THREE.Vector3(0, 1.5, 0) };
+  state.flight = { from: new THREE.Vector3(-3, 2, -5), fromTarget: new THREE.Vector3(-3, 1, -11), t: 0 };
+  state.camera.position.copy(state.flight.from); state.controls.target.copy(state.flight.fromTarget);
+  let previous = state.camera.position.clone();
+  for (let frame = 0; frame < Math.ceil(state.FLIGHT_SECONDS * 60) + 5; frame++) {
+    step.runInContext(state); finishCamera.runInContext(state);
+    assert.ok(state.camera.position.distanceTo(previous) < 0.9, `no single-frame jump at frame ${frame}`);
+    if (frame === 0) assert.ok(state.camera.position.distanceTo(state.controls.target) < 6.1, "departure retains the close-up distance");
+    previous.copy(state.camera.position);
+  }
+  assert.ok(state.camera.position.distanceTo(state.overviewShot.position) < 1e-9);
+});
+
+test("opposite-side flights preserve viewing distance and turn smoothly instead of crossing the focus", () => {
+  const state = withOrbit(cameraState("overview", 0, true));
+  state.reduced = false;
+  state.overviewShot = { position: new THREE.Vector3(0, 3, 16), target: new THREE.Vector3() };
+  state.flight = { from: new THREE.Vector3(0, 3, -16), fromTarget: new THREE.Vector3(), t: 0 };
+  state.camera.position.copy(state.flight.from); state.camera.lookAt(state.flight.fromTarget);
+  let previous = state.camera.quaternion.clone();
+  for (let frame = 0; frame < Math.ceil(state.FLIGHT_SECONDS * 60) + 5; frame++) {
+    step.runInContext(state); finishCamera.runInContext(state);
+    assert.ok(state.camera.position.distanceTo(state.controls.target) >= 16, "the view never collapses onto the focus");
+    assert.ok(previous.angleTo(state.camera.quaternion) < 0.18, "rotation stays continuous through the halfway point");
+    previous.copy(state.camera.quaternion);
+  }
+});
+
+test("interrupting a return flight preserves the saved overview and clears orbit inertia", () => {
+  const from = source.indexOf('      if (immersive && current.view !== currentView)');
+  const to = source.indexOf('      if (current.arrival !== seenArrival)', from);
+  const navigate = new vm.Script(`{${ts.transpile(source.slice(from, to))}}`);
+  const state = withOrbit(cameraState("overview", 0));
+  const saved = { position: new THREE.Vector3(0, 5, 16), target: new THREE.Vector3(0, 1.5, 0) };
+  Object.assign(state, { overviewShot: saved, current: { view: "crate" }, orbitOffset: null, introClock: 3, INTRO_SECONDS: 3, displayClock: 0, press: null, looking: null, heldTarget: new THREE.Vector2(), peelSound: null, clearPartHover() {}, reducedMotion: { matches: true } });
+  state.flight.t = 0.4;
+  state.camera.position.set(3, 4, 5); state.controls.target.set(1, 1, 1);
+  const departure = state.camera.position.clone();
+  navigate.runInContext(state);
+  assert.equal(state.overviewShot, saved, "a partial return must not overwrite the user's overview orbit");
+  assert.ok(state.flight.from.equals(departure));
+  assert.ok(state.camera.position.equals(departure));
+  assert.equal(state.autoRotate, 0);
+});
+
+test("destination sway across the opposite-angle seam never reverses an ongoing turn", () => {
+  const state = withOrbit(cameraState("overview", 0));
+  state.overviewShot = { position: new THREE.Vector3(0.002, 3, -16), target: new THREE.Vector3() };
+  state.flight = { from: new THREE.Vector3(0, 3, 16), fromTarget: new THREE.Vector3(), t: 0 };
+  state.camera.position.copy(state.flight.from); state.camera.lookAt(state.flight.fromTarget);
+  let previous = state.camera.quaternion.clone();
+  for (let frame = 0; frame < Math.ceil(state.FLIGHT_SECONDS * 60); frame++) {
+    state.overviewShot.position.x = frame % 2 ? -0.002 : 0.002;
+    step.runInContext(state); finishCamera.runInContext(state);
+    assert.ok(previous.angleTo(state.camera.quaternion) < 0.18, `no reversed turn at frame ${frame}`);
+    previous.copy(state.camera.quaternion);
+  }
+});
+
+test("overview tape opening meets the charging camera without a zoom jump", () => {
+  const state = cameraState("opening", 0);
+  Object.assign(state, { active: true, finished: false, bursting: false, build: { zoom: 0.94 }, current: { boxMode: true, open: true }, centreShot: { position: new THREE.Vector3(-7, 4, -7), target: new THREE.Vector3(0, 1.5, 0) } });
+  const from = source.indexOf("      const cinematic ="), to = source.indexOf("      const orbiting =", from);
+  const cinematic = new vm.Script(`{${ts.transpile(source.slice(from, to))}}`);
+  step.runInContext(state);
+  const arrival = state.camera.position.clone();
+  cinematic.runInContext(state);
+  assert.ok(arrival.distanceTo(state.camera.position) < 1e-9, "arrival already matches the live charge zoom");
+  step.runInContext(state); cinematic.runInContext(state);
+  assert.ok(arrival.distanceTo(state.camera.position) < 1e-9, "the following cinematic frame does not double-zoom");
+  assert.ok(Math.abs(state.camera.position.distanceTo(state.controls.target) / state.centreShot.position.distanceTo(state.centreShot.target) - 0.94) < 1e-9);
 });

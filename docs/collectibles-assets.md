@@ -78,7 +78,45 @@ the test rejects unregistered served GLBs. The 2026-11-02 archive is
 `.codex-runtime/retired-models-2026-11-02/`, with hashes in `manifest.json`.
 
 Exceptions: close-up boxes use UASTC (2K artwork/1K masks); shelves use ETC1S.
+Close-up encoding is q2, RDO lambda 0.5, Zstd 18, with full mipmaps; keep source PNGs.
+`bake-figurine-boxes.mjs` includes these settings in content hashes. The 2026-11-04
+recompression preserves dimensions and reduces the 58 unique close-up maps from
+51,490,062 to 35,926,089 bytes. Originals, source PNGs, the previous manifest and
+per-file results are preserved in `.codex-runtime/box-compression-v2/`.
 Only series 000/001/002 have distinct boxes; future series share one gray design.
+Only the selected series loads close-up artwork; the scene retains at most two
+other recently selected boxes. Shelf boxes use the small ETC1S tier. For the first
+English box these tiers are about 4.97 MB and 181 KB respectively. Twenty distinct
+series should therefore add small shelf textures to startup, not twenty close-up sets.
 Race/form heights are runtime settings in `figurine-materials.ts`, not re-exports.
 After changing figures, run catalog/material tests and review the gallery; rebake
 portraits/silhouettes/box artwork only when their source appearance or design changes.
+
+## Studio reflections and loading
+
+The fixed `RoomEnvironment` PMREM is baked once and stored as gzip-compressed,
+lossless half-float RGBA data. It is **already convolved**: load it as a
+`CubeUVReflectionMapping` DataTexture, without running PMREM over it again.
+Its manifest records the Three.js revision. Missing, stale or timed-out bakes fall
+back to the original runtime calculation. The painted world sky stays dynamic.
+
+To rebake after a Three.js upgrade, from `frontend`:
+
+```powershell
+node scripts/figurine-benchmark-server.mjs ../.codex-runtime/studio-bake 3222
+# Open http://localhost:3222/bench/bake-figurine-environment.html in Chrome.
+# Pass the resulting report filename to:
+node scripts/bake-figurine-environment.mjs ../.codex-runtime/studio-bake/browser-<timestamp>.json
+node --test test/figurine-environment.test.mjs test/figurine-ktx.test.mjs
+```
+
+Create the work directory first; preserve the previous bake when replacing it.
+The current 1,194,775-byte bake reproduced the original pixels and rendered metallic
+spheres identically on the benchmark GPU.
+
+Figure downloads now follow use: current sealed draw, saved display figures, and
+one next draw prefetched while opening. Selecting another series or inspecting a
+figure loads it on demand. The compressed-file LRU retains at most 32 MiB; the
+existing GPU cache has its own budget. Catalog metadata remains available for
+the collection UI; idle time no longer fetches every model. Decorative image loads
+have an eight-second deadline and cannot repaint a disposed scene or apply late.

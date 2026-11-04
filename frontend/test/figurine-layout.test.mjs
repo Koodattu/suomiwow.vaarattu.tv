@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
+import { readFile } from "node:fs/promises";
+import vm from "node:vm";
+import ts from "typescript";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
@@ -15,7 +18,14 @@ const { buildForest, forestLayout, groveLayout, marketLayout, POND, SECRET_BARRE
 
 const PLAZA = PLAZA_RADIUS;
 const stations = Object.entries(STATIONS);
-test("overview foliage clearance hides only foreground blockers and restores their original instances", async t => {
+test("camera travel keeps scenery instances and facility visibility stable", async t => {
+  const stage = await readFile(new URL("../src/app/tools/figurine-lab/FigurineStage.tsx", import.meta.url), "utf8");
+  const facilitiesStart = stage.indexOf("        // Viewer: the chosen figure");
+  const sceneryStart = stage.indexOf("      if (scenery)", stage.indexOf("      const orbiting ="));
+  const update = new vm.Script(ts.transpile(
+    stage.slice(facilitiesStart, stage.indexOf("        shop?.update", facilitiesStart)) +
+    stage.slice(sceneryStart, stage.indexOf("      if (scene.fog", sceneryStart)),
+  ));
   t.mock.method(GLTFLoader.prototype, "loadAsync", async () => {
     const scene = new THREE.Group(), tree = new THREE.Mesh(new THREE.BoxGeometry(8, 10, 8), new THREE.MeshStandardMaterial());
     tree.position.y = 5; scene.add(tree); return { scene };
@@ -29,15 +39,27 @@ test("overview foliage clearance hides only foreground blockers and restores the
   await forest.ready; root.updateMatrixWorld(true);
   const mesh = forest.group.children[0], matrix = new THREE.Matrix4();
   const original = [0, 1, 2].map(i => { mesh.getMatrixAt(i, matrix); return matrix.clone(); });
-  const target = root.localToWorld(new THREE.Vector3(0, 1.5, 0));
-  forest.clearView(root.localToWorld(new THREE.Vector3(0, 8, 30)), target);
-  mesh.getMatrixAt(0, matrix); assert.equal(matrix.determinant(), 0, "the canopy between the camera and pedestal clears");
-  for (const i of [1, 2]) { mesh.getMatrixAt(i, matrix); assert.ok(matrix.equals(original[i]), "side and background trees remain"); }
-  forest.clearView(root.localToWorld(new THREE.Vector3(0, 80, 30)), target);
-  mesh.getMatrixAt(0, matrix); assert.ok(matrix.equals(original[0]), "looking over the canopy restores the tree");
-  forest.clearView(root.localToWorld(new THREE.Vector3(0, 8, 30)), target);
-  forest.clearView(null, target);
-  for (let i = 0; i < 3; i++) { mesh.getMatrixAt(i, matrix); assert.ok(matrix.equals(original[i]), "leaving overview restores all original placements"); }
+  const station = new THREE.Group(), camera = new THREE.PerspectiveCamera();
+  const controls = { target: root.localToWorld(new THREE.Vector3(0, 1.5, 0)) };
+  const state = vm.createContext({
+    THREE, STATION_SPECS, camera, controls, screen: new THREE.Vector3(),
+    scenery: { ...forest, sky: new THREE.Object3D() }, stationGroups: [[station, "crate"]],
+  });
+  for (const view of ["overview", ...stations.map(([name]) => name), "opening", "overview"]) {
+    for (const flying of [true, false]) for (const height of [8, 80, 8]) {
+      camera.position.copy(root.localToWorld(new THREE.Vector3(0, height, 30)));
+      // Put a facility around the camera to exercise the old whole-facility hiding rule too.
+      station.position.copy(camera.position); station.updateMatrixWorld(true);
+      Object.assign(state, { current: { view }, currentView: view, flight: flying ? { t: 0.5 } : null });
+      update.runInContext(state);
+      assert.equal(station.visible, true, `${view}: facilities must not toggle during camera travel`);
+      for (let i = 0; i < 3; i++) {
+        mesh.getMatrixAt(i, matrix);
+        assert.ok(matrix.equals(original[i]), `${view}: foreground, background and side trees retain their transforms`);
+        assert.ok(matrix.determinant() > 0, "scenery must never shrink to zero");
+      }
+    }
+  }
 });
 test("overview pulls straight back from the opening camera while keeping the pedestal centered", () => {
   assert.equal(isStation("overview"), false);

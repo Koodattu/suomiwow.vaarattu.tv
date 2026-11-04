@@ -9,13 +9,13 @@ import { boxTextureCache } from "@/lib/figurine-box-assets";
 import { unreleasedBoxDesign } from "@/lib/figurine-packaging";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { loadFigurineEnvironment } from "@/lib/figurine-environment";
 import { resolveModelResource } from "@/lib/figurine-lab";
 import { CHARGE_CUES, CHARGE_SECONDS, ENTRANCE_CUES, HITSTOP_SECONDS, LAND_AT, REVEAL_CUES, cuesBetween, figurineCharge, figurineEntrance, figurineReveal, type FigurineCue } from "@/lib/figurine-reveal";
 import { playFigurineCue, startFigurineLoop, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { figurineBodyBounds, figurineScale, figurineSupport, restoreFigurineMaterials } from "@/lib/figurine-materials";
 import { PACKAGING_FALLBACK, PACKAGING_THEMES, BOX_SIZE, createBoxPrints, buildBlindBox, seriesTheme, type BlindBoxParts, type BoxDesign, type PackagingLabels } from "@/lib/figurine-packaging";
-import { STATIONS, STATION_SPECS, WORLD_FOG, OVERVIEW_DISTANCE, buildWorld, isStation, placeStation, viewPose, type Station, type WorldView } from "@/lib/figurine-world";
+import { STATIONS, WORLD_FOG, OVERVIEW_DISTANCE, buildWorld, isStation, placeStation, viewPose, type Station, type WorldView } from "@/lib/figurine-world";
 import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
 import { buildForge, buildRecycler, type MachineCue, type MachinePick } from "@/lib/figurine-machine";
 import { buildFacility, type ActionCue, type CastResult, type Facility, type FacilityAction } from "@/lib/figurine-facilities";
@@ -88,7 +88,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, onHoverPart, highlightedPart = null, highlightedStation = null, coinTarget, panelWidth = 420 }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, loadFigureFile, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, onHoverPart, highlightedPart = null, highlightedStation = null, coinTarget, panelWidth = 420 }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -117,7 +117,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onBoxTap?: () => void;
   onStatus?: (status: "loading" | "ready" | "empty" | "error" | "webgl") => void;
   onRevealed?: () => void;
-  // World mode: start-up loading (scenery, station props, every series' box, shaders).
+  // World mode: start-up loading (scenery, station props, selected box, shaders).
   onLoaded?: () => void;
   onProgress?: (fraction: number) => void;
   // Bumped each time a series is picked: the box drops onto the pedestal again once the camera arrives.
@@ -126,6 +126,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   // loaded model only when they match, never the box's figure while another one loads.
   filesFor?: string | null;
   showing?: string | null;
+  loadFigureFile?: (url: string) => Promise<File>;
   // World mode: false while the start-up loader covers the scene; the opening shot waits for it.
   ready?: boolean;
   immersive?: boolean;
@@ -174,6 +175,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
+  const loadFigureFileRef = useRef(loadFigureFile);
+  loadFigureFileRef.current = loadFigureFile;
   useEffect(() => { filesRef.current = files; loaderState.current?.load(files); }, [files, quality]);
 
   useEffect(() => {
@@ -194,7 +197,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     renderer.toneMappingExposure = exposure;
     element.appendChild(renderer.domElement);
     let worldGpuReady = !immersive;
-    const ktx2Loader = new KTX2Loader().setTranscoderPath("/figurines/basis/r186/").setWorkerLimit(2).detectSupport(renderer);
+    // Many independent scenery/box textures queue here even on a fully cached reload.
+    // Use up to four workers, leaving a logical core for the main thread on smaller devices.
+    const textureWorkers = Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 4) - 1));
+    const ktx2Loader = new KTX2Loader().setTranscoderPath("/figurines/basis/r186/").setWorkerLimit(textureWorkers).detectSupport(renderer);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(36, 1, 0.4, immersive ? 240 : 140);
     // The world's home shot faces the pedestal head-on, with the shop and the case at either side.
@@ -233,15 +239,14 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const next = generator.fromScene(skyScene, 0, 0.1, 100); generator.dispose();
       skyLight?.dispose(); skyLight = next; scene.environment = next.texture;
     };
-    const scenery = immersive ? buildWorld(scene, { onSky: updateSkyLight, ktx2Loader }) : null;
+    const scenery = immersive ? buildWorld(scene, { onSky: () => { if (!disposed) { updateSkyLight(); void precompile(); } }, ktx2Loader }) : null;
     if (immersive) { scene.fog = new THREE.FogExp2(WORLD_FOG.color, WORLD_FOG.density); scene.environmentIntensity = 0.55; }
     const modelRoot = new THREE.Group(); scene.add(modelRoot);
     const box = new THREE.Group(); scene.add(box);
     // The box rests just on the pedestal top; its idle float only ever lifts it.
     const width = 2.05, depth = 1.8, height = 2.75, bottom = PEDESTAL_TOP + 0.003;
     // Neutral studio reflections for the foil and holographic seal only, so figure lighting is unchanged.
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; pmrem.dispose();
+    const studio = loadFigurineEnvironment(renderer), environment = studio.texture;
     const sharedTextures = new Set([environment]);
     const boxTextures = boxTextureCache(ktx2Loader, sharedTextures);
     const pedestal = buildPedestal(scene, { envMap: environment, title: labels.boxTitle, series: labels.series ?? "Series 001", count: lineupRef.current.length || 16 });
@@ -292,12 +297,15 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       return [kind, group && worldSetup ? builders[kind](group, { envMap: environment, placeProp }) : null];
     })) as Record<FigurineMachine, ReturnType<typeof buildRecycler> | null>;
     const catchLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
+    const loadFigure = async (url: string) => {
+      const file = await loadFigureFileRef.current?.(url);
+      return file ? catchLoader.parseAsync(await file.arrayBuffer(), "") : catchLoader.loadAsync(url);
+    };
     const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, {
-      placeProp, envMap: environment, loadFigure: async (url) => (await catchLoader.loadAsync(url)).scene,
+      placeProp, envMap: environment, loadFigure: async (url) => (await loadFigure(url)).scene,
     }) }] : []) : [];
     // The showcase's statues load their figures like the pedestal does, one at a time.
-    const statueLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
-    const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: (url) => statueLoader.loadAsync(url), cubbies: facilities.find((facility) => facility.kind === "gallery")?.cubbies }) : null;
+    const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: loadFigure, cubbies: facilities.find((facility) => facility.kind === "gallery")?.cubbies }) : null;
     // Machine cards show the baked portrait sheets.
     const portraitCards = portraitAtlas();
     // Camera occlusion hides station meshes, but must not change the scene's light count:
@@ -434,7 +442,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const sheenMaterial = additive(sheenMap, 0xffe7b8);
     const sheen = new THREE.Mesh(new THREE.PlaneGeometry(width, height), sheenMaterial);
     let packagingOpacity = 1;
-    worldSetup?.series.forEach((entry) => { if (entry.released) packagingFor(entry); });
+    // Shelf boxes use their small print tier. Only the selected box needs close-up artwork.
     mountBox();
     const beamMap = canvasTexture(4, 128, (context) => {
       const gradient = context.createLinearGradient(0, 0, 0, 128);
@@ -580,7 +588,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (entry.warming) return;
       const current = () => !disposed && [...packagings.values()].includes(entry);
       entry.warming = (async () => {
-        await entry.parts.ready;
+        await Promise.all([entry.parts.ready, studio.ready]);
         if (!await uploadTextures(entry.group, current)) return;
         if (!await warmFigurineScene(renderer, scene, camera, compileTarget, current, entry.group)) return;
         entry.ready = true;
@@ -642,6 +650,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           const idle = entry.animations.find((clip) => /stand|idle/i.test(clip.name));
           if (idle) { mixer = new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
           if (!entry.warmed.has(finish)) {
+            await studio.ready; if (!valid()) return;
             if (!await uploadTextures(model, valid)) return;
             await nextFrame(); if (!valid()) return;
             if (!await warmFigurineScene(renderer, scene, camera, compileTarget, valid, modelRoot)) return;
@@ -665,9 +674,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       revealed.forEach((object) => { object.visible = false; });
       return ready;
     };
-    updateSkyLight(); void precompile();
+    // World compilation starts with the final sky, overlapping the remaining asset decoding.
+    // Baking the placeholder sky here would repeat the same environment-map work.
+    if (!immersive) void precompile();
     api.current = {
-      rebuildBox: () => { clearPackagings(); worldRef.current?.series.forEach((entry) => { if (entry.released) packagingFor(entry); }); mountBox(); void precompile(); },
+      rebuildBox: () => { clearPackagings(); mountBox(); void precompile(); },
       showBox: () => preparePackaging(mountBox()),
       setCollection, setMachines, setShowcase,
       setStreak: (opened, today) => facilities.forEach((facility) => facility.setStreak(opened, today)),
@@ -700,12 +711,13 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     if (machinesRef.current) setMachines(machinesRef.current);
     if (immersive && scenery) void (async () => {
       callbacks.current.onProgress?.(0.1);
-      await scenery.ready; await Promise.all([...propsReady, shop?.ready, ...secretPrints.map((prints) => prints.ready), ...[...packagings.values()].map(({ parts }) => parts.ready)]);
+      await scenery.ready; await Promise.all([studio.ready, ...propsReady, shop?.ready, ...secretPrints.map((prints) => prints.ready), ...[...packagings.values()].map(({ parts }) => parts.ready)]);
+      if (disposed) return;
       callbacks.current.onProgress?.(0.6);
       // Keep the loading UI responsive; the ordinary render loop must not upload
       // the whole world implicitly before these scheduled uploads have finished.
-      if (!await uploadTextures(scene, () => !disposed)) return;
-      await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed);
+      if (!await uploadFigurineTextures(renderer, scene, () => !disposed, (fraction) => callbacks.current.onProgress?.(0.6 + 0.2 * fraction))) return;
+      await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed, scene, (fraction) => callbacks.current.onProgress?.(0.8 + 0.2 * fraction));
       if (!disposed) { worldGpuReady = true; packagings.forEach((entry) => { entry.ready = true; }); callbacks.current.onProgress?.(1); callbacks.current.onLoaded?.(); }
     })();
     loaderState.current = { load };
@@ -760,7 +772,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       return new THREE.Vector2((screen.x + 1) / 2 * rect.width, (1 - screen.y) / 2 * rect.height);
     };
     const tappable = () => immersive && state.current.interactive && state.current.view === "opening" && !flight;
-    const peelable = () => tappable() && !state.current.locked;
+    const peelable = () => immersive && state.current.interactive && (state.current.view === "overview" || state.current.view === "opening") && !flight && !state.current.locked;
     // The world is the interface: tap a station to go there, a series to open it, an owned figure
     // to inspect it, and empty ground or sky to step back. The target must match on release.
     type Pick = { kind: "station"; view: WorldView } | { kind: "series"; id: string } | { kind: "machine"; machine: FigurineMachine; pick: MachinePick } | { kind: "part"; station: Station; part: string } | { kind: "back" };
@@ -929,7 +941,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         return;
       }
       if (!grab || event.pointerId !== grab.id) return;
-      const opened = peelTarget >= 0.97 && tappable();
+      const opened = event.type === "pointerup" && peelTarget >= 0.97 && peelable();
       if (!grab.moved) nudge = 1;
       grab = null; peelSound?.stop(); peelSound = null;
       renderer.domElement.style.cursor = "";
@@ -954,13 +966,14 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // A station is framed to fit beside its panel, not behind it.
     const shotAspect = (view: WorldView) => camera.aspect * Math.max(0.3, 1 - panelShare(view));
     // Camera director: flies between station poses; the opening view keeps its own cinematic camera.
-    let flight: { from: THREE.Vector3; fromTarget: THREE.Vector3; t: number } | null = null;
+    let flight: { from: THREE.Vector3; fromTarget: THREE.Vector3; t: number; turn?: number } | null = null;
+    const flightFrom = new THREE.Spherical(), flightTo = new THREE.Spherical();
     let currentView: WorldView = state.current.view, displayClock = 0;
     if (immersive && currentView !== "opening") {
       const start = viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, shotAspect(currentView));
       camera.position.copy(start.position); controls.target.copy(start.target);
     }
-    const FLIGHT_SECONDS = 0.95, INTRO_SECONDS = 3;
+    const FLIGHT_SECONDS = 1.25, INTRO_SECONDS = 3;
     // Opening shot, once the loader lifts: from wide, high and centred, the camera zooms in while
     // drifting right, settling just right of head-on; auto-rotation carries the drift on.
     // Any press ends it where it is and hands the camera to the user.
@@ -992,9 +1005,19 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         const centre = (view: WorldView) => view === "opening" || view === "viewer";
         const flying = !(centre(current.view) && centre(currentView));
         // Leaving the centre remembers its camera, so coming back lands where the user left it.
-        if (flying && centre(currentView) && !orbitOffset) centreShot = { position: camera.position.clone(), target: controls.target.clone() };
-        if (flying && currentView === "overview") overviewShot = { position: camera.position.clone(), target: controls.target.clone() };
-        if (flying) flight = { from: camera.position.clone(), fromTarget: controls.target.clone(), t: 0 };
+        if (flying && !flight && centre(currentView) && !orbitOffset) centreShot = { position: camera.position.clone(), target: controls.target.clone() };
+        if (flying && !flight && currentView === "overview") overviewShot = { position: camera.position.clone(), target: controls.target.clone() };
+        if (currentView === "overview" && current.view === "opening" && (current.charging || current.open)) {
+          // A pull in overview zooms in along the user's current angle, without turning the box away.
+          centreShot = { position: camera.position.clone().sub(controls.target).setLength(homeOffset.length() * framing).add(homeTarget), target: homeTarget.clone() };
+        }
+        if (flying) {
+          flight = { from: camera.position.clone(), fromTarget: controls.target.clone(), t: 0 };
+          // Drain orbit inertia before the director takes over, retaining the visible departure pose.
+          controls.autoRotate = false; controls.enableDamping = false; controls.update(0); controls.enableDamping = true;
+          camera.position.copy(flight.from); controls.target.copy(flight.fromTarget);
+          autoRotate = 0;
+        }
         introClock = INTRO_SECONDS;
         currentView = current.view; displayClock = 0; press = null; looking = null; Object.assign(lookTarget, { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }); Object.assign(look, lookTarget); grab = null; shake = null; heldTarget.set(0, 0); peelSound?.stop(); peelSound = null;
         clearPartHover();
@@ -1180,13 +1203,6 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           contact.scale.setScalar(2.2); contactMaterial.opacity = model ? 0.45 : 0;
           beam.visible = core.visible = flash.visible = false;
         }
-        for (const [group, name] of stationGroups) {
-          const extent = { x: STATION_SPECS[name].width / 2, back: STATION_SPECS[name].back, front: STATION_SPECS[name].front };
-          if (!group) continue;
-          const local = group.worldToLocal(screen.copy(camera.position)), margin = 1.6;
-          const near = Math.abs(local.x) < extent.x + margin && local.z > extent.back - margin && local.z < extent.front + margin && local.y < 6;
-          group.visible = flight !== null || (current.view !== "opening" && current.view !== "viewer") || !(near || (local.z < extent.back && local.length() < 16));
-        }
         shop?.update(hoveredSeries, delta, idle);
         facilities.forEach((facility) => {
           facility.hover(!flight && current.view === facility.kind ? current.highlightedPart ?? hoveredPart : null);
@@ -1250,11 +1266,28 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         destination.position.add(velocity.set(Math.sin(idle * 0.31) * 0.12, Math.sin(idle * 0.43) * 0.06, 0));
       }
       if (flight && destination) {
+        if (currentView === "opening" && active && !reduced) {
+          // Meet the charging camera at its current zoom, so the flight-to-reveal handoff cannot snap.
+          orbitOffset = destination.position.clone().sub(destination.target);
+          destination.position.copy(orbitOffset).multiplyScalar(build.zoom).add(destination.target);
+        }
         flight.t = reduced ? 1 : Math.min(1, flight.t + Math.min(elapsed, 0.1) / FLIGHT_SECONDS);
         const t = ease(flight.t);
-        camera.position.lerpVectors(flight.from, destination.position, t);
-        camera.position.y += Math.sin(Math.PI * t) * 1.6;
         controls.target.lerpVectors(flight.fromTarget, destination.target, t);
+        // Turn along the shortest arc while moving the focus point. A straight world-space
+        // line can cross the focus, collapsing the viewing distance and flipping the camera.
+        flightFrom.setFromVector3(screen.copy(flight.from).sub(flight.fromTarget));
+        flightTo.setFromVector3(screen.copy(destination.position).sub(destination.target));
+        let turn = Math.atan2(Math.sin(flightTo.theta - flightFrom.theta), Math.cos(flightTo.theta - flightFrom.theta));
+        // Keep the chosen direction when a station's sway crosses the opposite-angle seam.
+        if (flight.turn !== undefined) turn += Math.round((flight.turn - turn) / (2 * Math.PI)) * 2 * Math.PI;
+        flight.turn = turn;
+        camera.position.setFromSphericalCoords(
+          THREE.MathUtils.lerp(flightFrom.radius, flightTo.radius, t),
+          THREE.MathUtils.lerp(flightFrom.phi, flightTo.phi, t),
+          flightFrom.theta + turn * t,
+        ).add(controls.target);
+        camera.position.y += Math.sin(Math.PI * t) * 1.6;
         if (flight.t >= 1) flight = null;
       } else if (destination && isStation(currentView)) {
         camera.position.copy(destination.position);
@@ -1293,17 +1326,18 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       controls.autoRotate = autoRotate > 0;
       controls.autoRotateSpeed = AUTO_ROTATE_SPEED * autoRotate * autoRotate * (3 - 2 * autoRotate);
       controls.enabled = orbiting && !grab && !shake;
-      // update() clamps to the orbit distance limits even when disabled; station shots sit farther out.
-      // Never snaps a camera already farther out (after the opening shot) back in.
+      // These limits belong to manual orbit only, never to the director's flight or station poses.
       controls.minDistance = currentView === "overview" ? OVERVIEW_DISTANCE.min : 3;
       controls.maxDistance = orbiting ? currentView === "overview" ? OVERVIEW_DISTANCE.max : Math.max(15, camera.position.distanceTo(controls.target)) : Infinity;
       controls.minPolarAngle = currentView === "overview" ? Math.PI * 0.08 : 0;
       controls.maxPolarAngle = Math.PI * (currentView === "overview" ? 0.5 : 0.53);
       // Timed by the frame delta, so auto-rotation turns at the same speed on any refresh rate.
-      controls.update(delta); if (!reduced) mixer?.update(delta);
+      if (orbiting) controls.update(delta);
+      else camera.lookAt(controls.target);
+      if (!reduced) mixer?.update(delta);
       if (scenery) {
+        // Keep scenery stable through flights; only the sky follows the camera.
         scenery.sky.position.copy(camera.position);
-        scenery.clearView(currentView === "overview" || flight ? camera.position : null, controls.target);
       }
       if (scene.fog instanceof THREE.FogExp2) {
         const density = currentView === "overview" ? 0.006 * Math.min(1, 55 / camera.position.distanceTo(controls.target)) : WORLD_FOG.density;
@@ -1316,7 +1350,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (worldGpuReady) renderer.render(scene, camera);
     });
     return () => {
-      disposed = true; generation++; loaderState.current = null; stopHum(); ktx2Loader.dispose();
+      disposed = true; generation++; loaderState.current = null; stopHum(); scenery?.dispose(); studio.dispose(); ktx2Loader.dispose();
       peelSound?.stop();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown, { capture: true }); renderer.domElement.removeEventListener("pointerup", letGo);
       renderer.domElement.removeEventListener("pointercancel", letGo);
