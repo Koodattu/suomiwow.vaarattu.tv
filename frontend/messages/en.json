@@ -142,7 +142,12 @@
     "world": {
       "overview": {
         "facilities": "Facilities",
-        "groups": { "play": "Play", "collection": "Collection", "community": "Community", "craft": "Craft" },
+        "groups": {
+          "play": "Play",
+          "collection": "Collection",
+          "community": "Community",
+          "craft": "Craft"
+        },
         "labels": {
           "shop": "Shop",
           "gallery": "Collection",
@@ -152,11 +157,12 @@
           "quests": "Quests",
           "recycler": "Recycle",
           "forge": "Forge",
-          "trading": "Trade",
+          "trading": "Trading",
           "mail": "Gifts",
           "feed": "Feed",
           "fame": "Fame",
-          "leaderboard": "Ranks"
+          "leaderboard": "Ranks",
+          "merchant": "Deals"
         },
         "openBoxes": "Open box",
         "boxCost": "1 coin per box",
@@ -172,8 +178,11 @@
         "feed": "Latest pulls",
         "fame": "Hall of fame",
         "leaderboard": "Leaderboards",
-        "trading": "Trading post",
-        "pond": "Fishing pond"
+        "trading": "Trading",
+        "pond": "Fishing pond",
+        "merchant": "Daily deals",
+        "recycler": "Recycler",
+        "forge": "Forge"
       },
       "collection": {
         "owned": "{got}/{total} collected",
@@ -312,6 +321,106 @@
         "you": "You",
         "signIn": "Guild boards arrive with Discord sign-in."
       },
+      "overlays": {
+        "community": "The collectors’ circle",
+        "dailyActivities": "A little adventure, every day",
+        "preview": "Sample community · Try it here. Resets on reload.",
+        "sampleInventory": "{count, plural, one {# sample figure} other {# sample figures}}",
+        "quality": "Finish",
+        "all": "All finishes",
+        "cancel": "Cancel",
+        "quests": {
+          "keepGoing": "Play to earn coins",
+          "completed": "{count} of {total} claimed",
+          "inProgress": "In progress"
+        },
+        "wheel": {
+          "noCost": "Always free",
+          "used": "Today’s spin collected"
+        },
+        "gifts": {
+          "inbox": "Inbox",
+          "send": "Send a gift",
+          "sent": "Sent",
+          "from": "From {name}",
+          "to": "To {name}",
+          "claim": "Unwrap gift",
+          "claimed": "Unwrapped",
+          "claimedNotice": "Gift added to your sample inventory.",
+          "recipientPlaceholder": "A collector’s name",
+          "sendAction": "Send sample gift",
+          "sentNotice": "Sample gift prepared for {name}. No real message was sent.",
+          "delivered": "Sample gift sent",
+          "empty": "A little generosity goes a long way. Send your first sample gift.",
+          "notes": {
+            "welcome": "A little something to start your collection. Welcome to the circle!",
+            "lucky": "Found a spare and thought of you. May your next pull be lucky!"
+          }
+        },
+        "feed": {
+          "all": "Community",
+          "mine": "Your finds",
+          "minutes": "{count}m ago",
+          "cheer": "Cheer"
+        },
+        "fame": {
+          "title": "First to leave their mark",
+          "body": "Extraordinary finds. Unforgettable firsts. A place in collecting history.",
+          "waiting": "A place awaits",
+          "next": "The next name could be yours."
+        },
+        "ranks": {
+          "body": "A little friendly competition among collectors.",
+          "allTime": "All time",
+          "yourCollection": "Your collection",
+          "separate": "Your session totals, separate from the sample rankings."
+        },
+        "market": {
+          "dealsBody": "Three daily bargains from the local merchant. Fresh stock every day.",
+          "tradingBody": "Browse offers from other collectors. Find a figure you love or turn a spare into coins.",
+          "offers": "Offers",
+          "history": "Completed",
+          "refresh": "Refresh",
+          "refreshed": "Three fresh deals are ready.",
+          "show": "Show",
+          "all": "All offers",
+          "buy": "Buy figures",
+          "sell": "Sell figures",
+          "merchant": "Local merchant",
+          "goodDeal": "Good deal",
+          "receive": "You receive",
+          "give": "You give",
+          "completed": "Completed",
+          "confirm": "Exchange the coins or figure shown above? This trade changes your local collection.",
+          "confirmAction": "Confirm trade",
+          "success": "Trade complete. Your coins and collection are updated.",
+          "unavailable": "This offer is no longer available, or you no longer have the required coins or figure.",
+          "review": "Review trade",
+          "missingCoins": "Not enough coins",
+          "missingFigure": "Figure not owned",
+          "empty": "No offers here yet.",
+          "dailyNote": "Offers rotate daily. Refreshing costs 1 coin and replaces the current three offers.",
+          "preview": "Sample player listings for this alpha. Trades affect only your local coins and figures; nothing is sent to another player."
+        },
+        "workshop": {
+          "forgeBody": "Give your favourite figures a rarer finish. Choose a set of three identical copies.",
+          "recycleBody": "Put your spare figures to use. Combine three copies into a new mystery box.",
+          "loaded": "{count} / 3 loaded",
+          "remove": "Remove {name}",
+          "slot": "Empty slot {number}",
+          "forgeRecipe": "Three matching copies, one rarer figure",
+          "recycleRecipe": "Choose three spare figures",
+          "forgeProtection": "Standard becomes Golden. Golden becomes Galaxy.",
+          "recycleProtection": "Your last copy of each figure is always protected.",
+          "working": "Working…",
+          "upgrade": "Rarer finish",
+          "newBox": "Mystery box",
+          "forge": "Forge",
+          "recycle": "Recycle",
+          "yourFigures": "Your spare figures"
+        },
+        "workshopLabel": "The workshop"
+      },
       "trading": {
         "body": "Trade figures with other players: offer yours, ask for theirs, and both accept."
       },
@@ -440,7 +549,11 @@
     "roles": "Roles",
     "allRoles": "All roles",
     "noRoles": "No roles selected",
-    "role": { "dps": "Damage", "healer": "Healer", "tank": "Tank" },
+    "role": {
+      "dps": "Damage",
+      "healer": "Healer",
+      "tank": "Tank"
+    },
     "minimumPulls": "Minimum pulls",
     "atLeastPulls": "At least {count}",
     "updating": "Updating…",
@@ -725,7 +838,10 @@
         "uploading": "Uploading and checking…",
         "withdraw": "Withdraw submission",
         "clearSelection": "Clear selection",
-        "remove": { "image": "Remove image", "audio": "Remove audio" },
+        "remove": {
+          "image": "Remove image",
+          "audio": "Remove audio"
+        },
         "confirmRemove": {
           "image": "Remove this alternative image from all copies of this card? The card will use its standard character image.",
           "audio": "Remove this audio from all copies of this card? The card will no longer play your uploaded audio."
@@ -2225,7 +2341,13 @@
       "pause": "Pause",
       "resume": "Resume",
       "retryJob": "Retry job",
-      "status": { "pending": "Queued", "in_progress": "Running", "paused": "Paused", "completed": "Run finished", "failed": "Failed" }
+      "status": {
+        "pending": "Queued",
+        "in_progress": "Running",
+        "paused": "Paused",
+        "completed": "Run finished",
+        "failed": "Failed"
+      }
     },
     "reportOverrides": {
       "title": "Correct report ownership",
@@ -2343,7 +2465,12 @@
     },
     "characterDataRefresh": {
       "fullTitle": "Full-history refresh",
-      "status": { "idle": "Idle", "running": "Running", "completed": "Completed", "failed": "Failed" },
+      "status": {
+        "idle": "Idle",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed"
+      },
       "incrementalTitle": "Incremental character-data refresh",
       "incrementalDescription": "Resolves newly discovered historical WCL identities, rebuilds participation, fetches only missing ranking pairs, and rebuilds mechanics and character tier lists only for affected raids. Missing Mythic+ profiles and character renders are also queued; CCG snapshots remain manual.",
       "discover": "Discover Missing Ranking Pairs"

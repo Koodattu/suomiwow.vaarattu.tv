@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { loadFigurineImage } from "@/lib/figurine-image";
 import { buildForest, forestLayout, marketLayout, POND, swayMaterial, type Keep } from "@/lib/figurine-forest";
+import { isOverlayStation } from "@/lib/figurine-facility-views";
 
 // The collectibles world: a painted sky bubble over a forest clearing. A cobbled square holds the
 // opening pedestal at its centre. Facilities share small, uneven forecourts around its edge:
@@ -10,7 +11,7 @@ import { buildForest, forestLayout, marketLayout, POND, swayMaterial, type Keep 
 // off the south-east corner. Paths leave through the gaps; scenery gathers behind the facilities,
 // while showcase figures stand along both the plaza edge and the outer neighbourhoods.
 // The overview is home; the centre holds the opening pedestal and the other destinations are stations.
-export type Station = "shop" | "gallery" | "recycler" | "forge" | "crate" | "wheel" | "mail" | "quests" | "feed" | "fame" | "leaderboard" | "trading" | "pond";
+export type Station = "shop" | "gallery" | "recycler" | "forge" | "crate" | "wheel" | "mail" | "quests" | "feed" | "fame" | "leaderboard" | "trading" | "merchant" | "pond";
 export type WorldView = Station | "overview" | "opening" | "viewer";
 export const isStation = (view: WorldView): view is Station => view !== "overview" && view !== "opening" && view !== "viewer";
 // The cobbled square, and the clearing round it that the woods leave open.
@@ -29,7 +30,7 @@ export const STATION_SPECS: Record<Station, StationSpec> = {
   wheel: { at: [-11.8, -2.8], face: [-5.6, 0], width: 4.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
   trading: { at: [-11.5, 3.4], face: [-5.6, 1.6], width: 5.4, back: -2, front: 2.2, shot: big(4.6) },
   // Daily errands flank the outgoing north path, on the same patch of worn ground.
-  crate: { at: [-3.7, -11.2], face: [-0.8, -4.8], width: 3.1, back: -0.8, front: 1.1, shot: small(3.2, 0.55) },
+  crate: { at: [-3.7, -11.2], face: [-0.8, -4.8], width: 3.1, back: -0.8, front: 1.1, shot: { height: 3.1, distance: 6.6, target: 0.55, fit: 3.2 } },
   quests: { at: [1.6, -11.6], face: [-0.4, -4.8], width: 4.5, back: -0.6, front: 1.3, shot: small(4.8, 1.5) },
   gallery: { at: [6.92, -9.36], face: [3.2, -4.8], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
   mail: { at: [10.6, -6.4], face: [4.8, -3.2], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
@@ -40,6 +41,7 @@ export const STATION_SPECS: Record<Station, StationSpec> = {
   // A working yard off the south-west corner; its two machines face a shared approach.
   recycler: { at: [-8.16, 8.16], face: [-4, 4.8], width: 3.8, back: -1.2, front: 1.4, shot: big(4.6) },
   forge: { at: [-3, 11.4], face: [-2.4, 5.6], width: 3.6, back: -1.2, front: 1.4, shot: big(4.4) },
+  merchant: { at: [6.4, 9.6], face: [3, 4.8], width: 2.8, back: -0.7, front: 1.1, shot: small(3.8, 1.25) },
   // The pond is seen from behind the foot of its dock, over the whole dock to the water beyond.
   pond: { at: [POND.x, POND.z], face: [4, 10], width: 6, back: -3, front: 3, shot: { height: 3.6, distance: 10, target: 0.1, fit: 6, reach: 1.75 } },
 };
@@ -60,7 +62,7 @@ export const PATCHES: [number, number, number][] = [[-9.28, -5.6, 4.5], [-10.88,
 // An inner layer beside the facilities and an outer layer at their gardens and paths. Leave
 // the opening pedestal's middle of the plaza empty. Each visitor looks roughly toward it.
 export const STATUE_SPOTS = ([
-  [-8.2, -4], [-12, 7.4], [-8, 5], [-0.64, 9.6], [7.12, 7.2], [13.1, -0.2], [3.6, -8], [-4.8, -7.5],
+  [-8.2, -4], [-12, 7.4], [-8, 5], [-0.64, 9.6], [8.7, 8.1], [13.1, -0.2], [3.6, -8], [-4.8, -7.5],
   [-6.75, -14.04], [-14.94, -5.49], [-13.14, 9.99], [0.2, 18.5], [12.5, 10.8], [15.5, 5.1], [12.24, -10.35], [5.2, -13.2],
 ] as [number, number][]).map(([x, z], index) => ({ number: index + 1, position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(-x, -z) + Math.sin(index * 2.4) * 0.5 }));
 // Lamp posts along the paths.
@@ -311,7 +313,9 @@ export function viewPose(view: WorldView, framing: number, home: { offset: THREE
   }
   if (!isStation(view)) return { target: home.target.clone(), position: home.offset.clone().multiplyScalar(framing).add(home.target) };
   const { position, rotation } = STATIONS[view], { shot } = STATION_SPECS[view];
-  const offset = new THREE.Vector3(0, shot.height, shot.distance), target = new THREE.Vector3(0, shot.target, 0).add(position);
+  const overlay = isOverlayStation(view);
+  const offset = new THREE.Vector3(0, overlay ? 3.3 : shot.height, shot.distance), target = new THREE.Vector3(0, shot.target, 0).add(position);
   const fit = THREE.MathUtils.clamp(shot.fit / 2 / (Math.tan(THREE.MathUtils.degToRad(18)) * aspect) / offset.length(), framing, Math.max(framing, shot.reach ?? 2.9));
-  return { target, position: offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation).multiplyScalar(fit).add(target) };
+  if (view === "wheel") offset.multiplyScalar(1.3);
+  return { target, position: offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation + (overlay ? 0.12 : 0)).multiplyScalar(fit).add(target) };
 }

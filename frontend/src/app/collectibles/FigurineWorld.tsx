@@ -22,6 +22,11 @@ import type { ActionCue, CastResult, CatchVisual, FacilityAction } from "@/lib/f
 import panelStyles from "./world-panels.module.css";
 import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
 import SoundMenu from "./SoundMenu";
+import { onFigurinePointerExit } from "@/lib/figurine-pointer";
+import { useTradingPost } from "./TradingPost";
+import FacilityOverlay from "./FacilityOverlay";
+import { isOverlayStation } from "@/lib/figurine-facility-views";
+import { communityPreviewReducer, createCommunityPreview } from "@/lib/figurine-community-preview";
 
 const FigurineStage = dynamic(() => import("@/app/tools/figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
@@ -47,6 +52,7 @@ export default function FigurineWorld() {
   const nav = useTranslations("ccg.nav");
   const [view, setView] = useState<WorldView>("overview");
   const [navHover, setNavHover] = useState<Station | "opening" | null>(null);
+  const [communityPreview, dispatchCommunityPreview] = useReducer(communityPreviewReducer, undefined, createCommunityPreview);
   const [seriesId, setSeriesId] = useState(FIGURINE_SERIES[0].id);
   const [state, dispatch] = useReducer(boxReducer, initialBox);
   const paidOpening = useRef(false);
@@ -197,6 +203,8 @@ export default function FigurineWorld() {
   // the series most of them came from; the forge trades three of a kind up a quality.
   const [slots, setSlots] = useState<Record<FigurineMachine, MachineItem[]>>({ recycler: [], forge: [] });
   type MachineRun = { run: number; output: StageMachine["output"]; outcome: MachineOutcome | null };
+  const machineLocks = useRef(new Set<FigurineMachine>());
+  const [runningMachines, setRunningMachines] = useState({ recycler: false, forge: false });
   const [machineRuns, setMachineRuns] = useState<Record<FigurineMachine, MachineRun>>({ recycler: { run: 0, output: null, outcome: null }, forge: { run: 0, output: null, outcome: null } });
   const outcomes = useMemo(() => ({ recycler: machineOutcome("recycler", slots.recycler, collection), forge: machineOutcome("forge", slots.forge, collection) }), [slots, collection]);
   const nameOf = useCallback((key: string) => findFigure(key)?.character.name ?? key, []);
@@ -220,6 +228,10 @@ export default function FigurineWorld() {
   const [pondSheet, setPondSheet] = useState<PondSheet | null>(null);
   const [hoverPart, setHoverPart] = useState<PondPart | null>(null);
   const [buttonPart, setButtonPart] = useState<PondPart | null>(null);
+  useEffect(() => onFigurinePointerExit(() => {
+    setNavHover(null); setPointed(null); setHovered(null);
+    setHoverPart(null); setButtonPart(null);
+  }), []);
   const [result, setResult] = useState<PanelResult | null>(null);
   const busy = !!pending;
   // A prize figure: any figure of a released series, at a rolled quality.
@@ -334,16 +346,20 @@ export default function FigurineWorld() {
   const loadSlots = (kind: FigurineMachine, next: MachineItem[]) => setSlots((current) => ({ ...current, [kind]: next }));
   // A card chosen in the picker. The forge works on three of one kind, so it places all three at once.
   function pickCard(kind: FigurineMachine, item: MachineItem) {
+    if (machineLocks.current.has(kind)) return;
     unlockFigurineAudio();
     const loaded = slots[kind];
     if (kind === "forge") { if (spare(collection, [], item) >= MACHINE_SLOTS) loadSlots(kind, Array.from({ length: MACHINE_SLOTS }, () => item)); }
     else if (loaded.length < MACHINE_SLOTS && spare(collection, loaded, item) > 0) loadSlots(kind, [...loaded, item]);
   }
   function operateMachine(kind: FigurineMachine, pick: MachinePick) {
+    if (machineLocks.current.has(kind)) return;
     unlockFigurineAudio();
     const loaded = slots[kind], outcome = outcomes[kind], load = (next: MachineItem[]) => loadSlots(kind, next);
     if (pick.kind === "slot") load(kind === "forge" ? [] : loaded.filter((_, index) => index !== pick.index));
     else if ((outcome.kind === "box" || outcome.kind === "upgrade") && changeCollection(machineChanges(loaded, outcome))) {
+      machineLocks.current.add(kind);
+      setRunningMachines(current => ({ ...current, [kind]: true }));
       if (outcome.kind === "upgrade") recordPull({ key: outcome.key, quality: outcome.quality }, "forge"); else recordRecycle();
       setMachineRuns((current) => ({ ...current, [kind]: {
         run: current[kind].run + 1, outcome,
@@ -353,6 +369,8 @@ export default function FigurineWorld() {
     }
   }
   function machineDone(kind: FigurineMachine) {
+    machineLocks.current.delete(kind);
+    setRunningMachines(current => ({ ...current, [kind]: false }));
     const made = machineRuns[kind].outcome;
     if (viewRef.current !== kind || !made) return;
     if (made.kind === "box") pickSeries(made.series);
@@ -430,11 +448,15 @@ export default function FigurineWorld() {
   // The collection lists released series, a secret one once found, then the announced ones.
   const panelSeries: PanelSeries[] = useMemo(() => [...collectionShelves(world.series, collection).filter((entry) => entry.released), ...world.series.filter((entry) => !entry.hidden && !entry.released)]
     .map(({ id, number, released, hidden, keys }) => ({ id, number, released, hidden, keys })), [world.series, collection]);
+  const trading = useTradingPost(now);
   const machineKind = isMachine(view) ? view : null;
   const machinePanel = machineKind ? {
     kind: machineKind, slots: slots[machineKind],
     groups: trayGroups(collection, CATALOG_ORDER, machineKind).map((group) => ({ key: group.key, quality: group.quality, spare: machineKind === "forge" ? group.count : spare(collection, slots[machineKind], group) })),
-    onPick: (item: MachineItem) => pickCard(machineKind, item), onClear: () => loadSlots(machineKind, []),
+    onPick: (item: MachineItem) => pickCard(machineKind, item), onClear: () => { if (!machineLocks.current.has(machineKind)) loadSlots(machineKind, []); },
+    onRemove: (index: number) => operateMachine(machineKind, { kind: "slot", index }),
+    onRun: () => operateMachine(machineKind, { kind: "trigger" }),
+    outcome: outcomes[machineKind], busy: runningMachines[machineKind],
   } : undefined;
   const boxCount = series?.characters.length ?? 16;
   const packaging = useMemo(() => ({ blind: t("boxBlind"), collect: t("boxCollect", { count: boxCount }), contents: t("boxContents"), openHere: t("boxOpenHere") }), [t, boxCount]);
@@ -475,8 +497,9 @@ export default function FigurineWorld() {
     {view === "overview" && revealedWorld && <OverviewHud onNavigate={navigate} onHover={setNavHover} hovered={pointed} />}
     {revealedWorld && view !== "overview" && view !== "pond" && view !== "crate" && <OverviewBack onBack={back} disabled={state.phase === "loading" || state.phase === "opening"} />}
     {view === "crate" && revealedWorld && <ChestHud ready={crate.ready} day={crate.day} busy={busy} result={result?.station === "crate" ? result : null} onOpen={openDailyChest} onDismiss={dismissChest} onBack={() => { if (result?.station === "crate") dismissChest(); back(); }} />}
-    {isStation(view) && view !== "shop" && view !== "pond" && view !== "crate" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back} actions={panelActions}
-      onInspect={(key, finish) => inspect(key, finish)} machine={machinePanel}
+    {revealedWorld && isOverlayStation(view) && <FacilityOverlay machine={machinePanel} trading={trading} view={view} collection={collection} records={records} series={panelSeries} actions={panelActions} preview={communityPreview} dispatch={dispatchCommunityPreview} onClose={back} />}
+    {isStation(view) && !isOverlayStation(view) && view !== "shop" && view !== "pond" && view !== "crate" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back}
+      onInspect={(key, finish) => inspect(key, finish)}
       onFavorite={(item) => { unlockFigurineAudio(); toggleFavorite(item); }} onMoveFavorite={(key, to) => moveFavorite(key, to)} onFavoriteQuality={(key, finish) => setFavoriteQuality(key, finish)} />}
     <div className={styles.worldLoader} data-done={revealedWorld} role="status" aria-hidden={revealedWorld}>
       <span>{t("worldPreparing")}</span>

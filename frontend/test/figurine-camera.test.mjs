@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { isOverlayStation } from "../src/lib/figurine-facility-views.ts";
 
 // Exercise the stage's actual director without starting React or a WebGL renderer.
 const source = await readFile(new URL("../src/app/tools/figurine-lab/FigurineStage.tsx", import.meta.url), "utf8");
@@ -17,13 +18,13 @@ function cameraState(view, idle, reduced = false, width = 1200) {
   const pose = { position: new THREE.Vector3(8, 4, 12), target: new THREE.Vector3(8, 1, 3) };
   const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
   return vm.createContext({
-    THREE, active: false, orbitOffset: null, build: { zoom: 1 }, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer",
+    THREE, isOverlayStation, active: false, orbitOffset: null, build: { zoom: 1 }, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer",
     homeOffset: new THREE.Vector3(0.6, 2.1, 9.6), homeTarget: new THREE.Vector3(0, 1.5, 0),
     OVERVIEW_DISTANCE: { min: 13, initial: 17, max: 19 },
     shotAspect: () => 1, viewPose: () => ({ position: pose.position.clone(), target: pose.target.clone() }),
     look, lookTarget: { ...look }, screen: new THREE.Vector3(), velocity: new THREE.Vector3(), Y_AXIS: new THREE.Vector3(0, 1, 0),
     renderer: { domElement: { clientWidth: width, clientHeight: 800 } }, PANEL_SHEET_WIDTH: 700, panelShare: () => 0.3,
-    panelled: view => view !== "opening" && view !== "viewer" && view !== "shop" && view !== "pond" && view !== "crate",
+    panelled: view => view === "gallery",
     camera: new THREE.PerspectiveCamera(36, width / 800), controls: { target: new THREE.Vector3() },
     flightFrom: new THREE.Spherical(), flightTo: new THREE.Spherical(),
     flight: { from: new THREE.Vector3(0, 3, 9), fromTarget: new THREE.Vector3(0, 1.5, 0), t: 1 },
@@ -33,7 +34,7 @@ function cameraState(view, idle, reduced = false, width = 1200) {
 }
 
 test("facility flight and settled view meet at the same camera pose", () => {
-  for (const view of ["shop", "gallery", "recycler", "forge", "crate", "wheel", "mail", "quests", "feed", "fame", "leaderboard", "trading", "pond"]) for (const width of [600, 1200]) for (const idle of [2, 17, 100]) {
+  for (const view of ["shop", "gallery", "recycler", "forge", "crate", "wheel", "mail", "quests", "feed", "fame", "leaderboard", "trading", "merchant", "pond"]) for (const width of [600, 1200]) for (const idle of [2, 17, 100]) {
     const state = cameraState(view, idle, false, width);
     step.runInContext(state);
     assert.equal(state.flight, null);

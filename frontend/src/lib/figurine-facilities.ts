@@ -14,7 +14,7 @@ import { coinCollectionFlight } from "@/lib/figurine-coin-flight";
 // props, some round a hand-built centrepiece, standing in the world unsigned: a mailbox is just a
 // mailbox until you tap it. Every one is a station: tap it and the camera goes there, and its panel
 // opens in the page. Local space: the station faces +z (toward the plaza), x runs along its front.
-export type Facility = "gallery" | "crate" | "wheel" | "mail" | "quests" | "feed" | "fame" | "leaderboard" | "trading" | "pond";
+export type Facility = "gallery" | "crate" | "wheel" | "mail" | "quests" | "feed" | "fame" | "leaderboard" | "trading" | "merchant" | "pond";
 // What a facility can act out when its panel asks: the wheel spins to a segment, the crate bursts
 // open, the pond casts a line with `catch` on the end of it. Cues mark moments worth a sound (and,
 // at the pond, what the line is doing); `done` ends the action, the pond's with how it went.
@@ -310,6 +310,13 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     prop("obelisk", 3.1, 0, -0.85, -Math.PI / 2);
     prop("plaqueSilver", 0.5, -1.15, 0.8, -Math.PI / 2 + 0.3);
     prop("plaqueBronze", 0.45, 1.15, 0.8, -Math.PI / 2 - 0.3);
+  } else if (kind === "merchant") {
+    // A compact daily-deals stall, with a gilded goblin sign and three display pads.
+    prop("counter", 0.75, 0, 0);
+    prop("goblinStatue", 1.05, 0, -0.35, -Math.PI / 2, 0.75);
+    for (const x of [-0.85, 0, 0.85]) {
+      frame.push(add(new THREE.CylinderGeometry(0.28, 0.32, 0.08, 24), gold, x, 0.8, 0.48));
+    }
   } else if (kind === "trading") {
     // Trading post: a shop counter with a gnomish postbox beside it for the parcels.
     prop("counter", 1.05, 0, 0.1);

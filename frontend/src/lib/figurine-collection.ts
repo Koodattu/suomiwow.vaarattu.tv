@@ -341,6 +341,24 @@ export function spendCoin(store: Store | null = sessionStore()) {
   return true;
 }
 
+// Validate both sides before changing the local wallet or collection. Listings are mock data;
+// the caller also claims each listing once for this page session.
+export function exchangeTrade(give: import("./figurine-trading").TradeAsset, receive: import("./figurine-trading").TradeAsset, store: Store | null = sessionStore()): boolean {
+  const valid = (asset: typeof give) => asset.kind === "coins" ? Number.isSafeInteger(asset.amount) && asset.amount > 0
+    : isQuality(asset.quality) && /^[a-z0-9-]+:[a-z0-9-]+$/.test(asset.key);
+  if (!valid(give) || !valid(receive)) return false;
+  const records = readRecords(store), collection = readCollection(store);
+  if (give.kind === "coins" ? records.boons.coins < give.amount : !(collection[give.key]?.[give.quality])) return false;
+  const balance = records.boons.coins - (give.kind === "coins" ? give.amount : 0) + (receive.kind === "coins" ? receive.amount : 0);
+  if (!Number.isSafeInteger(balance)) return false;
+  const changes: CollectionChange[] = [];
+  if (give.kind === "figure") changes.push({ ...give, delta: -1 });
+  if (receive.kind === "figure") changes.push({ ...receive, delta: 1 });
+  if (changes.length && !changeCollection(changes, store)) return false;
+  writeRecords({ ...records, boons: { ...records.boons, coins: balance } }, store);
+  return true;
+}
+
 // The daily crate: once a day, a coin; days in a row build a streak to seven, whose crate also
 // guarantees a golden roll, and then it starts over. A missed day starts it over too.
 export function crateState({ daily }: FigurineRecords, now = new Date()) {

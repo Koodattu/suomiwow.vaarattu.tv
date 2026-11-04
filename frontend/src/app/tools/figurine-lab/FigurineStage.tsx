@@ -26,6 +26,8 @@ import { FINISH_TIME, applyFinish, releaseFinishes } from "@/lib/figurine-finish
 import { type FigurineCollection, type FigurineMachine, type FigurineQuality } from "@/lib/figurine-collection";
 import { buildPedestal, PEDESTAL_TOP } from "@/lib/figurine-pedestal";
 import { hoverOutline } from "@/lib/figurine-glow";
+import { onFigurinePointerExit } from "@/lib/figurine-pointer";
+import { isOverlayStation } from "@/lib/figurine-facility-views";
 import { isVisibleHit, pickFacilityPart } from "@/lib/figurine-picking";
 import { uploadFigurineTextures, warmFigurineScene } from "@/lib/figurine-warmup";
 import { createFigurineResourceCache, disposeFigurineObject as disposeObject, figurineResourceBytes } from "@/lib/figurine-cache";
@@ -264,7 +266,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const groups = Object.fromEntries((Object.keys(STATIONS) as Station[]).map((name) => [name, immersive ? placeStation(scene, name) : null])) as Record<Station, THREE.Group | null>;
     const shopGroup = groups.shop;
     const machineGroups: Record<FigurineMachine, THREE.Group | null> = { recycler: groups.recycler, forge: groups.forge };
-    const FACILITIES: Facility[] = ["gallery", "crate", "wheel", "mail", "quests", "feed", "fame", "leaderboard", "trading", "pond"];
+    const FACILITIES: Facility[] = ["gallery", "crate", "wheel", "mail", "quests", "feed", "fame", "leaderboard", "trading", "merchant", "pond"];
     const accentOf = (entry: StageSeries) => paletteOf(entry).glow;
     const publicSeries = worldSetup?.series.filter((entry) => !entry.hidden) ?? [];
     const shop = shopGroup && worldSetup?.series.length ? buildShop(shopGroup, {
@@ -949,7 +951,14 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       else { peelTarget = 0; if (peel > 0.05) released = -1; }
     };
     const clearPartHover = () => { hoveredPart = null; callbacks.current.onHoverPart?.(null); };
-    const onPointerLeave = () => { hovering = hoverTape = false; press = null; hoveredSeries = null; hoveredStation = null; hoveredMachine = null; clearPartHover(); if (!grab) renderer.domElement.style.cursor = ""; };
+    const onPointerLeave = () => {
+      hovering = hoverTape = false; press = null;
+      hoveredSeries = null; hoveredStation = null; hoveredMachine = null;
+      callbacks.current.onHoverStation?.(null); callbacks.current.onHoverFigure?.(null);
+      clearPartHover();
+      if (!grab) renderer.domElement.style.cursor = "";
+    };
+    const stopPointerExit = onFigurinePointerExit(onPointerLeave);
     renderer.domElement.addEventListener("pointerdown", onPointerDown, { capture: true });
     renderer.domElement.addEventListener("pointerup", letGo);
     renderer.domElement.addEventListener("pointercancel", letGo);
@@ -960,7 +969,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // The station panel's size (world-panels.module.css): docked right, or a bottom sheet below this width.
     const PANEL_SHEET_WIDTH = 700;
     // The shop, pond and chest use the full scene with controls over the world.
-    const panelled = (view: WorldView) => isStation(view) && view !== "shop" && view !== "pond" && view !== "crate";
+    const panelled = (view: WorldView) => view === "gallery";
     // The share of the screen a docked panel covers on wide screens.
     const panelShare = (view: WorldView) => { const width = renderer.domElement.clientWidth; return panelled(view) && width > PANEL_SHEET_WIDTH ? Math.min(state.current.panelWidth + 16, width * 0.7) / width : 0; };
     // A station is framed to fit beside its panel, not behind it.
@@ -1247,9 +1256,14 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         destination.position.copy(destination.target).add(offset);
         const across = screen.set(offset.z, 0, -offset.x).normalize().multiplyScalar(look.panX);
         destination.target.add(across).y += look.panY; destination.position.add(across).y += look.panY;
-        // Stations with a panel slide aside so the panel never covers them: left of a panel
-        // docked right on wide screens, above the sheet on narrow ones.
-        if (panelled(currentView)) {
+        // Centered overlays keep the station slightly off-center as a backdrop. The wheel
+        // sits above its controls so its real spin stays visible on desktop and mobile.
+        if (isOverlayStation(currentView)) {
+          const visibleH = 2 * offset.length() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+          const side = screen.set(offset.z, 0, -offset.x).normalize().multiplyScalar(currentView === "wheel" ? 0 : visibleH * camera.aspect * 0.16);
+          const lift = currentView === "wheel" ? visibleH * 0.26 : visibleH * 0.08;
+          destination.target.add(side).y -= lift; destination.position.add(side).y -= lift;
+        } else if (panelled(currentView)) {
           const element = renderer.domElement, visibleH = 2 * offset.length() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
           if (element.clientWidth > PANEL_SHEET_WIDTH) {
             const side = screen.set(offset.z, 0, -offset.x).normalize().multiplyScalar(panelShare(currentView) / 2 * visibleH * camera.aspect);
@@ -1352,6 +1366,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     return () => {
       disposed = true; generation++; loaderState.current = null; stopHum(); scenery?.dispose(); studio.dispose(); ktx2Loader.dispose();
       peelSound?.stop();
+      stopPointerExit();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown, { capture: true }); renderer.domElement.removeEventListener("pointerup", letGo);
       renderer.domElement.removeEventListener("pointercancel", letGo);
       renderer.domElement.removeEventListener("pointermove", onPointerMove); renderer.domElement.removeEventListener("pointerleave", onPointerLeave); renderer.domElement.removeEventListener("wheel", onWheel);

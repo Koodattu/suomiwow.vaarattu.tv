@@ -18,6 +18,16 @@ const { buildForest, forestLayout, groveLayout, marketLayout, POND, SECRET_BARRE
 
 const PLAZA = PLAZA_RADIUS;
 const stations = Object.entries(STATIONS);
+test("overlay facilities use elevated shots while the fishing camera is unchanged", () => {
+  const home = { offset: new THREE.Vector3(0, 2, 9), target: new THREE.Vector3(0, 1.5, 0) };
+  for (const view of ["recycler", "forge", "crate", "merchant", "quests", "wheel", "trading", "mail", "feed", "fame", "leaderboard"]) {
+    const shot = viewPose(view, 1, home), offset = shot.position.clone().sub(shot.target);
+    const angle = Math.atan2(offset.y, Math.hypot(offset.x, offset.z));
+    assert.ok(angle > 0.4 && angle < 0.6, `${view} should look gently down at its facility`);
+  }
+  const pond = viewPose("pond", 1, home), offset = pond.position.clone().sub(pond.target);
+  assert.ok(Math.abs(offset.y / Math.hypot(offset.x, offset.z) - 0.36) < 1e-9);
+});
 test("camera travel keeps scenery instances and facility visibility stable", async t => {
   const stage = await readFile(new URL("../src/app/tools/figurine-lab/FigurineStage.tsx", import.meta.url), "utf8");
   const facilitiesStart = stage.indexOf("        // Viewer: the chosen figure");
@@ -86,7 +96,7 @@ const inside = (name, point, margin = 0) => {
 };
 
 test("all facilities stay within a few steps of the plaza in neighbouring groups", () => {
-  assert.equal(stations.length, 13);
+  assert.equal(stations.length, 14);
   for (const [name, { position }] of stations) {
     assert.ok(position.length() - COBBLE_RADIUS < (name === "pond" ? 8 : 1.5), `${name} is too far from the plaza edge`);
   }
