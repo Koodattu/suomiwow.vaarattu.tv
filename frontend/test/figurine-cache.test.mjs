@@ -26,6 +26,20 @@ test("an incomplete download is not cached as ready and can be retried", async (
   assert.equal(downloads, 2);
 });
 
+test("compressed files stay within a byte budget even as a 320-figure catalog is visited", async (t) => {
+  const downloads = [];
+  t.mock.method(globalThis, "fetch", async (url) => { downloads.push(url); return new Response(new Uint8Array(3)); });
+  const cache = createFigurineFileCache(6); t.after(() => cache.dispose());
+  for (let i = 0; i < 320; i++) await cache.get(`/figure-${i}.glb`, 3);
+  const count = downloads.length;
+  await cache.get("/figure-318.glb", 3); await cache.get("/figure-319.glb", 3);
+  assert.equal(downloads.length, count, "recent selections stay cached");
+  await cache.get("/figure-0.glb", 3);
+  assert.equal(downloads.length, count + 1, "old files are evicted instead of retaining the full catalog");
+  await cache.get("/figure-318.glb", 3);
+  assert.equal(downloads.length, count + 2, "least recently read entry is evicted");
+});
+
 test("leaving the page aborts outstanding model downloads", async (t) => {
   t.mock.method(globalThis, "fetch", (_url, { signal }) => new Promise((_resolve, reject) => {
     signal.addEventListener("abort", () => reject(signal.reason), { once: true });

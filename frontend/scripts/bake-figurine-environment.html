@@ -1,0 +1,14 @@
+<!doctype html><title>Bake studio reflections</title>
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+const renderer=new THREE.WebGLRenderer(),scene=new RoomEnvironment(),generator=new THREE.PMREMGenerator(renderer);
+const target=generator.fromScene(scene,.04),pixels=new Uint16Array(target.width*target.height*4);
+renderer.readRenderTargetPixels(target,0,0,target.width,target.height,pixels);
+const bytes=new Uint8Array(pixels.buffer);let binary='';
+for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+const response=await fetch('/results',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({width:target.width,height:target.height,version:THREE.REVISION,pixels:btoa(binary)})});
+document.body.textContent=`Saved ${await response.text()}`;
+scene.dispose();generator.dispose();target.dispose();renderer.dispose();
+</script>

@@ -2,8 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { boxReducer, chooseFigure, initialBox } from "../src/lib/figurine-box.ts";
+import { boxReducer, chooseFigure, createFigurineDrawQueue, initialBox } from "../src/lib/figurine-box.ts";
 import { CHARGE_CUES, CHARGE_SECONDS, ENTRANCE_SECONDS, KNOCK_TIMES, LAND_AT, REVEAL_CUES, REVEAL_SECONDS, cuesBetween, figurineCharge, figurineEntrance, figurineReveal } from "../src/lib/figurine-reveal.ts";
+
+test("next-draw prediction stays stable across renders, switching series, and round advancement", () => {
+  const rolls = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]; let calls = 0;
+  const queue = createFigurineDrawQueue(() => rolls[calls++]);
+  const first = queue.current("a", 0, 16);
+  assert.deepEqual(first, { index: 1, qualityRoll: 0.2 });
+  assert.equal(queue.current("a", 0, 16), first);
+  const next = queue.next("a", 16);
+  assert.deepEqual(next, { index: 4, qualityRoll: 0.4 });
+  assert.equal(queue.next("a", 16), next);
+  queue.current("b", 0, 16);
+  assert.equal(queue.current("a", 0, 16), first);
+  assert.equal(queue.current("a", 1, 16), next, "the prefetched figure must be the awarded next draw");
+  assert.equal(calls, 6, "neither rerenders nor the next round reroll reserved outcomes");
+});
 
 test("the reveal bursts the box, lifts the figure, and lands exactly on the disc", () => {
   const burst = figurineReveal(0);

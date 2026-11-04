@@ -46,25 +46,36 @@ export function figurineResourceBytes(root: THREE.Object3D) {
 }
 
 /** A page-owned download cache. Rejected requests can be retried; concurrent readers share one request. */
-export function createFigurineFileCache() {
-  const files = new Map<string, Promise<File>>();
+export function createFigurineFileCache(budget = 32 * 1024 * 1024) {
+  const files = new Map<string, { promise: Promise<File>; bytes: number }>();
   const controller = new AbortController();
+  let resident = 0;
   return {
-    get(url: string, bytes: number): Promise<File> {
+    get(url: string, bytes?: number): Promise<File> {
       const cached = files.get(url);
-      if (cached) return cached;
-      const pending = (async () => {
-        const response = await fetch(url, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) });
+      if (cached) { files.delete(url); files.set(url, cached); return cached.promise; }
+      const pending = fetch(url, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) }).then(async (response) => {
         if (!response.ok) throw new Error("Model unavailable");
         const blob = await response.blob();
-        if (blob.size !== bytes) throw new Error("Incomplete model");
-        return new File([blob], "collectible.glb");
-      })();
-      files.set(url, pending);
-      void pending.catch(() => { if (files.get(url) === pending) files.delete(url); });
+        if (bytes !== undefined && blob.size !== bytes) throw new Error("Incomplete model");
+        const file = new File([blob], "collectible.glb");
+        if (!controller.signal.aborted) {
+          entry.bytes = file.size; resident += file.size;
+          // Pending readers keep their Promise/File even if this entry is evicted.
+          for (const [key, candidate] of files) {
+            if (resident <= budget) break;
+            if (!candidate.bytes) continue;
+            resident -= candidate.bytes; files.delete(key);
+          }
+        }
+        return file;
+      });
+      const entry = { promise: pending, bytes: 0 };
+      files.set(url, entry);
+      void pending.catch(() => { if (files.get(url) === entry) files.delete(url); });
       return pending;
     },
-    dispose() { controller.abort(); files.clear(); },
+    dispose() { controller.abort(); files.clear(); resident = 0; },
   };
 }
 

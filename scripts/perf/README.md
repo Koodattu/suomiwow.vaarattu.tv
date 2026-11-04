@@ -28,9 +28,13 @@ separately from timing comparisons because profiling adds overhead.
 
 For a controlled cold download, use `--runs 1 --mbps 20 --latency 40`. For a local
 functional regression check, use `--runs 1 --check-startup`: this holds an optional
-sound request, fails the cloud/cobblestone images to exercise their fallbacks,
-asserts that only the selected figure is required at entry, and opens the first box
-through the normal keyboard control, checking its award and visible identity.
+sound request, leaves cloud/cobblestone requests stalled to exercise their deadlines,
+and fails the baked reflection request to exercise runtime lighting fallback.
+It checks the coin icon, idle model count, and two openings through normal keyboard
+controls, including that the second award matches the prefetched model.
+`--runs 1 --check-showcase` seeds two saved display figures in the isolated browser,
+checks that only those plus the current draw download, then switches to and opens
+another series using its on-demand close-up box.
 Keep these fault-injection checks separate from normal timing comparisons.
 
 ### 2026-11-04 measurements
@@ -63,9 +67,52 @@ four texture decoder workers, and reports completed GPU preparation stages.
 First-figure preparation and hidden warmup draws remain in the loading boundary.
 The remaining GPU setup still costs time even when HTTP downloads are cached.
 
-A coin image returned HTTP 400 in both the baseline and updated production build,
-and on the live site; it is unrelated to this loading change. The live anonymous
+A coin image returned HTTP 400 in both the baseline and first updated production build,
+and on the live site; the follow-up below fixes it. The live anonymous
 auth check also returned its expected HTTP 401. No backend was started or deployed.
+
+### Follow-up: selective assets, compressed boxes and baked studio
+
+Same machine, browser settings and readiness boundary; frontend only. The previous
+column is the first optimization above. Warm values are medians of three reloads;
+cold values remain single samples and should be treated as estimates.
+
+| Production workload | Previous | Follow-up |
+| --- | ---: | ---: |
+| Warm reload median | 1.78 s | 1.09 s |
+| Warm reload observed range | 1.75–1.78 s | 1.05–1.10 s |
+| Cold, unthrottled | 3.80 s | 2.63 s |
+| Cold, 20 Mbps / 40 ms | 14.39 s | 8.26 s |
+| Transferred before entry, cold | 30.27 MB | 15.35 MB |
+| Box texture payload at entry | 21.65 MB | 5.52 MB |
+| Figure downloads while idle after entry | Entire catalog | Current draw only |
+
+Development measured 3.20 s cold and 1.52 s warm median (1.49–1.54 s), with
+16.81 MB transferred cold. Keep development and production results separate.
+The three-second camera introduction is unchanged and excluded from these numbers.
+
+Close-up boxes now load only when selected, and all 58 unique close-up textures
+were recompressed from original PNGs using UASTC RDO 0.5 / Zstd 18. Their combined
+size fell 30.2%, from 51.49 to 35.93 MB, keeping the same resolution and mipmaps.
+An original-versus-new GPU-rendered artwork comparison measured 51.3 dB front /
+52.6 dB back PSNR at 1024 pixels; visually reviewed text remained crisp. This is
+controlled lossy compression, not a claim that every pixel is identical.
+
+The fixed studio reflection bake is lossless (1.19 MB), and its comparison had
+zero differing raw or rendered pixels on the test GPU. Profiling before this
+change attributed roughly 0.47 s to its runtime generation. The production
+coin uses a static hashed import, avoiding the rejected query-string image URL.
+
+Normal benchmarks reported no HTTP failures or page errors. The image deadline,
+reflection fallback, current/next draw, saved display, and series-switch scenarios
+are separately exercised with the functional commands above. Cache unit coverage
+visits 320 model URLs and checks bounded retention; this is not a benchmark with
+320 fully authored figures or 20 distinct released box designs.
+
+Local reports/screenshots: `.codex-runtime/loading-v2-{prod,prod-slow,dev}.json`;
+functional reports use `-check` and `-showcase`. Texture and reflection comparison
+artifacts are in `.codex-runtime/box-compression-v2/`. GPU-specific performance on
+mobile devices has not been measured.
 
 ## Browser Home Page Benchmark
 

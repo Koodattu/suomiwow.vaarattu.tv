@@ -5,7 +5,8 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
+import { boxReducer, chooseFigure, createFigurineDrawQueue, initialBox } from "@/lib/figurine-box";
+import coinImage from "../../../public/figurines/world/coin.webp";
 import { createFigurineFileCache } from "@/lib/figurine-cache";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { MACHINE_SLOTS, addToCollection, boostedQuality, claimQuest, crateReward, crateState, dailyCatchesLeft, dayKey, fishOf, grantReward, landCatch, moveFavorite, openCrate, rollCatch, setFavoriteQuality, showcaseOf, spendBoost, regenerateCoins, spendCoin, spinWheel, startQuestPeriods, toggleFavorite, type CatchRoll, type PullSource, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
@@ -37,6 +38,7 @@ const catalogueWidth = (viewport: number) => Math.min(900, viewport * 0.6);
 const isMachine = (view: WorldView): view is FigurineMachine => view === "recycler" || view === "forge";
 // Every series in shop order: released ones first, then the announced ones.
 const ALL_SERIES = [...FIGURINE_SERIES.map((entry) => entry.id), ...UPCOMING_SERIES.map((entry) => entry.id)];
+const FIGURE_BYTES = new Map(RELEASED_SERIES.flatMap((entry) => entry.characters.map((character) => [character.model, character.bytes] as const)));
 const CATALOG_ORDER = RELEASED_SERIES.flatMap((entry) => entry.characters.map((character) => figureKey(entry.id, character.id)));
 const seriesNumber = (id: string) => [...FIGURINE_SERIES, ...UPCOMING_SERIES, SECRET_SERIES].find((entry) => entry.id === id)?.number ?? 0;
 
@@ -90,10 +92,14 @@ export default function FigurineWorld() {
   // The figure inside each sealed box (and its finish) is drawn as the box arrives and preloaded
   // while it waits, so opening never stalls on a download or parse.
   const [draw, setDraw] = useState<{ series: string; round: number; index: number; quality: FigurineQuality } | null>(null);
+  const [drawQueue] = useState(createFigurineDrawQueue);
   useEffect(() => {
     const drawing = RELEASED_SERIES.find((entry) => entry.id === seriesId);
-    if (state.phase === "sealed" && drawing) setDraw((current) => current?.series === seriesId && current.round === state.round ? current : { series: seriesId, round: state.round, index: chooseFigure(drawing.characters.length, Math.random()), quality: boostedQuality(rollQuality(Math.random()), readRecords().boons.boost) });
-  }, [seriesId, state.round, state.phase]);
+    if (state.phase === "sealed" && drawing) {
+      const next = drawQueue.current(seriesId, state.round, drawing.characters.length);
+      setDraw((current) => current?.series === seriesId && current.round === state.round ? current : { series: seriesId, round: state.round, index: next.index, quality: boostedQuality(rollQuality(next.qualityRoll), readRecords().boons.boost) });
+    }
+  }, [seriesId, state.round, state.phase, drawQueue]);
   const currentDraw = series && draw?.series === seriesId && draw.round === state.round ? draw : null;
   const sealedDraw = currentDraw?.index ?? null;
   const drawn = series && state.selected !== null ? series.characters[state.selected] : null;
@@ -103,27 +109,20 @@ export default function FigurineWorld() {
   const quality: FigurineQuality = view === "viewer" ? inspected?.quality ?? "standard" : currentDraw?.quality ?? "standard";
   const [model, setModel] = useState<"idle" | "loading" | "ready" | "failed">("idle");
   const [refetch, setRefetch] = useState(0);
-  // The selected figure loads first. Warm the rest of the compressed catalog after entry,
-  // so those downloads cannot compete with the scenery or hold the loading screen open.
+  // Shared, bounded compressed-file cache for the selected figure, next draw and display models.
   const fetched = useRef<ReturnType<typeof createFigurineFileCache> | null>(null);
-  useEffect(() => {
-    const cache = createFigurineFileCache(); fetched.current = cache;
-    return () => { cache.dispose(); if (fetched.current === cache) fetched.current = null; };
+  // Child scene effects can request saved display figures before this component's effects run.
+  const loadFigureFile = useCallback((url: string, bytes?: number) => {
+    fetched.current ??= createFigurineFileCache();
+    return fetched.current.get(url, bytes ?? FIGURE_BYTES.get(url));
   }, []);
+  useEffect(() => () => { fetched.current?.dispose(); fetched.current = null; }, []);
   useEffect(() => {
-    if (!revealedWorld || webglUnavailable) return;
-    const cache = fetched.current!;
-    const characters = RELEASED_SERIES.flatMap((entry) => entry.characters);
-    let next = 0, cancelled = false;
-    const worker = async () => {
-      while (!cancelled && next < characters.length) {
-        const character = characters[next++];
-        try { await cache.get(character.model, character.bytes); } catch { /* Selection retries failed downloads. */ }
-      }
-    };
-    void Promise.all(Array.from({ length: 4 }, worker));
-    return () => { cancelled = true; };
-  }, [revealedWorld, webglUnavailable]);
+    if (state.phase !== "opening" || !series || webglUnavailable) return;
+    const next = drawQueue.next(series.id, series.characters.length);
+    const character = series.characters[next.index];
+    void loadFigureFile(character.model, character.bytes).catch(() => { /* Selection retries. */ });
+  }, [state.phase, series, drawQueue, webglUnavailable, loadFigureFile]);
   useEffect(() => {
     if (!wanted) { setFiles([]); setFilesFor(null); setModel("idle"); return; }
     let cancelled = false;
@@ -131,13 +130,13 @@ export default function FigurineWorld() {
     const fail = () => { setModel("failed"); if (viewRef.current !== "viewer") dispatch({ type: "failed" }); };
     void (async () => {
       try {
-        const file = await fetched.current!.get(wanted.model, wanted.bytes);
+        const file = await loadFigureFile(wanted.model, wanted.bytes);
         if (cancelled) return;
         setFiles([file]); setFilesFor(wanted.model);
       } catch { if (!cancelled) fail(); }
     })();
     return () => { cancelled = true; };
-  }, [wanted, state.round, refetch]);
+  }, [wanted, state.round, refetch, loadFigureFile]);
 
   // Entry still waits for the scenery and first figure's GPU preparation. Optional
   // sounds preload concurrently, but a slow sound request must never block play.
@@ -448,10 +447,10 @@ export default function FigurineWorld() {
     </Link>
     <SoundMenu />
     {revealedWorld && <div className={styles.coinBalance} role="status" title={t("coinsHelp")}>
-      <Image ref={coinIcon} src="/figurines/world/coin.webp?v=4" width={48} height={48} alt="" />
+      <Image ref={coinIcon} src={coinImage} width={48} height={48} alt="" />
       <span><b>{records.boons.coins}</b><small>{t("coinsLabel")}</small></span>
     </div>}
-    <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
+    <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} loadFigureFile={loadFigureFile} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
       interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series || records.boons.coins < 1} round={state.round} onBoxTap={open} rotate={view === "overview" || view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
       machines={machines} onMachine={operateMachine} onMachineDone={machineDone} onIntroDone={() => setIntroDone(true)} onHoverStation={setPointed} action={facilityAction} onActionDone={actionDone} onActionCue={actionCue} poke={poke} panelWidth={panelWidth}

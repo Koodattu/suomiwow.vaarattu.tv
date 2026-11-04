@@ -9,7 +9,7 @@ import { boxTextureCache } from "@/lib/figurine-box-assets";
 import { unreleasedBoxDesign } from "@/lib/figurine-packaging";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { loadFigurineEnvironment } from "@/lib/figurine-environment";
 import { resolveModelResource } from "@/lib/figurine-lab";
 import { CHARGE_CUES, CHARGE_SECONDS, ENTRANCE_CUES, HITSTOP_SECONDS, LAND_AT, REVEAL_CUES, cuesBetween, figurineCharge, figurineEntrance, figurineReveal, type FigurineCue } from "@/lib/figurine-reveal";
 import { playFigurineCue, startFigurineLoop, unlockFigurineAudio } from "@/lib/figurine-audio";
@@ -88,7 +88,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, onHoverPart, highlightedPart = null, highlightedStation = null, coinTarget, panelWidth = 420 }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, loadFigureFile, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone, onActionCue, poke, onFacilityPart, onHoverPart, highlightedPart = null, highlightedStation = null, coinTarget, panelWidth = 420 }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -117,7 +117,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onBoxTap?: () => void;
   onStatus?: (status: "loading" | "ready" | "empty" | "error" | "webgl") => void;
   onRevealed?: () => void;
-  // World mode: start-up loading (scenery, station props, every series' box, shaders).
+  // World mode: start-up loading (scenery, station props, selected box, shaders).
   onLoaded?: () => void;
   onProgress?: (fraction: number) => void;
   // Bumped each time a series is picked: the box drops onto the pedestal again once the camera arrives.
@@ -126,6 +126,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   // loaded model only when they match, never the box's figure while another one loads.
   filesFor?: string | null;
   showing?: string | null;
+  loadFigureFile?: (url: string) => Promise<File>;
   // World mode: false while the start-up loader covers the scene; the opening shot waits for it.
   ready?: boolean;
   immersive?: boolean;
@@ -174,6 +175,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
+  const loadFigureFileRef = useRef(loadFigureFile);
+  loadFigureFileRef.current = loadFigureFile;
   useEffect(() => { filesRef.current = files; loaderState.current?.load(files); }, [files, quality]);
 
   useEffect(() => {
@@ -243,8 +246,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // The box rests just on the pedestal top; its idle float only ever lifts it.
     const width = 2.05, depth = 1.8, height = 2.75, bottom = PEDESTAL_TOP + 0.003;
     // Neutral studio reflections for the foil and holographic seal only, so figure lighting is unchanged.
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; pmrem.dispose();
+    const studio = loadFigurineEnvironment(renderer), environment = studio.texture;
     const sharedTextures = new Set([environment]);
     const boxTextures = boxTextureCache(ktx2Loader, sharedTextures);
     const pedestal = buildPedestal(scene, { envMap: environment, title: labels.boxTitle, series: labels.series ?? "Series 001", count: lineupRef.current.length || 16 });
@@ -295,12 +297,15 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       return [kind, group && worldSetup ? builders[kind](group, { envMap: environment, placeProp }) : null];
     })) as Record<FigurineMachine, ReturnType<typeof buildRecycler> | null>;
     const catchLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
+    const loadFigure = async (url: string) => {
+      const file = await loadFigureFileRef.current?.(url);
+      return file ? catchLoader.parseAsync(await file.arrayBuffer(), "") : catchLoader.loadAsync(url);
+    };
     const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, {
-      placeProp, envMap: environment, loadFigure: async (url) => (await catchLoader.loadAsync(url)).scene,
+      placeProp, envMap: environment, loadFigure: async (url) => (await loadFigure(url)).scene,
     }) }] : []) : [];
     // The showcase's statues load their figures like the pedestal does, one at a time.
-    const statueLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
-    const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: (url) => statueLoader.loadAsync(url), cubbies: facilities.find((facility) => facility.kind === "gallery")?.cubbies }) : null;
+    const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: loadFigure, cubbies: facilities.find((facility) => facility.kind === "gallery")?.cubbies }) : null;
     // Machine cards show the baked portrait sheets.
     const portraitCards = portraitAtlas();
     // Camera occlusion hides station meshes, but must not change the scene's light count:
@@ -437,7 +442,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const sheenMaterial = additive(sheenMap, 0xffe7b8);
     const sheen = new THREE.Mesh(new THREE.PlaneGeometry(width, height), sheenMaterial);
     let packagingOpacity = 1;
-    worldSetup?.series.forEach((entry) => { if (entry.released) packagingFor(entry); });
+    // Shelf boxes use their small print tier. Only the selected box needs close-up artwork.
     mountBox();
     const beamMap = canvasTexture(4, 128, (context) => {
       const gradient = context.createLinearGradient(0, 0, 0, 128);
@@ -583,7 +588,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (entry.warming) return;
       const current = () => !disposed && [...packagings.values()].includes(entry);
       entry.warming = (async () => {
-        await entry.parts.ready;
+        await Promise.all([entry.parts.ready, studio.ready]);
         if (!await uploadTextures(entry.group, current)) return;
         if (!await warmFigurineScene(renderer, scene, camera, compileTarget, current, entry.group)) return;
         entry.ready = true;
@@ -645,6 +650,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           const idle = entry.animations.find((clip) => /stand|idle/i.test(clip.name));
           if (idle) { mixer = new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
           if (!entry.warmed.has(finish)) {
+            await studio.ready; if (!valid()) return;
             if (!await uploadTextures(model, valid)) return;
             await nextFrame(); if (!valid()) return;
             if (!await warmFigurineScene(renderer, scene, camera, compileTarget, valid, modelRoot)) return;
@@ -672,7 +678,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // Baking the placeholder sky here would repeat the same environment-map work.
     if (!immersive) void precompile();
     api.current = {
-      rebuildBox: () => { clearPackagings(); worldRef.current?.series.forEach((entry) => { if (entry.released) packagingFor(entry); }); mountBox(); void precompile(); },
+      rebuildBox: () => { clearPackagings(); mountBox(); void precompile(); },
       showBox: () => preparePackaging(mountBox()),
       setCollection, setMachines, setShowcase,
       setStreak: (opened, today) => facilities.forEach((facility) => facility.setStreak(opened, today)),
@@ -705,7 +711,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     if (machinesRef.current) setMachines(machinesRef.current);
     if (immersive && scenery) void (async () => {
       callbacks.current.onProgress?.(0.1);
-      await scenery.ready; await Promise.all([...propsReady, shop?.ready, ...secretPrints.map((prints) => prints.ready), ...[...packagings.values()].map(({ parts }) => parts.ready)]);
+      await scenery.ready; await Promise.all([studio.ready, ...propsReady, shop?.ready, ...secretPrints.map((prints) => prints.ready), ...[...packagings.values()].map(({ parts }) => parts.ready)]);
       if (disposed) return;
       callbacks.current.onProgress?.(0.6);
       // Keep the loading UI responsive; the ordinary render loop must not upload
@@ -1322,7 +1328,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (worldGpuReady) renderer.render(scene, camera);
     });
     return () => {
-      disposed = true; generation++; loaderState.current = null; stopHum(); ktx2Loader.dispose();
+      disposed = true; generation++; loaderState.current = null; stopHum(); scenery?.dispose(); studio.dispose(); ktx2Loader.dispose();
       peelSound?.stop();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown, { capture: true }); renderer.domElement.removeEventListener("pointerup", letGo);
       renderer.domElement.removeEventListener("pointercancel", letGo);
