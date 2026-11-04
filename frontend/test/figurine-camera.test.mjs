@@ -17,7 +17,7 @@ function cameraState(view, idle, reduced = false, width = 1200) {
   const pose = { position: new THREE.Vector3(8, 4, 12), target: new THREE.Vector3(8, 1, 3) };
   const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
   return vm.createContext({
-    THREE, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer",
+    THREE, active: false, orbitOffset: null, build: { zoom: 1 }, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer",
     homeOffset: new THREE.Vector3(0.6, 2.1, 9.6), homeTarget: new THREE.Vector3(0, 1.5, 0),
     OVERVIEW_DISTANCE: { min: 13, initial: 17, max: 19 },
     shotAspect: () => 1, viewPose: () => ({ position: pose.position.clone(), target: pose.target.clone() }),
@@ -207,4 +207,18 @@ test("destination sway across the opposite-angle seam never reverses an ongoing 
     assert.ok(previous.angleTo(state.camera.quaternion) < 0.18, `no reversed turn at frame ${frame}`);
     previous.copy(state.camera.quaternion);
   }
+});
+
+test("overview tape opening meets the charging camera without a zoom jump", () => {
+  const state = cameraState("opening", 0);
+  Object.assign(state, { active: true, finished: false, bursting: false, build: { zoom: 0.94 }, current: { boxMode: true, open: true }, centreShot: { position: new THREE.Vector3(-7, 4, -7), target: new THREE.Vector3(0, 1.5, 0) } });
+  const from = source.indexOf("      const cinematic ="), to = source.indexOf("      const orbiting =", from);
+  const cinematic = new vm.Script(`{${ts.transpile(source.slice(from, to))}}`);
+  step.runInContext(state);
+  const arrival = state.camera.position.clone();
+  cinematic.runInContext(state);
+  assert.ok(arrival.distanceTo(state.camera.position) < 1e-9, "arrival already matches the live charge zoom");
+  step.runInContext(state); cinematic.runInContext(state);
+  assert.ok(arrival.distanceTo(state.camera.position) < 1e-9, "the following cinematic frame does not double-zoom");
+  assert.ok(Math.abs(state.camera.position.distanceTo(state.controls.target) / state.centreShot.position.distanceTo(state.centreShot.target) - 0.94) < 1e-9);
 });

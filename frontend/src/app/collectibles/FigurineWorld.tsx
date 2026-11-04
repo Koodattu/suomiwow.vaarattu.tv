@@ -168,6 +168,7 @@ export default function FigurineWorld() {
   function open() {
     if (!series || state.phase !== "sealed" || paidOpening.current || !spendCoin()) return;
     paidOpening.current = true;
+    if (view === "overview") navigate("opening");
     unlockFigurineAudio();
     const selected = sealedDraw ?? chooseFigure(series.characters.length, Math.random());
     preloadFigurineSignature(series.characters[selected].classKey, figureQuip(figureKey(series.id, series.characters[selected].id))?.file);
@@ -451,7 +452,7 @@ export default function FigurineWorld() {
       <span><b>{records.boons.coins}</b><small>{t("coinsLabel")}</small></span>
     </div>}
     <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} loadFigureFile={loadFigureFile} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
-      interactive={revealedWorld && view === "opening" && state.phase === "sealed" && !webglUnavailable} locked={!series || records.boons.coins < 1} round={state.round} onBoxTap={open} rotate={view === "overview" || view === "viewer" || view === "opening"} ready={revealedWorld}
+      interactive={revealedWorld && (view === "overview" || view === "opening") && state.phase === "sealed" && !webglUnavailable} locked={!series || records.boons.coins < 1} round={state.round} onBoxTap={open} rotate={view === "overview" || view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
       machines={machines} onMachine={operateMachine} onMachineDone={machineDone} onIntroDone={() => setIntroDone(true)} onHoverStation={setPointed} action={facilityAction} onActionDone={actionDone} onActionCue={actionCue} poke={poke} panelWidth={panelWidth}
       onFacilityPart={(station, part) => { if (station === "pond") pondPart(part); else if (station === "crate" && part === "chest") openDailyChest(); }} onHoverPart={(part) => setHoverPart(part === "water" ? "rod" : part as PondPart | null)} highlightedPart={view === "pond" && !pondSheet ? buttonPart : null} coinTarget={coinTarget}

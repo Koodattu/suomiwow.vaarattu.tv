@@ -772,7 +772,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       return new THREE.Vector2((screen.x + 1) / 2 * rect.width, (1 - screen.y) / 2 * rect.height);
     };
     const tappable = () => immersive && state.current.interactive && state.current.view === "opening" && !flight;
-    const peelable = () => tappable() && !state.current.locked;
+    const peelable = () => immersive && state.current.interactive && (state.current.view === "overview" || state.current.view === "opening") && !flight && !state.current.locked;
     // The world is the interface: tap a station to go there, a series to open it, an owned figure
     // to inspect it, and empty ground or sky to step back. The target must match on release.
     type Pick = { kind: "station"; view: WorldView } | { kind: "series"; id: string } | { kind: "machine"; machine: FigurineMachine; pick: MachinePick } | { kind: "part"; station: Station; part: string } | { kind: "back" };
@@ -941,7 +941,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         return;
       }
       if (!grab || event.pointerId !== grab.id) return;
-      const opened = peelTarget >= 0.97 && tappable();
+      const opened = event.type === "pointerup" && peelTarget >= 0.97 && peelable();
       if (!grab.moved) nudge = 1;
       grab = null; peelSound?.stop(); peelSound = null;
       renderer.domElement.style.cursor = "";
@@ -1007,6 +1007,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         // Leaving the centre remembers its camera, so coming back lands where the user left it.
         if (flying && !flight && centre(currentView) && !orbitOffset) centreShot = { position: camera.position.clone(), target: controls.target.clone() };
         if (flying && !flight && currentView === "overview") overviewShot = { position: camera.position.clone(), target: controls.target.clone() };
+        if (currentView === "overview" && current.view === "opening" && (current.charging || current.open)) {
+          // A pull in overview zooms in along the user's current angle, without turning the box away.
+          centreShot = { position: camera.position.clone().sub(controls.target).setLength(homeOffset.length() * framing).add(homeTarget), target: homeTarget.clone() };
+        }
         if (flying) {
           flight = { from: camera.position.clone(), fromTarget: controls.target.clone(), t: 0 };
           // Drain orbit inertia before the director takes over, retaining the visible departure pose.
@@ -1262,6 +1266,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         destination.position.add(velocity.set(Math.sin(idle * 0.31) * 0.12, Math.sin(idle * 0.43) * 0.06, 0));
       }
       if (flight && destination) {
+        if (currentView === "opening" && active && !reduced) {
+          // Meet the charging camera at its current zoom, so the flight-to-reveal handoff cannot snap.
+          orbitOffset = destination.position.clone().sub(destination.target);
+          destination.position.copy(orbitOffset).multiplyScalar(build.zoom).add(destination.target);
+        }
         flight.t = reduced ? 1 : Math.min(1, flight.t + Math.min(elapsed, 0.1) / FLIGHT_SECONDS);
         const t = ease(flight.t);
         controls.target.lerpVectors(flight.fromTarget, destination.target, t);
