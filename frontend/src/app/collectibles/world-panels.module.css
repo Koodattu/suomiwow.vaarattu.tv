@@ -2,7 +2,7 @@
    station stays in view. Colours follow the world HUD: deep blue glass, parchment gold accents. */
 .panel { position: absolute; z-index: 3; top: max(84px, env(safe-area-inset-top)); right: 16px; bottom: max(70px, env(safe-area-inset-bottom)); width: min(380px, calc(100vw - 32px)); display: flex; flex-direction: column; border: 1px solid #6b5a3c; border-radius: 10px; background: rgba(10, 16, 26, .88); backdrop-filter: blur(8px); color: #e9dfc9; box-shadow: 0 12px 40px rgba(0, 0, 0, .45); animation: panelIn .35s ease-out both; overflow: hidden; }
 /* The collection's catalogue: wide, with its inspector beside the list (kept in step with the stage's catalogueWidth). */
-.panel[data-wide="catalogue"] { width: min(900px, 60vw); top: max(72px, env(safe-area-inset-top)); bottom: max(24px, env(safe-area-inset-bottom)); }
+.panel[data-wide="catalogue"] { width: min(900px, 60vw); top: max(72px, env(safe-area-inset-top)); }
 @keyframes panelIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 10px; border-bottom: 1px solid rgba(214, 187, 134, .18); }
 .head h2 { margin: 0; font-family: Georgia, serif; font-weight: 400; font-size: 20px; letter-spacing: .02em; color: #f3e4c7; }
@@ -122,8 +122,8 @@
 .hudBoons span { background: rgba(10, 16, 26, .78); border: 1px solid #4d4230; }
 
 @media (max-width: 700px) {
-  .panel { top: auto; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; max-height: 52svh; animation-name: sheetIn; }
-  .panel[data-wide="catalogue"] { top: max(64px, env(safe-area-inset-top)); width: auto; max-height: none; bottom: max(8px, env(safe-area-inset-bottom)); }
+  .panel { top: auto; left: 8px; right: 8px; bottom: max(70px, calc(env(safe-area-inset-bottom) + 64px)); width: auto; max-height: 52svh; animation-name: sheetIn; }
+  .panel[data-wide="catalogue"] { top: max(64px, env(safe-area-inset-top)); width: auto; max-height: none; }
   @keyframes sheetIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 }
 @media (prefers-reduced-motion: reduce) { .panel, .result, .claim, .cta { animation: none; } .card, .cta { transition: none; } }

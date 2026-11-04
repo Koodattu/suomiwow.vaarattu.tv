@@ -142,6 +142,7 @@
     "world": {
       "overview": {
         "facilities": "Facilities",
+        "groups": { "play": "Play", "collection": "Collection", "community": "Community", "craft": "Craft" },
         "labels": {
           "shop": "Shop",
           "gallery": "Collection",
@@ -157,7 +158,7 @@
           "fame": "Fame",
           "leaderboard": "Ranks"
         },
-        "openBoxes": "Boxes",
+        "openBoxes": "Open box",
         "boxCost": "1 coin per box",
         "back": "Back"
       },

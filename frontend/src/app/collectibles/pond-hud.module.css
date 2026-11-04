@@ -1,9 +1,7 @@
 /* Equal side tracks keep Cast on the screen centre, regardless of their contents. */
-.bar { position: absolute; z-index: 3; left: 50%; bottom: max(22px, calc(env(safe-area-inset-bottom) + 12px)); transform: translateX(-50%); width: min(920px, calc(100vw - 32px)); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; }
+.bar { position: absolute; z-index: 3; left: 50%; bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px)); transform: translateX(-50%); width: min(920px, calc(100vw - 32px)); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px 14px; }
 .left, .right { display: flex; align-items: center; gap: 10px; }
 .left { justify-content: flex-end; }
-.back { display: inline-flex; flex-shrink: 0; align-items: center; gap: 2px; padding: 10px 14px; min-height: 44px; border: 0; background: none; color: #f3e4c7; font: 500 14px system-ui, sans-serif; cursor: pointer; text-shadow: 0 1px 3px #000; border-radius: 999px; transition: background .15s, color .15s; }
-.back:hover, .back:focus-visible { color: #fff6e2; background: rgba(240, 217, 168, .14); }
 .right { justify-content: flex-start; }
 .side { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; min-height: 48px; padding: 0 16px; border: 1px solid rgba(240, 217, 168, .35); border-radius: 999px; background: rgba(10, 16, 26, .62); backdrop-filter: blur(6px); color: #f3e4c7; font: 500 14px system-ui, sans-serif; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); transition: background .15s, border-color .15s, filter .15s; }
 .side:hover, .side[data-highlighted="true"] { background: rgba(70, 65, 53, .8); border-color: rgba(255, 232, 185, .8); filter: brightness(1.2); }
@@ -112,5 +110,5 @@
   .catches li { grid-template-columns: 26px 56px 1fr auto; gap: 8px; }
   .catchFish .fishPicture { width: 56px; }
 }
-@media (max-width: 560px) { .side span, .side em { display: none; } .side { padding: 0 11px; } .back { font-size: 12px; } .bar { gap: 6px; } .left { gap: 4px; } }
+@media (max-width: 560px) { .side span, .side em { display: none; } .side { padding: 0 11px; } .bar { gap: 8px 6px; } .left { gap: 4px; } }
 @media (prefers-reduced-motion: reduce) { .banner, .action, .logBackdrop, .log { animation: none; } .side, .action { transition: none; } }

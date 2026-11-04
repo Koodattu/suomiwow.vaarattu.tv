@@ -194,7 +194,10 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     renderer.toneMappingExposure = exposure;
     element.appendChild(renderer.domElement);
     let worldGpuReady = !immersive;
-    const ktx2Loader = new KTX2Loader().setTranscoderPath("/figurines/basis/r186/").setWorkerLimit(2).detectSupport(renderer);
+    // Many independent scenery/box textures queue here even on a fully cached reload.
+    // Use up to four workers, leaving a logical core for the main thread on smaller devices.
+    const textureWorkers = Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 4) - 1));
+    const ktx2Loader = new KTX2Loader().setTranscoderPath("/figurines/basis/r186/").setWorkerLimit(textureWorkers).detectSupport(renderer);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(36, 1, 0.4, immersive ? 240 : 140);
     // The world's home shot faces the pedestal head-on, with the shop and the case at either side.
@@ -233,7 +236,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const next = generator.fromScene(skyScene, 0, 0.1, 100); generator.dispose();
       skyLight?.dispose(); skyLight = next; scene.environment = next.texture;
     };
-    const scenery = immersive ? buildWorld(scene, { onSky: updateSkyLight, ktx2Loader }) : null;
+    const scenery = immersive ? buildWorld(scene, { onSky: () => { if (!disposed) { updateSkyLight(); void precompile(); } }, ktx2Loader }) : null;
     if (immersive) { scene.fog = new THREE.FogExp2(WORLD_FOG.color, WORLD_FOG.density); scene.environmentIntensity = 0.55; }
     const modelRoot = new THREE.Group(); scene.add(modelRoot);
     const box = new THREE.Group(); scene.add(box);
@@ -665,7 +668,9 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       revealed.forEach((object) => { object.visible = false; });
       return ready;
     };
-    updateSkyLight(); void precompile();
+    // World compilation starts with the final sky, overlapping the remaining asset decoding.
+    // Baking the placeholder sky here would repeat the same environment-map work.
+    if (!immersive) void precompile();
     api.current = {
       rebuildBox: () => { clearPackagings(); worldRef.current?.series.forEach((entry) => { if (entry.released) packagingFor(entry); }); mountBox(); void precompile(); },
       showBox: () => preparePackaging(mountBox()),
@@ -701,11 +706,12 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     if (immersive && scenery) void (async () => {
       callbacks.current.onProgress?.(0.1);
       await scenery.ready; await Promise.all([...propsReady, shop?.ready, ...secretPrints.map((prints) => prints.ready), ...[...packagings.values()].map(({ parts }) => parts.ready)]);
+      if (disposed) return;
       callbacks.current.onProgress?.(0.6);
       // Keep the loading UI responsive; the ordinary render loop must not upload
       // the whole world implicitly before these scheduled uploads have finished.
-      if (!await uploadTextures(scene, () => !disposed)) return;
-      await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed);
+      if (!await uploadFigurineTextures(renderer, scene, () => !disposed, (fraction) => callbacks.current.onProgress?.(0.6 + 0.2 * fraction))) return;
+      await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed, scene, (fraction) => callbacks.current.onProgress?.(0.8 + 0.2 * fraction));
       if (!disposed) { worldGpuReady = true; packagings.forEach((entry) => { entry.ready = true; }); callbacks.current.onProgress?.(1); callbacks.current.onLoaded?.(); }
     })();
     loaderState.current = { load };

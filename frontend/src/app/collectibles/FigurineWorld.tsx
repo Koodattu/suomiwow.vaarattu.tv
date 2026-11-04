@@ -64,6 +64,7 @@ export default function FigurineWorld() {
   const [opened, setOpened] = useState<{ key: string; count: number; quality: FigurineQuality } | null>(null);
   const [upgraded, setUpgraded] = useState<{ key: string; quality: FigurineQuality } | null>(null);
   const [webglUnavailable, setWebglUnavailable] = useState(false);
+  const [revealedWorld, setRevealedWorld] = useState(false);
   // Inspecting a collected figure remembers its source view.
   const [origin, setOrigin] = useState<Partial<Record<WorldView, WorldView>>>({});
   const collection = useSyncExternalStore(subscribeCollection, readCollection, emptyCollection);
@@ -102,23 +103,27 @@ export default function FigurineWorld() {
   const quality: FigurineQuality = view === "viewer" ? inspected?.quality ?? "standard" : currentDraw?.quality ?? "standard";
   const [model, setModel] = useState<"idle" | "loading" | "ready" | "failed">("idle");
   const [refetch, setRefetch] = useState(0);
-  // Download the finite catalog once. Keep compressed files, rather than all decoded GPU textures.
+  // The selected figure loads first. Warm the rest of the compressed catalog after entry,
+  // so those downloads cannot compete with the scenery or hold the loading screen open.
   const fetched = useRef<ReturnType<typeof createFigurineFileCache> | null>(null);
-  const [fileProgress, setFileProgress] = useState(0);
   useEffect(() => {
     const cache = createFigurineFileCache(); fetched.current = cache;
+    return () => { cache.dispose(); if (fetched.current === cache) fetched.current = null; };
+  }, []);
+  useEffect(() => {
+    if (!revealedWorld || webglUnavailable) return;
+    const cache = fetched.current!;
     const characters = RELEASED_SERIES.flatMap((entry) => entry.characters);
-    let next = 0, completed = 0, cancelled = false;
+    let next = 0, cancelled = false;
     const worker = async () => {
       while (!cancelled && next < characters.length) {
         const character = characters[next++];
         try { await cache.get(character.model, character.bytes); } catch { /* Selection retries failed downloads. */ }
-        if (!cancelled) setFileProgress(++completed / characters.length);
       }
     };
     void Promise.all(Array.from({ length: 4 }, worker));
-    return () => { cancelled = true; cache.dispose(); if (fetched.current === cache) fetched.current = null; };
-  }, []);
+    return () => { cancelled = true; };
+  }, [revealedWorld, webglUnavailable]);
   useEffect(() => {
     if (!wanted) { setFiles([]); setFilesFor(null); setModel("idle"); return; }
     let cancelled = false;
@@ -134,14 +139,14 @@ export default function FigurineWorld() {
     return () => { cancelled = true; };
   }, [wanted, state.round, refetch]);
 
-  // Start-up loading: scenery, box prints, portraits, sounds, all compressed figures, and the first prepared figure.
-  const [stageProgress, setStageProgress] = useState(0), [stageLoaded, setStageLoaded] = useState(false), [audioProgress, setAudioProgress] = useState(0);
-  useEffect(() => { void prefetchFigurineAudio([...new Set(FIGURINE_SERIES.flatMap((entry) => entry.characters.map((character) => character.classKey)))], ALL_QUIPS.map(({ file }) => file), setAudioProgress).then(() => setAudioProgress(1)); }, []);
-  const figureSettled = model === "ready" || model === "failed" || (sealedDraw === null && view !== "viewer");
-  const loaded = stageLoaded && audioProgress >= 1 && fileProgress >= 1 && figureSettled;
-  const [revealedWorld, setRevealedWorld] = useState(false);
+  // Entry still waits for the scenery and first figure's GPU preparation. Optional
+  // sounds preload concurrently, but a slow sound request must never block play.
+  const [stageProgress, setStageProgress] = useState(0), [stageLoaded, setStageLoaded] = useState(false);
+  useEffect(() => { void prefetchFigurineAudio([...new Set(FIGURINE_SERIES.flatMap((entry) => entry.characters.map((character) => character.classKey)))], ALL_QUIPS.map(({ file }) => file)); }, []);
+  const figureSettled = wanted !== null && (model === "ready" || model === "failed");
+  const loaded = stageLoaded && figureSettled;
   useEffect(() => { if (loaded || webglUnavailable) setRevealedWorld(true); }, [loaded, webglUnavailable]);
-  const progress = Math.round(100 * (0.4 * stageProgress + 0.25 * audioProgress + 0.2 * fileProgress + 0.15 * (figureSettled ? 1 : 0)));
+  const progress = Math.round(100 * (0.85 * stageProgress + 0.15 * (figureSettled ? 1 : 0)));
   // Each series pick drops its box onto the pedestal again.
   const [arrival, setArrival] = useState(0);
 
@@ -468,7 +473,7 @@ export default function FigurineWorld() {
     {view === "pond" && revealedWorld && <PondHud records={records} line={line} result={result?.station === "pond" ? result : null} busy={busy} hovered={hoverPart} sheet={pondSheet} onHover={setButtonPart}
       onCast={cast} onHook={hook} onDismiss={dismissCatch} onSheet={openSheet} onBack={leavePond} />}
     {view === "overview" && revealedWorld && <OverviewHud onNavigate={navigate} onHover={setNavHover} hovered={pointed} />}
-    {revealedWorld && (view === "opening" || view === "shop" || view === "viewer") && <OverviewBack onBack={back} disabled={state.phase === "loading" || state.phase === "opening"} />}
+    {revealedWorld && view !== "overview" && view !== "pond" && view !== "crate" && <OverviewBack onBack={back} disabled={state.phase === "loading" || state.phase === "opening"} />}
     {view === "crate" && revealedWorld && <ChestHud ready={crate.ready} day={crate.day} busy={busy} result={result?.station === "crate" ? result : null} onOpen={openDailyChest} onDismiss={dismissChest} onBack={() => { if (result?.station === "crate") dismissChest(); back(); }} />}
     {isStation(view) && view !== "shop" && view !== "pond" && view !== "crate" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back} actions={panelActions}
       onInspect={(key, finish) => inspect(key, finish)} machine={machinePanel}

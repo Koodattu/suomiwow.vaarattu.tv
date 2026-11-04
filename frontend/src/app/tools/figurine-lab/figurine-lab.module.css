@@ -134,6 +134,7 @@
 .newBadge { display: inline-block; margin-bottom: 10px; padding: 4px 12px; border-radius: 999px; background: linear-gradient(90deg, #f3d892, #c6994b); color: #1c1236; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; animation: badgePop .6s .2s cubic-bezier(.2, 1.6, .4, 1) both; }
 @keyframes badgePop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
 .showcase[data-view="viewer"] .revealIdentity h1, .showcase[data-view="viewer"] .revealIdentity p { animation: identityIn .6s ease-out both; }
+.showcase:is([data-view="opening"], [data-view="viewer"], [data-view="shop"]) .showcaseHud { bottom: max(72px, calc(env(safe-area-inset-bottom) + 68px)); }
 @media (prefers-reduced-motion: reduce) { .newBadge, .worldHint, .backChip { animation: none; transition: none; } }
 @media (max-width: 600px) { .backChip { left: 14px; top: 16px; } .worldHint { font-size: 11px; letter-spacing: .1em; } }
 /* Start-up loader over the world: fades out once scenery, boxes, sounds and portraits are ready. */
@@ -144,6 +145,7 @@
 @media (prefers-reduced-motion: reduce) { .worldLoader, .worldLoaderBar i { transition: none; } }
 /* World sound menu: a quiet icon-and-label button that opens volume and voice-line settings. */
 .soundMenu { position: absolute; z-index: 4; top: max(16px, env(safe-area-inset-top)); right: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.showcase[data-view] .soundMenu { top: calc(max(16px, env(safe-area-inset-top)) + 62px); right: max(14px, env(safe-area-inset-right)); }
 .soundButton { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 8px; border: 0; border-radius: 6px; background: none; color: rgba(238, 226, 200, .62); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; text-shadow: 0 1px 8px rgba(0, 0, 0, .7); cursor: pointer; transition: color .15s; }
 .soundButton svg { filter: drop-shadow(0 1px 4px rgba(0, 0, 0, .6)); }
 .soundButton:hover, .soundButton[aria-expanded="true"] { color: #f3e3bf; }
@@ -163,7 +165,7 @@
 .qualityBadge[data-quality="galaxy"] { background: linear-gradient(90deg, #2a1660, #6d3fd8 45%, #2b7fd8); color: #f1e9ff; box-shadow: 0 0 18px rgba(140, 100, 255, .6); }
 @media (prefers-reduced-motion: reduce) { .qualityBadge { animation: none; } }
 
-.coinBalance { position: absolute; z-index: 4; top: max(62px, calc(env(safe-area-inset-top) + 46px)); right: 18px; display: flex; align-items: center; gap: 6px; min-width: 96px; padding: 3px 15px 3px 5px; border: 1px solid rgba(236, 201, 120, .4); border-radius: 999px; background: rgba(15, 20, 26, .78); color: #ffdf88; box-shadow: 0 3px 16px #0005; }
+.coinBalance { position: absolute; z-index: 4; top: max(16px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); display: flex; align-items: center; gap: 6px; min-width: 96px; padding: 3px 15px 3px 5px; border: 1px solid rgba(236, 201, 120, .4); border-radius: 999px; background: rgba(15, 20, 26, .78); color: #ffdf88; box-shadow: 0 3px 16px #0005; }
 .coinBalance img { width: 48px; height: 48px; object-fit: contain; }
 .coinBalance span { display: flex; flex-direction: column; gap: 1px; }
 .coinBalance b { font: 700 20px/1.1 Georgia, serif; font-variant-numeric: tabular-nums; }

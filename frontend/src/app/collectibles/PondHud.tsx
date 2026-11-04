@@ -6,6 +6,7 @@ import { ANGLER_TOP, FISH, FINISH_TIMES, RARITY_POINTS, anglerScore, fishOf, fis
 import { findFigure } from "@/lib/figurine-series";
 import type { LinePhase, PanelResult } from "./WorldPanels";
 import Portrait from "./Portrait";
+import { OverviewBack } from "./OverviewHud";
 import styles from "./pond-hud.module.css";
 
 // The catch sits in the centre, with linked world objects and controls along the bottom.
@@ -41,7 +42,6 @@ export default function PondHud({ records, line, result, busy, hovered, sheet, o
     </>}
     <nav className={styles.bar} aria-label={t("controls")}>
       <div className={styles.left}>
-        <button type="button" className={styles.back} onClick={onBack}><Glyph kind="back" />{t("back")}</button>
         <button type="button" className={styles.side} {...linked("bucket")} onClick={() => onSheet("log")} aria-haspopup="dialog" aria-label={`${t("log")} ${kinds}/${FISH.length}`}>
           <Glyph kind="log" /><span>{t("log")}</span><em>{kinds}/{FISH.length}</em>
         </button>
@@ -52,6 +52,7 @@ export default function PondHud({ records, line, result, busy, hovered, sheet, o
           <Glyph kind="board" /><span>{t("rankings")}</span>{score > 0 && <em>{score}</em>}
         </button>
       </div>
+      <OverviewBack inline onBack={onBack} />
     </nav>
     {sheet === "log" && <FishLog records={records} onClose={() => onSheet(null)} />}
     {sheet === "board" && <AnglersBoard records={records} onClose={() => onSheet(null)} />}
@@ -171,9 +172,9 @@ function AnglersBoard({ records, onClose }: { records: FigurineRecords; onClose:
   </Sheet>;
 }
 
-function Glyph({ kind }: { kind: "log" | "rod" | "board" | "back" }) {
+function Glyph({ kind }: { kind: "log" | "rod" | "board" }) {
   return <svg className={styles.glyph} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    {kind === "back" ? <path d="m15 5-7 7 7 7" /> : kind === "log" ? <><path d="M3 12c3-4 7-5 10-5 3 0 5 2 6 5-1 3-3 5-6 5-3 0-7-1-10-5z" /><path d="M3 12 1 9M3 12l-2 3" /><circle cx="15.5" cy="11" r=".6" fill="currentColor" /></>
+    {kind === "log" ? <><path d="M3 12c3-4 7-5 10-5 3 0 5 2 6 5-1 3-3 5-6 5-3 0-7-1-10-5z" /><path d="M3 12 1 9M3 12l-2 3" /><circle cx="15.5" cy="11" r=".6" fill="currentColor" /></>
       : kind === "board" ? <><path d="M8 4h8v5a4 4 0 0 1-8 0z" /><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4" /><path d="M12 13v4M8 20h8M9.5 17h5" /></>
       : <><path d="m3 21 9-17c1-2 4-2 6 0l3 3v8a3 3 0 0 1-6 0v-2l2 2" /><path d="m4 17 3 2" /><circle cx="8" cy="14" r="2" /></>}
   </svg>;

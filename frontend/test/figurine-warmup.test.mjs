@@ -12,14 +12,15 @@ test("uploads yield between work slices, deduplicate shared maps, and cancel bef
   const maps = Array.from({ length: 5 }, () => new THREE.Texture());
   const scene = new THREE.Scene();
   for (const map of maps) scene.add(new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ map, emissiveMap: map })));
-  const uploaded = [];
-  const loading = uploadFigurineTextures({ initTexture(map) { uploaded.push(map); now += 2; } }, scene, () => active);
+  const uploaded = [], progress = [];
+  const loading = uploadFigurineTextures({ initTexture(map) { uploaded.push(map); now += 2; } }, scene, () => active, (fraction) => progress.push(fraction));
   assert.equal(uploaded.length, 0, "allow the loading UI to paint first");
   frames.shift()(); await Promise.resolve();
   assert.deepEqual(uploaded, maps.slice(0, 2));
   active = false; frames.shift()();
   assert.equal(await loading, false);
   assert.deepEqual(uploaded, maps.slice(0, 2), "disposed/replaced assets must not be uploaded later");
+  assert.deepEqual(progress, [0.2, 0.4], "progress counts completed unique uploads, never cancelled work");
 });
 
 function fixture() {
@@ -44,11 +45,13 @@ function fixture() {
 test("readiness includes a hidden first draw and canvas shaders, without exposing the model while waiting", async () => {
   const f = fixture();
   let ready = false;
-  const loading = warmFigurineScene(f.renderer, f.scene, f.camera, f.target, () => true).then((result) => { ready = result; });
+  const progress = [];
+  const loading = warmFigurineScene(f.renderer, f.scene, f.camera, f.target, () => true, f.scene, (fraction) => progress.push(fraction)).then((result) => { ready = result; });
   assert.equal(f.hidden.visible, false);
   assert.equal(f.mesh.frustumCulled, true);
   assert.equal(f.renderer.getRenderTarget(), null);
   assert.equal(ready, false);
+  assert.deepEqual(progress, []);
   f.pending.shift()();
   await Promise.resolve();
   assert.deepEqual(f.calls, [
@@ -58,9 +61,11 @@ test("readiness includes a hidden first draw and canvas shaders, without exposin
   ]);
   assert.equal(f.hidden.visible, false);
   assert.equal(ready, false);
+  assert.deepEqual(progress, [1 / 3, 2 / 3], "do not report completion before canvas shaders finish");
   f.pending.shift()();
   await loading;
   assert.equal(ready, true);
+  assert.deepEqual(progress, [1 / 3, 2 / 3, 1]);
 });
 
 test("a replaced or disposed model never renders or becomes ready after compilation", async () => {

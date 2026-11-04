@@ -6,6 +6,7 @@ import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
+import { pathToFileURL } from "node:url";
 
 const DEFAULT_URL = "https://suomiwow.vaarattu.tv/";
 
@@ -731,7 +732,11 @@ async function main() {
   }
 }
 
-await main().catch((error) => {
-  console.error(error.stack ?? error.message);
-  process.exitCode = 1;
-});
+export { CdpSession, findBrowserExecutable, waitForDevToolsPort, getPageWebSocketUrl, stopBrowser };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  await main().catch((error) => {
+    console.error(error.stack ?? error.message);
+    process.exitCode = 1;
+  });
+}

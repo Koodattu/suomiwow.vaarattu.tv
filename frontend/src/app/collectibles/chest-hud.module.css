@@ -4,6 +4,6 @@
 .action { min-width: 210px; }
 @media (max-width: 700px) { .title { top: max(85px, calc(env(safe-area-inset-top) + 70px)); } .action { min-width: 175px; padding-inline: 18px; font-size: 17px; } }
 
-.reward { position: absolute; z-index: 3; bottom: max(108px, calc(env(safe-area-inset-bottom) + 98px)); left: 50%; width: min(640px, calc(100vw - 32px)); transform: translateX(-50%); text-align: center; pointer-events: none; color: #fff6e2; text-shadow: 0 1px 3px #000; }
+.reward { position: absolute; z-index: 3; bottom: max(150px, calc(env(safe-area-inset-bottom) + 146px)); left: 50%; width: min(640px, calc(100vw - 32px)); transform: translateX(-50%); text-align: center; pointer-events: none; color: #fff6e2; text-shadow: 0 1px 3px #000; }
 .reward p { margin: 0; font: 400 24px/1.25 Georgia, serif; }
 .reward small { display: block; margin-top: 6px; font: 500 13px/1.4 system-ui, sans-serif; color: #e9dfc9; }
