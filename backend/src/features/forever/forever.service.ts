@@ -4,6 +4,7 @@ import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } fr
 import { ArmoryError, armoryUrl, normalizeSlug, parseArmoryUrl } from "./forever-armory";
 import { mayRequestRefresh, MINUTE } from "./forever-policy";
 import { normalizeTwitchChannel } from "./forever-twitch";
+import foreverRunner from "./forever.worker";
 
 export class ForeverError extends Error {
   constructor(public code: string, public status = 400) { super(code); }
@@ -81,6 +82,21 @@ export async function adminCharacterAction(ids: unknown, action: unknown) {
   // Admin retries override an individual backoff, never the shared Retry-After pause.
   const result = await ForeverCharacter.updateMany(filter, { $set: action === "retry" ? { nextFetchAt: new Date() } : { status: action } });
   return { updated: result.modifiedCount, skipped: uniqueIds.length - result.modifiedCount };
+}
+
+export async function adminRefreshNow(id: unknown) {
+  const requestedAt = new Date();
+  const characterId = objectId(id);
+  const result = await ForeverCharacter.updateOne({ _id: characterId, status: "tracked" }, {
+    $set: { refreshRequestedAt: requestedAt, nextFetchAt: requestedAt },
+  });
+  if (!result.matchedCount) throw new ForeverError("not_found", 404);
+  // Try immediately using the same distributed lease and rate limits as the worker.
+  // If it is busy, the persisted priority request is picked up on its next tick.
+  await foreverRunner.tick();
+  const character = await ForeverCharacter.findById(characterId).select("refreshRequestedAt lastAttemptAt errorCode").lean();
+  const attempted = !character?.refreshRequestedAt && character?.lastAttemptAt && character.lastAttemptAt >= requestedAt;
+  return { refreshState: attempted ? (character.errorCode ? "failed" : "refreshed") : "prioritized" };
 }
 
 export async function requestRefresh(id: unknown, userId: string) {

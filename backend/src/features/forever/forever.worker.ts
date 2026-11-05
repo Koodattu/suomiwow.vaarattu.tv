@@ -54,11 +54,13 @@ export class ForeverRunner {
     let nextRequestAt = new Date(Date.now() + SPACING_MS);
     try {
       const due = { $lte: now, $ne: null };
-      const [character, guild] = await Promise.all([
+      const [priorityCharacter, scheduledCharacter, guild] = await Promise.all([
+        ForeverCharacter.findOne({ status: "tracked", refreshRequestedAt: { $ne: null } }).sort({ refreshRequestedAt: 1, _id: 1 }).lean(),
         ForeverCharacter.findOne({ status: "tracked", nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
         ForeverGuild.findOne({ status: { $in: ["pending", "approved"] }, nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
       ]);
-      const useGuild = guild && (!character || guild.nextFetchAt! < character.nextFetchAt!);
+      const character = priorityCharacter || scheduledCharacter;
+      const useGuild = !priorityCharacter && guild && (!character || guild.nextFetchAt! < character.nextFetchAt!);
       const job = useGuild ? guild : character;
       if (!job) {
         nextRequestAt = new Date(Date.now() + IDLE_MS);
@@ -104,6 +106,10 @@ export class ForeverRunner {
             }
           }
         } else {
+          // Clear only the request this fetch serves; a new request arriving in flight stays first.
+          if (character?.refreshRequestedAt) await ForeverCharacter.updateOne({
+            _id: job._id, refreshRequestedAt: character.refreshRequestedAt,
+          }, { $unset: { refreshRequestedAt: 1 } }, { session });
           const current = await ForeverCharacter.findById(job._id).session(session);
           if (current?.status === "tracked") {
             if (failure) await ForeverCharacter.updateOne({ _id: job._id }, updateFailure, { session });

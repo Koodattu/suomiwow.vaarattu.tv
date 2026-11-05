@@ -43,6 +43,7 @@ foreverAdminRouter.post("/characters/bulk", route(async (req) => service.adminCh
 foreverAdminRouter.patch("/characters/:id/twitch", route(async (req) => service.setCharacterTwitch(req.params.id, req.body?.twitchChannel)));
 foreverAdminRouter.patch("/characters/:id", route(async (req) => service.setCharacterStatus(req.params.id, req.body?.status)));
 foreverAdminRouter.post("/characters/:id/refresh", route(async (req) => service.adminCharacterAction([req.params.id], "retry")));
+foreverAdminRouter.post("/characters/:id/refresh-now", route(async (req) => service.adminRefreshNow(req.params.id)));
 foreverAdminRouter.get("/guilds/:id", route(async (req) => service.guildDetail(req.params.id)));
 foreverAdminRouter.patch("/guilds/:id", route(async (req) => service.setGuildStatus(req.params.id, req.body?.status)));
 foreverAdminRouter.post("/guilds/:id/refresh", route(async (req) => service.refreshGuild(req.params.id)));
