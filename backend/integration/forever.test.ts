@@ -329,6 +329,29 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
         assert.equal(beyond.characters.length, 0); assert.deepEqual(beyond.statistics, first.statistics);
       } finally { await ForeverCharacter.deleteMany({ slug: /^stats-/ }); }
     });
+    await t.test("leaderboard searches literal names and guilds before pagination and statistics", async () => {
+      const base = { region: "eu", source: "admin", status: "tracked", level: 20, faction: "Horde", guild: { region: "eu", slug: "search-guild", name: "Search [Guild]" } };
+      await ForeverCharacter.insertMany([
+        ...Array.from({ length: 51 }, (_, index) => ({ ...base, slug: `search-${index}`, name: `Näätä ${index}` })),
+        { ...base, slug: "search-other", name: "Other Name", faction: "Alliance" },
+        { ...base, slug: "search-us", name: "Näätä US", region: "us" },
+        { ...base, slug: "search-private", name: "Näätä Private", status: "pending" },
+      ]);
+      try {
+        const first = await service.leaderboard({ search: "  NÄÄTÄ  " });
+        const second = await service.leaderboard({ search: "näätä", page: 2 });
+        assert.equal(first.total, 51); assert.equal(first.characters.length, 50); assert.equal(second.characters.length, 1);
+        assert.deepEqual(first.statistics, second.statistics);
+        assert.deepEqual(first.statistics.factions, [{ name: "Horde", count: 51 }]);
+        assert.equal((await service.leaderboard({ search: "[guild]" })).total, 52);
+        assert.equal((await service.leaderboard({ search: "[guild]", faction: "Alliance" })).total, 1);
+        assert.equal((await service.leaderboard({ search: ".*" })).total, 0);
+        assert.equal((await service.leaderboard({ search: "missing character" })).statistics.averageLevel, null);
+        assert.equal((await service.leaderboard({ search: "   " })).total, (await service.leaderboard()).total);
+        await assert.rejects(service.leaderboard({ search: { $ne: "" } }), /invalid_input/);
+        await assert.rejects(service.leaderboard({ search: "x".repeat(101) }), /invalid_input/);
+      } finally { await ForeverCharacter.deleteMany({ slug: /^search-/ }); }
+    });
     await t.test("leaderboard combines all four filters before pagination and scopes results and options to Europe", async () => {
       const base = { region: "eu", source: "admin", status: "tracked", level: 20, race: "Human", className: "Mage", faction: "Horde", ruleset: "Normal" };
       await ForeverCharacter.insertMany([

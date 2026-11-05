@@ -26,6 +26,8 @@
 .headerMeta strong { color: #e8dfc9; font-weight: 600; }
 .board { min-width: 0; border: 1px solid #5c5039; background: #141613f2; box-shadow: 0 6px 24px #0003, inset 0 1px #cdb47b25; border-radius: 3px; }
 .toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--forever-line); background: linear-gradient(100deg, #302c22, #212a22); }
+.boardSearch { display: flex; align-items: center; gap: 10px; margin-left: auto; min-width: 0; }
+.boardSearch .input { width: 220px; min-width: 0; }
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
 .filter { display: flex; align-items: center; gap: 8px; color: #bdb49e; font-size: 12px; }
 .select, .input { border: 1px solid #5c5442; border-radius: 3px; background: #131712; color: #eee9dc; font-size: 13px; min-height: 36px; padding: 7px 10px; color-scheme: dark; }
@@ -120,6 +122,8 @@
   .title { font-size: 23px; }
   .headerMeta { font-size: 10px; gap: 8px; }
   .toolbar { padding: 9px 12px; }
+  .boardSearch { width: 100%; flex-wrap: wrap; }
+  .boardSearch .input { flex: 1; width: auto; min-width: 150px; }
   .filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; width: 100%; }
   .filter { flex: 1; flex-direction: column; align-items: stretch; gap: 4px; font-size: 10px; }
   .select { width: 100%; max-width: none; }
@@ -139,13 +143,13 @@
 /* The leaderboard uses the entire content row; only its table scrolls on narrow screens. */
 .levelingShell { max-width: 1600px; }
 .levelingWorld { padding: 16px 16px 40px; }
-.levelingHeader { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(650px, 2.3fr) minmax(240px, .85fr); grid-template-areas: "heading population form"; align-items: center; gap: 16px 24px; margin-bottom: 18px; }
+.levelingHeader { display: grid; max-width: 1600px; margin-inline: auto; grid-template-columns: 270px minmax(650px, 1fr) minmax(240px, 300px); grid-template-areas: "heading population form"; align-items: center; gap: 16px 24px; margin-bottom: 18px; }
 .levelingHeader .heading { grid-area: heading; gap: 16px; }
 .levelingHeader .heading > div { min-width: 0; }
 .levelingHeader .wordmark { flex-shrink: 0; padding-right: 16px; }
 .levelingHeader .wordmark strong { font-size: 35px; }
 .levelingHeader .headerMeta { gap: 5px 10px; font-size: 11px; }
-.population { grid-area: population; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.25fr); align-items: start; gap: 8px 18px; min-width: 0; }
+.population { grid-area: population; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) max-content; align-items: start; gap: 8px 18px; min-width: 0; }
 .populationGroup { min-width: 0; }
 .populationGroup h2, .populationCombinations caption { margin-bottom: 8px; font-size: 10px; line-height: 1.3; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #c1b79e; text-align: left; }
 .populationPieRow { display: flex; align-items: center; gap: 10px; min-height: 72px; }
@@ -158,8 +162,8 @@
 .populationLegend dd span { font-size: 10px; color: #aaa898; }
 .populationCombinations { min-width: 0; border-left: 1px solid #494338; padding-left: 14px; }
 .combinationsMobile { display: none; }
-.populationCombinations table { width: 100%; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
-.populationCombinations :is(th, td) { padding: 1px 0 1px 8px; text-align: right; line-height: 1.3; }
+.populationCombinations table { width: auto; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
+.populationCombinations :is(th, td) { padding: 1px 0 1px 16px; text-align: right; line-height: 1.3; }
 .populationCombinations th { font-weight: 500; color: #c2baa7; }
 .populationCombinations th:first-child { text-align: left; padding-left: 0; }
 .populationCombinations thead { font-size: 10px; border-bottom: 1px solid #ffffff12; }
@@ -178,7 +182,7 @@
 .compactForm .formSuccess { margin-top: 4px; }
 @media (max-width: 1340px) {
   .levelingHeader { grid-template-columns: minmax(0, 1fr) minmax(240px, .7fr); grid-template-areas: "heading form" "population population"; }
-  .population { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .population { grid-template-columns: minmax(0, 240px) minmax(0, 260px) max-content; }
 }
 @media (max-width: 700px) {
   .levelingHeader { grid-template-columns: minmax(0, 1fr); grid-template-areas: "heading" "population" "form"; gap: 14px; }

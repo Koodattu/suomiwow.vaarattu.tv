@@ -129,10 +129,15 @@ export async function refreshGuild(id: unknown) {
 
 const publicFields = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt errorCode twitchChannel twitchIsLive twitchCheckedAt";
 const skyborneRaces = ["Skyborne", "Windshaper Skyborne", "High Order Skyborne"];
-export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown; guild?: unknown } = {}) {
+export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown; guild?: unknown; search?: unknown } = {}) {
   const pageNumber = Math.min(1000, Math.max(1, Number.parseInt(String(query.page), 10) || 1));
   const base = { region: "eu", status: "tracked" as const, level: { $gte: 1 } };
   const filter: Record<string, unknown> = { ...base };
+  if (query.search !== undefined && query.search !== "") {
+    if (typeof query.search !== "string" || query.search.length > 100) throw new ForeverError("invalid_input");
+    const escaped = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (escaped) filter.$or = ["name", "guild.name"].map((field) => ({ [field]: { $regex: escaped, $options: "i" } }));
+  }
   const fields = ["race", "className", "faction", "ruleset", "guild"] as const;
   for (const field of fields) {
     const value = query[field];
