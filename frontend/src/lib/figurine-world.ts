@@ -5,11 +5,11 @@ import { buildForest, forestLayout, marketLayout, POND, swayMaterial, type Keep 
 import { isOverlayStation } from "@/lib/figurine-facility-views";
 
 // The collectibles world: a painted sky bubble over a forest clearing. A cobbled square holds the
-// opening pedestal at its centre, and four districts stand round its edge, each on its own floor
-// and dressed in its own props. The shop (north-west) has one at each hand: the trading street to
-// the west and the daily fair to the north. The collection cabinet (north-east) leads on to the
-// honours terrace in the east; the working yard lies to the south-west. The pond keeps the
-// south-east to itself, with nothing built near its banks. Paths leave through the gaps; scenery
+// opening pedestal at its centre, and the destinations ring it in groups with open ground between
+// them. Clockwise from the shop (north-west, fixed): the daily fair (chest, quests, wheel), the
+// collection, the honours terrace (scrying ball, hall of fame, leaderboards), the pond (south-east,
+// fixed, with nothing built near its banks), the working yard (forge, recycler), and the trading
+// street (player trading, mail, deals) back round to the shop. Paths leave through the gaps; scenery
 // gathers behind the districts, while showcase figures stand along both the plaza edge and the
 // outer neighbourhoods.
 // The overview is home; the centre holds the opening pedestal and the other destinations are stations.
@@ -27,23 +27,25 @@ type StationSpec = { at: [number, number]; face?: [number, number]; width: numbe
 const big = (fit: number) => ({ height: 1.2, distance: 6.8, target: 1.6, fit });
 const small = (fit: number, target = 1.3) => ({ height: 1.1, distance: 6.6, target, fit });
 export const STATION_SPECS: Record<Station, StationSpec> = {
-  // The shop anchors the north-west; the trading street runs south from it down the west edge.
+  // The shop anchors the north-west.
   shop: { at: [-8.8, -8.2], face: [-4, -2.4], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
-  merchant: { at: [-13.2, -3.1], face: [-5.5, -1.4], width: 4.4, back: -1.6, front: 1.6, shot: small(4.6, 1.25) },
-  mail: { at: [-13.2, 2.2], face: [-5.6, 1.8], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
-  trading: { at: [-11.9, 6.4], face: [-5.6, 3], width: 4.8, back: -1.65, front: 1.65, shot: big(4.6) },
-  // The daily fair runs east from the shop along the north edge, either side of the north path.
-  crate: { at: [-4.3, -11.3], face: [-1.6, -4.8], width: 3.1, back: -0.8, front: 1.1, shot: { height: 3.1, distance: 6.6, target: 0.55, fit: 3.2 } },
-  quests: { at: [1.2, -13.2], face: [0.4, -5.2], width: 4.5, back: -0.6, front: 1.3, shot: small(4.8, 1.5) },
-  wheel: { at: [6.1, -11.9], face: [2, -5], width: 4.1, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
-  // The collection, then the honours terrace: the scrying ball, the hall and the podium.
-  gallery: { at: [10.2, -7.4], face: [4.4, -3], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
-  feed: { at: [13.2, -0.6], face: [6.4, 0], width: 2.6, back: -1.6, front: 0.8, shot: small(3.4, 1.4) },
-  fame: { at: [14.2, 3.6], face: [6.6, 2], width: 3.8, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
-  leaderboard: { at: [12.1, 7.8], face: [5.8, 3.8], width: 3, back: -1.4, front: 1, shot: small(4, 1.5) },
-  // The working yard, a step beyond the cobbles; its two workshops face a shared approach.
-  recycler: { at: [-9.9, 12.4], face: [-5, 6.4], width: 4.6, back: -2.2, front: 2.1, shot: big(5) },
-  forge: { at: [-3.6, 14.4], face: [-3, 7.4], width: 4, back: -1.5, front: 1, shot: big(4.6) },
+  // The daily fair, along the north edge.
+  crate: { at: [-1.9, -13.5], width: 2.6, back: -0.8, front: 1, shot: { height: 3.1, distance: 6.6, target: 0.55, fit: 3.2 } },
+  quests: { at: [2.8, -14], width: 3.8, back: -0.6, front: 1.2, shot: small(4.4, 1.5) },
+  wheel: { at: [7.2, -12.2], width: 3.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
+  // The collection stands alone between the fair and the honours terrace.
+  gallery: { at: [11.7, -5.9], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
+  // The honours terrace: the scrying ball, the hall and the podium, spaced along the east edge.
+  feed: { at: [15.6, 0.3], width: 2.6, back: -1.6, front: 0.8, shot: small(3.4, 1.4) },
+  fame: { at: [15.2, 4.8], width: 3.8, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
+  leaderboard: { at: [13.1, 8.6], width: 3, back: -1.4, front: 1, shot: small(4, 1.5) },
+  // The working yard: the forge and the recycler side by side, past the pond.
+  forge: { at: [-4.5, 14.4], face: [-2, 6], width: 3.6, back: -1.5, front: 1, shot: big(4.4) },
+  recycler: { at: [-9.2, 12.4], face: [-4.4, 6], width: 4.4, back: -1.6, front: 1.3, shot: big(4.8) },
+  // The trading street, running north up the west edge toward the shop.
+  trading: { at: [-13.4, 5.9], width: 4.8, back: -1.65, front: 1.65, shot: big(4.6) },
+  mail: { at: [-14.8, 1.4], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
+  merchant: { at: [-14.2, -2.8], width: 4.4, back: -1.6, front: 1.6, shot: small(4.6, 1.25) },
   // The pond is seen from behind the foot of its dock, over the whole dock to the water beyond.
   pond: { at: [POND.x, POND.z], face: [4, 10], width: 6, back: -3, front: 3, shot: { height: 3.6, distance: 10, target: 0.1, fit: 6, reach: 1.75 } },
 };
@@ -53,27 +55,19 @@ export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([n
 })) as Record<Station, { position: THREE.Vector3; rotation: number }>;
 // The worn paths off the square, as points along their middles.
 export const PATHS: [number, number][][] = [
-  [[-1.6, -8], [-1.9, -12.5], [-1.4, -18.5], [0.3, -24], [2.4, -30], [3.6, -40]],
-  [[-8.4, -0.4], [-10.5, 0.1], [-12.5, 0.1], [-18.7, -0.8], [-23.6, -1.8], [-31, -4]],
-  [[8.6, -3], [11, -3.1], [17, -5.7], [23, -5.4], [30, -3]],
-  [[-6.2, 6], [-6.1, 10], [-6.2, 15.8], [-9.5, 20], [-14, 25]],
+  [[-4.6, -9.2], [-4.9, -12.2], [-4.4, -17], [-1.4, -21], [0.3, -24], [2.4, -30], [3.6, -40]],
+  [[9, -1.5], [13.4, -2], [17.4, -3.4], [23, -5.4], [30, -3]],
+  [[-7.6, 6.2], [-11.2, 9.1], [-15.2, 12.2], [-19.5, 17.2], [-24, 22]],
   [[1.7, 10.2], [1.2, 13], [2.1, 16.5], [1.6, 22], [-0.5, 29]],
-];
-// Overlapping worn patches join each group to the plaza, with irregular grass pockets between.
-export const PATCHES: [number, number, number][] = [
-  [-10.6, -5.2, 3.8], [-12.6, 1.6, 4.4], // The trading street's uneven forecourts.
-  [-1, -11.2, 4.4], [5.6, -10.6, 3.4], [10.2, -5.8, 3], // The fair, then the collection's entrance.
-  [11.6, 3.4, 3.2], // The honours terrace's foot.
-  [-7, 11.6, 4.8], [-4.4, 15.4, 3.2], // The working yard.
 ];
 // An inner layer beside the facilities and an outer layer at their gardens and paths. Leave
 // the opening pedestal's middle of the plaza empty. Each visitor looks roughly toward it.
 export const STATUE_SPOTS = ([
-  [-8.2, -4], [-8.5, 7], [12.6, 1.5], [-0.64, 9.6], [6.5, 7], [9.5, -4.5], [3, -10.5], [-4.8, -7.5],
-  [-6.75, -14.04], [-8.5, -12], [-14.5, 10.2], [-1.5, 12.5], [16.9, 9.6], [17.2, 0.4], [14.6, -8.4], [3.4, -15.6],
+  [-5, 10], [-11, 3], [-8.5, -3.5], [-3.5, -8.5], [4, -10], [10.5, -3.5], [8.5, 7.5], [0, 9.5],
+  [-7.5, 18], [-18, 7.5], [-16.5, -7], [-6, -14.5], [6, -15.6], [14.5, -6], [18, 7.5], [-1, 13],
 ] as [number, number][]).map(([x, z], index) => ({ number: index + 1, position: new THREE.Vector3(x, 0, z), rotation: Math.atan2(-x, -z) + Math.sin(index * 2.4) * 0.5 }));
 // Lamp posts along the paths.
-export const LAMP_SPOTS: [number, number][] = [[-3.5, -17.5], [4.8, -15.9], [-17, -3], [-15.3, -11.8], [16, -9.6], [17.8, 5.6], [-10.6, 16.1], [0, 15.5]];
+export const LAMP_SPOTS: [number, number][] = [[-6.8, -17], [-1.7, -18.6], [15.2, -4], [19, -1.8], [-13.2, 12.6], [-17.6, 11.8], [-0.4, 15.4], [-1.2, 20.4]];
 // Sample the entire path, not just its control points: vegetation must not close the gaps
 // between them. Figure spots also need a clearing when the outer woods are generated.
 export const FOREST_CLEARINGS: Keep[] = [
@@ -88,13 +82,14 @@ export const FOREST_CLEARINGS: Keep[] = [
 // Classic game textures (Elwynn cobbles and grass, sky layers) exported with the local wow.export
 // worker; the painted fallbacks show until they load. Provenance: /figurines/world/source.json.
 export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", grass: "/figurines/world/grass.png", dirt: "/figurines/world/dirt.png", clouds: "/figurines/world/clouds.jpg" };
-// Each district's floor, laid over the ground with a ragged edge: a texture from the game, the
-// middle of the patch, its half-widths along x and z, its turn, and how much ground a tile covers.
-export const DISTRICT_FLOORS: { texture: string; at: [number, number]; size: [number, number]; turn: number; tile: number; tint?: number; seed: number }[] = [
-  { texture: "/figurines/world/floor-market.png", at: [-13.2, 1.9], size: [4.2, 8.6], turn: 0.12, tile: 3.2, seed: 2 },
-  { texture: "/figurines/world/floor-fair.png", at: [1.2, -13.4], size: [9.6, 3.9], turn: 0, tile: 3, tint: 0xd8c8b8, seed: 3 },
-  { texture: "/figurines/world/floor-honours.png", at: [13.8, 3.3], size: [4.2, 7.8], turn: -0.12, tile: 3, tint: 0xb8b0a2, seed: 5 },
-  { texture: "/figurines/world/floor-yard.png", at: [-7.1, 13.5], size: [6.8, 4.4], turn: -0.3, tile: 3.4, tint: 0xb4aca4, seed: 7 },
+// Each district's paving, a texture from the game laid over the square's rim and out round its
+// stations: the patches of ground it covers ([x, z, radius]), how much ground a tile covers, its
+// turn, and the tint that keeps it in the family of the square's stones.
+export const DISTRICT_FLOORS: { texture: string; blobs: [number, number, number][]; tile: number; turn: number; tint: [number, number, number] }[] = [
+  { texture: "/figurines/world/floor-market.png", blobs: [[-13.4, 5.2, 3.4], [-13.9, 1.4, 3.2], [-13.4, -2.6, 3.4], [-10.6, 1.4, 2.6]], tile: 3.2, turn: 0.12, tint: [0.8, 0.74, 0.68] },
+  { texture: "/figurines/world/floor-fair.png", blobs: [[-1.8, -12.8, 2.6], [2.8, -13.2, 3], [7, -11.6, 2.6], [2.6, -10.4, 2.6]], tile: 3, turn: 0, tint: [0.68, 0.62, 0.58] },
+  { texture: "/figurines/world/floor-honours.png", blobs: [[14.6, 0.3, 2.7], [14.3, 4.6, 3], [12.5, 8.1, 2.7], [11.2, 3.2, 2.6]], tile: 3, turn: -0.12, tint: [0.4, 0.37, 0.33] },
+  { texture: "/figurines/world/floor-yard.png", blobs: [[-8.8, 11.6, 3.3], [-4.5, 13.6, 3], [-6, 9.8, 2.6]], tile: 3.4, turn: -0.3, tint: [1.15, 1.04, 0.92] },
 ];
 // Canvas x of the painted sun: the direction the stage's key light shines from (-x, +z).
 const SUN_X = 277;
@@ -179,52 +174,122 @@ function paintedSky(layers: { clouds?: HTMLImageElement | null } = {}, target?: 
   return element;
 }
 
-// Where worn earth shows through, in ground-disc UV space (canvas top is the far side). On the
-// square: its ragged rim, scuffs, and where the paths leave it. On the grass: a trodden ring round
-// the square, the paths, the ground round each neighbourhood, and loose patches.
 const SQUARE_EDGE = (angle: number) => 1 + 0.07 * Math.sin(angle * 3 + 0.6) + 0.05 * Math.sin(angle * 7 + 2.1) + 0.03 * Math.sin(angle * 13);
-function dirtMask(groundRadius: number, plaza = false) {
-  const size = 1024, [element, context] = canvas(size, size), next = random(plaza ? 8 : 5);
-  const at = (x: number, z: number) => [(x / groundRadius + 1) / 2 * size, (z / groundRadius + 1) / 2 * size] as const;
-  const scale = size / 2 / groundRadius;
-  context.fillStyle = "#000"; context.fillRect(0, 0, size, size);
-  const blot = (x: number, z: number, radius: number, strength: number) => {
-    const [cx, cy] = at(x, z), r = radius * scale, gradient = context.createRadialGradient(cx, cy, 0, cx, cy, r);
-    gradient.addColorStop(0, `rgba(255,255,255,${strength})`); gradient.addColorStop(1, "rgba(255,255,255,0)");
-    context.fillStyle = gradient; context.fillRect(cx - r, cy - r, r * 2, r * 2);
+// The ground is one surface, blended in the shader the way the game's own terrain is: every layer
+// has a soft mask, and the texture's own relief decides what gives way first, so stones thin out
+// one by one into trodden earth and the earth into the grass. The masks cover the middle of the
+// world, GROUND_MAP wide; canvas top is -z.
+const GROUND_MAP = 64, MAP_SIZE = 1024;
+function groundMaps() {
+  const scale = MAP_SIZE / GROUND_MAP, at = (x: number, z: number) => [(x / GROUND_MAP + 0.5) * MAP_SIZE, (z / GROUND_MAP + 0.5) * MAP_SIZE] as const;
+  const layer = (blur: number, paint: (context: CanvasRenderingContext2D) => void) => {
+    const [, context] = canvas(MAP_SIZE, MAP_SIZE);
+    context.fillStyle = "#000"; context.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+    context.filter = `blur(${blur * scale}px)`; context.fillStyle = context.strokeStyle = "#fff"; context.lineCap = context.lineJoin = "round";
+    paint(context);
+    return context.getImageData(0, 0, MAP_SIZE, MAP_SIZE).data;
   };
-  // Blots along each path, wobbling a little either side of its line.
-  const paths = (width: number, strength: number) => PATHS.forEach((path) => path.slice(1).forEach(([x, z], index) => {
-    const [px, pz] = path[index], length = Math.hypot(x - px, z - pz);
-    for (let d = 0; d < length; d += 0.45) { const t = d / length, wobble = (next() - 0.5) * 0.6; blot(px + (x - px) * t + wobble, pz + (z - pz) * t + wobble, width * (0.8 + next() * 0.4), strength); }
-  }));
-  if (plaza) {
-    for (let i = 0; i < 180; i++) { const angle = next() * Math.PI * 2, radius = COBBLE_RADIUS * SQUARE_EDGE(angle) - 2.2 + next() * 2.4; blot(Math.sin(angle) * radius, Math.cos(angle) * radius, 0.5 + next() * 1.2, 0.25 + next() * 0.45); }
-    for (let i = 0; i < 30; i++) { const angle = next() * Math.PI * 2, radius = 3.4 + next() * (COBBLE_RADIUS - 5); blot(Math.sin(angle) * radius, Math.cos(angle) * radius, 0.4 + next() * 1.1, 0.12 + next() * 0.3); }
-    paths(1.1, 0.35);
-  } else {
-    for (let i = 0; i < 110; i++) { const angle = next() * Math.PI * 2, radius = COBBLE_RADIUS * SQUARE_EDGE(angle) - 0.2 + next() * 1.8; blot(Math.sin(angle) * radius, Math.cos(angle) * radius, 0.6 + next() * 1.2, 0.15 + next() * 0.3); }
-    paths(1.5, 0.6);
-    for (const [x, z, radius] of PATCHES) for (let i = 0; i < 26; i++) { const angle = next() * Math.PI * 2, d = Math.sqrt(next()) * radius; blot(x + Math.sin(angle) * d, z + Math.cos(angle) * d, 0.8 + next() * 1.6, 0.18 + next() * 0.3); }
-    for (let i = 0; i < 90; i++) { const angle = next() * Math.PI * 2, radius = COBBLE_RADIUS + 4 + next() * (groundRadius - COBBLE_RADIUS - 4); blot(Math.sin(angle) * radius, Math.cos(angle) * radius, 1 + next() * 3, 0.12 + next() * 0.3); }
-  }
-  const texture = new THREE.CanvasTexture(element); texture.colorSpace = THREE.NoColorSpace;
-  return texture;
+  const disc = (context: CanvasRenderingContext2D, x: number, z: number, radius: number) => { const [cx, cy] = at(x, z); context.beginPath(); context.arc(cx, cy, radius * scale, 0, Math.PI * 2); context.fill(); };
+  const square = (context: CanvasRenderingContext2D, grow: number) => {
+    context.beginPath();
+    for (let step = 0; step <= 128; step++) {
+      const angle = step / 128 * Math.PI * 2, radius = COBBLE_RADIUS * SQUARE_EDGE(angle) + grow, [x, y] = at(Math.sin(angle) * radius, Math.cos(angle) * radius);
+      context[step ? "lineTo" : "moveTo"](x, y);
+    }
+    context.fill();
+  };
+  const paths = (context: CanvasRenderingContext2D, width: number) => {
+    context.lineWidth = width * scale;
+    for (const path of PATHS) { context.beginPath(); path.forEach(([x, z], index) => context[index ? "lineTo" : "moveTo"](...at(x, z))); context.stroke(); }
+  };
+  const cobbles = layer(1.3, (context) => square(context, -0.5));
+  const floors = DISTRICT_FLOORS.map(({ blobs }) => layer(1.5, (context) => blobs.forEach(([x, z, radius]) => disc(context, x, z, radius))));
+  // The trodden earth runs a little beyond all the paving, and out along the paths.
+  const earth = layer(1.7, (context) => {
+    square(context, 1.4); paths(context, 2);
+    for (const { blobs } of DISTRICT_FLOORS) for (const [x, z, radius] of blobs) disc(context, x, z, radius + 1.3);
+  });
+  // Three masks to a map: a canvas premultiplies, so alpha can't hold a fourth.
+  const pack = (channels: Uint8ClampedArray[]) => {
+    const [element, context] = canvas(MAP_SIZE, MAP_SIZE), image = context.createImageData(MAP_SIZE, MAP_SIZE);
+    for (let i = 0; i < image.data.length; i += 4) { channels.forEach((source, channel) => { image.data[i + channel] = source[i]; }); image.data[i + 3] = 255; }
+    context.putImageData(image, 0, 0);
+    const map = new THREE.CanvasTexture(element); map.colorSpace = THREE.NoColorSpace; map.generateMipmaps = false; map.minFilter = THREE.LinearFilter;
+    return map;
+  };
+  return [pack([cobbles, floors[0], floors[1]]), pack([floors[2], floors[3], earth])];
 }
-// Blends a second ground texture into a material through a mask in the mesh's base UVs.
-function blendGround(material: THREE.MeshStandardMaterial, mask: THREE.Texture, repeat: number) {
-  const uniforms = { dirtMap: { value: null as THREE.Texture | null }, dirtMask: { value: mask }, dirtRepeat: { value: repeat } };
+// A tiling field of soft noise: what breaks up each layer's edge.
+function groundNoise() {
+  const size = 256, [element, context] = canvas(size, size), next = random(21), image = context.createImageData(size, size);
+  const lattices = [[8, 0.45], [16, 0.3], [32, 0.15], [64, 0.1]].map(([cells, weight]) => ({ cells, weight, values: Array.from({ length: cells * cells }, () => next()) }));
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    let value = 0;
+    for (const { cells, weight, values } of lattices) {
+      const u = x / size * cells, v = y / size * cells, x0 = Math.floor(u), y0 = Math.floor(v), fx = smooth(u - x0), fy = smooth(v - y0), get = (i: number, j: number) => values[(j % cells) * cells + (i % cells)];
+      value += weight * ((get(x0, y0) * (1 - fx) + get(x0 + 1, y0) * fx) * (1 - fy) + (get(x0, y0 + 1) * (1 - fx) + get(x0 + 1, y0 + 1) * fx) * fy);
+    }
+    const i = (y * size + x) * 4;
+    image.data[i] = image.data[i + 1] = image.data[i + 2] = value * 255; image.data[i + 3] = 255;
+  }
+  context.putImageData(image, 0, 0);
+  const map = new THREE.CanvasTexture(element); map.colorSpace = THREE.NoColorSpace; map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  return map;
+}
+// The whole ground in one shader: grass, then earth, the square's cobbles and each district's
+// paving, each laid over the last where its mask, its relief and the noise allow.
+function blendGround(material: THREE.MeshStandardMaterial) {
+  const [first, second] = groundMaps(), blank = new THREE.DataTexture(new Uint8Array([120, 112, 100, 255]), 1, 1); blank.colorSpace = THREE.SRGBColorSpace; blank.needsUpdate = true;
+  const uniforms = {
+    groundFirst: { value: first }, groundSecond: { value: second }, groundNoise: { value: groundNoise() },
+    earthMap: { value: blank as THREE.Texture }, cobbleMap: { value: blank as THREE.Texture },
+    floorMaps: { value: DISTRICT_FLOORS.map(() => blank as THREE.Texture) },
+    floorTints: { value: DISTRICT_FLOORS.map(({ tint }) => new THREE.Vector3(...tint)) },
+    floorFrames: { value: DISTRICT_FLOORS.map(({ tile, turn }) => new THREE.Vector2(Math.cos(turn) / tile, Math.sin(turn) / tile)) },
+  };
+  const masks = ["first.g", "first.b", "second.r", "second.g"];
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
-    shader.fragmentShader = `uniform sampler2D dirtMap; uniform sampler2D dirtMask; uniform float dirtRepeat;\n${shader.fragmentShader}`.replace("#include <map_fragment>", `#include <map_fragment>
-      #ifdef USE_MAP
-        vec2 groundUv = vMapUv / dirtRepeat;
-        float worn = smoothstep(0.08, 0.75, texture2D(dirtMask, groundUv).r);
-        diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(dirtMap, vMapUv * 0.8).rgb * vec3(0.62, 0.56, 0.48), worn);
-      #endif`);
+    shader.vertexShader = `varying vec2 vGround;\n${shader.vertexShader}`.replace("#include <begin_vertex>", "#include <begin_vertex>\n  vGround = vec2(position.x, -position.y);");
+    shader.fragmentShader = `varying vec2 vGround;
+      uniform sampler2D groundFirst, groundSecond, groundNoise, earthMap, cobbleMap, floorMaps[${DISTRICT_FLOORS.length}];
+      uniform vec3 floorTints[${DISTRICT_FLOORS.length}];
+      uniform vec2 floorFrames[${DISTRICT_FLOORS.length}];
+      float brightness(vec3 colour) { return dot(colour, vec3(0.3, 0.55, 0.15)); }
+      // How much of a layer shows: its mask, pushed about by the noise and by its own relief, so
+      // the mortar goes first and the stones thin out one by one.
+      float laid(float mask, vec3 colour, float noise, float softness) {
+        float edge = mask * 1.5 - 0.25 + (noise - 0.5) * 0.7 + (sqrt(brightness(colour)) - 0.45) * 1.3;
+        return smoothstep(0.5 - softness, 0.5 + softness, edge) * smoothstep(0.0, 0.1, mask);
+      }
+      // Toward its edge a layer takes on the colour of the ground it is sinking into, like stones
+      // under a skin of dust, so no two layers ever meet at full strength.
+      vec3 dusted(vec3 colour, vec3 under, float mask) { return mix(under * (0.75 + 0.5 * brightness(colour) / max(brightness(under), 0.02)), colour, smoothstep(0.3, 0.95, mask)); }
+      ${shader.fragmentShader}`.replace("#include <map_fragment>", `#include <map_fragment>
+      vec2 maskUv = vGround / ${GROUND_MAP.toFixed(1)} + 0.5; maskUv.y = 1.0 - maskUv.y;
+      vec4 first = texture2D(groundFirst, maskUv), second = texture2D(groundSecond, maskUv);
+      float noise = texture2D(groundNoise, vGround * 0.045).r * 0.65 + texture2D(groundNoise, vGround * 0.21).r * 0.35;
+      // The earth: desaturated, so it sits with the stone instead of glowing against it. It also
+      // shows in loose worn patches out in the far grass.
+      vec3 earth = texture2D(earthMap, vGround * 0.28).rgb;
+      earth = mix(vec3(brightness(earth)), earth, 0.7) * vec3(0.66, 0.6, 0.53);
+      float wear = smoothstep(0.6, 0.72, texture2D(groundNoise, vGround * 0.011).r) * 0.6 * smoothstep(20.0, 28.0, length(vGround));
+      diffuseColor.rgb = mix(diffuseColor.rgb, earth, max(laid(second.b, diffuseColor.rgb, noise, 0.2), wear));
+      vec3 stone = texture2D(cobbleMap, vGround / 1.79).rgb * vec3(0.69, 0.63, 0.54);
+      diffuseColor.rgb = mix(diffuseColor.rgb, dusted(stone, diffuseColor.rgb, first.r), laid(first.r, stone, noise, 0.14));
+      // Each district's paving, pulled toward the square's stone so neighbours stay in one family.
+      vec3 paved; vec2 frame;
+      ${masks.map((mask, index) => `frame = floorFrames[${index}];
+      paved = texture2D(floorMaps[${index}], vec2(frame.x * vGround.x - frame.y * vGround.y, frame.y * vGround.x + frame.x * vGround.y)).rgb;
+      paved = mix(paved, vec3(brightness(paved)) * vec3(1.0, 0.96, 0.9), 0.45) * floorTints[${index}];
+      diffuseColor.rgb = mix(diffuseColor.rgb, dusted(paved, diffuseColor.rgb, ${mask}), laid(${mask}, paved, noise, 0.14));`).join("\n")}`);
   };
-  material.customProgramCacheKey = () => `figurine-ground-${repeat}`;
-  return (texture: THREE.Texture) => { uniforms.dirtMap.value = texture; material.needsUpdate = true; };
+  material.customProgramCacheKey = () => "figurine-ground";
+  return (layer: "earth" | "cobble" | number, texture: THREE.Texture) => {
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.needsUpdate = true;
+    if (layer === "earth") uniforms.earthMap.value = texture; else if (layer === "cobble") uniforms.cobbleMap.value = texture; else uniforms.floorMaps.value[layer] = texture;
+  };
 }
 
 function textureFrom(source: HTMLCanvasElement, repeat?: number) {
@@ -259,55 +324,24 @@ export function buildWorld(scene: THREE.Scene, { onSky, ktx2Loader }: { onSky?: 
     if (clouds) { paintedSky({ clouds }, skyCanvas); if (skyMaterial.map) skyMaterial.map.needsUpdate = true; }
     onSky?.();
   });
-  // Elwynn grass to the horizon, with a cobbled plaza whose edge fades into it.
-  // The grass is drawn first and writes no depth, so the plaza above it can never z-fight with it,
-  // however far away or shaky the camera is. Nothing in the world sits below the ground.
-  const grassMaterial = new THREE.MeshStandardMaterial({ color: 0x2c3a1c, roughness: 1, depthWrite: false });
+  // Elwynn grass to the horizon, with the worn earth, the square and the districts blended into it.
+  // It is drawn first and writes no depth, so nothing can ever z-fight with it, however far away or
+  // shaky the camera is. Nothing in the world sits below the ground.
+  const grassMaterial = new THREE.MeshStandardMaterial({ color: 0x2c3a1c, roughness: 0.96, depthWrite: false });
   const grass = new THREE.Mesh(new THREE.CircleGeometry(GROUND_RADIUS, 128), grassMaterial);
   grass.rotation.x = -Math.PI / 2; grass.position.y = -0.03; grass.receiveShadow = true; grass.renderOrder = -0.5; group.add(grass);
   const grassReady = upgrade(grassMaterial, WORLD_TEXTURES.grass, signal, 140, true);
-  // Worn dirt only blends in once both textures exist; until then the grass is plain.
-  const setDirt = blendGround(grassMaterial, dirtMask(GROUND_RADIUS), 140);
-  const dirtReady = loadFigurineImage(WORLD_TEXTURES.dirt, signal).then((image) => {
-    if (!image || signal.aborted) return;
-    const texture = new THREE.Texture(image); texture.needsUpdate = true;
-    texture.colorSpace = THREE.SRGBColorSpace; texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.anisotropy = 8;
-    setDirt(texture); setPlazaDirt(texture);
-  });
-  // The square's ragged edge: an irregular outline, softened, as the cobbles' alpha.
-  const [fadeCanvas, fade] = canvas(256, 256), PLAZA_MESH = COBBLE_RADIUS * 1.2;
-  fade.fillStyle = "#000"; fade.fillRect(0, 0, 256, 256);
-  fade.filter = "blur(5px)"; fade.fillStyle = "#fff"; fade.beginPath();
-  for (let step = 0; step <= 96; step++) {
-    const angle = step / 96 * Math.PI * 2, radius = 128 * COBBLE_RADIUS * SQUARE_EDGE(angle) / PLAZA_MESH;
-    // Canvas y runs toward +z in the world (the disc is laid flat, its top edge the far side).
-    fade[step ? "lineTo" : "moveTo"](128 + Math.sin(angle) * radius, 128 + Math.cos(angle) * radius);
-  }
-  fade.fill(); fade.filter = "none";
-  const plazaMaterial = new THREE.MeshStandardMaterial({ color: 0xd8d0c2, alphaMap: new THREE.CanvasTexture(fadeCanvas), transparent: true, roughness: 0.92, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
-  const plaza = new THREE.Mesh(new THREE.CircleGeometry(PLAZA_MESH, 96), plazaMaterial);
-  // Transparent for its soft edge, so it must draw before every other transparent object
-  // (fading box walls, glows); otherwise they clip it and the grass shows through.
-  plaza.rotation.x = -Math.PI / 2; plaza.position.y = -0.015; plaza.receiveShadow = true; plaza.renderOrder = -0.4; group.add(plaza);
+  const setGround = blendGround(grassMaterial);
+  const groundTexture = async (url: string) => {
+    const image = await loadFigurineImage(url, signal);
+    if (!image || signal.aborted) return null;
+    const texture = new THREE.Texture(image); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
+    return texture;
+  };
+  const dirtReady = groundTexture(WORLD_TEXTURES.dirt).then((texture) => { if (texture) setGround("earth", texture); });
   // Painting the fallback costs millions of distance checks. Only do it if the real asset fails.
-  const plazaReady = upgrade(plazaMaterial, WORLD_TEXTURES.cobble, signal, 15, false, () => textureFrom(paintedCobbles(), 10));
-  const setPlazaDirt = blendGround(plazaMaterial, dirtMask(PLAZA_MESH, true), 15);
-  // District floors sit over the cobbles' rim, so each fades from the square into its own ground.
-  const floorReady = Promise.all(DISTRICT_FLOORS.map(async ({ texture, at, size, turn, tile, tint, seed }) => {
-    const [edgeCanvas, edge] = canvas(256, 256), next = random(seed), wobble = [next() * 6, next() * 6, next() * 6];
-    edge.fillStyle = "#000"; edge.fillRect(0, 0, 256, 256);
-    edge.filter = "blur(7px)"; edge.fillStyle = "#fff"; edge.beginPath();
-    for (let step = 0; step <= 96; step++) {
-      const angle = step / 96 * Math.PI * 2, radius = 104 * (1 + 0.1 * Math.sin(angle * 3 + wobble[0]) + 0.06 * Math.sin(angle * 5 + wobble[1]) + 0.04 * Math.sin(angle * 11 + wobble[2]));
-      edge[step ? "lineTo" : "moveTo"](128 + Math.sin(angle) * radius, 128 + Math.cos(angle) * radius);
-    }
-    edge.fill(); edge.filter = "none";
-    const material = new THREE.MeshStandardMaterial({ color: tint ?? 0xffffff, alphaMap: new THREE.CanvasTexture(edgeCanvas), transparent: true, roughness: 0.95, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(1, 64), material);
-    floor.rotation.set(-Math.PI / 2, 0, turn); floor.scale.set(size[0], size[1], 1); floor.position.set(at[0], -0.008, at[1]); floor.receiveShadow = true; floor.renderOrder = -0.3; group.add(floor);
-    await upgrade(material, texture, signal);
-    if (material.map) { material.map.wrapS = material.map.wrapT = THREE.RepeatWrapping; material.map.repeat.set(size[0] * 2 / tile, size[1] * 2 / tile); material.map.needsUpdate = true; }
-  }));
+  const plazaReady = groundTexture(WORLD_TEXTURES.cobble).then((texture) => { if (!signal.aborted) setGround("cobble", texture ?? textureFrom(paintedCobbles())); });
+  const floorReady = Promise.all(DISTRICT_FLOORS.map(({ texture }, index) => groundTexture(texture).then((map) => { if (map) setGround(index, map); })));
   // The forest clearing and its lamp posts, each lamp with an additive glow.
   const wind = { value: 0 };
   const forest = buildForest(group, forestLayout(PLAZA_RADIUS, 11, marketLayout(), LAMP_SPOTS, FOREST_CLEARINGS), (material) => swayMaterial(material, wind), ktx2Loader);

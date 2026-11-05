@@ -99,14 +99,20 @@ const inside = (name, point, margin = 0) => {
 test("all facilities stay within a few steps of the plaza in neighbouring groups", () => {
   assert.equal(stations.length, 14);
   assert.deepEqual(STATION_SPECS.shop.at, [-8.8, -8.2], "the shop remains an anchor");
-  assert.deepEqual(STATION_SPECS.gallery.at, [10.2, -7.4], "the collection anchors the honours side");
   for (const [name, { position }] of stations) {
     assert.ok(position.length() - COBBLE_RADIUS < (name === "pond" ? 8 : 4.8), `${name} is too far from the plaza edge`);
   }
-  // The districts: trading and the daily fair at the shop's hands, honours beside the collection.
-  for (const [a, b] of [["shop", "merchant"], ["merchant", "mail"], ["mail", "trading"], ["shop", "crate"], ["crate", "quests"], ["quests", "wheel"], ["gallery", "feed"], ["feed", "fame"], ["fame", "leaderboard"], ["recycler", "forge"]]) {
-    assert.ok(STATIONS[a].position.distanceTo(STATIONS[b].position) < 8.3, `${a} and ${b} should share a district`);
+  // Clockwise from the shop, with each group together and open ground between the groups.
+  const bearing = (name) => { const { x, z } = STATIONS[name].position; return (Math.atan2(x, -z) - Math.atan2(STATIONS.shop.position.x, -STATIONS.shop.position.z) + Math.PI * 2) % (Math.PI * 2); };
+  const groups = [["crate", "quests", "wheel"], ["gallery"], ["feed", "fame", "leaderboard"], ["pond"], ["forge", "recycler"], ["trading", "mail", "merchant"]];
+  const ring = groups.flat();
+  ring.slice(1).forEach((name, index) => assert.ok(bearing(name) > bearing(ring[index]), `${name} should follow ${ring[index]} clockwise`));
+  for (const group of groups) for (let index = 1; index < group.length; index++) {
+    assert.ok(STATIONS[group[index]].position.distanceTo(STATIONS[group[index - 1]].position) < 5.6, `${group[index - 1]} and ${group[index]} should stand together`);
   }
+  // The edge of each station facing its neighbour, along the ring.
+  const gap = (a, b) => STATIONS[a].position.distanceTo(STATIONS[b].position) - (STATION_SPECS[a].width + STATION_SPECS[b].width) / 2;
+  for (const [a, b] of [["shop", "crate"], ["wheel", "gallery"], ["gallery", "feed"], ["recycler", "trading"], ["merchant", "shop"]]) assert.ok(gap(a, b) > 1.6, `${a} and ${b} should have open ground between them`);
   // The pond keeps its banks to itself.
   for (const [name, { position }] of stations) if (name !== "pond") assert.ok(position.distanceTo(STATIONS.pond.position) > POND.radius + 6, `${name} crowds the pond`);
   for (const [name, { position, rotation }] of stations) {
@@ -202,7 +208,10 @@ test("showcase figures, lamps and market stock stand clear of every station and 
 
 test("each district's dressing stays off the stations, the paths and the pond's banks", () => {
   const dressing = Object.values(DISTRICT_DRESSING).flat();
-  assert.ok(new Set(dressing.map(({ prop }) => prop)).size > 20, "the districts look different from one another");
+  // Each district dresses itself from its own props, and only lightly.
+  const owners = Object.values(DISTRICT_DRESSING).map((pieces) => new Set(pieces.map(({ prop }) => prop)));
+  owners.forEach((props, index) => owners.slice(index + 1).forEach((other) => assert.ok([...props].every((prop) => !other.has(prop)), "the districts look different from one another")));
+  assert.ok(dressing.length <= 12, "dressing frames the districts without crowding them");
   const walked = PATHS.flatMap((path) => path.slice(1).flatMap(([x, z], index) => {
     const [px, pz] = path[index], steps = Math.ceil(Math.hypot(x - px, z - pz) / 0.5);
     return Array.from({ length: steps + 1 }, (_, step) => new THREE.Vector3(px + (x - px) * step / steps, 0, pz + (z - pz) * step / steps));

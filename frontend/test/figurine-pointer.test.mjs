@@ -33,7 +33,7 @@ test("canvas exit clears world hover and the corresponding HUD without cancellin
     const calls = [];
     const grab = dragging ? { id: 1 } : null;
     const context = vm.createContext({
-      hovering: true, hoverTape: true, press: {}, hoveredSeries: "series", hoveredStation: "pond", hoveredMachine: "slot", hoveredPart: "rod", grab,
+      hovering: true, hoverTape: true, press: {}, hoveredSeries: "series", hoveredStation: "pond", hoveredPart: "rod", grab,
       renderer: { domElement: { style: { cursor: dragging ? "grabbing" : "pointer" } } },
       callbacks: { current: {
         onHoverStation: value => calls.push(["station", value]),
@@ -42,7 +42,7 @@ test("canvas exit clears world hover and the corresponding HUD without cancellin
       } },
     });
     new vm.Script(ts.transpile(source) + "\nonPointerLeave();").runInContext(context);
-    for (const key of ["hoveredSeries", "hoveredStation", "hoveredMachine", "hoveredPart", "press"]) assert.equal(context[key], null);
+    for (const key of ["hoveredSeries", "hoveredStation", "hoveredPart", "press"]) assert.equal(context[key], null);
     assert.equal(context.hovering, false);
     assert.equal(context.hoverTape, false);
     assert.deepEqual(calls, [["station", null], ["figure", null], ["part", null]]);

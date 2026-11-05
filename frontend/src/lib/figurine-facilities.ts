@@ -7,7 +7,7 @@ import { applyFinish, releaseFinishes } from "@/lib/figurine-finish";
 import { WORLD_TEXTURES } from "@/lib/figurine-world";
 import { figurineBodyBounds, figurineScale, restoreFigurineMaterials } from "@/lib/figurine-materials";
 import { disposeFigurineObject } from "@/lib/figurine-cache";
-import { dailyChestAnimation, chestRewardPresentation } from "@/lib/figurine-chest";
+import { dailyChestAnimation, chestRewardPresentation, placeRewardCoin } from "@/lib/figurine-chest";
 import { coinCollectionFlight } from "@/lib/figurine-coin-flight";
 
 // The plaza's facilities other than the shop and the two machines. Each is a small scene of game
@@ -152,25 +152,16 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(inner, height - PLINTH), new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, roughness: 0.04, envMap, envMapIntensity: 2, depthWrite: false }));
     glass.position.set(0, (height + PLINTH) / 2, DEPTH / 2 + 0.02); glass.renderOrder = 2; glass.raycast = () => {}; parent.add(glass);
   } else if (kind === "crate") {
-    // Daily chest: a gold-banded chest on a heap of coins, with a barrow of gold at its side and a
-    // seven-day streak board hung between two lantern posts behind it.
+    // Daily chest: a gold-banded chest on a heap of coins, with a seven-day streak board behind it.
     const chest = prop("dailyChest", 1.05, 0, 0.12, -Math.PI / 2, 0.16);
     chest.group.userData.part = "chest";
     hover = (part) => { hoveredPart = part; };
-    const coin = placeProp(parent, "coin", { height: 0.5, length: 0.75 });
+    const coin = placeRewardCoin(parent, placeProp);
     const reward = chestRewardPresentation(parent, coin.group, sparkMap, burst, () => coinCollected?.());
     presentCatch = (camera, reducedMotion, target) => reward.present(camera, reducedMotion, target);
     clearCatch = reward.reset;
     pokes.dismiss = reward.dismiss;
-    props.push(coin.ready.then((group) => {
-      if (disposed) return group;
-      const holder = group.parent!;
-      holder.remove(group); orientCoinModel(group);
-      group.position.sub(new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()));
-      holder.add(group);
-      group.traverse((object) => { object.raycast = () => {}; });
-      return group;
-    }));
+    props.push(coin.ready);
     let claimed = false, opening = false;
     setChestReady = (ready) => {
       claimed = !ready;
@@ -203,9 +194,6 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       });
     };
     long("fairGold", 3, 0, 0.2, 0.5);
-    prop("fairCoins", 0.34, -1.12, 0.78, 0.3);
-    prop("fairCoins", 0.25, 1.1, 0.7, 1.4);
-    prop("fairGoldCart", 0.95, 1.55, -0.05, -Math.PI / 2 - 0.5);
     // The streak board: a coin per day, gilded once that day's crate is opened; today's is ringed.
     const [streakCanvas, streak] = canvas(512, 96), streakMap = srgb(streakCanvas);
     paintStreak = (opened: number, today: number | null) => {
@@ -221,10 +209,10 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     paintStreak(0, 1);
     frame.push(add(new THREE.BoxGeometry(1.9, 0.36, 0.05), [wood, wood, wood, wood, new THREE.MeshStandardMaterial({ map: streakMap, roughness: 0.6 }), wood], 0, 1.86, -0.62));
     add(new THREE.BoxGeometry(2.3, 0.07, 0.07), wood, 0, 2.08, -0.62);
-    for (const side of [-1, 1]) prop("questPost", 2.5, side * 1.18, -0.66, side * Math.PI / 2);
+    for (const side of [-1, 1]) frame.push(add(new THREE.BoxGeometry(0.1, 2.12, 0.1), wood, side * 1.08, 1.06, -0.62));
   } else if (kind === "wheel") {
-    // Lucky wheel: a painted wheel of prizes on an A-frame, a pointer at the top; a goblin statue
-    // and a barrel of fireworks beside it, under bunches of balloons. It idles with a slow sway.
+    // Lucky wheel: a painted wheel of prizes on an A-frame, a pointer at the top, between two bunches
+    // of balloons. It idles with a slow sway.
     // Segment i spans canvas angles i·45° to (i+1)·45° clockwise from +x; on the wheel's face that is
     // the same sweep counter-clockwise from +x, so segment i's centre sits at −(i + ½)·45°.
     const [wheelCanvas, paint] = canvas(512, 512);
@@ -244,10 +232,8 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     for (let peg = 0; peg < 8; peg++) { const angle = peg / 8 * Math.PI * 2; add(new THREE.CylinderGeometry(0.025, 0.025, 0.12, 8).rotateX(Math.PI / 2), gold, Math.cos(angle) * 0.96, Math.sin(angle) * 0.96, 0.08, wheel); }
     for (const side of [-1, 1]) { const leg = add(new THREE.BoxGeometry(0.1, 1.9, 0.1), wood, side * 0.45, 0.95, -0.12); leg.rotation.z = side * 0.24; }
     add(new THREE.ConeGeometry(0.1, 0.24, 4).rotateZ(Math.PI), gold, 0, 2.75, 0.12);
-    prop("goblinStatue", 1.1, -1.45, 0.35, -Math.PI / 2 + 0.5);
-    prop("fireworks", 0.95, 1.1, 0.25, 0);
-    prop("fairBalloons", 3.4, -2.1, -0.45, 0.6);
-    prop("fairBalloonsBig", 3.7, 2.15, -0.5, 2.4);
+    prop("fairBalloonsBig", 3.3, -1.75, -0.45, 0.6);
+    prop("fairBalloonsBig", 3.7, 1.8, -0.5, 2.4);
     // Idle, it rocks a little; a spin turns it five times over and settles the segment at the top.
     let rest = 0, spun = false;
     animate.push((_, time) => { if (!spun) wheel.rotation.z = rest + Math.sin(time * 0.6) * 0.06; });
@@ -267,22 +253,18 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       });
     };
   } else if (kind === "mail") {
-    // Gifting post: a post-box, a round table of wrapped gifts, and satchels waiting for the round.
+    // Gifting post: a post-box and a round table of wrapped gifts.
     prop("mailBox", 2.25, -0.62, -0.05, -Math.PI / 2);
     prop("marketTableRound", 0.72, 0.62, 0.08, 0.4);
     prop("gift", 0.25, 0.32, 0.18, 0.3, 0.72);
     prop("giftRed", 0.2, 0.9, 0.2, -0.4, 0.72);
-    prop("giftWhite", 0.16, 0.62, -0.14, 0.9, 0.72);
-    prop("mailSatchel", 0.62, 1.32, 0.42, 0.7);
-    prop("marketBag", 0.42, -1.3, 0.42, 2);
   } else if (kind === "quests") {
-    // Quest giver: the mission board hung by its chains from a beam, under a floating golden "!";
-    // the campaign table with its maps before it, and a barrel of rolled scrolls.
+    // Quest giver: the mission board hung by its chains from a beam, under a floating golden "!",
+    // with the campaign table and its maps before it.
     for (const side of [-1, 1]) frame.push(add(new THREE.BoxGeometry(0.2, 3.2, 0.2), wood, side * 1.5, 1.6, -0.34));
     frame.push(add(new THREE.BoxGeometry(3.4, 0.2, 0.22), wood, 0, 3.14, -0.34));
     prop("questBoard", 2.75, 0, -0.26, -Math.PI / 2, 0.42);
     prop("questTable", 0.92, 1.42, 0.62, -Math.PI / 2 - 0.3);
-    prop("questScrolls", 1, -1.72, 0.2, -0.4);
     const mark = new THREE.Group(); mark.position.set(0, 3.75, -0.15); parent.add(mark);
     const glow = new THREE.MeshStandardMaterial({ color: 0xffd24a, emissive: 0xffb81c, emissiveIntensity: 0.9, metalness: 0.3, roughness: 0.35 });
     add(new THREE.BoxGeometry(0.13, 0.42, 0.13), glow, 0, 0.12, 0, mark);
@@ -300,17 +282,12 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     shine.material.map = srgb(glowCanvas); shine.position.set(0, 1.55, 0.05); shine.scale.setScalar(1.1); parent.add(shine);
     animate.push((_, time) => { shine.material.opacity = 0.3 + 0.2 * Math.sin(time * 1.7); shine.material.color.setHSL(0.72 + 0.08 * Math.sin(time * 0.4), 0.8, 0.65); });
   } else if (kind === "fame") {
-    // Hall of fame: a curved memorial wall of carved names round the trophy of the firsts, with a
-    // pedestal either side for the lesser cups.
+    // Hall of fame: a curved memorial wall of carved names round the trophy of the firsts.
     long("hallMemorial", 4.8, 0, -0.45, -Math.PI / 2);
     prop("hallTrophyGold", 2.3, 0, 0.12, -Math.PI / 2);
-    prop("hallPedestal", 0.72, -1.45, 0.3, -Math.PI / 2 + 0.3);
-    prop("trophy", 0.62, -1.45, 0.3, -Math.PI / 2 + 0.3, 0.72);
-    prop("hallPedestal", 0.72, 1.45, 0.3, -Math.PI / 2 - 0.3);
-    prop("museumPlaque", 0.4, 1.45, 0.3, -Math.PI / 2 - 0.3, 0.72);
   } else if (kind === "leaderboard") {
-    // Leaderboards: a winners' podium (1 in the middle) with the champion's shield on its top step,
-    // a carved monument behind, and banners either side.
+    // Leaderboards: a winners' podium (1 in the middle) with the champion's shield on its top step
+    // and a carved monument behind.
     const marble = new THREE.MeshStandardMaterial({ color: 0xcfc8ba, roughness: 0.7 });
     const step = (place: number, height: number, x: number, color: string) => {
       const [numberCanvas, paint] = canvas(128, 128);
@@ -323,20 +300,15 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     step(2, 0.55, -0.72, "#c9ccd4"); step(1, 0.8, 0, "#e8c165"); step(3, 0.4, 0.72, "#c08a5a");
     prop("hallMonument", 3.2, 0, -0.85, -Math.PI / 2);
     prop("hallTrophyShield", 1.55, 0, 0.15, -Math.PI / 2, 0.81);
-    for (const side of [-1, 1]) prop("hallBanner", 3.3, side * 1.55, -0.7, -Math.PI / 2);
-    prop("trophy", 0.5, -0.72, 0.15, -Math.PI / 2 + 0.3, 0.56);
-    prop("trophy", 0.42, 0.72, 0.15, -Math.PI / 2 - 0.3, 0.41);
   } else if (kind === "merchant") {
     // The daily merchant trades from a travelling wagon under a purple canopy.
     long("marketWagon", 4.8, -0.1, -0.2, -Math.PI / 2 + 0.75);
-    prop("marketBarrel", 0.72, 1.9, 0.8, 0.6);
   } else if (kind === "trading") {
     // Player exchanges happen under a merchant's canopy: wares laid out for swapping on a long
-    // table, a bag-sign at the street and crates of stock at its side.
+    // table, with crates of stock at its side.
     prop("marketCanopy", 3.5, 0, -0.5, -Math.PI / 2);
     long("marketTable", 2.9, 0, 0.1, -Math.PI / 2);
     prop("marketWares", 0.7, 0, 0.1, -Math.PI / 2, 0.68);
-    prop("marketSign", 2.35, 2.35, 0.45, -Math.PI / 2 - 0.2);
     prop("marketCrates", 1.3, -2.2, 0.1, 0.5);
   } else if (kind === "pond") {
     // Fishing pond: a woodland pool with a ragged, muddy shore, cattails, rocks and flowering lily

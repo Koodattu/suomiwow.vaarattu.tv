@@ -1,5 +1,7 @@
 .layer { position: absolute; z-index: 3; inset: 0; display: flex; align-items: center; justify-content: center; padding: 112px 24px 84px; pointer-events: none; background: radial-gradient(ellipse at 50% 58%, #060c184d, transparent 72%); }
 .panel { --accent: #dfc28b; width: min(760px, 100%); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; pointer-events: auto; border: 1px solid #ccb17c66; border-radius: 22px; background: linear-gradient(145deg, #202c32f2, #0d151ff0 55%); backdrop-filter: blur(14px); box-shadow: 0 24px 80px #0007, inset 0 1px #f1d9a721; color: #f3e4c7; animation: arrive .35s ease-out both; }
+.layer[data-away] { background: none; }
+.layer[data-away] .panel { pointer-events: none; animation: leave .18s ease-in both; }
 .layer[data-facility="trading"] .panel { width: min(880px, 100%); }
 .layer[data-facility="feed"] .panel { width: min(620px, 100%); --accent: #baa1ef; }
 .layer[data-facility="mail"] .panel { --accent: #a5c7c2; }
@@ -146,6 +148,7 @@
 .empty > svg { width: 28px; height: 28px; margin-bottom: 10px; color: var(--accent); }
 .empty p { font-size: 13px; line-height: 1.7; }
 @keyframes arrive { from { opacity: 0; translate: 0 15px; } to { opacity: 1; translate: 0 0; } }
+@keyframes leave { from { opacity: 1; translate: 0 0; } to { opacity: 0; translate: 0 10px; } }
 .layer[data-facility="merchant"] .panel { width: min(880px, 100%); --accent: #e4bd68; }
 .layer[data-facility="forge"] .panel { --accent: #e2ae83; }
 .layer[data-facility="recycler"] .panel { --accent: #a8c5ac; }

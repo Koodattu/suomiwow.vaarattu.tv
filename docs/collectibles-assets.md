@@ -38,11 +38,14 @@ streak; production retains the daily limit. Opening/lift/reward sounds were gene
 with the playground script and mastered offline; prompts and sources are recorded
 in `frontend/src/data/figurines/chest-audio.json`.
 District props (market, fair, hall, forge and quest models) come from
-`plaza-districts-models-001` to `-004`, recorded under `districts` in `source-models.json`.
+`plaza-districts-models-001` to `-004` and `forge-tools-models-002`, recorded under `districts`
+in `source-models.json`. Item weapons (`item/objectcomponents/weapon`) fail in the worker's
+texture export, so tools such as the smith's hammer use world doodads.
 Their optimizer output is capped at 512px, or 256px for props seen only from afar, then
 converted from the original PNGs to embedded ETC1S. To compare candidates, export a batch
 of up to 32 models and render it as a contact sheet before choosing; the models retired on
-2026-11-04 are in `.codex-runtime/retired-models-2026-11-04/` with hashes in `manifest.json`.
+2026-11-04 and 2026-11-05 are in `.codex-runtime/retired-models-<date>/` with hashes in
+`manifest.json`.
 Character provenance: `worker/data/series/<batch>/sources/<figure>.json`, selected
 poses in `selection.json`, optimized files in `models/`. Preserve frozen snapshots;
 use catalog `authoringSeries` (per-character override takes precedence).

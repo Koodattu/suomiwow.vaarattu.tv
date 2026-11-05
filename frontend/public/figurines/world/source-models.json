@@ -669,7 +669,8 @@
       "plaza-districts-models-002",
       "plaza-chest-models-001",
       "plaza-districts-models-003",
-      "plaza-districts-models-004"
+      "plaza-districts-models-004",
+      "forge-tools-models-002"
     ],
     "build": {
       "Region": "eu",
@@ -1156,6 +1157,22 @@
         "bytes": 204116,
         "job": "plaza-districts-models-004",
         "listfile": "world/expansion01/doodads/generic/bloodelf/merchantstand/be_merchantstand01.m2"
+      },
+      {
+        "name": "smith-hammer",
+        "file": "world/expansion05/doodads/human/doodads/6hu_blacksmith_hammer.m2",
+        "fileDataID": 929367,
+        "bytes": 164364,
+        "job": "forge-tools-models-002",
+        "listfile": "world/expansion05/doodads/human/doodads/6hu_blacksmith_hammer.m2"
+      },
+      {
+        "name": "forge-anvil-block",
+        "file": "world/expansion05/doodads/human/doodads/6hu_blacksmith_anvil.m2",
+        "fileDataID": 929334,
+        "bytes": 221876,
+        "job": "forge-tools-models-002",
+        "listfile": "world/expansion05/doodads/human/doodads/6hu_blacksmith_anvil.m2"
       }
     ]
   }

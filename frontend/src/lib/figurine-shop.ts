@@ -137,13 +137,6 @@ export function buildShop(parent: THREE.Group, { series, envMap, labels }: { ser
     picks, frame,
     ready: Promise.all(stacks.map((stack) => stack.ready)),
     boxes: new Map(stacks.map((stack) => [stack.id, stack.boxes])),
-    // A copy of a series' shop box, for the case's shelf ends and the recycler's crucible.
-    boxCopy(id: string) {
-      const stack = stacks.find((entry) => entry.id === id);
-      if (!stack) return null;
-      const copy = new THREE.Mesh(geometry, stack.faces); copy.castShadow = true;
-      return copy;
-    },
     boxSize: BOX,
     setCollected(id: string, got: number) { stacks.find((stack) => stack.id === id)?.paint(got); },
     update(hovered: string | null, delta: number, time: number) {

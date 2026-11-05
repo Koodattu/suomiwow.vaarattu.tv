@@ -18,6 +18,7 @@ function cameraState(view, idle, reduced = false, width = 1200) {
   const pose = { position: new THREE.Vector3(8, 4, 12), target: new THREE.Vector3(8, 1, 3) };
   const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
   return vm.createContext({
+    state: { current: {} },
     THREE, isOverlayStation, active: false, orbitOffset: null, build: { zoom: 1 }, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer",
     homeOffset: new THREE.Vector3(0.6, 2.1, 9.6), homeTarget: new THREE.Vector3(0, 1.5, 0),
     OVERVIEW_DISTANCE: { min: 13, initial: 17, max: 19 },

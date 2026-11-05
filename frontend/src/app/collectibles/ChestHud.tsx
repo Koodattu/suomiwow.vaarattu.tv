@@ -6,6 +6,19 @@ import { OverviewBack } from "./OverviewHud";
 import controls from "./pond-hud.module.css";
 import styles from "./chest-hud.module.css";
 
+// A coin hanging before the camera: any tap collects it.
+export function CoinReward({ count, note, onDismiss }: { count: number; note?: string; onDismiss: () => void }) {
+  const t = useTranslations("figurineLab.world.crate");
+  return <>
+    <button type="button" className={controls.catchDismiss} onClick={onDismiss} aria-label={t("dismissReward")} />
+    <div className={controls.banner} role="status"><div>
+      <b>{t("reward", { count })}</b>
+      {note && <span>{note}</span>}
+      <span>{t("dismissReward")}</span>
+    </div></div>
+  </>;
+}
+
 export default function ChestHud({ ready, day, remainingMs, bonusReady, busy, result, onOpen, onDismiss, onBack }: {
   ready: boolean; day: number; remainingMs: number; bonusReady: boolean; busy: boolean;
   result: Extract<PanelResult, { station: "crate" }> | null;
@@ -15,14 +28,8 @@ export default function ChestHud({ ready, day, remainingMs, bonusReady, busy, re
   const minutes = Math.ceil(remainingMs / 60000);
   return <>
     <div className={styles.title}><span>{t("day", { day })}</span><h1>{t("title")}</h1></div>
-    {result ? <>
-      <button type="button" className={controls.catchDismiss} onClick={onDismiss} aria-label={t("dismissReward")} />
-      <div className={controls.banner} role="status"><div>
-        <b>{t("reward", { count: result.reward.coins ?? 0 })}</b>
-        {(result.reward.coins ?? 0) > 1 && <span>{t(result.day === 7 ? "weeklyBonus" : "dailyBonus")}</span>}
-        <span>{t("dismissReward")}</span>
-      </div></div>
-    </> : <div className={styles.reward} role="status">
+    {result ? <CoinReward count={result.reward.coins ?? 0} note={(result.reward.coins ?? 0) > 1 ? t(result.day === 7 ? "weeklyBonus" : "dailyBonus") : undefined} onDismiss={onDismiss} />
+    : <div className={styles.reward} role="status">
       <p>{busy ? t("opening") : ready ? t("invitation") : t("claimed")}</p>
       <small>{busy ? t("anticipation") : ready ? t("hint") : t("comeBack", { hours: Math.floor(minutes / 60), minutes: minutes % 60 })}</small>
       {!busy && <small>{t("body")}</small>}

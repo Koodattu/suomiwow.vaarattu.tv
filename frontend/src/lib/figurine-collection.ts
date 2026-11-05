@@ -108,16 +108,15 @@ export function subscribeCollection(listener: () => void): () => void {
 }
 export const emptyCollection = () => EMPTY;
 
-// Two machines take three figures each. The recycler turns any three spare copies into a blind
-// box, as long as one copy of every figure stays; the trade-up forge turns three copies of one
-// figure at one quality into a single copy at the next quality.
+// Two machines take three figures each. The recycler smelts any three spare copies into a coin,
+// as long as one copy of every figure stays; the trade-up forge turns three copies of one figure at
+// one quality into a single copy at the next quality.
 export const MACHINE_SLOTS = 3;
 export type FigurineMachine = "recycler" | "forge";
 export type MachineItem = { key: string; quality: FigurineQuality };
 export type MachineOutcome =
   | { kind: "incomplete" }
-  // The box comes from the series most of the three came from (the first loaded breaks ties).
-  | { kind: "box"; series: string }
+  | { kind: "coin" }
   | { kind: "upgrade"; key: string; from: FigurineQuality; quality: FigurineQuality }
   // Recycling these would give away the last copy of `key`.
   | { kind: "keep"; key: string }
@@ -148,15 +147,12 @@ export function machineOutcome(machine: FigurineMachine, slots: readonly Machine
     return upgrade && slots.every((slot) => same(slot, first)) && spare(collection, slots, first) >= 0 ? { kind: "upgrade", key: first.key, from: first.quality, quality: upgrade } : { kind: "mismatch" };
   }
   for (const { key } of slots) if (slots.filter((slot) => slot.key === key).length >= copiesOf(collection[key])) return { kind: "keep", key };
-  const votes = new Map<string, number>();
-  for (const { key } of slots) { const series = key.split(":")[0]; votes.set(series, (votes.get(series) ?? 0) + 1); }
-  const top = Math.max(...votes.values());
-  return { kind: "box", series: [...votes].find(([, count]) => count === top)![0] };
+  return { kind: "coin" };
 }
 
 // The collection changes a finished run makes: the inputs go, an upgrade adds its new copy.
 export function machineChanges(slots: readonly MachineItem[], outcome: MachineOutcome): CollectionChange[] {
-  if (outcome.kind !== "box" && outcome.kind !== "upgrade") return [];
+  if (outcome.kind !== "coin" && outcome.kind !== "upgrade") return [];
   const changes: CollectionChange[] = slots.map(({ key, quality }) => ({ key, quality, delta: -1 }));
   if (outcome.kind === "upgrade") changes.push({ key: outcome.key, quality: outcome.quality, delta: 1 });
   return changes;

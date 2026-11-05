@@ -127,17 +127,11 @@
     "comingSoon": "Coming soon",
     "stationTrading": "Trading post",
     "stationFame": "Hall of fame",
-    "machineLoad": "Load 3 figures",
-    "machineBox": "Blind box",
-    "machineUpgrade": "Trade up",
     "machineKeep": "Keep one",
-    "machineHint": "Tap a duplicate to load it · Work the bellows",
     "machineEmpty": "Your duplicates show up here",
     "stationRecycler": "Recycler",
     "stationForge": "Trade-up forge",
-    "forgeLoad": "Place 3 of a kind",
     "forgeMismatch": "Three of a kind",
-    "forgeHint": "Tap a figure to place three · Strike with the hammer",
     "forgeEmpty": "Own 3 of one figure at the same quality to trade it up",
     "world": {
       "overview": {
@@ -405,7 +399,7 @@
         },
         "workshop": {
           "forgeBody": "Give your favourite figures a rarer finish. Choose a set of three identical copies.",
-          "recycleBody": "Put your spare figures to use. Combine three copies into a new mystery box.",
+          "recycleBody": "Put your spare figures to use. Smelt three copies down into a coin.",
           "loaded": "{count} / 3 loaded",
           "remove": "Remove {name}",
           "slot": "Empty slot {number}",
@@ -415,7 +409,7 @@
           "recycleProtection": "Your last copy of each figure is always protected.",
           "working": "Working…",
           "upgrade": "Rarer finish",
-          "newBox": "Mystery box",
+          "newCoin": "1 coin",
           "forge": "Forge",
           "recycle": "Recycle",
           "yourFigures": "Your spare figures"

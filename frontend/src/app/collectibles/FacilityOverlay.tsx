@@ -15,7 +15,7 @@ import styles from "./facility-overlay.module.css";
 
 type Props = {
   view: OverlayStation; collection: FigurineCollection; records: FigurineRecords; series: PanelSeries[];
-  machine?: MachinePanel; trading: TradingState; actions: PanelActions; preview: PreviewState; dispatch: Dispatch<PreviewAction>; onClose: () => void;
+  machine?: MachinePanel; away?: boolean; trading: TradingState; actions: PanelActions; preview: PreviewState; dispatch: Dispatch<PreviewAction>; onClose: () => void;
 };
 const ICONS = { merchant: LuBadgePercent, recycler: LuRecycle, forge: LuHammer, quests: LuScrollText, wheel: LuFerrisWheel, trading: LuArrowLeftRight, mail: LuGift, feed: LuSparkles, fame: LuCrown, leaderboard: LuTrophy };
 
@@ -25,7 +25,7 @@ export default function FacilityOverlay(props: Props) {
   const title = useRef<HTMLHeadingElement>(null);
   useEffect(() => { title.current?.focus({ preventScroll: true }); }, [view]);
   const Icon = ICONS[view], workshop = view === "recycler" || view === "forge", community = ["mail", "feed", "fame", "leaderboard"].includes(view);
-  return <div className={styles.layer} data-facility={view}>
+  return <div className={styles.layer} data-facility={view} data-away={props.away || undefined} inert={props.away}>
     <aside className={styles.panel} aria-labelledby="facility-title" key={view}>
       <header className={styles.header}>
         <span className={styles.emblem}><Icon aria-hidden="true" /></span>

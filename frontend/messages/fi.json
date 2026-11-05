@@ -127,17 +127,11 @@
     "comingSoon": "Tulossa",
     "stationTrading": "Vaihtopiste",
     "stationFame": "Kunniagalleria",
-    "machineLoad": "Lataa 3 hahmoa",
-    "machineBox": "Yllätyslaatikko",
-    "machineUpgrade": "Paranna",
     "machineKeep": "Säilytä yksi",
-    "machineHint": "Napauta tuplaa ladataksesi · Polje palkeita",
     "machineEmpty": "Tuplasi näkyvät täällä",
     "stationRecycler": "Kierrätin",
     "stationForge": "Jalostusahjo",
-    "forgeLoad": "Aseta 3 samaa",
     "forgeMismatch": "Kolme samaa",
-    "forgeHint": "Napauta hahmoa asettaaksesi kolme · Iske vasaralla",
     "forgeEmpty": "Kerää 3 samaa hahmoa samaa laatua jalostaaksesi sen",
     "world": {
       "overview": {
@@ -405,7 +399,7 @@
         },
         "workshop": {
           "forgeBody": "Tee suosikkihahmoistasi harvinaisempia. Valitse kolme samanlaista kopiota.",
-          "recycleBody": "Hyödynnä ylimääräiset hahmosi. Yhdistä kolme kopiota uudeksi yllätyslaatikoksi.",
+          "recycleBody": "Laita ylimääräiset figuurit hyötykäyttöön. Sulata kolme kopiota kolikoksi.",
           "loaded": "{count} / 3 ladattu",
           "remove": "Poista {name}",
           "slot": "Tyhjä paikka {number}",
@@ -415,7 +409,7 @@
           "recycleProtection": "Jokaisen hahmon viimeinen kopio säilytetään aina.",
           "working": "Työstetään…",
           "upgrade": "Harvinaisempi laatu",
-          "newBox": "Yllätyslaatikko",
+          "newCoin": "1 kolikko",
           "forge": "Tako",
           "recycle": "Kierrätä",
           "yourFigures": "Ylimääräiset hahmosi"
