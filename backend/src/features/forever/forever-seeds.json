@@ -19,6 +19,11 @@
     "twitchChannel": "ohjaaja_"
   },
   {
+    "name": "Bull Meato",
+    "region": "eu",
+    "twitchChannel": "pelaajainenn"
+  },
+  {
     "name": "Cobra Gaming",
     "region": "eu",
     "twitchChannel": "cobragam1ng"
@@ -26,6 +31,11 @@
   {
     "name": "Deacine Lightbound",
     "region": "eu"
+  },
+  {
+    "name": "Delethor Ronso",
+    "region": "eu",
+    "twitchChannel": "apinordic"
   },
   {
     "name": "Depsi Max",
@@ -38,12 +48,27 @@
     "twitchChannel": "xaruth"
   },
   {
+    "name": "Edd Shanks",
+    "region": "eu",
+    "twitchChannel": "eddisdead"
+  },
+  {
     "name": "Edgar Bock",
     "region": "eu"
   },
   {
     "name": "Eios Ascended",
     "region": "eu"
+  },
+  {
+    "name": "Exceed Tk",
+    "region": "eu",
+    "twitchChannel": "exceedtk"
+  },
+  {
+    "name": "Flexi Pala",
+    "region": "eu",
+    "twitchChannel": "flex_fi"
   },
   {
     "name": "Flint Oreburgh",
@@ -76,6 +101,16 @@
     "region": "eu"
   },
   {
+    "name": "Grok Lesnar",
+    "region": "eu",
+    "twitchChannel": "jco89"
+  },
+  {
+    "name": "Haiga Prongs",
+    "region": "eu",
+    "twitchChannel": "malloyri"
+  },
+  {
     "name": "Havu Kalle",
     "region": "eu"
   },
@@ -86,6 +121,11 @@
   {
     "name": "Huutokauppa Keisari",
     "region": "eu"
+  },
+  {
+    "name": "Jakki Makupala",
+    "region": "eu",
+    "twitchChannel": "officialhuuhgis"
   },
   {
     "name": "Jebuuh Strongarm",
@@ -189,6 +229,11 @@
   {
     "name": "Nyytti Leuka",
     "region": "eu"
+  },
+  {
+    "name": "Oma Quu",
+    "region": "eu",
+    "twitchChannel": "omaquu"
   },
   {
     "name": "Oon Kalas",

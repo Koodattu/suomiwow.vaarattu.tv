@@ -100,6 +100,10 @@
       "selectCharacter": "Valitse {name}",
       "clearSelection": "Tyhjennä valinta",
       "retrySelected": "Yritä valittuja uudelleen",
+      "refreshing": "Päivitetään…",
+      "refreshPending": "Päivitystä odotetaan",
+      "refreshNow": "Päivitä heti",
+      "refreshStates": {"refreshed": "Hahmo päivitetty.", "failed": "Haku Blizzardilta epäonnistui. Hahmon seuranta jatkuu.", "prioritized": "Jonon kärjessä. Odotetaan nykyisen haun valmistumista tai Blizzardin odotusajan päättymistä."},
       "retryNow": "Uusi yritys jonoon",
       "retryIn": "Uusi yritys {count} min kuluttua",
       "retryAvailable": "Uusi yritys mahdollinen {date}",
@@ -2040,6 +2044,10 @@
       "ccg": {
         "title": "SuomiWoW CCG",
         "description": "Avaa pakkoja ja kasvata kokoelmaasi"
+      },
+      "forever": {
+        "title": "Levelöintiranking",
+        "description": "Suomalaiset hahmot · Kohti tasoa 60"
       },
       "compare": {
         "title": "Vertaile kiltoja",

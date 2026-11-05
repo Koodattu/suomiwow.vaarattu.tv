@@ -12,12 +12,13 @@ const characterSchema = new Schema({
   proposedBy: String, source: { type: String, enum: ["proposal", "admin", "guild", "seed"], required: true },
   twitchChannel: String, twitchIsLive: Boolean, twitchCheckedAt: Date, twitchNextCheckAt: Date,
   name: String, level: Number, className: String, race: String, faction: String, ruleset: String, avatarUrl: String,
-  sourceUpdatedAt: Date, lastLevelAt: Date,
+  sourceUpdatedAt: Date, lastLevelAt: Date, refreshRequestedAt: Date,
   guild: { type: new Schema({ ...identity, name: String }, { _id: false }), default: null },
   history: { type: [new Schema({ level: { type: Number, required: true }, observedAt: { type: Date, required: true }, sourceUpdatedAt: Date }, { _id: false })], default: [] },
 }, { timestamps: true, collection: "forever_characters" });
 characterSchema.index({ region: 1, slug: 1 }, { unique: true });
 characterSchema.index({ status: 1, nextFetchAt: 1 });
+characterSchema.index({ status: 1, refreshRequestedAt: 1 });
 characterSchema.index({ status: 1, level: -1, name: 1 });
 characterSchema.index({ status: 1, twitchNextCheckAt: 1 });
 

@@ -179,14 +179,15 @@ previous observations; LIVE expires after five minutes. The Twitch worker also
 starts automatically. No Twitch credentials means plain channel links.
 The batch size fits the [Twitch Streams endpoint's default page size](https://dev.twitch.tv/docs/api/reference/#get-streams).
 
-`backend/src/features/forever/forever-seeds.json` contains 76 unique EU characters:
-39 friends and 38 streamer characters, with Wiba Wiba merged. The friend list is
+`backend/src/features/forever/forever-seeds.json` contains 85 unique EU characters:
+39 friends and 47 streamer characters, with Wiba Wiba merged. The friend list is
 the union of the supplied snapshots, including Moist Wanderer and Sysi Simsalabim;
 the latest adds Hot Ted, Kaania Kuukkeli, Sir Salomaa, Toveri Kissa and Yara Walking.
 Elyriannà, Flînk and Np remain excluded because their surnames are missing.
 Katti Mau and Zeta Cygni remain despite being absent from the later snapshot. It incorporates the
-user-confirmed Kiuza Tiäksää and Zaikow Reborn spellings. The six unresolved names
-were excluded at the user's request. Names from the 2026-11-05 stream captures
+user-confirmed Kiuza Tiäksää and Zaikow Reborn spellings. The resolved Edd Shanks, Oma Quu, Flexi Pala and Bull Meato identities are now included.
+Haiga Prongs remains a tentative spelling (Armory returned HTTP 500 during verification).
+Warlockdrake is excluded as Retail; Tools Maldik remains unconfirmed. Names from the 2026-11-05 stream captures
 are not Armory-verified; the normal queue validates them before public listing.
 EU is the initial region assumption for this Finnish community list.
 
@@ -221,6 +222,11 @@ in-flight admin pauses, rate limits, and collection isolation. Frontend checks:
 `npx tsc --noEmit`, ESLint on the Forever pages, components, and API client,
 and `node --test test/forever-stream.test.mjs` for live badge expiry.
 
-No deployment or production seeding is performed by this change. After the normal
-deployment, add the intended community characters in the Forever admin tab and
-approve the desired guilds there.
+After deployment, run the additive seed command explicitly to import new seed
+characters. Additional characters and guild approvals are managed in Forever admin.
+
+Admin **Refresh now** starts a fetch immediately when the shared Armory lease is free.
+Otherwise its durable priority request runs before ordinary characters and guilds.
+It bypasses per-character cooldowns, retains global Blizzard cooldowns, and consumes
+the priority after one attempt (including an upstream error). Public refreshes and
+bulk queue retries keep their existing limits.

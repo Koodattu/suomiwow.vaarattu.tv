@@ -193,12 +193,13 @@ function HomeContent() {
 
       <HorseRace guilds={guilds} selectedRaidId={selectedRaidId} currentRaidId={primaryRaidId} reservedUmaImages={reservedUmaImages} />
 
+      {showHighlights && <div className="px-3 md:px-4"><HomeHighlights /></div>}
+
       <div className="container mx-auto px-3 md:px-4 max-w-full md:max-w-[95%] lg:max-w-[85%] pb-8">
         {error && <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 rounded-lg mb-8">{error}</div>}
 
         {/* Integrated Raid Selector + Guild Leaderboard */}
         <div>
-          {showHighlights && <HomeHighlights />}
           {showLivestreams && <FeaturedStreamers />}
           {showRaidingToday && <RaidingTodayStrip />}
           {raids.length > 0 && <IntegratedRaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={handleRaidSelect} raidDates={raidDates ?? null} />}

@@ -36,6 +36,7 @@ function Pagination({ page, total, onChange, disabled }: { page: number; total: 
 
 export default function ForeverAdminPanel() {
   const t = useTranslations("forever"), client = useQueryClient();
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [view, setView] = useState<"characters" | "guilds">("characters");
   const [error, setError] = useState<unknown>(null), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
   const [filter, setFilter] = useState("all"), [health, setHealth] = useState("all"), [search, setSearch] = useState("");
@@ -43,17 +44,18 @@ export default function ForeverAdminPanel() {
   const [characterPage, setCharacterPage] = useState(1), [guildPage, setGuildPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]), [guildId, setGuildId] = useState<string | null>(null);
   const params = new URLSearchParams({ status: filter, health, search, guildStatus: guildFilter, guildSearch, characterPage: String(characterPage), guildPage: String(guildPage) });
-  const overview = useQuery({ queryKey: ["forever", "admin", params.toString()], queryFn: () => foreverApi<ForeverAdminData>(`admin/forever?${params}`), refetchInterval: 30_000 });
+  const overview = useQuery({ queryKey: ["forever", "admin", params.toString()], queryFn: () => foreverApi<ForeverAdminData>(`admin/forever?${params}`), refetchInterval: (query) => query.state.data?.characters.some((character) => character.refreshRequestedAt) ? 2_000 : 30_000 });
   const data = overview.data, activeGuildId = guildId || data?.guilds[0]?._id;
   const guild = useQuery({ queryKey: ["forever", "admin", "guild", activeGuildId], queryFn: () => foreverApi<ForeverGuild>(`admin/forever/guilds/${activeGuildId}`), enabled: view === "guilds" && !!activeGuildId, refetchInterval: 30_000 });
   const refresh = () => void client.invalidateQueries({ queryKey: ["forever"] });
   async function act(path: string, method: string, body?: unknown) {
     setError(null); setNotice(""); setBusy(true);
+    setRefreshingId(path.endsWith("/refresh-now") ? path.split("/")[1] : null);
     try {
-      const result = await foreverApi<{ updated?: number; skipped?: number }>(`admin/forever/${path}`, method, body);
-      setNotice(result.updated === undefined ? t("admin.saved") : t("admin.result", { count: result.updated, skipped: result.skipped || 0 }));
+      const result = await foreverApi<{ updated?: number; skipped?: number; refreshState?: "refreshed" | "failed" | "prioritized" }>(`admin/forever/${path}`, method, body);
+      setNotice(result.refreshState ? t(`admin.refreshStates.${result.refreshState}`) : result.updated === undefined ? t("admin.saved") : t("admin.result", { count: result.updated, skipped: result.skipped || 0 }));
       setSelected([]); await client.invalidateQueries({ queryKey: ["forever"] });
-    } catch (caught) { setError(caught); } finally { setBusy(false); }
+    } catch (caught) { setError(caught); } finally { setBusy(false); setRefreshingId(null); }
   }
   const selectedVisible = data?.characters.filter((character) => selected.includes(character._id)) || [];
   const bulk = (action: string) => void act("characters/bulk", "POST", { ids: selectedVisible.map((character) => character._id), action });
@@ -111,7 +113,7 @@ export default function ForeverAdminPanel() {
           <td className={styles.checked}><ForeverUpdated value={character.lastFetchedAt} /><span className={styles.adminSecondary}>{t("nextCheck")}<br /><ForeverDate value={character.status === "tracked" ? character.nextFetchAt : undefined} /></span></td>
           <td><div className={styles.adminActions}>
             {character.status !== "tracked" && <button className={buttonClass} disabled={busy} onClick={() => void act(`characters/${character._id}`, "PATCH", { status: "tracked" })}>{t("approveCharacter")}</button>}
-            {character.status === "tracked" && <><RetryButton lastAttemptAt={character.lastAttemptAt} disabled={busy} onClick={() => void act(`characters/${character._id}/refresh`, "POST")} /><button className={`${buttonClass} ${styles.quietButton}`} disabled={busy} onClick={() => void act(`characters/${character._id}`, "PATCH", { status: "paused" })}>{t("pause")}</button></>}
+            {character.status === "tracked" && <><button className={buttonClass} aria-busy={refreshingId === character._id} disabled={busy || !!character.refreshRequestedAt} onClick={() => void act(`characters/${character._id}/refresh-now`, "POST")}>{t(refreshingId === character._id ? "admin.refreshing" : character.refreshRequestedAt ? "admin.refreshPending" : "admin.refreshNow")}</button><RetryButton lastAttemptAt={character.lastAttemptAt} disabled={busy} onClick={() => void act(`characters/${character._id}/refresh`, "POST")} /><button className={`${buttonClass} ${styles.quietButton}`} disabled={busy} onClick={() => void act(`characters/${character._id}`, "PATCH", { status: "paused" })}>{t("pause")}</button></>}
             {character.status === "pending" && <button className={`${buttonClass} ${styles.quietButton}`} disabled={busy} onClick={() => void act(`characters/${character._id}`, "PATCH", { status: "rejected" })}>{t("reject")}</button>}
           </div></td>
         </tr>)}</tbody></table></div>

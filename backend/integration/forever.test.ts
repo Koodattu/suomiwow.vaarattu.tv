@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 import { randomUUID } from "node:crypto";
 import { ArmoryError, armoryUrl, ForeverProfile } from "../src/features/forever/forever-armory";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "../src/features/forever/forever.models";
-import { ForeverRunner, initializeForever } from "../src/features/forever/forever.worker";
+import foreverRunner, { ForeverRunner, initializeForever } from "../src/features/forever/forever.worker";
 import * as service from "../src/features/forever/forever.service";
 import { ForeverTwitchRunner } from "../src/features/forever/forever-twitch";
 import { seedForeverCharacters } from "../src/features/forever/forever-seed";
@@ -17,6 +17,63 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
   try {
     await initializeForever();
     const profile: ForeverProfile = { region: "eu", slug: "test-hero", name: "Test Hero", level: 10, className: "Paladin", race: "Human", faction: "Alliance", ruleset: "Normal", sourceUpdatedAt: new Date("2026-11-05T10:00:00Z"), guild: { region: "eu", slug: "test-guild", name: "Test Guild" } };
+    await t.test("admin refresh runs first, bypasses character backoff, and respects shared leases and cooldowns", async () => {
+      const target = await ForeverCharacter.create({ region: "eu", slug: "priority-hero", source: "admin", status: "tracked", failures: 4, lastAttemptAt: new Date(), nextFetchAt: new Date(Date.now() + 86400000) });
+      const regular = await ForeverCharacter.create({ region: "eu", slug: "regular-hero", source: "admin", status: "tracked", nextFetchAt: new Date(0) });
+      const guild = await ForeverGuild.create({ region: "eu", slug: "priority-test-guild", name: "Priority Test Guild", status: "pending", nextFetchAt: new Date(0) });
+      const calls: string[] = [];
+      let fail = false, requestAgain = false;
+      const priorityRunner = new ForeverRunner({ character: async (identity) => {
+        calls.push(identity.slug);
+        if (fail) throw new ArmoryError("upstream_error", 500);
+        if (requestAgain) await ForeverCharacter.updateOne({ _id: target._id }, { $set: { refreshRequestedAt: new Date(Date.now() + 10) } });
+        return { ...profile, ...identity, guild: null };
+      }, roster: async () => { calls.push("guild"); return []; } });
+      const mock = t.mock.method(foreverRunner, "tick", () => priorityRunner.tick());
+      const id = String(target._id);
+      try {
+        await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
+        assert.deepEqual(await service.adminRefreshNow(id), { refreshState: "refreshed" });
+        assert.deepEqual(calls, ["priority-hero"]);
+        assert.equal((await ForeverCharacter.findById(id).lean())?.refreshRequestedAt, undefined);
+        const cooldown = new Date(Date.now() + 120000);
+        await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: cooldown } });
+        assert.deepEqual(await service.adminRefreshNow(id), { refreshState: "prioritized" });
+        assert.equal(calls.length, 1);
+        assert.equal((await ForeverWorker.findById("armory").lean())?.nextRequestAt?.getTime(), cooldown.getTime());
+        await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0), leaseToken: "busy", leaseUntil: cooldown } });
+        assert.deepEqual(await service.adminRefreshNow(id), { refreshState: "prioritized" });
+        assert.equal(calls.length, 1);
+        await ForeverWorker.updateOne({ _id: "armory" }, { $unset: { leaseToken: 1, leaseUntil: 1 } });
+        fail = true;
+        await priorityRunner.tick();
+        assert.deepEqual(calls, ["priority-hero", "priority-hero"]);
+        const failed = await ForeverCharacter.findById(id).lean();
+        assert.equal(failed?.refreshRequestedAt, undefined);
+        assert.equal(failed?.errorCode, "upstream_error");
+        assert.ok(failed!.nextFetchAt! > new Date());
+        assert.equal(failed?.history.length, 1);
+        await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
+        await priorityRunner.tick();
+        assert.equal(calls[2], "regular-hero", "failed priority request must return to backoff, not starve the queue");
+        fail = false; requestAgain = true;
+        await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
+        assert.deepEqual(await service.adminRefreshNow(id), { refreshState: "prioritized" });
+        assert.ok((await ForeverCharacter.findById(id).lean())?.refreshRequestedAt, "request arriving during a fetch must survive completion");
+        requestAgain = false;
+        await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
+        await priorityRunner.tick();
+        assert.equal(calls[calls.length - 1], "priority-hero");
+        assert.equal((await ForeverCharacter.findById(id).lean())?.refreshRequestedAt, undefined);
+        await service.setCharacterStatus(id, "paused");
+        await assert.rejects(service.adminRefreshNow(id), (e: service.ForeverError) => e.status === 404);
+      } finally {
+        mock.mock.restore();
+        await ForeverCharacter.deleteMany({ _id: { $in: [target._id, regular._id] } });
+        await ForeverGuild.deleteOne({ _id: guild._id });
+        await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0), failedJobs: [] }, $unset: { leaseToken: 1, leaseUntil: 1, errorCode: 1 } });
+      }
+    });
     await t.test("the running queue starts immediately and drains at sub-second spacing without bursts", async () => {
       const slugs = ["pace-first", "pace-second"];
       await ForeverCharacter.insertMany(slugs.map((slug) => ({ region: "eu", slug, source: "admin", status: "tracked", nextFetchAt: new Date(0) })));
@@ -182,7 +239,7 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       assert.equal((await ForeverWorker.findById("armory").lean())?.leaseToken, "successor");
     });
     await t.test("seed reruns preserve edits, pauses and history without duplicate Wiba entries", async () => {
-      assert.equal((await seedForeverCharacters()).inserted, 76);
+      assert.equal((await seedForeverCharacters()).inserted, 85);
       const wiba = await ForeverCharacter.findOne({ slug: "wiba-wiba" }).lean();
       assert.equal(wiba?.twitchChannel, "wiba");
       await service.setCharacterStatus(String(wiba!._id), "paused");

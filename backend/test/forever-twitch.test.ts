@@ -10,9 +10,12 @@ test("Twitch associations accept only channel identities and support clearing", 
 });
 test("seeds merge friends and streamers, retain accents, and exclude unresolved identities", () => {
   const rows = foreverSeedRecords();
-  assert.equal(rows.length, 76); assert.equal(new Set(rows.map((row) => row.slug)).size, 76);
-  assert.equal(rows.filter((row) => row.twitchChannel).length, 38);
+  assert.equal(rows.length, 85); assert.equal(new Set(rows.map((row) => row.slug)).size, 85);
+  assert.equal(rows.filter((row) => row.twitchChannel).length, 47);
   for (const [name, channel] of [["Mansikan Pappi", "aitomansikka"], ["Munapoolo Paladin", "munapoolo"], ["Kirjuri Committ", "comm1tt"], ["Cobra Gaming", "cobragam1ng"], ["Laenoril Stillmoon", "yawnywolf"]]) {
+    assert.equal(rows.find((row) => row.name === name)?.twitchChannel, channel);
+  }
+  for (const [name, channel] of [["Haiga Prongs", "malloyri"], ["Exceed Tk", "exceedtk"], ["Grok Lesnar", "jco89"], ["Delethor Ronso", "apinordic"], ["Jakki Makupala", "officialhuuhgis"], ["Edd Shanks", "eddisdead"], ["Oma Quu", "omaquu"], ["Flexi Pala", "flex_fi"], ["Bull Meato", "pelaajainenn"]]) {
     assert.equal(rows.find((row) => row.name === name)?.twitchChannel, channel);
   }
   assert.deepEqual(rows.find((row) => row.name === "Wiba Wiba"), { region: "eu", name: "Wiba Wiba", slug: "wiba-wiba", twitchChannel: "wiba" });
@@ -22,6 +25,6 @@ test("seeds merge friends and streamers, retain accents, and exclude unresolved 
   for (const name of ["Moist Wanderer", "Sysi Simsalabim", "Katti Mau", "Zeta Cygni", "Hot Ted", "Kaania Kuukkeli", "Sir Salomaa", "Toveri Kissa", "Yara Walking"]) {
     assert.equal(rows.filter((row) => row.name === name).length, 1);
   }
-  for (const channel of ["eddisdead", "omaquu", "flex_fi", "pelaajainenn", "wimmawebba"]) assert.ok(!rows.some((row) => row.twitchChannel === channel));
+  for (const channel of ["battlelion97", "wimmawebba"]) assert.ok(!rows.some((row) => row.twitchChannel === channel));
   for (const name of ["Elyrìanna", "Elyriannà", "Flînk", "Np"]) assert.ok(!rows.some((row) => row.name === name));
 });

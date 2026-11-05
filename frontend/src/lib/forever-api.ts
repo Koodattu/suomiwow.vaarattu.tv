@@ -3,7 +3,7 @@ export interface ForeverCharacter {
   name?: string; level?: number; className?: string; race?: string; faction?: string; ruleset?: string; avatarUrl?: string | null;
   twitchChannel?: string; twitchIsLive?: boolean; twitchCheckedAt?: string;
   guild?: { name: string; slug: string; region: string } | null;
-  lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string; failures?: number;
+  refreshRequestedAt?: string; lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string; failures?: number;
   history?: { level: number; observedAt: string; sourceUpdatedAt?: string }[]; armoryUrl?: string;
 }
 export function foreverRace(race?: string): string {

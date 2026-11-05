@@ -100,6 +100,10 @@
       "selectCharacter": "Select {name}",
       "clearSelection": "Clear selection",
       "retrySelected": "Retry selected",
+      "refreshing": "Refreshing…",
+      "refreshPending": "Refresh pending",
+      "refreshNow": "Refresh now",
+      "refreshStates": {"refreshed": "Character refreshed.", "failed": "Blizzard fetch failed. The character remains tracked.", "prioritized": "First in line. Waiting for the current fetch or Blizzard cooldown."},
       "retryNow": "Queue retry",
       "retryIn": "Retry in {count} min",
       "retryAvailable": "Manual retry available at {date}",
@@ -2040,6 +2044,10 @@
       "ccg": {
         "title": "SuomiWoW CCG",
         "description": "Open packs and build your collection"
+      },
+      "forever": {
+        "title": "Leveling leaderboard",
+        "description": "Finnish characters · Road to 60"
       },
       "compare": {
         "title": "Compare guilds",
