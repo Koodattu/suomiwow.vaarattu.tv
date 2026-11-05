@@ -89,6 +89,10 @@
     "region": "eu"
   },
   {
+    "name": "Galardodric Felrain",
+    "region": "eu"
+  },
+  {
     "name": "Galarizh Niodric",
     "region": "eu"
   },
@@ -128,12 +132,20 @@
     "twitchChannel": "officialhuuhgis"
   },
   {
+    "name": "Jannun Mutsi",
+    "region": "eu"
+  },
+  {
     "name": "Jebuuh Strongarm",
     "region": "eu",
     "twitchChannel": "jebuuh"
   },
   {
     "name": "Jepin Pajukko",
+    "region": "eu"
+  },
+  {
+    "name": "Jonio Pyhäshokki",
     "region": "eu"
   },
   {
@@ -152,6 +164,10 @@
   },
   {
     "name": "Katti Mau",
+    "region": "eu"
+  },
+  {
+    "name": "Kick Kare",
     "region": "eu"
   },
   {
@@ -222,9 +238,17 @@
     "twitchChannel": "morbura"
   },
   {
+    "name": "Morini Ikuisesti",
+    "region": "eu"
+  },
+  {
     "name": "Munapoolo Paladin",
     "region": "eu",
     "twitchChannel": "munapoolo"
+  },
+  {
+    "name": "Nasty Sock",
+    "region": "eu"
   },
   {
     "name": "Nyytti Leuka",
@@ -245,6 +269,10 @@
     "twitchChannel": "pauskiiih"
   },
   {
+    "name": "Peikonkorvat Nokkavuotaa",
+    "region": "eu"
+  },
+  {
     "name": "Preazy Mortis",
     "region": "eu"
   },
@@ -261,6 +289,10 @@
     "name": "Puukko Jallu",
     "region": "eu",
     "twitchChannel": "salamimeister"
+  },
+  {
+    "name": "Roo Perro",
+    "region": "eu"
   },
   {
     "name": "Rotta Bob",
@@ -300,6 +332,10 @@
   },
   {
     "name": "Tepa Stiano",
+    "region": "eu"
+  },
+  {
+    "name": "Thaekor Stormcaller",
     "region": "eu"
   },
   {
@@ -347,6 +383,10 @@
     "region": "eu"
   },
   {
+    "name": "Wi Bank",
+    "region": "eu"
+  },
+  {
     "name": "Wiba Wiba",
     "region": "eu",
     "twitchChannel": "wiba"
@@ -381,6 +421,10 @@
     "name": "Zaikow Reborn",
     "region": "eu",
     "twitchChannel": "zaikki"
+  },
+  {
+    "name": "Zen Illusion",
+    "region": "eu"
   },
   {
     "name": "Zeta Cygni",
