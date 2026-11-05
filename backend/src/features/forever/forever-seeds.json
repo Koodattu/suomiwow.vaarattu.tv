@@ -213,9 +213,18 @@
     "twitchChannel": "yawnywolf"
   },
   {
+    "name": "Laicu Nauta",
+    "region": "eu",
+    "twitchChannel": "tintttuu"
+  },
+  {
     "name": "Lancer Deadheart",
     "region": "eu",
     "twitchChannel": "rpsjesse"
+  },
+  {
+    "name": "Lemmz Lemmz",
+    "region": "eu"
   },
   {
     "name": "Loonie Tunes",
@@ -230,6 +239,11 @@
     "name": "Marpsu Thefirst",
     "region": "eu",
     "twitchChannel": "marpsulii"
+  },
+  {
+    "name": "Melekoone Velho",
+    "region": "eu",
+    "twitchChannel": "tluoma"
   },
   {
     "name": "Miquel Sandorial",
@@ -264,8 +278,22 @@
     "region": "eu"
   },
   {
+    "name": "Np Xd",
+    "region": "eu"
+  },
+  {
     "name": "Nyytti Leuka",
     "region": "eu"
+  },
+  {
+    "name": "Ogu Vorna",
+    "region": "eu",
+    "twitchChannel": "ogu44"
+  },
+  {
+    "name": "Óláfr Unknowń",
+    "region": "eu",
+    "twitchChannel": "theunknownvato"
   },
   {
     "name": "Oma Quu",
@@ -377,6 +405,10 @@
     "name": "Tuhnu Tuire",
     "region": "eu",
     "twitchChannel": "tuhnutuire"
+  },
+  {
+    "name": "Työterveys Hoitaja",
+    "region": "eu"
   },
   {
     "name": "Vaarattu Tv",
