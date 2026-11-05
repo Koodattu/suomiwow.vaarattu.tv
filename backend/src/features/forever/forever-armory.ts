@@ -68,8 +68,12 @@ export function parseCharacterHtml(html: string, expected: ForeverIdentity): For
   try { state = record(JSON.parse(script.slice(script.indexOf("{")).replace(/;\s*$/, ""))); }
   catch { throw new ArmoryError("invalid_data"); }
   const character = record(state.character);
+  // Blizzard percent-encodes accented names in this path, but not in its slug.
+  let characterPath: string;
+  try { characterPath = decodeURIComponent(label(character.url)); }
+  catch { throw new ArmoryError("identity_mismatch"); }
   if (character.region !== expected.region || normalizeSlug(character.slug) !== expected.slug ||
-      character.url !== `/forever/${expected.region}/armory/character/${expected.slug}/`) throw new ArmoryError("identity_mismatch");
+      characterPath !== `/forever/${expected.region}/armory/character/${expected.slug}/`) throw new ArmoryError("identity_mismatch");
   const timestamp = character.lastUpdatedTimestamp?.epoch;
   if (!Number.isSafeInteger(timestamp) || timestamp <= 0 || timestamp > Date.now() + 300_000 || character.isOutdated === true) {
     throw new ArmoryError("stale_data");

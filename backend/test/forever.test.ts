@@ -23,6 +23,14 @@ test("character parser accepts the observed Armory contract and stores only prof
   assert.equal(parseCharacterHtml(html({ ...character, guild: null }), identity).guild, null);
   assert.equal("gear" in result, false);
 });
+test("character identity accepts Blizzard's encoded Unicode path without accepting a different identity", () => {
+  const accented = { region: "eu" as const, slug: "gerthald-näätä" };
+  const value = { ...character, ...accented, name: "Gerthald", surname: "Näätä", url: "/forever/eu/armory/character/gerthald-n%C3%A4%C3%A4t%C3%A4/" };
+  assert.equal(parseCharacterHtml(html(value), accented).name, "Gerthald Näätä");
+  for (const url of ["/forever/eu/armory/character/gerthald-other/", "/forever/eu/armory/character/gerthald%2Fn%C3%A4%C3%A4t%C3%A4/", "/forever/eu/armory/character/%invalid/"]) {
+    assert.throws(() => parseCharacterHtml(html({ ...value, url }), accented), ArmoryError);
+  }
+});
 test("portraits accept only the matching Forever region on Blizzard's render host", () => {
   const avatarUrl = "https://render.worldofwarcraft.com/forever-eu/character/233/6972649-avatar.jpg";
   assert.equal(parseAvatarUrl(avatarUrl, "eu"), avatarUrl);
