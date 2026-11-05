@@ -373,7 +373,7 @@ the world takes any input (taps, drags or keys).
 
 The world is a forest clearing round a cobbled square (`figurine-world.ts`). Facilities stand in
 groups round its edge, with open ground between the groups. Clockwise from the shop (north-west):
-the daily chest, quests and wheel; the collection; the scrying ball, hall of fame and leaderboards;
+the daily chest, quests and wheel; the collection; the town bell, hall of fame and leaderboards;
 the fishing pond (south-east); the forge and recycler; player trading, mail and deals. The shop and
 pond are anchors. Paths leave through the gaps between groups. Most facility origins are 13–16
 units from the centre, within 4.8 units of the cobbled edge; the pond is about 18.3 units out to
@@ -393,13 +393,30 @@ position share `POND`; the secret barrel sits beyond the shop's side edge, visib
 Facilities sit roughly 2-3 world units closer to the center, with nearby figures and path mouths
 adjusted to keep the tighter ring clear. The fishing pond stays in its original position.
 The existing camera limits, fog and station framing remain unchanged. Each facility is its game props
-(`figurine-facilities.ts`), there to be found. Pointing at one names it in the HUD; tapping one
-flies the camera there and opens its panel (`WorldPanels.tsx`), docked right on wide screens or as
-a bottom sheet on phones, with the station framed in the space beside or above it. The pond has
-no panel: its controls lie over the world (below). Tap empty ground, the panel's close button or
-Esc to come back. Keyboard: S shop, C collection, M recycler, U trade-up forge, Q quests, W lucky
-wheel, F fishing pond (Space casts and strikes there, L opens the fish log), D daily crate, 1-9
-pick a series (in the shop), Enter opens the sealed box.
+(`figurine-facilities.ts`), there to be found. Pointing at one names it in the HUD.
+
+The overview's bar holds the shop, the pond, the collection, the opening box and the four districts
+(`DISTRICTS` in `figurine-world.ts`: Daily, Crafting, Trading, Accomplishments), with a dot on a
+district that has something to collect. A district is a stop of its own, as the pond is: the camera
+frames the whole group (`DISTRICT_SHOTS`: from the square on a wide screen, from high along the row
+on a phone) and `DistrictHud.tsx` lays a card for each station along the bottom, saying how it stands
+right now. A tap on a station in the world follows the same order, into its district and then to the
+station (`tapDestination`). Back steps a station to its district and a district to the square.
+Hovering a district, on its tile or in the world, lights all of its stations. Choosing a station does
+not fly anywhere: the camera stays on the district's shot and leans a little toward it (`LEAN`), with
+no sound, so the place stays the same and only the panel opens. Only the shop, the collection and the
+pond have shots of their own.
+
+The facilities share one frame (`FacilityOverlay.tsx`), the same fixed size for all of them, docked
+right when the screen has room beside it, centred when not, and filling the
+screen under the top bar on a phone. Nothing inside it may change its size: a facility shows its
+parts side by side instead of behind tabs, scrolls in its own columns, and keeps confirmations and
+messages in space it already has. Words are kept to what the player needs to act; the board's
+numbers, slots and stamps say the rest. The chest, the wheel and the pond have no frame: their
+controls lie over the world, with one big button in the middle. Tap empty ground, the close button
+or Esc to come back. Keyboard: S shop, C collection, M recycler, U trade-up forge, Q quests, W lucky
+wheel, F fishing pond (Space casts and strikes there, L opens the fish log), D daily crate, 1-3
+pick a station in a district, 1-9 pick a series (in the shop), Enter opens the sealed box.
 `test/figurine-layout.test.mjs` checks facility reach and grouping, the figures' inner/outer
 distribution, dry pond banks, open paths through the generated woods, and clearance between
 stations, figures, lamps, trees and props. It also checks station camera sightlines on wide
@@ -422,12 +439,11 @@ Working stations: the shop, the collection, the recycler and the forge, and the 
 months go by the player's own clock):
 
 - The daily crate: open it once a day for a box. Days in a row build a streak to seven, shown on
-  the board above it and as coins on a track in its panel; the seventh day's crate also
+  the board above it and as a row of tokens over the world; the seventh day's crate also
   guarantees a golden roll, then it starts over. A missed day starts over too. The chest hops and
-  bursts with gold. The panel says when the next crate opens.
+  bursts with gold. The controls say when the next crate opens.
 - The lucky wheel: one spin a day. It turns five times and stops on one of eight weighted prizes
-  (1, 2 or 3 boxes, a golden or a rare galaxy boost, or a random figure); the panel lists them in
-  their segments' colours.
+  (1, 2 or 3 boxes, a golden or a rare galaxy boost, or a random figure), listed above its button.
 - The fishing pond (scene in `figurine-facilities.ts`, controls in `PondHud.tsx`): seen from the
   foot of its dock, low over the water, as an angler sees it. A ragged shore of wet mud fades into
   the grass, with half-sunk rocks, cattail beds, reeds and flowering lily pads; Elwynn's small
@@ -472,7 +488,9 @@ the collection on the server and Discord sign-in) and the latest pulls (this ses
 The districts. Four neighbourhoods stand round the square, each with its own game paving
 (`DISTRICT_FLOORS` in `figurine-world.ts`) and a few large props from `DISTRICT_DRESSING` in
 `figurine-districts.ts`. Each station is one clear idea: a major prop or two, not a heap of small
-ones. Nothing is built near the pond's banks.
+ones. A district's paving runs under its whole group, out to the sides and behind it, and its side
+and back props stand on that paving close to the stations, not out on the grass. When moving a prop,
+move its floor blob with it. Nothing is built near the pond's banks.
 
 The ground is a single mesh and shader (`blendGround`), blended the way the game's terrain is: grass,
 trodden earth, the square's cobbles, then each district's paving, each with a soft mask (painted once
@@ -484,11 +502,13 @@ desaturated toward the square's stone so the districts stay one family.
 - Trading, west, on brown fan brick: the merchant's wagon (Deals), the mailbox and gift table, and
   the red canopy with its table of wares (Trading), with stacked stock behind.
 - The daily fair, north, on red brick: the gold-banded chest on its heap of coins before the streak
-  board, the mission board on its beam with the campaign table (Quests), and the wheel between
-  balloons, with a ticket booth at each end.
-- Honours, east, on pale herringbone: the scrying ball on its runed pedestal with an orrery behind
-  (Feed), the memorial wall and garrison trophy (Hall of Fame), and the podium before a carved
-  monument (Leaderboards), with banners in the gaps.
+  board, the mission board on its beam with the campaign table (Quests), and the wheel with its
+  goblin and a bunch of balloons, with a ticket booth at each end: one behind the chest and quests, one past the wheel.
+- Honours, east, on pale herringbone: the town bell and the crier's stand with its register (Feed),
+  the garrison trophy before a carved monument (Hall of Fame), and the podium inside the curve of the
+  memorial wall (Leaderboards), with banners in the gaps. The bell tells the town about finds: it swings
+  and rings when a pull in the panel is cheered, and for the player's own golden and galaxy pulls
+  once they are back in the square, sending out rings in the find's colour.
 - The working yard, south-west, on ash-dark stones: the forge's anvil, hammer and carved stele with
   a void brazier, and the recycler's furnace, bellows and crucible, with coal, a weapon rack and a
   grindstone about them.
@@ -561,8 +581,8 @@ The reveal and viewer show a quality badge; the case shows each figure in its fi
 
 Two machines (`figurine-machine.ts`) take three figures each. They are worked entirely from the
 station panel, a portrait grid of what the machine can take and three slots; in the world they are
-only game props, with no signs, screens or tap targets. A run hides the panel and centres the shot,
-and the three figures fly out of the panel's slots as cards, starting exactly over them.
+only game props, with no signs, screens or tap targets. A run hides the panel, leaving the leaned
+district shot, and the three figures fly out of the panel's slots as cards, starting exactly over them.
 
 - The recycler is a furnace. Its picker lists every figure owned more than once, and it refuses to
   take the last copy of any figure. The cards go in at the door, the bellows pump, the fire roars,

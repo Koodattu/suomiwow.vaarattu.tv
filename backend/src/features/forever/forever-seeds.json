@@ -1,0 +1,324 @@
+[
+  {
+    "name": "Absolute Halloww",
+    "region": "eu"
+  },
+  {
+    "name": "Air Fryeri",
+    "region": "eu",
+    "twitchChannel": "skiprec"
+  },
+  {
+    "name": "Ari Stoo",
+    "region": "eu",
+    "twitchChannel": "persecticus"
+  },
+  {
+    "name": "Bow Crits",
+    "region": "eu",
+    "twitchChannel": "ohjaaja_"
+  },
+  {
+    "name": "Cobra Gaming",
+    "region": "eu",
+    "twitchChannel": "cobragam1ng"
+  },
+  {
+    "name": "Deacine Lightbound",
+    "region": "eu"
+  },
+  {
+    "name": "Depsi Max",
+    "region": "eu",
+    "twitchChannel": "aamunkajo_"
+  },
+  {
+    "name": "Dexic Jones",
+    "region": "eu",
+    "twitchChannel": "xaruth"
+  },
+  {
+    "name": "Edgar Bock",
+    "region": "eu"
+  },
+  {
+    "name": "Eios Ascended",
+    "region": "eu"
+  },
+  {
+    "name": "Flint Oreburgh",
+    "region": "eu"
+  },
+  {
+    "name": "Fuzer Twitch",
+    "region": "eu",
+    "twitchChannel": "fuzer"
+  },
+  {
+    "name": "Gaamis Kumauttaja",
+    "region": "eu",
+    "twitchChannel": "gaamis"
+  },
+  {
+    "name": "Gaevin Vane",
+    "region": "eu"
+  },
+  {
+    "name": "Galarizh Niodric",
+    "region": "eu"
+  },
+  {
+    "name": "Gerthald Näätä",
+    "region": "eu"
+  },
+  {
+    "name": "Great Jeanssi",
+    "region": "eu"
+  },
+  {
+    "name": "Havu Kalle",
+    "region": "eu"
+  },
+  {
+    "name": "Huutokauppa Keisari",
+    "region": "eu"
+  },
+  {
+    "name": "Jebuuh Strongarm",
+    "region": "eu",
+    "twitchChannel": "jebuuh"
+  },
+  {
+    "name": "Jepin Pajukko",
+    "region": "eu"
+  },
+  {
+    "name": "Jonn Leppers",
+    "region": "eu",
+    "twitchChannel": "laeppa"
+  },
+  {
+    "name": "Juoppojen Morsijan",
+    "region": "eu",
+    "twitchChannel": "milktrain"
+  },
+  {
+    "name": "Katti Mau",
+    "region": "eu"
+  },
+  {
+    "name": "Killer Bunny",
+    "region": "eu"
+  },
+  {
+    "name": "Kirjuri Committ",
+    "region": "eu",
+    "twitchChannel": "comm1tt"
+  },
+  {
+    "name": "Kiuza Tiäksää",
+    "region": "eu",
+    "twitchChannel": "kiuza"
+  },
+  {
+    "name": "Konik Prongs",
+    "region": "eu",
+    "twitchChannel": "k0nikki"
+  },
+  {
+    "name": "Kurppa Tarppa",
+    "region": "eu",
+    "twitchChannel": "kurppatarppa"
+  },
+  {
+    "name": "La Ku",
+    "region": "eu",
+    "twitchChannel": "iakubu"
+  },
+  {
+    "name": "Laenoril Stillmoon",
+    "region": "eu",
+    "twitchChannel": "yawnywolf"
+  },
+  {
+    "name": "Loonie Tunes",
+    "region": "eu"
+  },
+  {
+    "name": "Mansikan Pappi",
+    "region": "eu",
+    "twitchChannel": "aitomansikka"
+  },
+  {
+    "name": "Marpsu Thefirst",
+    "region": "eu",
+    "twitchChannel": "marpsulii"
+  },
+  {
+    "name": "Miquel Sandorial",
+    "region": "eu",
+    "twitchChannel": "miquelsandorial"
+  },
+  {
+    "name": "Moist Wanderer",
+    "region": "eu"
+  },
+  {
+    "name": "Moonis Moonheart",
+    "region": "eu",
+    "twitchChannel": "moonisplay"
+  },
+  {
+    "name": "Morbura Ryhlor",
+    "region": "eu",
+    "twitchChannel": "morbura"
+  },
+  {
+    "name": "Munapoolo Paladin",
+    "region": "eu",
+    "twitchChannel": "munapoolo"
+  },
+  {
+    "name": "Nyytti Leuka",
+    "region": "eu"
+  },
+  {
+    "name": "Oon Kalas",
+    "region": "eu"
+  },
+  {
+    "name": "Pau Pauu",
+    "region": "eu",
+    "twitchChannel": "pauskiiih"
+  },
+  {
+    "name": "Preazy Mortis",
+    "region": "eu"
+  },
+  {
+    "name": "Predi Pyro",
+    "region": "eu"
+  },
+  {
+    "name": "Pumax Kaistala",
+    "region": "eu",
+    "twitchChannel": "thpumax"
+  },
+  {
+    "name": "Puukko Jallu",
+    "region": "eu",
+    "twitchChannel": "salamimeister"
+  },
+  {
+    "name": "Rotta Bob",
+    "region": "eu",
+    "twitchChannel": "doqq_"
+  },
+  {
+    "name": "Saint Whiskey",
+    "region": "eu",
+    "twitchChannel": "officialandypyro"
+  },
+  {
+    "name": "Shyiez Eléntari",
+    "region": "eu"
+  },
+  {
+    "name": "Sota Kukko",
+    "region": "eu",
+    "twitchChannel": "parrupelaa"
+  },
+  {
+    "name": "Super Arde",
+    "region": "eu"
+  },
+  {
+    "name": "Sysi Simsalabim",
+    "region": "eu"
+  },
+  {
+    "name": "Tasse Kettu",
+    "region": "eu",
+    "twitchChannel": "tasse__"
+  },
+  {
+    "name": "Tepa Stiano",
+    "region": "eu"
+  },
+  {
+    "name": "Threat Khan",
+    "region": "eu",
+    "twitchChannel": "threatie"
+  },
+  {
+    "name": "Thrusbardina Tuju",
+    "region": "eu"
+  },
+  {
+    "name": "Tom Eestikeel",
+    "region": "eu"
+  },
+  {
+    "name": "Tuhnu Tuire",
+    "region": "eu",
+    "twitchChannel": "tuhnutuire"
+  },
+  {
+    "name": "Vaivaava Noita",
+    "region": "eu"
+  },
+  {
+    "name": "Varjo Konna",
+    "region": "eu",
+    "twitchChannel": "varjokonna"
+  },
+  {
+    "name": "Velox Sus",
+    "region": "eu",
+    "twitchChannel": "vexloxxx"
+  },
+  {
+    "name": "Viina Vapaaherra",
+    "region": "eu"
+  },
+  {
+    "name": "Weewoo Wlock",
+    "region": "eu"
+  },
+  {
+    "name": "Wiba Wiba",
+    "region": "eu",
+    "twitchChannel": "wiba"
+  },
+  {
+    "name": "Wolffiix Kuppikunta",
+    "region": "eu",
+    "twitchChannel": "wolffiix"
+  },
+  {
+    "name": "Womber Moonfang",
+    "region": "eu",
+    "twitchChannel": "womberor"
+  },
+  {
+    "name": "Yks Tykki",
+    "region": "eu"
+  },
+  {
+    "name": "Ylipapitar Suhru",
+    "region": "eu"
+  },
+  {
+    "name": "Yuuna One",
+    "region": "eu"
+  },
+  {
+    "name": "Zaikow Reborn",
+    "region": "eu",
+    "twitchChannel": "zaikki"
+  },
+  {
+    "name": "Zeta Cygni",
+    "region": "eu"
+  }
+]

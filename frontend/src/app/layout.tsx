@@ -55,7 +55,7 @@ export default function RootLayout({
   const isCollectiblesPage = isCollectibleOpening || pathname.startsWith("/collectibles/");
   const isHomePage = pathname === "/";
   const robotsContent =
-    pathname.startsWith("/admin") || pathname.startsWith("/profile") || pathname.startsWith("/reporter") || pathname.startsWith("/fun") || pathname.startsWith("/tools") || isCollectiblesPage || isCcgOverlayPage
+    pathname.startsWith("/admin") || pathname.startsWith("/profile") || pathname.startsWith("/reporter") || pathname.startsWith("/fun") || pathname.startsWith("/tools") || pathname.startsWith("/forever") || isCollectiblesPage || isCcgOverlayPage
       ? "noindex, nofollow"
       : "index, follow";
   const [locale, setLocale] = useState<Locale>("en");

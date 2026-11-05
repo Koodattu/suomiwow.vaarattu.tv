@@ -145,6 +145,11 @@ export function getPageMetadata(
 ): PageSeoMetadata {
   const isEnglish = locale === "en";
 
+  if (pathname.startsWith("/forever")) return withEmbedMetadata(pathname, {
+    title: isEnglish ? "Forever · Leveling" : "Forever · Tasoseuranta",
+    description: isEnglish ? "Follow the SuomiWoW community's leveling journey in WoW Forever." : "Seuraa SuomiWoW-yhteisön hahmojen tasokehitystä WoW Foreverissa.",
+  });
+
   const pages: Record<string, PageSeoCopy> = {
     "/": {
       title: isEnglish

@@ -670,7 +670,9 @@
       "plaza-chest-models-001",
       "plaza-districts-models-003",
       "plaza-districts-models-004",
-      "forge-tools-models-002"
+      "forge-tools-models-002",
+      "feed-bell-models-001",
+      "feed-crier-models-001"
     ],
     "build": {
       "Region": "eu",
@@ -1173,6 +1175,30 @@
         "bytes": 221876,
         "job": "forge-tools-models-002",
         "listfile": "world/expansion05/doodads/human/doodads/6hu_blacksmith_anvil.m2"
+      },
+      {
+        "name": "town-bell",
+        "file": "world/expansion10/doodads/arathor/11at_arathor_bell01.m2",
+        "fileDataID": 4892008,
+        "bytes": 1049112,
+        "job": "feed-bell-models-001",
+        "listfile": "world/expansion10/doodads/arathor/11at_arathor_bell01.m2"
+      },
+      {
+        "name": "crier-stand",
+        "file": "world/expansion08/doodads/broker/9bo_broker_auction_podium01.m2",
+        "fileDataID": 3998372,
+        "bytes": 542244,
+        "job": "feed-crier-models-001",
+        "listfile": "world/expansion08/doodads/broker/9bo_broker_auction_podium01.m2"
+      },
+      {
+        "name": "crier-ledger",
+        "file": "world/expansion05/doodads/human/doodads/6hu_townhall_commander_ledger.m2",
+        "fileDataID": 970085,
+        "bytes": 73576,
+        "job": "feed-crier-models-001",
+        "listfile": "world/expansion05/doodads/human/doodads/6hu_townhall_commander_ledger.m2"
       }
     ]
   }

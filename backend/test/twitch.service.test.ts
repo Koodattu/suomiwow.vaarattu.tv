@@ -27,11 +27,11 @@ const token = (value: string) => response(200, { access_token: value, expires_in
 const live = response(200, { data: [{ user_login: "streamer", user_id: "1", id: "stream-1", type: "live", game_name: "World of Warcraft", started_at: "2026-10-18T16:00:00Z" }] });
 
 function fixture(responses: Array<ReturnType<typeof response> | Error>) {
-  const calls: Array<{ url: string; authorization?: string }> = [];
+  const calls: Array<{ url: string; authorization?: string; signal?: AbortSignal }> = [];
   const service = loadService("twitch.service.ts", {
     "../utils/logger": logger,
-    "node-fetch": async (url: string, options: { headers: Record<string, string> }) => {
-      calls.push({ url, authorization: options.headers.Authorization });
+    "node-fetch": async (url: string, options: { headers: Record<string, string>; signal?: AbortSignal }) => {
+      calls.push({ url, authorization: options.headers.Authorization, signal: options.signal });
       const next = responses.shift();
       assert.ok(next, `Unexpected request: ${url}`);
       if (next instanceof Error) throw next;
@@ -40,6 +40,14 @@ function fixture(responses: Array<ReturnType<typeof response> | Error>) {
   }) as typeof twitchService;
   return { service, calls };
 }
+
+test("stream checks carry one abort deadline through token acquisition and retries", async () => {
+  const { service, calls } = fixture([token("old"), response(401), token("new"), live]);
+  const controller = new AbortController();
+  await service.getStreamStatus(["streamer"], controller.signal);
+  assert.equal(calls.length, 4);
+  assert.ok(calls.every((call) => call.signal === controller.signal));
+});
 
 test("replaces a rejected cached token, retries once, and caches the replacement", async () => {
   const { service, calls } = fixture([token("old"), live, response(401), token("new"), live, live]);

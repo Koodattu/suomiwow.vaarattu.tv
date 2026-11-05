@@ -2,50 +2,68 @@ import * as THREE from "three";
 import type { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { loadFigurineImage } from "@/lib/figurine-image";
 import { buildForest, forestLayout, marketLayout, POND, swayMaterial, type Keep } from "@/lib/figurine-forest";
-import { isOverlayStation } from "@/lib/figurine-facility-views";
 
 // The collectibles world: a painted sky bubble over a forest clearing. A cobbled square holds the
 // opening pedestal at its centre, and the destinations ring it in groups with open ground between
 // them. Clockwise from the shop (north-west, fixed): the daily fair (chest, quests, wheel), the
-// collection, the honours terrace (scrying ball, hall of fame, leaderboards), the pond (south-east,
+// collection, the honours terrace (town bell, hall of fame, leaderboards), the pond (south-east,
 // fixed, with nothing built near its banks), the working yard (forge, recycler), and the trading
 // street (player trading, mail, deals) back round to the shop. Paths leave through the gaps; scenery
 // gathers behind the districts, while showcase figures stand along both the plaza edge and the
 // outer neighbourhoods.
 // The overview is home; the centre holds the opening pedestal and the other destinations are stations.
 export type Station = "shop" | "gallery" | "recycler" | "forge" | "crate" | "wheel" | "mail" | "quests" | "feed" | "fame" | "leaderboard" | "trading" | "merchant" | "pond";
-export type WorldView = Station | "overview" | "opening" | "viewer";
-export const isStation = (view: WorldView): view is Station => view !== "overview" && view !== "opening" && view !== "viewer";
+// The stations that stand together, each group entered as a whole before one of them is chosen.
+export const DISTRICTS = {
+  fair: ["crate", "quests", "wheel"],
+  yard: ["forge", "recycler"],
+  market: ["trading", "mail", "merchant"],
+  honours: ["feed", "fame", "leaderboard"],
+} as const satisfies Record<string, readonly Station[]>;
+export type District = keyof typeof DISTRICTS;
+export type WorldView = Station | District | "overview" | "opening" | "viewer";
+export const isDistrict = (view: WorldView): view is District => view in DISTRICTS;
+export const isStation = (view: WorldView): view is Station => view !== "overview" && view !== "opening" && view !== "viewer" && !isDistrict(view);
+// The views the camera is directed to, as opposed to the free views of the square.
+export const isShot = (view: WorldView) => isStation(view) || isDistrict(view);
+// Two views of one district: the camera only leans between them.
+const homeDistrict = (view: WorldView) => isDistrict(view) ? view : isStation(view) ? districtOf(view) : null;
+export const sameDistrict = (a: WorldView, b: WorldView) => !!homeDistrict(a) && homeDistrict(a) === homeDistrict(b);
+export const districtOf = (station: Station) => (Object.keys(DISTRICTS) as District[]).find((name) => (DISTRICTS[name] as readonly Station[]).includes(station)) ?? null;
+// Where a tap on a station leads: into its district first, then on to the station itself.
+export function tapDestination(view: WorldView, station: Station): WorldView {
+  const district = districtOf(station);
+  return !district || view === district || (isStation(view) && districtOf(view) === district) ? station : district;
+}
 // The cobbled square, and the clearing round it that the woods leave open.
 export const COBBLE_RADIUS = 11.2, PLAZA_RADIUS = 19.5;
 // Each station: where it stands (\`at\`, x and z; +z is toward the home camera) and the point it
 // faces (\`face\`, default the centre: most face their path or the square), its footprint (\`width\`
-// along its front, \`back\`/\`front\` behind and before its origin, for the camera's occlusion
-// test), and its shot: camera height and distance, target height, the width that must fit, and
-// how far (times its distance) it may back off to fit it.
-type StationSpec = { at: [number, number]; face?: [number, number]; width: number; back: number; front: number; shot: { height: number; distance: number; target: number; fit: number; reach?: number } };
-const big = (fit: number) => ({ height: 1.2, distance: 6.8, target: 1.6, fit });
-const small = (fit: number, target = 1.3) => ({ height: 1.1, distance: 6.6, target, fit });
+// along its front, `back`/`front` behind and before its origin, for the camera's occlusion
+// test), and, standing alone, its shot: camera height and distance, target height, the width that
+// must fit, and how far (times its distance) it may back off to fit it. A station of a district
+// has no shot of its own: the camera stays on the district's and leans toward it.
+type StationSpec = { at: [number, number]; face?: [number, number]; width: number; back: number; front: number; shot?: { height: number; distance: number; target: number; fit: number; reach?: number } };
 export const STATION_SPECS: Record<Station, StationSpec> = {
   // The shop anchors the north-west.
   shop: { at: [-8.8, -8.2], face: [-4, -2.4], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
   // The daily fair, along the north edge.
-  crate: { at: [-1.9, -13.5], width: 2.6, back: -0.8, front: 1, shot: { height: 3.1, distance: 6.6, target: 0.55, fit: 3.2 } },
-  quests: { at: [2.8, -14], width: 3.8, back: -0.6, front: 1.2, shot: small(4.4, 1.5) },
-  wheel: { at: [7.2, -12.2], width: 3.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
+  crate: { at: [-2.2, -13.5], width: 2.6, back: -0.8, front: 1 },
+  quests: { at: [2.6, -14.1], width: 3.8, back: -0.6, front: 1.7 },
+  wheel: { at: [7.6, -11.8], width: 3.2, back: -0.6, front: 0.9 },
   // The collection stands alone between the fair and the honours terrace.
   gallery: { at: [11.7, -5.9], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
-  // The honours terrace: the scrying ball, the hall and the podium, spaced along the east edge.
-  feed: { at: [15.6, 0.3], width: 2.6, back: -1.6, front: 0.8, shot: small(3.4, 1.4) },
-  fame: { at: [15.2, 4.8], width: 3.8, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
-  leaderboard: { at: [13.1, 8.6], width: 3, back: -1.4, front: 1, shot: small(4, 1.5) },
+  // The honours terrace: the town bell, the hall and the podium, spaced along the east edge.
+  feed: { at: [15.6, 0.1], width: 4, back: -0.9, front: 0.9 },
+  fame: { at: [15, 4.5], width: 2.8, back: -1.2, front: 0.9 },
+  leaderboard: { at: [13.4, 8.5], width: 4.6, back: -1.1, front: 1 },
   // The working yard: the forge and the recycler side by side, past the pond.
-  forge: { at: [-4.5, 14.4], face: [-2, 6], width: 3.6, back: -1.5, front: 1, shot: big(4.4) },
-  recycler: { at: [-9.2, 12.4], face: [-4.4, 6], width: 4.4, back: -1.6, front: 1.3, shot: big(4.8) },
+  forge: { at: [-4.5, 14.4], face: [-2, 6], width: 3.6, back: -1.5, front: 1 },
+  recycler: { at: [-9.2, 12.4], face: [-4.4, 6], width: 4.4, back: -1.6, front: 1.3 },
   // The trading street, running north up the west edge toward the shop.
-  trading: { at: [-13.4, 5.9], width: 4.8, back: -1.65, front: 1.65, shot: big(4.6) },
-  mail: { at: [-14.8, 1.4], width: 2.4, back: -0.7, front: 0.8, shot: small(3.4) },
-  merchant: { at: [-14.2, -2.8], width: 4.4, back: -1.6, front: 1.6, shot: small(4.6, 1.25) },
+  trading: { at: [-13.4, 5.9], width: 4.8, back: -1.65, front: 1.65 },
+  mail: { at: [-14.8, 1.4], width: 2.4, back: -0.7, front: 0.8 },
+  merchant: { at: [-14.2, -2.8], width: 4.4, back: -1.6, front: 1.6 },
   // The pond is seen from behind the foot of its dock, over the whole dock to the water beyond.
   pond: { at: [POND.x, POND.z], face: [4, 10], width: 6, back: -3, front: 3, shot: { height: 3.6, distance: 10, target: 0.1, fit: 6, reach: 1.75 } },
 };
@@ -53,6 +71,23 @@ export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([n
   const [fx, fz] = spec.face ?? [0, 0];
   return [name, { position: new THREE.Vector3(spec.at[0], 0, spec.at[1]), rotation: Math.atan2(fx - spec.at[0], fz - spec.at[1]) }];
 })) as Record<Station, { position: THREE.Vector3; rotation: number }>;
+// Each district's shot: from the square on a wide screen, the whole group side by side. A phone is
+// too narrow for that, so it looks down from high along the row, stacking them up the screen.
+export const DISTRICT_SHOTS: Record<District, Record<"wide" | "tall", { position: [number, number, number]; target: [number, number, number] }>> = {
+  fair: { wide: { position: [2.8, 6.2, -2.6], target: [2.8, 0.9, -13.4] }, tall: { position: [-10.8, 21.5, -6.8], target: [2.7, 0.2, -13.1] } },
+  yard: { wide: { position: [-3.6, 5.6, 3.8], target: [-7, 1, 13.4] }, tall: { position: [-15, 14.4, 5.2], target: [-6.8, -0.6, 13.4] } },
+  market: { wide: { position: [-3.6, 6.2, 1.4], target: [-14.2, 0.9, 1.5] }, tall: { position: [-6.7, 19.2, 17.5], target: [-14.1, 0.2, 1.5] } },
+  honours: { wide: { position: [4.2, 6.2, 2.6], target: [14.8, 0.9, 4.4] }, tall: { position: [4.8, 19.9, 16.2], target: [14.7, 0.2, 4.4] } },
+};
+// How far a station's view leans from its district's shot: the share of the way the aim turns to
+// it, and the share of the distance the camera drifts in.
+const LEAN = { turn: 0.3, drift: 0.07 };
+function districtPose(district: District, aspect: number) {
+  const { wide, tall } = DISTRICT_SHOTS[district], shot = aspect < 1 ? tall : wide;
+  const target = new THREE.Vector3(...shot.target), position = new THREE.Vector3(...shot.position);
+  // A screen narrower than the shot was composed for backs off along it to keep the whole group.
+  return { target, position: position.sub(target).multiplyScalar(aspect < 1 ? 1 : Math.max(1, 1.6 / aspect)).add(target) };
+}
 // The worn paths off the square, as points along their middles.
 export const PATHS: [number, number][][] = [
   [[-4.6, -9.2], [-4.9, -12.2], [-4.4, -17], [-1.4, -21], [0.3, -24], [2.4, -30], [3.6, -40]],
@@ -86,10 +121,10 @@ export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", gra
 // stations: the patches of ground it covers ([x, z, radius]), how much ground a tile covers, its
 // turn, and the tint that keeps it in the family of the square's stones.
 export const DISTRICT_FLOORS: { texture: string; blobs: [number, number, number][]; tile: number; turn: number; tint: [number, number, number] }[] = [
-  { texture: "/figurines/world/floor-market.png", blobs: [[-13.4, 5.2, 3.4], [-13.9, 1.4, 3.2], [-13.4, -2.6, 3.4], [-10.6, 1.4, 2.6]], tile: 3.2, turn: 0.12, tint: [0.8, 0.74, 0.68] },
-  { texture: "/figurines/world/floor-fair.png", blobs: [[-1.8, -12.8, 2.6], [2.8, -13.2, 3], [7, -11.6, 2.6], [2.6, -10.4, 2.6]], tile: 3, turn: 0, tint: [0.68, 0.62, 0.58] },
-  { texture: "/figurines/world/floor-honours.png", blobs: [[14.6, 0.3, 2.7], [14.3, 4.6, 3], [12.5, 8.1, 2.7], [11.2, 3.2, 2.6]], tile: 3, turn: -0.12, tint: [0.4, 0.37, 0.33] },
-  { texture: "/figurines/world/floor-yard.png", blobs: [[-8.8, 11.6, 3.3], [-4.5, 13.6, 3], [-6, 9.8, 2.6]], tile: 3.4, turn: -0.3, tint: [1.15, 1.04, 0.92] },
+  { texture: "/figurines/world/floor-market.png", blobs: [[-14.5, 6, 3.7], [-15.2, 1.4, 3.6], [-14.9, -3, 3.7], [-17.4, 3.4, 2.7], [-17, -4.6, 2.3], [-10.8, 1.4, 2.8]], tile: 3.2, turn: 0.12, tint: [0.8, 0.74, 0.68] },
+  { texture: "/figurines/world/floor-fair.png", blobs: [[-2.2, -13.6, 3], [-0.4, -16.2, 2.6], [2.6, -14.2, 3.2], [7.5, -12, 3.1], [5.2, -15, 2.2], [2.6, -10.6, 2.8], [11.6, -12.2, 2.5]], tile: 3, turn: 0, tint: [0.68, 0.62, 0.58] },
+  { texture: "/figurines/world/floor-honours.png", blobs: [[15.8, 0.8, 3], [15.4, 4.5, 3.3], [13.8, 8.6, 3.5], [11.6, 3.4, 2.8], [17, 2.8, 2.3], [15.8, 6.6, 2.4]], tile: 3, turn: -0.12, tint: [0.4, 0.37, 0.33] },
+  { texture: "/figurines/world/floor-yard.png", blobs: [[-9.7, 13, 3.7], [-4.6, 15, 3.5], [-6, 10.2, 2.8], [-7.2, 15.8, 2.8], [-2.4, 15.4, 2.2], [-12, 14.2, 2.2]], tile: 3.4, turn: -0.3, tint: [1.15, 1.04, 0.92] },
 ];
 // Canvas x of the painted sun: the direction the stage's key light shines from (-x, +z).
 const SUN_X = 277;
@@ -373,14 +408,17 @@ export function placeStation(scene: THREE.Scene, station: Station) {
 // Fixed world distances keep every viewport's orbit inside the clearing.
 export const OVERVIEW_DISTANCE = { min: 13, initial: 17, max: 19 } as const;
 export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, aspect = 16 / 9) {
+  if (isDistrict(view)) return districtPose(view, aspect);
   if (view === "overview") {
     return { target: home.target.clone(), position: home.offset.clone().setLength(OVERVIEW_DISTANCE.initial).add(home.target) };
   }
   if (!isStation(view)) return { target: home.target.clone(), position: home.offset.clone().multiplyScalar(framing).add(home.target) };
-  const { position, rotation } = STATIONS[view], { shot } = STATION_SPECS[view];
-  const overlay = isOverlayStation(view);
-  const offset = new THREE.Vector3(0, overlay ? 3.3 : shot.height, shot.distance), target = new THREE.Vector3(0, shot.target, 0).add(position);
-  const fit = THREE.MathUtils.clamp(shot.fit / 2 / (Math.tan(THREE.MathUtils.degToRad(18)) * aspect) / offset.length(), framing, Math.max(framing, shot.reach ?? 2.9));
-  if (view === "wheel") offset.multiplyScalar(1.3);
-  return { target, position: offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation + (overlay ? 0.12 : 0)).multiplyScalar(fit).add(target) };
+  const { position, rotation } = STATIONS[view], { shot } = STATION_SPECS[view], district = districtOf(view);
+  if (district) {
+    const pose = districtPose(district, aspect), focus = position.clone().setY(pose.target.y);
+    return { target: pose.target.clone().lerp(focus, LEAN.turn), position: pose.position.clone().lerp(focus, LEAN.drift) };
+  }
+  const offset = new THREE.Vector3(0, shot!.height, shot!.distance), target = new THREE.Vector3(0, shot!.target, 0).add(position);
+  const fit = THREE.MathUtils.clamp(shot!.fit / 2 / (Math.tan(THREE.MathUtils.degToRad(18)) * aspect) / offset.length(), framing, Math.max(framing, shot!.reach ?? 2.9));
+  return { target, position: offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation).multiplyScalar(fit).add(target) };
 }

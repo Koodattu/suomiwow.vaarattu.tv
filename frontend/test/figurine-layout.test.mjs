@@ -13,18 +13,24 @@ registerHooks({
     return next(specifier, context);
   },
 });
-const { STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, COBBLE_RADIUS, PATHS, FOREST_CLEARINGS, viewPose, isStation } = await import("../src/lib/figurine-world.ts");
+const { DISTRICTS, DISTRICT_FLOORS, DISTRICT_SHOTS, districtOf, tapDestination, STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, COBBLE_RADIUS, PATHS, FOREST_CLEARINGS, viewPose, isStation } = await import("../src/lib/figurine-world.ts");
 const { buildForest, forestLayout, groveLayout, marketLayout, POND, SECRET_BARREL } = await import("../src/lib/figurine-forest.ts");
 const { DISTRICT_DRESSING } = await import("../src/lib/figurine-districts.ts");
 
 const PLAZA = PLAZA_RADIUS;
 const stations = Object.entries(STATIONS);
-test("overlay facilities use elevated shots while the fishing camera is unchanged", () => {
+test("a district's stations lean from its shot, while the fishing camera is unchanged", () => {
   const home = { offset: new THREE.Vector3(0, 2, 9), target: new THREE.Vector3(0, 1.5, 0) };
-  for (const view of ["recycler", "forge", "crate", "merchant", "quests", "wheel", "trading", "mail", "feed", "fame", "leaderboard"]) {
-    const shot = viewPose(view, 1, home), offset = shot.position.clone().sub(shot.target);
-    const angle = Math.atan2(offset.y, Math.hypot(offset.x, offset.z));
-    assert.ok(angle > 0.4 && angle < 0.6, `${view} should look gently down at its facility`);
+  for (const [district, names] of Object.entries(DISTRICTS)) for (const aspect of [16 / 9, 9 / 19.5]) for (const name of names) {
+    const whole = viewPose(district, 1, home, aspect), lean = viewPose(name, 1, home, aspect);
+    const aim = (pose) => pose.target.clone().sub(pose.position).normalize();
+    const turn = aim(whole).angleTo(aim(lean)), moved = lean.position.distanceTo(whole.position);
+    assert.ok(turn < 0.2, `${name} should lean, not turn away (${turn.toFixed(2)} rad)`);
+    assert.ok(moved < 0.1 * whole.position.distanceTo(whole.target), `${name} should stay near its shot (${moved.toFixed(1)} out)`);
+    // Leaning brings the station nearer the middle of the screen than it stood.
+    const camera = new THREE.PerspectiveCamera(36, aspect, 0.4, 240), onScreen = (pose) => { camera.position.copy(pose.position); camera.lookAt(pose.target); camera.updateMatrixWorld(); camera.updateProjectionMatrix(); return STATIONS[name].position.clone().project(camera); };
+    const before = onScreen(whole), after = onScreen(lean);
+    assert.ok(Math.hypot(after.x, after.y) <= Math.hypot(before.x, before.y) + 0.1, `${name} should come toward the middle`);
   }
   const pond = viewPose("pond", 1, home), offset = pond.position.clone().sub(pond.target);
   assert.ok(Math.abs(offset.y / Math.hypot(offset.x, offset.z) - 0.36) < 1e-9);
@@ -169,7 +175,9 @@ test("nothing tall stands in the line from a station's camera to it", () => {
     ...STATUE_SPOTS.map(({ number, position }) => ({ what: `figure ${number}`, point: position, clear: 0.7 })),
     ...groveLayout().filter(({ model }) => model === "tree" || model === "bareTree").map(({ x, z }) => ({ what: `the tree at ${x},${z}`, point: new THREE.Vector3(x, 0, z), clear: 1.2 })),
   ];
-  for (const [aspect, framing] of [[16 / 9, 1], [9 / 19.5, 1.5]]) for (const [name, { position }] of stations) {
+  // Only the stations with shots of their own: a district's shot looks down from above all this.
+  const standing = stations.filter(([name]) => STATION_SPECS[name].shot);
+  for (const [aspect, framing] of [[16 / 9, 1], [9 / 19.5, 1.5]]) for (const [name, { position }] of standing) {
     const camera = viewPose(name, framing, home, aspect).position.setY(0), length = camera.distanceTo(position), layout = aspect < 1 ? "phone" : "wide";
     for (let step = 1; step < 40; step++) {
       const point = position.clone().lerp(camera, step / 40);
@@ -221,6 +229,45 @@ test("each district's dressing stays off the stations, the paths and the pond's 
     for (const [name] of stations) assert.ok(!inside(name, point, 0.1), `${prop} at ${x},${z} stands in ${name}`);
     if (y < 2) for (const step of walked) assert.ok(step.distanceTo(point) > 0.8, `${prop} at ${x},${z} blocks a path`);
     assert.ok(point.distanceTo(STATIONS.pond.position) > POND.radius + 4, `${prop} at ${x},${z} crowds the pond`);
+  }
+});
+
+test("a district's shot keeps every one of its stations on screen, wide or on a phone", () => {
+  const home = { offset: new THREE.Vector3(0.6, 2.1, 9.6), target: new THREE.Vector3(0, 1.5, 0) };
+  for (const [district, names] of Object.entries(DISTRICTS)) for (const aspect of [16 / 9, 4 / 3, 9 / 19.5]) {
+    const { position, target } = viewPose(district, 1, home, aspect);
+    const camera = new THREE.PerspectiveCamera(36, aspect, 0.4, 240);
+    camera.position.copy(position); camera.lookAt(target); camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+    for (const name of names) {
+      const seen = STATIONS[name].position.clone().project(camera);
+      assert.ok(Math.abs(seen.x) < 1 && Math.abs(seen.y) < 1, `${name} falls off the ${district} shot at ${aspect.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual(Object.keys(DISTRICT_SHOTS).sort(), Object.keys(DISTRICTS).sort());
+});
+
+test("a tap on a station enters its district first, then the station", () => {
+  assert.equal(tapDestination("overview", "forge"), "yard");
+  assert.equal(tapDestination("market", "forge"), "yard");
+  assert.equal(tapDestination("yard", "forge"), "forge");
+  assert.equal(tapDestination("recycler", "forge"), "forge");
+  assert.equal(tapDestination("overview", "shop"), "shop");
+  assert.equal(tapDestination("overview", "pond"), "pond");
+  for (const [district, names] of Object.entries(DISTRICTS)) for (const name of names) assert.equal(districtOf(name), district);
+});
+
+test("each district's paving runs under its stations and its dressing", () => {
+  const floors = { trading: 0, fair: 1, honours: 2, yard: 3 };
+  const paved = (district, x, z) => DISTRICT_FLOORS[floors[district]].blobs.some(([bx, bz, radius]) => Math.hypot(x - bx, z - bz) < radius);
+  for (const [district, pieces] of Object.entries(DISTRICT_DRESSING)) for (const { prop, at: [x, z] } of pieces) assert.ok(paved(district, x, z), `${prop} at ${x},${z} stands off the ${district} paving`);
+  const members = { trading: ["trading", "mail", "merchant"], fair: ["crate", "quests", "wheel"], honours: ["feed", "fame", "leaderboard"], yard: ["forge", "recycler"] };
+  for (const [district, names] of Object.entries(members)) for (const name of names) {
+    const { position, rotation } = STATIONS[name], { back, width } = STATION_SPECS[name];
+    // Its back corners too, or the floor stops short of what stands behind it.
+    for (const side of [-1, 1]) {
+      const corner = new THREE.Vector3(side * width / 2 * 0.75, 0, back).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation).add(position);
+      assert.ok(paved(district, corner.x, corner.z), `${name}'s back corner stands off the ${district} paving`);
+    }
   }
 });
 

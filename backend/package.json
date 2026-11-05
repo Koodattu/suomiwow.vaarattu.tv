@@ -10,6 +10,7 @@
     "dev": "nodemon src/index.ts",
     "dev:graph-poc": "node scripts/guild-network-poc.mjs",
     "build": "tsc",
+    "seed:forever": "node dist/scripts/seed-forever.js",
     "migrate:ccg-collection-read-model": "node dist/scripts/migrate-ccg-collection-read-model.js",
     "migrate:ccg-unified-packs": "node dist/scripts/migrate-ccg-unified-packs.js",
     "migrate:ccg-antorus-finish": "node dist/scripts/migrate-ccg-antorus-finish.js",

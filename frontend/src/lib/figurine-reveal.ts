@@ -10,7 +10,7 @@ const pulse = (time: number, at: number, length: number) => time < at || time >=
 
 export type FigurineCue = "tap" | "peel" | "stick" | "ready" | "rattle" | "rip" | "music" | "knock" | "riser" | "hum"
   | "burst" | "hit" | "boom" | "whoosh" | "choir" | "rise" | "sparkle" | "land" | "signature" | "fanfare" | "quip" | "drop"
-  | "chestOpen" | "chestLift" | "chestReward";
+  | "chestOpen" | "chestLift" | "chestReward" | "bell";
 export type TimedCue = { at: number; cue: FigurineCue };
 // Cues whose time falls in (previous, current]; start each clock at -1 so cues at zero fire.
 export const cuesBetween = (cues: readonly TimedCue[], previous: number, current: number) => cues.filter(({ at }) => at > previous && at <= current);

@@ -144,6 +144,8 @@
 .worldLoaderBar i { display: block; height: 100%; background: linear-gradient(90deg, #b98a3f, #f1d48a); transition: width .3s ease; }
 @media (prefers-reduced-motion: reduce) { .worldLoader, .worldLoaderBar i { transition: none; } }
 /* World sound menu: a quiet icon-and-label button that opens volume and voice-line settings. */
+/* A facility's frame takes the corner under the coins. */
+.showcase[data-panel] .soundMenu { display: none; }
 .soundMenu { position: absolute; z-index: 4; top: max(16px, env(safe-area-inset-top)); right: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .showcase[data-view] .soundMenu { top: calc(max(16px, env(safe-area-inset-top)) + 62px); right: max(14px, env(safe-area-inset-right)); }
 .soundButton { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 8px; border: 0; border-radius: 6px; background: none; color: rgba(238, 226, 200, .62); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; text-shadow: 0 1px 8px rgba(0, 0, 0, .7); cursor: pointer; transition: color .15s; }

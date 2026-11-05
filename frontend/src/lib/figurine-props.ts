@@ -8,7 +8,7 @@ import type { FishId } from "@/lib/figurine-collection";
 
 // Game props that dress the stations, exported with the local wow.export worker
 // (provenance: /figurines/world/source-models.json, including the districts exports).
-const PROP_VERSION = 9;
+const PROP_VERSION = 11;
 export const STATION_PROPS = {
   board: "/figurines/world/models/wanted-poster.glb",
   podium: "/figurines/world/models/podium.glb",
@@ -17,7 +17,6 @@ export const STATION_PROPS = {
   dailyChest: "/figurines/world/models/chest-uber.glb",
   gift: "/figurines/world/models/gift-01.glb",
   giftRed: "/figurines/world/models/gift-03.glb",
-  crystalBall: "/figurines/world/models/crystal-ball.glb",
   bookcase: "/figurines/world/models/bookcase.glb",
   book: "/figurines/world/models/book-large.glb",
   rowboat: "/figurines/world/models/rowboat.glb",
@@ -55,19 +54,23 @@ export const STATION_PROPS = {
   marketTable: "/figurines/world/models/market-table.glb",
   marketTableRound: "/figurines/world/models/market-table-round.glb",
   mailBox: "/figurines/world/models/mail-box.glb",
-  // The daily fair: balloons, ticket booths, heaped gold, and the quest board and table.
+  // The daily fair: the wheel's goblin, balloons, ticket booths, heaped gold, and the quest board
+  // and table.
+  goblinStatue: "/figurines/world/models/goblin-statue.glb",
   fairBalloonsBig: "/figurines/world/models/fair-balloons-b.glb",
   fairGold: "/figurines/world/models/fair-gold.glb",
   fairTicket: "/figurines/world/models/fair-ticket.glb",
   questBoard: "/figurines/world/models/quest-board.glb",
   questTable: "/figurines/world/models/quest-table.glb",
-  // The honours terrace: a memorial wall, garrison trophies, an orrery, a standing banner.
+  // The honours terrace: the town bell (rigged: bone_5 is the bell, bone_6 its clapper), the crier's
+  // stand and register, a memorial wall, garrison trophies, a standing banner.
+  townBell: "/figurines/world/models/town-bell.glb",
+  crierStand: "/figurines/world/models/crier-stand.glb",
+  crierLedger: "/figurines/world/models/crier-ledger.glb",
   hallMemorial: "/figurines/world/models/hall-memorial.glb",
   hallMonument: "/figurines/world/models/hall-monument.glb",
   hallTrophyGold: "/figurines/world/models/hall-trophy-gold.glb",
   hallTrophyShield: "/figurines/world/models/hall-trophy-shield.glb",
-  hallScryPedestal: "/figurines/world/models/hall-scry-pedestal.glb",
-  hallOrrery: "/figurines/world/models/hall-orrery.glb",
   hallBanner: "/figurines/world/models/hall-banner.glb",
   // The working yard: the furnace and its bellows, a crucible of molten metal, the anvil and the
   // smith's hammer before a carved stele, and the coal, weapons and grindstone of the trade.

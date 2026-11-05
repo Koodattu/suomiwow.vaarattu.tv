@@ -36,6 +36,8 @@ export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; vo
   chestOpen: { files: ["chest-open"], volume: 0.7 },
   chestLift: { files: ["chest-lift"], volume: 0.45 },
   chestReward: { files: ["chest-reward"], volume: 0.65 },
+  // The town bell, synthesised by scripts/make-bell-sound.mjs (the one cue not from ElevenLabs).
+  bell: { files: ["bell-a", "bell-b"], volume: 0.42, jitter: 0.02 },
 };
 // Cue files live in /figurines/audio; quips are full paths into the CCG's quip folder.
 const sourceFor = (file: string) => file.startsWith("/") ? file : `/figurines/audio/${file}.mp3`;

@@ -920,6 +920,18 @@ class TwitchChatBotService {
       if (!(await this.isSharedChatSettingEnabled(channel, "joinAnnouncementEnabled"))) return;
       if (settings.lastJoinAnnouncementAt && Date.now() - settings.lastJoinAnnouncementAt.getTime() < JOIN_ANNOUNCEMENT_COOLDOWN_MS) return;
 
+      const raidingGuild = await Guild.exists({
+        isCurrentlyRaiding: true,
+        streamers: {
+          $elemMatch: {
+            channelName: new RegExp(`^${channel}$`, "i"),
+            isLive: true,
+            isPlayingWoW: true,
+          },
+        },
+      });
+      if (!raidingGuild) return;
+
       await this.queueSay(channel, JOIN_ANNOUNCEMENT_MESSAGE, { kind: "join_announcement" });
       await TwitchChannelBotSettings.updateOne(
         { channelName: channel },

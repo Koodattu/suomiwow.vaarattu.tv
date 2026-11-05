@@ -397,7 +397,7 @@ test("lets the broadcaster persistently turn channel progress alerts off", async
   }
 });
 
-test("announces joining a stream once within the persisted cooldown", async () => {
+test("announces joining only for a raiding guild and once within the persisted cooldown", async (t) => {
   const service = twitchChatBotService as unknown as TwitchChatBotServiceInternals;
   const originalRuntimeUpdateOne = TwitchBotRuntimeState.updateOne;
   const originalChannelUpdateOne = TwitchChannelBotSettings.updateOne;
@@ -407,6 +407,21 @@ test("announces joining a stream once within the persisted cooldown", async () =
   const originalHomeChannel = process.env.TWITCH_BOT_HOME_CHANNEL;
   const sentMessages: string[] = [];
   let lastJoinAnnouncementAt: Date | undefined;
+  let isCurrentlyRaiding = false;
+  let joinAnnouncementEnabled = true;
+  const guildLookup = t.mock.method(Guild, "exists", ((query: unknown) => {
+    assert.deepEqual(query, {
+      isCurrentlyRaiding: true,
+      streamers: {
+        $elemMatch: {
+          channelName: /^testchannel$/i,
+          isLive: true,
+          isPlayingWoW: true,
+        },
+      },
+    });
+    return Promise.resolve(isCurrentlyRaiding ? { _id: new Types.ObjectId() } : null);
+  }) as typeof Guild.exists);
 
   TwitchBotRuntimeState.updateOne = (async () => ({ acknowledged: true, matchedCount: 1, modifiedCount: 1 })) as unknown as typeof TwitchBotRuntimeState.updateOne;
   TwitchChannelBotSettings.updateOne = (async (_filter: unknown, update: { $set?: { lastJoinAnnouncementAt?: Date } }) => {
@@ -418,7 +433,7 @@ test("announces joining a stream once within the persisted cooldown", async () =
     channelName,
     alertsEnabled: true,
     commandsEnabled: true,
-    joinAnnouncementEnabled: true,
+    joinAnnouncementEnabled,
     lastJoinAnnouncementAt,
   });
   service.chatClient = {
@@ -433,6 +448,18 @@ test("announces joining a stream once within the persisted cooldown", async () =
   process.env.TWITCH_BOT_HOME_CHANNEL = "vaarattu";
 
   try {
+    await service.maybeAnnounceJoin("testchannel");
+    assert.deepEqual(sentMessages, []);
+    assert.equal(typeof lastJoinAnnouncementAt, "undefined");
+    assert.equal(guildLookup.mock.callCount(), 1);
+
+    isCurrentlyRaiding = true;
+    joinAnnouncementEnabled = false;
+    await service.maybeAnnounceJoin("testchannel");
+    assert.deepEqual(sentMessages, []);
+    assert.equal(typeof lastJoinAnnouncementAt, "undefined");
+
+    joinAnnouncementEnabled = true;
     await service.maybeAnnounceJoin("testchannel");
     await service.maybeAnnounceJoin("testchannel");
     await service.maybeAnnounceJoin("vaarattu");

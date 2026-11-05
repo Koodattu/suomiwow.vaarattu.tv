@@ -1,4 +1,119 @@
 {
+  "forever": {
+    "brand": "SuomiWoW Forever",
+    "timeAgo": {
+      "now": "Juuri nyt",
+      "minutes": "{count} min sitten",
+      "hours": "{count} h sitten",
+      "days": "{count} pv sitten"
+    },
+    "race": "Rotu",
+    "className": "Luokka",
+    "faction": "Osapuoli",
+    "stream": "Twitch",
+    "all": "Kaikki",
+    "send": "Lähetä",
+    "clearFilters": "Tyhjennä suodattimet",
+    "noMatches": "Ei hakuehtoja vastaavia hahmoja",
+    "tableScroll": "Tasoseurannan taulukko — vieritä sivusuunnassa nähdäksesi lisää sarakkeita",
+    "twitchChannel": "Twitch-kanava (valinnainen)",
+    "editTwitch": "Muokkaa Twitch-kanavaa",
+    "clearTwitch": "Poista jättämällä tyhjäksi.",
+    "save": "Tallenna",
+    "live": "LIVE",
+    "watchLive": "Katso kanavan {channel} suoraa lähetystä Twitchissä",
+    "openTwitch": "Avaa {channel} Twitchissä",
+    "hubDescription": "Yhteisön matka tasolle 60.",
+    "community": "Yhteisö",
+    "title": "Tasoseuranta",
+    "addTitle": "Hahmo seurantaan",
+    "proposeTitle": "Ehdota hahmoa",
+    "proposeDescription": "Lähetä Forever-armorylinkki. Tarkistamme ehdotuksen ennen lisäämistä.",
+    "armoryUrl": "Armorylinkki",
+    "login": "Kirjaudu Discordilla",
+    "sending": "Lähetetään…",
+    "add": "Seuraa",
+    "propose": "Lähetä ehdotus",
+    "added": "Lisätty seurantajonoon.",
+    "proposed": "Ehdotus lähetetty tarkistettavaksi.",
+    "region": "Alue",
+    "eu": "Eurooppa",
+    "us": "Amerikka",
+    "ruleset": "Pelimuoto",
+    "allRulesets": "Kaikki",
+    "waitingCount": "{count} jonossa",
+    "loading": "Ladataan…",
+    "emptyTitle": "Ei vielä hahmoja",
+    "emptyDescription": "Hyväksytyt hahmot näkyvät ensimmäisen päivityksen jälkeen.",
+    "level": "Taso",
+    "character": "Hahmo",
+    "guild": "Kilta",
+    "checked": "Päivitetty",
+    "retrying": "Odottaa päivitystä",
+    "previous": "Edellinen",
+    "next": "Seuraava",
+    "page": "Sivu {page}",
+    "workerPaused": "Automaattiset päivitykset on keskeytetty.",
+    "workerWaiting": "Odotetaan taustatyötä.",
+    "workerLastSeen": "Taustatyö viimeksi käynnissä:",
+    "retryNotice": "Armory ei vastaa. Yritetään automaattisesti uudelleen.",
+    "levelValue": "Taso {level}",
+    "awaitingProfile": "Odotetaan ensimmäistä armoryprofiilia.",
+    "openArmory": "Blizzardin armory ↗",
+    "refresh": "Pyydä päivitystä",
+    "refreshQueued": "Päivitystä pyydetty",
+    "sourceUpdated": "Armory päivitetty",
+    "nextCheck": "Seuraava mahdollinen tarkistus",
+    "history": "Tasohistoria",
+    "historyNote": "Havaitut tasot, eivät tarkat saavutusajat.",
+    "adminTitle": "Forever-seuranta",
+    "viewLeaderboard": "Avaa tasoseuranta",
+    "characters": "Hahmot ja ehdotukset",
+    "status": "Tila",
+    "actions": "Toiminnot",
+    "approveCharacter": "Seuraa hahmoa",
+    "pause": "Keskeytä seuranta",
+    "reject": "Hylkää",
+    "noCharacters": "Tässä näkymässä ei ole hahmoja.",
+    "discoveredGuilds": "Löydetyt killat",
+    "guildApprovalNote": "Hyväksyntä lisää nykyiset ja tulevat jäsenet seurantaan. Keskeytys pysäyttää uudet tuonnit.",
+    "noGuilds": "Killat ilmestyvät, kun seuratun hahmon profiili on haettu.",
+    "previewRoster": "Näytä jäsenet",
+    "approveGuild": "Hyväksy kilta ja seuraa jäseniä",
+    "pauseGuild": "Keskeytä jäsenten tuonti",
+    "close": "Sulje",
+    "rosterCount": "{count} jäsentä",
+    "awaitingRoster": "Taustatyö ei ole vielä hakenut jäsenlistaa.",
+    "statuses": {
+      "pending": "Odottaa hyväksyntää",
+      "tracked": "Seurannassa",
+      "paused": "Keskeytetty",
+      "rejected": "Hylätty",
+      "approved": "Hyväksytty",
+      "all": "Kaikki"
+    },
+    "errors": {
+      "invalid_twitch": "Anna Twitch-kanavan nimi tai linkki.",
+      "invalid_url": "Anna Blizzardin Forever-hahmolinkki Euroopasta tai Amerikasta. Retail- ja Classic-linkkejä ei tueta.",
+      "rate_limited": "Liian monta pyyntöä. Yritä uudelleen tunnin kuluttua.",
+      "login_required": "Jatka kirjautumalla Discordilla.",
+      "not_found": "Hahmoa tai kiltaa ei ole saatavilla.",
+      "unavailable": "Tietojen lataus tai tallennus epäonnistui. Yritä uudelleen."
+    },
+    "rankingShort": "Korkein taso ensin · Samat tasot tasoissa",
+    "charactersShort": "hahmoa",
+    "updatesAutomatic": "Päivittyy automaattisesti",
+    "updatesPaused": "Päivitykset keskeytetty",
+    "updatesDelayed": "Päivitykset viivästyvät",
+    "updatesWaiting": "Odottaa päivityksiä",
+    "pagination": "Tasoseurannan sivut",
+    "aboutTracking": "Tietoa seurannasta",
+    "trackingNote": "Profiilit päivittyvät vähitellen Blizzardin armorysta. Sama havaittu taso tarkoittaa tasapeliä, ei saavutusjärjestystä.",
+    "factions": {
+      "horde": "Horde",
+      "alliance": "Alliance"
+    }
+  },
   "figurineLab": {
     "eyebrow": "SuomiWoW · Prototyyppipaja",
     "title": "Hahmosta keräilyfiguuriksi.",
@@ -136,27 +251,14 @@
     "world": {
       "overview": {
         "facilities": "Toiminnot",
-        "groups": {
-          "play": "Pelaa",
-          "collection": "Kokoelma",
-          "community": "Yhteisö",
-          "craft": "Paja"
-        },
         "labels": {
           "shop": "Kauppa",
           "gallery": "Kokoelma",
           "pond": "Kalastus",
-          "crate": "Arkku",
-          "wheel": "Pyörä",
-          "quests": "Tehtävät",
-          "recycler": "Kierrätys",
-          "forge": "Paja",
-          "trading": "Vaihto",
-          "mail": "Lahjat",
-          "feed": "Saaliit",
-          "fame": "Kunnia",
-          "leaderboard": "Sijat",
-          "merchant": "Tarjoukset"
+          "fair": "Päivittäiset",
+          "yard": "Paja",
+          "market": "Vaihto",
+          "honours": "Saavutukset"
         },
         "openBoxes": "Avaa laatikko",
         "boxCost": "1 kolikko / laatikko",
@@ -211,18 +313,14 @@
         "clear": "Tyhjennä"
       },
       "crate": {
-        "body": "Avaa arkku 4 tunnin välein ja saat 1 kolikon. Päivän ensimmäinen avaus tuo 1 lisäkolikon; seitsemäntenä päivänä saat vielä 5 lisää. Jos päivä jää väliin, putki alkaa alusta.",
         "day": "Päivä {day}",
         "open": "Avaa aarrearkku",
         "got": "Päivä {day}: {reward}",
-        "day7": "+5 lisäkolikkoa",
+        "day7": "Päivä 7",
         "next": "Arkku aukeaa {time} kuluttua",
         "title": "Aarrearkku",
         "action": "Avaa arkku",
         "opening": "Avataan…",
-        "invitation": "Pieni aarre juuri sinulle.",
-        "hint": "Avaa napauttamalla arkkua tai painamalla välilyöntiä.",
-        "anticipation": "Sisällä odottaa jotain hyvää.",
         "reward": "+{count, plural, one {# kolikko} other {# kolikkoa}}",
         "collect": "Kerää",
         "dismissReward": "Kerää napauttamalla ruutua",
@@ -234,7 +332,6 @@
         "back": "Takaisin"
       },
       "wheel": {
-        "body": "Yksi ilmainen pyöräytys päivässä.",
         "spin": "Pyöräytä",
         "prizes": {
           "coin1": "+1 kolikko",
@@ -260,7 +357,6 @@
         "send": "Lähetä lahja"
       },
       "quests": {
-        "body": "Päivittäisiä, viikoittaisia ja kuukausittaisia tehtäviä. Suorita niitä ja ansaitse kolikoita.",
         "daily": "Päivä",
         "weekly": "Viikko",
         "monthly": "Kuukausi",
@@ -281,11 +377,11 @@
           "crates5": "Avaa 5 aarrearkkua"
         },
         "claimed": "Lunastettu",
-        "ready": "{count, plural, one {# palkinto lunastettavissa} other {# palkintoa lunastettavissa}}",
-        "resets": "nollautuu {time}"
+        "resets": "nollautuu {time}",
+        "claimAll": "Lunasta kaikki"
       },
       "feed": {
-        "body": "Tuoreimmat kulta- ja galaksivedot.",
+        "body": "Kaupungin kello soi jokaiselle kulta- ja galaksivedolle. Kannusta vetoa, niin soitat sitä itse.",
         "empty": "Ei vielä kulta- tai galaksivetoja. Jatka avaamista!",
         "you": "Sinä",
         "fromBox": "laatikosta",
@@ -317,21 +413,11 @@
         "signIn": "Killan tulostaulut tulevat Discord-kirjautumisen myötä."
       },
       "overlays": {
-        "community": "Keräilijöiden piiri",
-        "dailyActivities": "Pieni seikkailu joka päivä",
         "preview": "Esimerkkiyhteisö · Kokeile tässä. Nollautuu sivun päivityksessä.",
-        "sampleInventory": "{count, plural, one {# esimerkkihahmo} other {# esimerkkihahmoa}}",
-        "quality": "Viimeistely",
         "all": "Kaikki viimeistelyt",
         "cancel": "Peruuta",
-        "quests": {
-          "keepGoing": "Ansaitse kolikoita pelaamalla",
-          "completed": "{count}/{total} lunastettu",
-          "inProgress": "Kesken"
-        },
         "wheel": {
-          "noCost": "Aina ilmainen",
-          "used": "Päivän pyöräytys käytetty"
+          "used": "Pyöräytetty tänään"
         },
         "gifts": {
           "inbox": "Saapuneet",
@@ -345,8 +431,6 @@
           "recipientPlaceholder": "Keräilijän nimi",
           "sendAction": "Lähetä esimerkkilahja",
           "sentNotice": "Esimerkkilahja valmisteltiin vastaanottajalle {name}. Oikeaa viestiä ei lähetetty.",
-          "delivered": "Esimerkkilahja lähetetty",
-          "empty": "Pieni lahja ilahduttaa. Lähetä ensimmäinen esimerkkilahjasi.",
           "notes": {
             "welcome": "Pieni lahja kokoelmasi alkuun. Tervetuloa keräilijöiden piiriin!",
             "lucky": "Löysin ylimääräisen ja ajattelin sinua. Onnea seuraavaan avaukseen!"
@@ -359,34 +443,21 @@
           "cheer": "Kannusta"
         },
         "fame": {
-          "title": "Ensimmäisinä historiaan",
-          "body": "Harvinaisia löytöjä ja unohtumattomia ensisaavutuksia keräilyn historiasta.",
-          "waiting": "Paikka odottaa",
-          "next": "Seuraava nimi voi olla sinun."
+          "waiting": "Paikka odottaa"
         },
         "ranks": {
-          "body": "Ystävällistä kilpailua keräilijöiden kesken.",
-          "allTime": "Kaikki ajat",
-          "yourCollection": "Oma kokoelmasi",
-          "separate": "Istuntosi tulokset, erillään esimerkkisijoituksista."
+          "you": "Sinä"
         },
         "market": {
-          "dealsBody": "Kolme päivittäistä tarjousta paikalliselta kauppiaalta. Uutta tavaraa joka päivä.",
-          "tradingBody": "Selaa muiden keräilijöiden tarjouksia. Löydä uusi suosikkihahmo tai vaihda ylimääräinen kolikoiksi.",
-          "offers": "Tarjoukset",
           "history": "Tehdyt kaupat",
           "refresh": "Vaihda tarjoukset",
           "refreshed": "Kolme uutta tarjousta on valmiina.",
-          "show": "Näytä",
           "all": "Kaikki tarjoukset",
           "buy": "Osta hahmoja",
           "sell": "Myy hahmoja",
-          "merchant": "Paikallinen kauppias",
-          "goodDeal": "Hyvä kauppa",
           "receive": "Saat",
           "give": "Annat",
           "completed": "Tehty",
-          "confirm": "Vaihdatko yllä näkyvät kolikot tai hahmon? Kauppa muuttaa paikallista kokoelmaasi.",
           "confirmAction": "Vahvista kauppa",
           "success": "Kauppa tehty. Kolikkosi ja kokoelmasi on päivitetty.",
           "unavailable": "Tarjous ei ole enää saatavilla tai sinulla ei enää ole tarvittavia kolikoita tai hahmoa.",
@@ -394,13 +465,9 @@
           "missingCoins": "Ei tarpeeksi kolikoita",
           "missingFigure": "Et omista hahmoa",
           "empty": "Täällä ei ole vielä tarjouksia.",
-          "dailyNote": "Tarjoukset vaihtuvat päivittäin. Uusien kolmen tarjouksen hakeminen maksaa yhden kolikon.",
-          "preview": "Alfaversion esimerkkitarjouksia. Kaupat vaikuttavat vain paikallisiin kolikoihisi ja hahmoihisi; toiselle pelaajalle ei lähetetä mitään."
+          "pick": "Valitse vaihdettava tarjous"
         },
         "workshop": {
-          "forgeBody": "Tee suosikkihahmoistasi harvinaisempia. Valitse kolme samanlaista kopiota.",
-          "recycleBody": "Laita ylimääräiset figuurit hyötykäyttöön. Sulata kolme kopiota kolikoksi.",
-          "loaded": "{count} / 3 ladattu",
           "remove": "Poista {name}",
           "slot": "Tyhjä paikka {number}",
           "forgeRecipe": "Kolme samanlaista kopiota, yksi harvinaisempi hahmo",
@@ -408,13 +475,11 @@
           "forgeProtection": "Tavallisesta tulee kultainen. Kultaisesta tulee galaksi.",
           "recycleProtection": "Jokaisen hahmon viimeinen kopio säilytetään aina.",
           "working": "Työstetään…",
-          "upgrade": "Harvinaisempi laatu",
           "newCoin": "1 kolikko",
           "forge": "Tako",
-          "recycle": "Kierrätä",
-          "yourFigures": "Ylimääräiset hahmosi"
+          "recycle": "Kierrätä"
         },
-        "workshopLabel": "Työpaja"
+        "sample": "Esimerkki"
       },
       "trading": {
         "body": "Vaihda hahmoja muiden pelaajien kanssa: tarjoa omaasi, pyydä heidän omaansa, ja molemmat hyväksyvät."
@@ -472,6 +537,20 @@
         "boostNext": "Seuraava laatikko: vähintään {quality}",
         "coins": "{count, plural, one {# kolikko} other {# kolikkoa}}",
         "balance": "Kolikot: {count}"
+      },
+      "district": {
+        "ready": "Valmis avattavaksi",
+        "toClaim": "{count, plural, one {# palkinto lunastettavana} other {# palkintoa lunastettavana}}",
+        "questsDone": "{done}/{total} lunastettu",
+        "freeSpin": "Ilmainen pyöräytys",
+        "spares": "{count, plural, one {# ylimääräinen} other {# ylimääräistä}}",
+        "sets": "{count, plural, =0 {Ei kolmen sarjoja} one {# sarja valmiina} other {# sarjaa valmiina}}",
+        "offers": "{count, plural, one {# tarjous} other {# tarjousta}}",
+        "gifts": "{count, plural, =0 {Ei lahjoja} one {# lahja odottaa} other {# lahjaa odottaa}}",
+        "deals": "{count, plural, =0 {Loppuunmyyty} one {# tarjous jäljellä} other {# tarjousta jäljellä}}",
+        "finds": "{count, plural, =0 {Ei vielä omia löytöjä} one {# oma löytö} other {# omaa löytöä}}",
+        "firsts": "{done}/{total} saavutettu",
+        "figures": "{count, plural, one {Sinulla # hahmo} other {Sinulla # hahmoa}}"
       }
     },
     "tradedUp": "Paranneltu!",
@@ -2401,6 +2480,7 @@
       "system": "Järjestelmä",
       "tasks": "Tehtävät",
       "ccg": "CCG",
+      "forever": "Forever",
       "reporter": "Reportteri"
     },
     "reporter": {
