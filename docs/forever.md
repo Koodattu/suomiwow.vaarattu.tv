@@ -179,13 +179,13 @@ previous observations; LIVE expires after five minutes. The Twitch worker also
 starts automatically. No Twitch credentials means plain channel links.
 The batch size fits the [Twitch Streams endpoint's default page size](https://dev.twitch.tv/docs/api/reference/#get-streams).
 
-`backend/src/features/forever/forever-seeds.json` contains 99 unique EU characters:
-50 friends and 50 streamer characters, with Wiba Wiba merged. The friend list is
+`backend/src/features/forever/forever-seeds.json` contains 100 unique EU characters:
+51 friends and 50 streamer characters, with Wiba Wiba merged. The friend list is
 the union of all supplied snapshots; no earlier entries are removed.
 The latest snapshot adds Galardodric Felrain, Jannun Mutsi, Jonio Pyhäshokki,
 Kick Kare, Morini Ikuisesti, Nasty Sock, Peikonkorvat Nokkavuotaa, Roo Perro,
-Thaekor Stormcaller, Wi Bank and Zen Illusion. Earlier names remain tracked.
-Elyriannà, Eppugrip, Flînk and Np remain excluded because their surnames are missing.
+Thaekor Stormcaller, Wi Bank and Zen Illusion. Bomb Kerava is also included from the subsequent snapshot. Earlier names remain tracked.
+Elyriannà, Eppugrip, Flînk, Np and Perähudlari remain excluded because their surnames are missing.
 Katti Mau and Zeta Cygni remain despite being absent from the later snapshot. It incorporates the
 user-confirmed Kiuza Tiäksää and Zaikow Reborn spellings. The resolved Edd Shanks, Oma Quu, Flexi Pala and Bull Meato identities are now included.
 Haiga Prongs remains a tentative spelling (Armory returned HTTP 500 during verification).
