@@ -49,8 +49,15 @@ export interface ForeverGuild {
   roster?: { region: string; slug: string; name: string; level: number; className: string; trackingStatus?: string }[];
 }
 export interface ForeverWorker { lastTickAt?: string; lastSuccessAt?: string; nextRequestAt?: string; errorCode?: string }
+export interface ForeverStatistics {
+  factions: { name: string | null; count: number }[];
+  rulesets: { name: string | null; count: number }[];
+  averageLevel: number | null;
+  atMaxLevel: number;
+}
 export interface ForeverBoard {
   characters: ForeverCharacter[]; total: number; pending: number;
+  statistics: ForeverStatistics;
   filterOptions: Record<"race" | "className" | "faction" | "ruleset" | "guild", string[]>;
   page: number; pageSize: number; worker: ForeverWorker | null; enabled: boolean;
 }

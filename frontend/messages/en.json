@@ -84,6 +84,18 @@
       "backToBoard": "Back to leaderboard",
       "tryAgain": "Try again"
     },
+    "statistics": {
+      "loading": "Loading population statistics",
+      "summary": "Breakdown of {count} matching characters",
+      "factions": "Horde vs Alliance",
+      "rulesets": "Rulesets",
+      "all": "All characters",
+      "filtered": "Filtered",
+      "unknown": "Unknown",
+      "averageLevel": "Average level",
+      "atMaxLevel": "Level 60",
+      "noData": "No characters"
+    },
     "adminTitle": "Forever tracking",
     "admin": {
       "sections": "Forever administration",

@@ -140,14 +140,39 @@ export async function leaderboard(query: { page?: unknown; race?: unknown; class
     if (typeof value !== "string" || value.length > (field === "guild" ? 150 : 80)) throw new ForeverError("invalid_input");
     filter[field === "guild" ? "guild.name" : field] = field === "race" && value === "Skyborne" ? { $in: skyborneRaces } : value;
   }
-  const [characters, total, pending, options, worker] = await Promise.all([
+  const [characters, breakdown, pending, options, worker] = await Promise.all([
     ForeverCharacter.find(filter).select(publicFields).sort({ level: -1, name: 1, _id: 1 }).skip((pageNumber - 1) * 50).limit(50).lean(),
-    ForeverCharacter.countDocuments(filter), ForeverCharacter.countDocuments({ status: "tracked", level: { $exists: false }, region: "eu" }),
+    ForeverCharacter.aggregate<{
+      summary: { total: number; averageLevel: number; atMaxLevel: number }[];
+      factions: { name: string | null; count: number }[];
+      rulesets: { name: string | null; count: number }[];
+    }>([
+      { $match: filter },
+      { $facet: {
+        summary: [{ $group: {
+          _id: null, total: { $sum: 1 }, averageLevel: { $avg: "$level" },
+          atMaxLevel: { $sum: { $cond: [{ $eq: ["$level", 60] }, 1, 0] } },
+        } }],
+        factions: [
+          { $group: { _id: { $cond: [{ $eq: [{ $ifNull: ["$faction", ""] }, ""] }, null, "$faction"] }, count: { $sum: 1 } } },
+          { $sort: { count: -1, _id: 1 } }, { $project: { _id: 0, name: "$_id", count: 1 } },
+        ],
+        rulesets: [
+          { $group: { _id: { $cond: [{ $eq: [{ $ifNull: ["$ruleset", ""] }, ""] }, null, "$ruleset"] }, count: { $sum: 1 } } },
+          { $sort: { count: -1, _id: 1 } }, { $project: { _id: 0, name: "$_id", count: 1 } },
+        ],
+      } },
+    ]),
+    ForeverCharacter.countDocuments({ status: "tracked", level: { $exists: false }, region: "eu" }),
     Promise.all(fields.map((field) => ForeverCharacter.distinct(field === "guild" ? "guild.name" : field, base).then((values: (string | null)[]) =>
       [...new Set(values.filter((value): value is string => !!value).map((value) => field === "race" && skyborneRaces.includes(value) ? "Skyborne" : value))].sort((a, b) => a.localeCompare(b, "en"))))),
     ForeverWorker.findById("armory").select("lastTickAt lastSuccessAt nextRequestAt errorCode").lean(),
   ]);
-  return { characters, total, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
+  const population = breakdown[0];
+  const summary = population.summary[0];
+  const total = summary?.total || 0;
+  const statistics = { factions: population.factions, rulesets: population.rulesets, averageLevel: summary?.averageLevel ?? null, atMaxLevel: summary?.atMaxLevel || 0 };
+  return { characters, total, statistics, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
 }
 export async function characterDetail(id: unknown) {
   let identity: Record<string, unknown>;

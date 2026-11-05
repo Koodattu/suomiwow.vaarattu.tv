@@ -84,6 +84,18 @@
       "backToBoard": "Takaisin tasoseurantaan",
       "tryAgain": "Yritä uudelleen"
     },
+    "statistics": {
+      "loading": "Ladataan hahmotilastoja",
+      "summary": "Valittujen hahmojen jakauma ({count})",
+      "factions": "Horde vs Alliance",
+      "rulesets": "Pelimuodot",
+      "all": "Kaikki hahmot",
+      "filtered": "Suodatettu",
+      "unknown": "Tuntematon",
+      "averageLevel": "Keskitaso",
+      "atMaxLevel": "Tasolla 60",
+      "noData": "Ei hahmoja"
+    },
     "adminTitle": "Forever-seuranta",
     "admin": {
       "sections": "Forever-hallinta",
