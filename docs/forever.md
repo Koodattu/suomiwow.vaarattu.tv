@@ -179,9 +179,11 @@ previous observations; LIVE expires after five minutes. The Twitch worker also
 starts automatically. No Twitch credentials means plain channel links.
 The batch size fits the [Twitch Streams endpoint's default page size](https://dev.twitch.tv/docs/api/reference/#get-streams).
 
-`backend/src/features/forever/forever-seeds.json` contains 71 unique EU characters:
-34 friends and 38 streamer characters, with Wiba Wiba merged. The friend list is
-the union of both supplied snapshots, including Moist Wanderer and Sysi Simsalabim;
+`backend/src/features/forever/forever-seeds.json` contains 76 unique EU characters:
+39 friends and 38 streamer characters, with Wiba Wiba merged. The friend list is
+the union of the supplied snapshots, including Moist Wanderer and Sysi Simsalabim;
+the latest adds Hot Ted, Kaania Kuukkeli, Sir Salomaa, Toveri Kissa and Yara Walking.
+Elyriannà, Flînk and Np remain excluded because their surnames are missing.
 Katti Mau and Zeta Cygni remain despite being absent from the later snapshot. It incorporates the
 user-confirmed Kiuza Tiäksää and Zaikow Reborn spellings. The six unresolved names
 were excluded at the user's request. Names from the 2026-11-05 stream captures

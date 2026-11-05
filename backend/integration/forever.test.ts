@@ -182,7 +182,7 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       assert.equal((await ForeverWorker.findById("armory").lean())?.leaseToken, "successor");
     });
     await t.test("seed reruns preserve edits, pauses and history without duplicate Wiba entries", async () => {
-      assert.equal((await seedForeverCharacters()).inserted, 71);
+      assert.equal((await seedForeverCharacters()).inserted, 76);
       const wiba = await ForeverCharacter.findOne({ slug: "wiba-wiba" }).lean();
       assert.equal(wiba?.twitchChannel, "wiba");
       await service.setCharacterStatus(String(wiba!._id), "paused");
