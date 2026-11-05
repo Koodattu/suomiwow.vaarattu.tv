@@ -1,9 +1,29 @@
-.title { position: absolute; z-index: 3; top: max(35px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; color: #f6e4bd; text-shadow: 0 2px 8px #000; }
-.title span { font: 600 11px system-ui, sans-serif; letter-spacing: .2em; text-transform: uppercase; color: #d8bc82; }
-.title h1 { margin: 5px 0 0; font: 400 clamp(22px, 3vw, 32px)/1.2 Georgia, serif; }
+.title { position: absolute; z-index: 3; top: max(28px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; color: #fff0d0; text-shadow: 0 2px 10px #000, 0 0 2px #000; white-space: nowrap; }
+.title h1 { margin: 0; font: 400 clamp(26px, 3vw, 38px)/1.2 Georgia, serif; }
 .action { min-width: 210px; }
-@media (max-width: 700px) { .title { top: max(85px, calc(env(safe-area-inset-top) + 70px)); } .action { min-width: 175px; padding-inline: 18px; font-size: 17px; } }
-
-.reward { position: absolute; z-index: 3; bottom: max(150px, calc(env(safe-area-inset-bottom) + 146px)); left: 50%; width: min(640px, calc(100vw - 32px)); transform: translateX(-50%); text-align: center; pointer-events: none; color: #fff6e2; text-shadow: 0 1px 3px #000; }
-.reward p { margin: 0; font: 400 24px/1.25 Georgia, serif; }
-.reward small { display: block; margin-top: 6px; font: 500 13px/1.4 system-ui, sans-serif; color: #e9dfc9; }
+.reward { position: absolute; z-index: 3; bottom: max(100px, calc(env(safe-area-inset-bottom) + 96px)); left: 50%; width: min(640px, calc(100vw - 32px)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+.reward small { font: 500 13px/1.4 system-ui, sans-serif; color: #fff6e2; text-shadow: 0 1px 3px #000; }
+/* The week's streak, a row of tokens. */
+.streak { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 6px; }
+.streak li { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #f0d9a859; border-radius: 50%; background: #0a101ac7; color: #bcb39d; font: 400 15px Georgia, serif; box-shadow: 0 3px 10px #0006; }
+.streak li[data-final] { width: auto; min-width: 52px; padding: 0 10px; border-radius: 18px; color: #ffd77a; font-size: 14px; border-color: #e6c67c; }
+.streak li[data-state="done"] { border-color: #f1d9a4; background: radial-gradient(circle at 35% 30%, #fbe7b4, #c9a35e 72%); color: #33250e; }
+.streak li[data-state="today"] { border-color: #ffe4aa; color: #fff0d0; box-shadow: 0 0 0 2px #ffd77a55, 0 0 16px #ffd77a80; animation: today 1.3s ease-in-out infinite alternate; }
+@keyframes today { to { box-shadow: 0 0 0 3px #ffd77a88, 0 0 22px #ffd77aaa; } }
+/* What the wheel can land on. */
+.prizes { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; pointer-events: none; }
+.prizes li { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px 4px 7px; border: 1px solid #f0d9a84d; border-radius: 999px; background: #0a101ac7; color: #f3e4c7; font: 500 13px system-ui, sans-serif; white-space: nowrap; }
+.prizes svg { width: 16px; height: 16px; flex: none; margin-inline: 1px; }
+.prizes [data-prize="golden"] { border-color: #e6c67c; color: #ffd77a; }
+.prizes [data-prize="galaxy"] { border-color: #ad8ce4; color: #d9c8ff; }
+.prizes [data-prize="figure"] { color: #cfe2e6; }
+.wheelBanner { top: auto; bottom: max(100px, calc(env(safe-area-inset-bottom) + 96px)); }
+@media (max-width: 700px) {
+  .title { top: max(112px, calc(env(safe-area-inset-top) + 100px)); }
+  .action { min-width: 150px; padding-inline: 18px; font-size: 17px; }
+  .streak { gap: 4px; }
+  .streak li { width: 32px; height: 32px; font-size: 14px; }
+  .streak li[data-final] { min-width: 44px; padding: 0 8px; font-size: 13px; }
+  .prizes li { font-size: 12px; min-height: 30px; }
+}
+@media (prefers-reduced-motion: reduce) { .streak li[data-state="today"] { animation: none; } }

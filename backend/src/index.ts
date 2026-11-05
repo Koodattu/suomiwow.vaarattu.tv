@@ -65,6 +65,8 @@ import reporterRouter from "./features/reporter/reporter.routes";
 import reporterAdminRouter from "./features/reporter/reporter-admin.routes";
 import reporterTriggerRouter from "./features/reporter/reporter-trigger.routes";
 import reporterScheduler from "./features/reporter/reporter-scheduler.service";
+import { foreverRouter, foreverAdminRouter } from "./features/forever/forever.routes";
+import foreverWorker, { initializeForever } from "./features/forever/forever.worker";
 
 // ============================================================================
 // WORKER MODE CONFIGURATION
@@ -203,6 +205,8 @@ app.use("/icons", express.static(bundledIconsDir));
 // ROUTES
 // ============================================================================
 app.use("/api/guilds", guildsRouter);
+app.use("/api/forever", foreverRouter);
+app.use("/api/admin/forever", foreverAdminRouter);
 app.use("/api/progress", progressRouter);
 app.use("/api/home", homeRouter);
 app.use("/api/events", eventsRouter);
@@ -568,6 +572,7 @@ const startServer = async () => {
     // Connect to MongoDB - required by all modes
     setStartupTask("Connect to MongoDB");
     await connectDB();
+    await initializeForever();
     completeStartupTask("Connect to MongoDB");
 
     setStartupTask("Initialize Pickem CCG rewards");
@@ -663,6 +668,7 @@ const startServer = async () => {
     }
 
     if (isWorkerProcess) {
+      if (process.env.FOREVER_WORKER_ENABLED !== "false") foreverWorker.start();
       // Run background initialization (scheduler, processor, cache warming, etc.)
       // In "both" mode this is fire-and-forget so the API is available immediately.
       // In "worker" mode we await it so the process stays alive.
@@ -699,6 +705,7 @@ async function shutdown(): Promise<void> {
   for (const server of httpServers) server.close();
   logger.info("Shutting down; draining active ingestion...");
   if (isWorkerProcess) {
+    await foreverWorker.stop();
     scheduler.stop();
     reporterScheduler.stop();
     backgroundGuildProcessor.stop();

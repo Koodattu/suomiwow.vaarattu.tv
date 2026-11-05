@@ -19,7 +19,7 @@ function cameraState(view, idle, reduced = false, width = 1200) {
   const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
   return vm.createContext({
     state: { current: {} },
-    THREE, isOverlayStation, active: false, orbitOffset: null, build: { zoom: 1 }, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer",
+    THREE, isOverlayStation, active: false, orbitOffset: null, build: { zoom: 1 }, immersive: true, currentView: view, centreShot: null, overviewShot: null, framing: 1, isStation: view => view !== "overview" && view !== "opening" && view !== "viewer", isShot: view => view !== "overview" && view !== "opening" && view !== "viewer",
     homeOffset: new THREE.Vector3(0.6, 2.1, 9.6), homeTarget: new THREE.Vector3(0, 1.5, 0),
     OVERVIEW_DISTANCE: { min: 13, initial: 17, max: 19 },
     shotAspect: () => 1, viewPose: () => ({ position: pose.position.clone(), target: pose.target.clone() }),
@@ -180,13 +180,34 @@ test("opposite-side flights preserve viewing distance and turn smoothly instead 
   }
 });
 
+test("within a district the camera leans quietly, with no arc and no whoosh", () => {
+  const from = source.indexOf('      if (immersive && current.view !== currentView)');
+  const navigate = new vm.Script(`{${ts.transpile(source.slice(from, source.indexOf('      if (current.arrival !== seenArrival)', from)))}}`);
+  for (const lean of [true, false]) {
+    const cues = [], state = withOrbit(cameraState("yard", 0));
+    Object.assign(state, { sameDistrict: () => lean, centre: () => false, current: { view: "forge" }, orbitOffset: null, introClock: 3, INTRO_SECONDS: 3, displayClock: 0, press: null, looking: null, heldTarget: new THREE.Vector2(), peelSound: null, grab: null, shake: null, autoRotate: 1, clearPartHover() {}, reducedMotion: { matches: false }, playFigurineCue: (cue) => cues.push(cue) });
+    state.flight = null;
+    navigate.runInContext(state);
+    assert.equal(state.flight.lean, lean);
+    assert.deepEqual(cues, lean ? [] : ["whoosh"]);
+  }
+  const height = (lean) => {
+    const state = cameraState("forge", 2);
+    Object.assign(state, { LEAN_SECONDS: 0.8 });
+    state.flight.lean = lean; state.flight.t = 0.4;
+    step.runInContext(state);
+    return state.camera.position.y;
+  };
+  assert.ok(height(false) - height(true) > 0.5, "a lean does not rise over the arc of a flight");
+});
+
 test("interrupting a return flight preserves the saved overview and clears orbit inertia", () => {
   const from = source.indexOf('      if (immersive && current.view !== currentView)');
   const to = source.indexOf('      if (current.arrival !== seenArrival)', from);
   const navigate = new vm.Script(`{${ts.transpile(source.slice(from, to))}}`);
   const state = withOrbit(cameraState("overview", 0));
   const saved = { position: new THREE.Vector3(0, 5, 16), target: new THREE.Vector3(0, 1.5, 0) };
-  Object.assign(state, { overviewShot: saved, current: { view: "crate" }, orbitOffset: null, introClock: 3, INTRO_SECONDS: 3, displayClock: 0, press: null, looking: null, heldTarget: new THREE.Vector2(), peelSound: null, clearPartHover() {}, reducedMotion: { matches: true } });
+  Object.assign(state, { sameDistrict: () => false, overviewShot: saved, current: { view: "crate" }, orbitOffset: null, introClock: 3, INTRO_SECONDS: 3, displayClock: 0, press: null, looking: null, heldTarget: new THREE.Vector2(), peelSound: null, clearPartHover() {}, reducedMotion: { matches: true } });
   state.flight.t = 0.4;
   state.camera.position.set(3, 4, 5); state.controls.target.set(1, 1, 1);
   const departure = state.camera.position.clone();

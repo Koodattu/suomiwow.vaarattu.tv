@@ -1,0 +1,78 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { ArmoryError, armoryUrl, parseArmoryUrl, parseAvatarUrl, parseCharacterHtml, parseRosterResponse, retryAfter } from "../src/features/forever/forever-armory";
+import { failureDelay, mayRequestRefresh, MINUTE, refreshDelay, validateProgress } from "../src/features/forever/forever-policy";
+
+const identity = { region: "eu" as const, slug: "test-hero" };
+const character = { ...identity, name: "Test", surname: "Hero", level: 12, class: { name: "Paladin" }, race: { name: "Human" },
+  faction: { name: "Alliance" }, ruleset: { name: "Normal" }, lastUpdatedTimestamp: { epoch: 1_790_000_000_000 },
+  url: "/forever/eu/armory/character/test-hero/", guild: { region: "eu", slug: "test-guild", name: "Test Guild" } };
+const html = (value: unknown) => `<script>var characterProfileInitialState = ${JSON.stringify({ character: value })};</script>`;
+
+test("Forever URL parsing canonicalizes Unicode and rejects retail, arbitrary hosts and malformed identities", () => {
+  assert.deepEqual(parseArmoryUrl(armoryUrl(identity)), identity);
+  assert.deepEqual(parseArmoryUrl("https://worldofwarcraft.blizzard.com/en-gb/forever/eu/armory/character/Ääni-Tuuli/?ignored=1"), { region: "eu", slug: "ääni-tuuli" });
+  for (const url of ["https://example.org/en-gb/forever/eu/armory/character/test-hero", "http://worldofwarcraft.blizzard.com/en-gb/forever/eu/armory/character/test-hero", "https://worldofwarcraft.blizzard.com/en-gb/character/eu/realm/test", "https://worldofwarcraft.blizzard.com/en-gb/forever/eu/armory/character/a%2Fb", "https://worldofwarcraft.blizzard.com/en-gb/forever/eu/armory/character/a.b", "https://user@worldofwarcraft.blizzard.com/en-gb/forever/eu/armory/character/test-hero"]) {
+    assert.throws(() => parseArmoryUrl(url), ArmoryError);
+  }
+});
+test("character parser accepts the observed Armory contract and stores only profile fields", () => {
+  const result = parseCharacterHtml(html(character), identity);
+  assert.equal(result.name, "Test Hero"); assert.equal(result.level, 12); assert.equal(result.guild?.slug, "test-guild");
+  assert.equal(result.sourceUpdatedAt.getTime(), 1_790_000_000_000);
+  assert.equal(parseCharacterHtml(html({ ...character, guild: null }), identity).guild, null);
+  assert.equal("gear" in result, false);
+});
+test("portraits accept only the matching Forever region on Blizzard's render host", () => {
+  const avatarUrl = "https://render.worldofwarcraft.com/forever-eu/character/233/6972649-avatar.jpg";
+  assert.equal(parseAvatarUrl(avatarUrl, "eu"), avatarUrl);
+  assert.equal(parseCharacterHtml(html({ ...character, avatar: { url: avatarUrl } }), identity).avatarUrl, avatarUrl);
+  for (const url of [undefined, "javascript:alert(1)", avatarUrl.replace("forever-eu", "eu"), avatarUrl.replace("forever-eu", "forever-us"),
+    avatarUrl.replace("render.worldofwarcraft.com", "example.org"), `${avatarUrl}?tracking=1`]) {
+    assert.equal(parseAvatarUrl(url, "eu"), null);
+  }
+  assert.equal(parseCharacterHtml(html(character), identity).avatarUrl, null);
+});
+test("upstream errors, retail responses, mismatches and stale flags are never accepted as character data", () => {
+  for (const invalid of [{ ...character, region: "us" }, { ...character, url: "/worldsoul/eu/armory/character/test-hero/" },
+    { ...character, slug: "another-hero" }, { ...character, level: 90 }, { ...character, level: 0 }, { ...character, level: "12" },
+    { ...character, isOutdated: true }, { ...character, surname: null }, { ...character, lastUpdatedTimestamp: {} }]) {
+    assert.throws(() => parseCharacterHtml(html(invalid), identity), ArmoryError);
+  }
+  assert.throws(() => parseCharacterHtml("<html>Maintenance</html>", identity), ArmoryError);
+  assert.throws(() => parseCharacterHtml('<script>var characterProfileInitialState = (()=>{throw 1})();</script>', identity), ArmoryError);
+});
+test("guild parser rejects retail context and partial errors, preserving only validated members", () => {
+  const guild = { region: "eu" as const, slug: "test-guild" };
+  const member = { character: { _id: "eu-test-hero", region: "eu", name: "Test", surname: "Hero", level: 12, realm: null, class: { name: "Paladin" } } };
+  const response = { data: { GameConstants: { maxLevel: 60 }, Guild: { _id: "eu-none-test-guild", roster: [member, member] } } };
+  assert.equal(parseRosterResponse(response, guild).length, 1);
+  assert.throws(() => parseRosterResponse({ ...response, errors: [{ message: "upstream unavailable" }] }, guild), ArmoryError);
+  assert.throws(() => parseRosterResponse({ data: { ...response.data, GameConstants: { maxLevel: 90 } } }, guild), ArmoryError);
+  assert.throws(() => parseRosterResponse(response, { ...guild, slug: "other-guild" }), ArmoryError);
+  member.character.realm = { slug: "retail-realm" } as any;
+  assert.throws(() => parseRosterResponse(response, guild), ArmoryError);
+});
+test("retry policy honors both Retry-After formats and increases delays without abandoning 404s", () => {
+  assert.equal(retryAfter("120"), 120_000);
+  assert.equal(retryAfter("Thu, 05 Nov 2026 12:01:00 GMT", Date.parse("2026-11-05T12:00:00Z")), 60_000);
+  assert.equal(retryAfter("nonsense"), 0);
+  assert.equal(failureDelay(0, new ArmoryError("not_found", 404), 0), 15 * MINUTE);
+  assert.equal(failureDelay(2, new ArmoryError("not_found", 404), 0), 60 * MINUTE);
+  assert.equal(failureDelay(0, new ArmoryError("limited", 429, 4 * 60 * MINUTE), 0), 4 * 60 * MINUTE);
+  assert.ok(failureDelay(100, new ArmoryError("unavailable"), 0) <= 24 * 60 * MINUTE);
+});
+test("progress and scheduling preserve observations and do not allow refreshes to bypass retries", () => {
+  const sourceUpdatedAt = new Date("2026-11-05T10:00:00Z");
+  assert.throws(() => validateProgress({ level: 20, sourceUpdatedAt }, { level: 19, sourceUpdatedAt }), ArmoryError);
+  assert.throws(() => validateProgress({ level: 20, sourceUpdatedAt }, { level: 21, sourceUpdatedAt: new Date("2026-11-04") }), ArmoryError);
+  validateProgress({ level: 20, sourceUpdatedAt }, { level: 20, sourceUpdatedAt });
+  assert.equal(refreshDelay(20, sourceUpdatedAt, sourceUpdatedAt.getTime()), 15 * MINUTE);
+  assert.equal(refreshDelay(20, sourceUpdatedAt, sourceUpdatedAt.getTime() + 2 * 86400_000), 60 * MINUTE);
+  assert.equal(refreshDelay(60, sourceUpdatedAt), 6 * 60 * MINUTE);
+  const value = { status: "tracked", failures: 0, nextFetchAt: new Date(60 * MINUTE), lastAttemptAt: new Date(0) };
+  assert.equal(mayRequestRefresh(value, 6 * MINUTE), true);
+  assert.equal(mayRequestRefresh(value, MINUTE), false);
+  assert.equal(mayRequestRefresh({ ...value, failures: 1 }, 6 * MINUTE), false);
+  assert.equal(mayRequestRefresh({ ...value, status: "pending" }, 6 * MINUTE), false);
+});

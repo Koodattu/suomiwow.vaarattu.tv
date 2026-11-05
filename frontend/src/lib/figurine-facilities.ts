@@ -267,11 +267,11 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     prop("giftRed", 0.2, 0.9, 0.2, -0.4, 0.72);
   } else if (kind === "quests") {
     // Quest giver: the mission board hung by its chains from a beam, under a floating golden "!",
-    // with the campaign table and its maps at its side.
+    // with the campaign table and its maps before it.
     for (const side of [-1, 1]) frame.push(add(new THREE.BoxGeometry(0.2, 3.2, 0.2), wood, side * 1.5, 1.6, -0.34));
     frame.push(add(new THREE.BoxGeometry(3.4, 0.2, 0.22), wood, 0, 3.14, -0.34));
     prop("questBoard", 2.75, 0, -0.26, -Math.PI / 2, 0.42);
-    prop("questTable", 0.92, -2.05, 0.5, -Math.PI / 2 + 0.3);
+    prop("questTable", 0.92, 0, 1.05, -Math.PI / 2);
     const mark = new THREE.Group(); mark.position.set(0, 3.75, -0.15); parent.add(mark);
     const glow = new THREE.MeshStandardMaterial({ color: 0xffd24a, emissive: 0xffb81c, emissiveIntensity: 0.9, metalness: 0.3, roughness: 0.35 });
     add(new THREE.BoxGeometry(0.13, 0.42, 0.13), glow, 0, 0.12, 0, mark);

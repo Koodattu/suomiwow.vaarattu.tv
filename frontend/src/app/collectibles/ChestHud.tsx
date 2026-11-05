@@ -19,6 +19,16 @@ export function CoinReward({ count, note, onDismiss }: { count: number; note?: s
   </>;
 }
 
+// The week's streak: each opened day filled, today's waiting, and the seventh worth the most.
+function Streak({ day, today }: { day: number; today: boolean }) {
+  const t = useTranslations("figurineLab.world.crate");
+  const opened = today ? day - 1 : day;
+  return <ol className={styles.streak} aria-label={t("day", { day })}>{Array.from({ length: 7 }, (_, index) => {
+    const number = index + 1;
+    return <li key={number} data-state={number <= opened ? "done" : today && number === day ? "today" : undefined} data-final={number === 7 || undefined}>{number === 7 ? t("day7") : number}</li>;
+  })}</ol>;
+}
+
 export default function ChestHud({ ready, day, remainingMs, bonusReady, busy, result, onOpen, onDismiss, onBack }: {
   ready: boolean; day: number; remainingMs: number; bonusReady: boolean; busy: boolean;
   result: Extract<PanelResult, { station: "crate" }> | null;
@@ -27,13 +37,11 @@ export default function ChestHud({ ready, day, remainingMs, bonusReady, busy, re
   const t = useTranslations("figurineLab.world.crate");
   const minutes = Math.ceil(remainingMs / 60000);
   return <>
-    <div className={styles.title}><span>{t("day", { day })}</span><h1>{t("title")}</h1></div>
+    <div className={styles.title}><h1>{t("title")}</h1></div>
     {result ? <CoinReward count={result.reward.coins ?? 0} note={(result.reward.coins ?? 0) > 1 ? t(result.day === 7 ? "weeklyBonus" : "dailyBonus") : undefined} onDismiss={onDismiss} />
     : <div className={styles.reward} role="status">
-      <p>{busy ? t("opening") : ready ? t("invitation") : t("claimed")}</p>
-      <small>{busy ? t("anticipation") : ready ? t("hint") : t("comeBack", { hours: Math.floor(minutes / 60), minutes: minutes % 60 })}</small>
-      {!busy && <small>{t("body")}</small>}
-      {!busy && ready && bonusReady && <small>{t(day === 7 ? "weeklyBonus" : "dailyBonus")}</small>}
+      <Streak day={day} today={bonusReady} />
+      {!ready && !busy && <small>{t("comeBack", { hours: Math.floor(minutes / 60), minutes: minutes % 60 })}</small>}
     </div>}
     <nav className={controls.bar} aria-label={t("controls")}>
       <div className={controls.left}><OverviewBack inline onBack={onBack} /></div>

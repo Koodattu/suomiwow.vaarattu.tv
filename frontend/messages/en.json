@@ -1,4 +1,96 @@
 {
+  "forever": {
+    "brand": "SuomiWoW Forever",
+    "hubDescription": "The community’s journey to level 60.",
+    "community": "Community",
+    "title": "Leveling",
+    "addTitle": "Track a character",
+    "proposeTitle": "Suggest a character",
+    "proposeDescription": "Share a Forever Armory link. We’ll review it for the board.",
+    "armoryUrl": "Armory link",
+    "login": "Sign in with Discord",
+    "sending": "Sending…",
+    "add": "Track",
+    "propose": "Send suggestion",
+    "added": "Added to the tracking queue.",
+    "proposed": "Suggestion sent for review.",
+    "region": "Region",
+    "eu": "Europe",
+    "us": "Americas",
+    "ruleset": "Ruleset",
+    "allRulesets": "All rulesets",
+    "waitingCount": "{count} queued",
+    "loading": "Loading…",
+    "emptyTitle": "No characters yet",
+    "emptyDescription": "Approved characters appear after their first update.",
+    "level": "Level",
+    "character": "Character",
+    "guild": "Guild",
+    "checked": "Updated",
+    "retrying": "Update pending",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {page}",
+    "workerPaused": "Automatic updates are paused.",
+    "workerWaiting": "Waiting for the worker.",
+    "workerLastSeen": "Worker last seen:",
+    "retryNotice": "Armory unavailable. Retrying automatically.",
+    "levelValue": "Level {level}",
+    "awaitingProfile": "Waiting for the first Armory profile.",
+    "openArmory": "Blizzard Armory ↗",
+    "refresh": "Request refresh",
+    "refreshQueued": "Refresh requested",
+    "sourceUpdated": "Armory updated",
+    "nextCheck": "Next eligible check",
+    "history": "Level history",
+    "historyNote": "Observed levels, not exact level-up times.",
+    "adminTitle": "Forever tracking",
+    "viewLeaderboard": "Open leveling page",
+    "characters": "Characters & suggestions",
+    "status": "Status",
+    "actions": "Actions",
+    "approveCharacter": "Track character",
+    "pause": "Pause tracking",
+    "reject": "Reject",
+    "noCharacters": "No characters in this view.",
+    "discoveredGuilds": "Discovered guilds",
+    "guildApprovalNote": "Approve to track current and future members. Pausing stops new imports.",
+    "noGuilds": "Guilds appear after a tracked character’s profile is fetched.",
+    "previewRoster": "Preview roster",
+    "approveGuild": "Approve guild & track roster",
+    "pauseGuild": "Pause roster imports",
+    "close": "Close",
+    "rosterCount": "{count} roster members",
+    "awaitingRoster": "The worker has not fetched this roster yet.",
+    "statuses": {
+      "pending": "Awaiting approval",
+      "tracked": "Tracking",
+      "paused": "Paused",
+      "rejected": "Rejected",
+      "approved": "Approved",
+      "all": "All"
+    },
+    "errors": {
+      "invalid_url": "Enter a Blizzard Forever character URL for Europe or the Americas. Retail and Classic links are not supported.",
+      "rate_limited": "Too many requests. Please try again in an hour.",
+      "login_required": "Sign in with Discord to continue.",
+      "not_found": "This character or guild is not available.",
+      "unavailable": "Could not load or save the data. Please try again."
+    },
+    "rankingShort": "Highest level first · Equal levels are tied",
+    "charactersShort": "characters",
+    "updatesAutomatic": "Auto-updating",
+    "updatesPaused": "Updates paused",
+    "updatesDelayed": "Updates delayed",
+    "updatesWaiting": "Awaiting updates",
+    "pagination": "Leaderboard pages",
+    "aboutTracking": "About this board",
+    "trackingNote": "Profiles refresh gradually from Blizzard’s Armory. Ties reflect the same observed level, not who reached it first.",
+    "factions": {
+      "horde": "Horde",
+      "alliance": "Alliance"
+    }
+  },
   "figurineLab": {
     "eyebrow": "SuomiWoW · Prototype workshop",
     "title": "From character to collectible.",
@@ -136,27 +228,14 @@
     "world": {
       "overview": {
         "facilities": "Facilities",
-        "groups": {
-          "play": "Play",
-          "collection": "Collection",
-          "community": "Community",
-          "craft": "Craft"
-        },
         "labels": {
           "shop": "Shop",
           "gallery": "Collection",
           "pond": "Fishing",
-          "crate": "Chest",
-          "wheel": "Wheel",
-          "quests": "Quests",
-          "recycler": "Recycle",
-          "forge": "Forge",
-          "trading": "Trading",
-          "mail": "Gifts",
-          "feed": "Feed",
-          "fame": "Fame",
-          "leaderboard": "Ranks",
-          "merchant": "Deals"
+          "fair": "Daily",
+          "yard": "Crafting",
+          "market": "Trading",
+          "honours": "Accomplishments"
         },
         "openBoxes": "Open box",
         "boxCost": "1 coin per box",
@@ -211,18 +290,14 @@
         "clear": "Clear"
       },
       "crate": {
-        "body": "Open every 4 hours for 1 coin. Your first opening each day adds 1 streak coin; day 7 adds another 5. Miss a day and the streak restarts.",
         "day": "Day {day}",
         "open": "Open treasure chest",
         "got": "Day {day}: {reward}",
-        "day7": "+5 bonus coins",
+        "day7": "Day 7",
         "next": "Chest opens in {time}",
         "title": "Treasure chest",
         "action": "Open chest",
         "opening": "Opening…",
-        "invitation": "A little treasure, just for you.",
-        "hint": "Tap the chest or press Space to open.",
-        "anticipation": "Something good is waiting inside.",
         "reward": "+{count, plural, one {# coin} other {# coins}}",
         "collect": "Collect",
         "dismissReward": "Tap anywhere to collect",
@@ -234,7 +309,6 @@
         "back": "Back"
       },
       "wheel": {
-        "body": "One free spin a day.",
         "spin": "Spin",
         "prizes": {
           "coin1": "+1 coin",
@@ -260,7 +334,6 @@
         "send": "Send gift"
       },
       "quests": {
-        "body": "Daily, weekly and monthly quests. Finish them to earn coins.",
         "daily": "Daily",
         "weekly": "Weekly",
         "monthly": "Monthly",
@@ -281,8 +354,8 @@
           "crates5": "Open 5 treasure chests"
         },
         "claimed": "Claimed",
-        "ready": "{count, plural, one {# reward ready to claim} other {# rewards ready to claim}}",
-        "resets": "resets {time}"
+        "resets": "resets {time}",
+        "claimAll": "Claim all"
       },
       "feed": {
         "body": "The town bell rings for every golden and galaxy pull. Cheer one to ring it yourself.",
@@ -317,21 +390,11 @@
         "signIn": "Guild boards arrive with Discord sign-in."
       },
       "overlays": {
-        "community": "The collectors’ circle",
-        "dailyActivities": "A little adventure, every day",
         "preview": "Sample community · Try it here. Resets on reload.",
-        "sampleInventory": "{count, plural, one {# sample figure} other {# sample figures}}",
-        "quality": "Finish",
         "all": "All finishes",
         "cancel": "Cancel",
-        "quests": {
-          "keepGoing": "Play to earn coins",
-          "completed": "{count} of {total} claimed",
-          "inProgress": "In progress"
-        },
         "wheel": {
-          "noCost": "Always free",
-          "used": "Today’s spin collected"
+          "used": "Spun today"
         },
         "gifts": {
           "inbox": "Inbox",
@@ -345,8 +408,6 @@
           "recipientPlaceholder": "A collector’s name",
           "sendAction": "Send sample gift",
           "sentNotice": "Sample gift prepared for {name}. No real message was sent.",
-          "delivered": "Sample gift sent",
-          "empty": "A little generosity goes a long way. Send your first sample gift.",
           "notes": {
             "welcome": "A little something to start your collection. Welcome to the circle!",
             "lucky": "Found a spare and thought of you. May your next pull be lucky!"
@@ -359,34 +420,21 @@
           "cheer": "Cheer"
         },
         "fame": {
-          "title": "First to leave their mark",
-          "body": "Extraordinary finds. Unforgettable firsts. A place in collecting history.",
-          "waiting": "A place awaits",
-          "next": "The next name could be yours."
+          "waiting": "A place awaits"
         },
         "ranks": {
-          "body": "A little friendly competition among collectors.",
-          "allTime": "All time",
-          "yourCollection": "Your collection",
-          "separate": "Your session totals, separate from the sample rankings."
+          "you": "You"
         },
         "market": {
-          "dealsBody": "Three daily bargains from the local merchant. Fresh stock every day.",
-          "tradingBody": "Browse offers from other collectors. Find a figure you love or turn a spare into coins.",
-          "offers": "Offers",
           "history": "Completed",
           "refresh": "Refresh",
           "refreshed": "Three fresh deals are ready.",
-          "show": "Show",
           "all": "All offers",
           "buy": "Buy figures",
           "sell": "Sell figures",
-          "merchant": "Local merchant",
-          "goodDeal": "Good deal",
           "receive": "You receive",
           "give": "You give",
           "completed": "Completed",
-          "confirm": "Exchange the coins or figure shown above? This trade changes your local collection.",
           "confirmAction": "Confirm trade",
           "success": "Trade complete. Your coins and collection are updated.",
           "unavailable": "This offer is no longer available, or you no longer have the required coins or figure.",
@@ -394,13 +442,9 @@
           "missingCoins": "Not enough coins",
           "missingFigure": "Figure not owned",
           "empty": "No offers here yet.",
-          "dailyNote": "Offers rotate daily. Refreshing costs 1 coin and replaces the current three offers.",
-          "preview": "Sample player listings for this alpha. Trades affect only your local coins and figures; nothing is sent to another player."
+          "pick": "Pick an offer to trade"
         },
         "workshop": {
-          "forgeBody": "Give your favourite figures a rarer finish. Choose a set of three identical copies.",
-          "recycleBody": "Put your spare figures to use. Smelt three copies down into a coin.",
-          "loaded": "{count} / 3 loaded",
           "remove": "Remove {name}",
           "slot": "Empty slot {number}",
           "forgeRecipe": "Three matching copies, one rarer figure",
@@ -408,13 +452,11 @@
           "forgeProtection": "Standard becomes Golden. Golden becomes Galaxy.",
           "recycleProtection": "Your last copy of each figure is always protected.",
           "working": "Working…",
-          "upgrade": "Rarer finish",
           "newCoin": "1 coin",
           "forge": "Forge",
-          "recycle": "Recycle",
-          "yourFigures": "Your spare figures"
+          "recycle": "Recycle"
         },
-        "workshopLabel": "The workshop"
+        "sample": "Sample"
       },
       "trading": {
         "body": "Trade figures with other players: offer yours, ask for theirs, and both accept."
@@ -472,6 +514,20 @@
         "boostNext": "Next box: {quality} or better",
         "coins": "{count, plural, one {# coin} other {# coins}}",
         "balance": "Coins: {count}"
+      },
+      "district": {
+        "ready": "Ready to open",
+        "toClaim": "{count, plural, one {# reward to claim} other {# rewards to claim}}",
+        "questsDone": "{done} of {total} claimed",
+        "freeSpin": "Free spin",
+        "spares": "{count, plural, one {# spare} other {# spares}}",
+        "sets": "{count, plural, =0 {No sets of three} one {# set ready} other {# sets ready}}",
+        "offers": "{count, plural, one {# offer} other {# offers}}",
+        "gifts": "{count, plural, =0 {Nothing waiting} one {# gift waiting} other {# gifts waiting}}",
+        "deals": "{count, plural, =0 {Sold out} one {# deal left} other {# deals left}}",
+        "finds": "{count, plural, =0 {No finds of yours yet} one {# of your finds} other {# of your finds}}",
+        "firsts": "{done} of {total} taken",
+        "figures": "{count, plural, one {You: # figure} other {You: # figures}}"
       }
     },
     "tradedUp": "Traded up!",
@@ -2401,6 +2457,7 @@
       "system": "System",
       "tasks": "Tasks",
       "ccg": "CCG",
+      "forever": "Forever",
       "reporter": "Reporter"
     },
     "reporter": {
