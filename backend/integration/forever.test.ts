@@ -96,6 +96,55 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       assert.ok((await ForeverWorker.findById("armory").lean())!.nextRequestAt!.getTime() > Date.now() + 3590_000);
       const beforeCalls = calls; await new ForeverRunner(source).tick(); assert.equal(calls, beforeCalls);
     });
+    await t.test("mixed launch errors back off individual jobs while other profiles continue across worker restarts", async () => {
+      const slugs = ["launch-fail-one", "launch-ok-one", "launch-fail-two", "launch-ok-two"];
+      await ForeverCharacter.insertMany(slugs.map((slug, index) => ({ region: "eu", slug, source: "admin", status: "tracked", nextFetchAt: new Date(index) })));
+      const attempted: string[] = [];
+      const launchSource = { roster: async () => [], character: async (identity: { region: "eu" | "us"; slug: string }) => {
+        attempted.push(identity.slug);
+        if (identity.slug.includes("fail")) throw new ArmoryError("upstream_error", 500);
+        return { ...profile, ...identity, guild: null };
+      } };
+      try {
+        for (const slug of slugs) {
+          await ready(); await new ForeverRunner(launchSource).tick();
+          const worker = await ForeverWorker.findById("armory").lean();
+          assert.ok(worker!.nextRequestAt!.getTime() < Date.now() + 1_000, "individual 500 must not pause unrelated jobs");
+          assert.equal(worker?.errorCode, undefined, "worker must not advertise a global outage for an isolated failure");
+          assert.equal(worker?.failedJobs.length, slug.includes("fail") ? 1 : 0);
+        }
+        assert.deepEqual(attempted, slugs);
+        assert.equal(await ForeverCharacter.countDocuments({ slug: { $in: slugs }, level: 13 }), 2);
+        const failed = await ForeverCharacter.findOne({ slug: slugs[0] }).lean();
+        assert.equal(failed?.failures, 1);
+        assert.ok(failed!.nextFetchAt!.getTime() > Date.now() + 110_000);
+      } finally { await ForeverCharacter.deleteMany({ slug: { $in: slugs } }); }
+    });
+    await t.test("ten distinct failures pause all runners, then a healthy probe clears persisted outage evidence", async () => {
+      const slugs = Array.from({ length: 11 }, (_, index) => `outage-${index}`);
+      await ForeverCharacter.insertMany(slugs.map((slug, index) => ({ region: "eu", slug, source: "admin", status: "tracked", nextFetchAt: new Date(index) })));
+      let attempted = 0;
+      const outageSource = { roster: async () => [], character: async () => { attempted++; throw new ArmoryError("upstream_error", 500); } };
+      try {
+        for (let index = 0; index < 10; index++) {
+          await ready(); await new ForeverRunner(outageSource).tick();
+          const worker = await ForeverWorker.findById("armory").lean();
+          if (index < 9) {
+            assert.equal(worker?.failedJobs.length, index + 1);
+            assert.ok(worker!.nextRequestAt!.getTime() < Date.now() + 1_000);
+          } else {
+            assert.ok(worker!.nextRequestAt!.getTime() > Date.now() + 110_000);
+            assert.equal(worker?.errorCode, "upstream_error");
+          }
+        }
+        await new ForeverRunner(outageSource).tick(); assert.equal(attempted, 10);
+        await ready();
+        await new ForeverRunner({ roster: async () => [], character: async (identity) => ({ ...profile, ...identity, guild: null }) }).tick();
+        assert.equal((await ForeverCharacter.findOne({ slug: slugs[10] }).lean())?.level, 13);
+        const recovered = await ForeverWorker.findById("armory").lean();
+        assert.equal(recovered?.errorCode, undefined); assert.deepEqual(recovered?.failedJobs, []);
+      } finally { await ForeverCharacter.deleteMany({ slug: { $in: slugs } }); }
+    });
     await t.test("concurrent workers make only one upstream request and persist one level observation", async () => {
       fail = undefined; profile.level = 14;
       await ForeverCharacter.updateOne({ _id: added.id }, { $set: { nextFetchAt: new Date(0) } }); await ready();

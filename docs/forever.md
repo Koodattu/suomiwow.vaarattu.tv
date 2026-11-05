@@ -108,8 +108,15 @@ every five seconds when idle. The oldest eligible character or guild is picked f
 - Failures: exponential backoff with jitter; 404 starts at 15 minutes, other
   failures at two minutes, increasing to approximately one day. Retry-After
   (seconds or HTTP date) is honored, capped at seven days.
-- Non-404 source failures also pause the shared worker request schedule. A 404
-  affects only that job. Neither failure type deletes data or abandons a job.
+- Ordinary failures back off only the affected character or guild; other due
+  jobs continue at normal spacing. Ten distinct failed jobs without a healthy
+  response within five minutes pause the shared queue for two minutes. This
+  outage evidence is persisted across worker restarts. A successful response,
+  404, stale snapshot or identity mismatch clears it; those profile-specific
+  issues do not establish an outage. The evidence resets after an outage pause.
+- HTTP 429, 401/403 and explicit Retry-After responses pause the shared queue
+  immediately for at least two minutes, respecting longer Retry-After values.
+  No failure deletes data or abandons a job.
 
 These are eligibility intervals, not freshness promises. Response times, queue
 size, and upstream backoff determine actual freshness. The public

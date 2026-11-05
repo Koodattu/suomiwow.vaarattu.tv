@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ArmoryError, armoryUrl, parseArmoryUrl, parseAvatarUrl, parseCharacterHtml, parseRosterResponse, retryAfter } from "../src/features/forever/forever-armory";
-import { failureDelay, mayRequestRefresh, MINUTE, refreshDelay, validateProgress } from "../src/features/forever/forever-policy";
+import { armoryQueueHealth, failureDelay, mayRequestRefresh, MINUTE, refreshDelay, validateProgress } from "../src/features/forever/forever-policy";
 
 const identity = { region: "eu" as const, slug: "test-hero" };
 const character = { ...identity, name: "Test", surname: "Hero", level: 12, class: { name: "Paladin" }, race: { name: "Human" },
@@ -61,6 +61,32 @@ test("retry policy honors both Retry-After formats and increases delays without 
   assert.equal(failureDelay(2, new ArmoryError("not_found", 404), 0), 60 * MINUTE);
   assert.equal(failureDelay(0, new ArmoryError("limited", 429, 4 * 60 * MINUTE), 0), 4 * 60 * MINUTE);
   assert.ok(failureDelay(100, new ArmoryError("unavailable"), 0) <= 24 * 60 * MINUTE);
+});
+test("500 failures among 1,000 alternating profiles never pause the shared queue", () => {
+  let health = armoryQueueHealth({}, "initial");
+  for (let index = 0; index < 1_000; index++) {
+    health = armoryQueueHealth(health, `character:${index}`, index % 2 === 0 ? new ArmoryError("upstream_error", 500) : undefined, index * 500);
+    assert.equal(health.pauseMs, 0);
+  }
+});
+test("outage detection requires ten distinct failures in a recent uninterrupted window", () => {
+  const failure = new ArmoryError("upstream_error", 500);
+  let health = armoryQueueHealth({}, "first", failure, 0);
+  for (let index = 0; index < 20; index++) health = armoryQueueHealth(health, "first", failure, 500);
+  assert.equal(health.failedJobs.length, 1); assert.equal(health.pauseMs, 0);
+  for (let index = 1; index < 9; index++) {
+    health = armoryQueueHealth(health, String(index), failure, 1_000);
+    assert.equal(health.pauseMs, 0);
+  }
+  const outage = armoryQueueHealth(health, "tenth", failure, 2_000);
+  assert.equal(outage.pauseMs, 2 * MINUTE); assert.deepEqual(outage.failedJobs, []);
+  assert.equal(armoryQueueHealth(health, "after-gap", failure, 5 * MINUTE).failedJobs.length, 1);
+  for (const error of [undefined, new ArmoryError("not_found", 404), new ArmoryError("stale_data"), new ArmoryError("identity_mismatch")]) {
+    assert.deepEqual(armoryQueueHealth(health, "healthy-endpoint", error, 2_000).failedJobs, []);
+  }
+  assert.equal(armoryQueueHealth({}, "limited", new ArmoryError("upstream_error", 429, 3600_000)).pauseMs, 3600_000);
+  assert.equal(armoryQueueHealth({}, "unavailable", new ArmoryError("upstream_error", 503, 180_000)).pauseMs, 180_000);
+  for (const status of [401, 403, 429]) assert.equal(armoryQueueHealth({}, "blocked", new ArmoryError("upstream_error", status)).pauseMs, 2 * MINUTE);
 });
 test("progress and scheduling preserve observations and do not allow refreshes to bypass retries", () => {
   const sourceUpdatedAt = new Date("2026-11-05T10:00:00Z");
