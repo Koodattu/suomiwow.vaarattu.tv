@@ -7,7 +7,7 @@ export function failureDelay(failures: number, error: ArmoryError, jitter = Math
 }
 export function refreshDelay(level: number, lastLevelAt: Date, now = Date.now()): number {
   if (level >= 60) return 6 * 60 * MINUTE;
-  return now - lastLevelAt.getTime() > 24 * 60 * MINUTE ? 60 * MINUTE : 15 * MINUTE;
+  return now - lastLevelAt.getTime() > 24 * 60 * MINUTE ? 60 * MINUTE : 2 * MINUTE;
 }
 export function validateProgress(previous: { level?: number | null; sourceUpdatedAt?: Date | null }, next: { level: number; sourceUpdatedAt: Date }): void {
   if ((previous.level != null && next.level < previous.level) ||

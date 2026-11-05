@@ -9,7 +9,8 @@ const member = new Schema({ ...identity, name: String, level: Number, className:
 const characterSchema = new Schema({
   ...identity, ...polling,
   status: { type: String, enum: ["pending", "tracked", "paused", "rejected"], default: "pending", required: true },
-  proposedBy: String, source: { type: String, enum: ["proposal", "admin", "guild"], required: true },
+  proposedBy: String, source: { type: String, enum: ["proposal", "admin", "guild", "seed"], required: true },
+  twitchChannel: String, twitchIsLive: Boolean, twitchCheckedAt: Date, twitchNextCheckAt: Date,
   name: String, level: Number, className: String, race: String, faction: String, ruleset: String, avatarUrl: String,
   sourceUpdatedAt: Date, lastLevelAt: Date,
   guild: { type: new Schema({ ...identity, name: String }, { _id: false }), default: null },
@@ -18,6 +19,7 @@ const characterSchema = new Schema({
 characterSchema.index({ region: 1, slug: 1 }, { unique: true });
 characterSchema.index({ status: 1, nextFetchAt: 1 });
 characterSchema.index({ status: 1, level: -1, name: 1 });
+characterSchema.index({ status: 1, twitchNextCheckAt: 1 });
 
 const guildSchema = new Schema({
   ...identity, ...polling, name: { type: String, required: true },

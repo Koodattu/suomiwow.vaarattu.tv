@@ -74,7 +74,7 @@ export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([n
 // Each district's shot: from the square on a wide screen, the whole group side by side. A phone is
 // too narrow for that, so it looks down from high along the row, stacking them up the screen.
 export const DISTRICT_SHOTS: Record<District, Record<"wide" | "tall", { position: [number, number, number]; target: [number, number, number] }>> = {
-  fair: { wide: { position: [2.8, 6.2, -2.6], target: [2.8, 0.9, -13.4] }, tall: { position: [15, 20.7, -2.8], target: [2.7, 0.2, -13.1] } },
+  fair: { wide: { position: [2.8, 6.2, -2.6], target: [2.8, 0.9, -13.4] }, tall: { position: [-10.8, 21.5, -6.8], target: [2.7, 0.2, -13.1] } },
   yard: { wide: { position: [-3.6, 5.6, 3.8], target: [-7, 1, 13.4] }, tall: { position: [-15, 14.4, 5.2], target: [-6.8, -0.6, 13.4] } },
   market: { wide: { position: [-3.6, 6.2, 1.4], target: [-14.2, 0.9, 1.5] }, tall: { position: [-6.7, 19.2, 17.5], target: [-14.1, 0.2, 1.5] } },
   honours: { wide: { position: [4.2, 6.2, 2.6], target: [14.8, 0.9, 4.4] }, tall: { position: [4.8, 19.9, 16.2], target: [14.7, 0.2, 4.4] } },

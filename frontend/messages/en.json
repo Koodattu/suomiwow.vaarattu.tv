@@ -1,6 +1,28 @@
 {
   "forever": {
     "brand": "SuomiWoW Forever",
+    "timeAgo": {
+      "now": "Just now",
+      "minutes": "{count} min ago",
+      "hours": "{count} h ago",
+      "days": "{count, plural, one {# day ago} other {# days ago}}"
+    },
+    "race": "Race",
+    "className": "Class",
+    "faction": "Faction",
+    "stream": "Twitch",
+    "all": "All",
+    "send": "Send",
+    "clearFilters": "Clear filters",
+    "noMatches": "No matching characters",
+    "tableScroll": "Leveling table — scroll horizontally for more columns",
+    "twitchChannel": "Twitch channel (optional)",
+    "editTwitch": "Edit Twitch channel",
+    "clearTwitch": "Leave empty to remove.",
+    "save": "Save",
+    "live": "LIVE",
+    "watchLive": "Watch {channel} live on Twitch",
+    "openTwitch": "Open {channel} on Twitch",
     "hubDescription": "The community’s journey to level 60.",
     "community": "Community",
     "title": "Leveling",
@@ -71,6 +93,7 @@
       "all": "All"
     },
     "errors": {
+      "invalid_twitch": "Enter a Twitch channel name or channel link.",
       "invalid_url": "Enter a Blizzard Forever character URL for Europe or the Americas. Retail and Classic links are not supported.",
       "rate_limited": "Too many requests. Please try again in an hour.",
       "login_required": "Sign in with Discord to continue.",

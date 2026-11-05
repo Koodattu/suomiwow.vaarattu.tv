@@ -100,7 +100,7 @@ class TwitchService {
   }
 
   // Get app access token using OAuth Client Credentials flow
-  private async getAccessToken(): Promise<string> {
+  private async getAccessToken(signal?: AbortSignal): Promise<string> {
     // If we have a valid token, return it
     if (this.accessToken && Date.now() < this.tokenExpiresAt) {
       return this.accessToken;
@@ -110,6 +110,7 @@ class TwitchService {
     try {
       logger.info(`[API REQUEST] POST https://id.twitch.tv/oauth2/token`);
       const response = await fetch("https://id.twitch.tv/oauth2/token", {
+        signal,
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -139,11 +140,12 @@ class TwitchService {
     }
   }
 
-  private async fetchWithAccessToken(url: string): Promise<Response> {
+  private async fetchWithAccessToken(url: string, signal?: AbortSignal): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
-      const token = await this.getAccessToken();
+      const token = await this.getAccessToken(signal);
       logger.info(`[API REQUEST] GET ${url}`);
       const response = await fetch(url, {
+        signal,
         headers: {
           "Client-ID": this.clientId,
           Authorization: `Bearer ${token}`,
@@ -166,7 +168,7 @@ class TwitchService {
 
   // Check if channels are live and what game they're playing
   // Returns a Map of channel name (lowercase) to StreamStatus
-  async getStreamStatus(channelNames: string[]): Promise<Map<string, StreamStatus>> {
+  async getStreamStatus(channelNames: string[], signal?: AbortSignal): Promise<Map<string, StreamStatus>> {
     const statusMap = new Map<string, StreamStatus>();
 
     if (!this.isEnabled()) {
@@ -184,7 +186,7 @@ class TwitchService {
       // Build query string with user_login parameters
       const queryParams = channelNames.map((name) => `user_login=${encodeURIComponent(name.toLowerCase())}`).join("&");
 
-      const response = await this.fetchWithAccessToken(`https://api.twitch.tv/helix/streams?${queryParams}`);
+      const response = await this.fetchWithAccessToken(`https://api.twitch.tv/helix/streams?${queryParams}`, signal);
 
       if (!response.ok) {
         throw new Error(`Twitch API error: ${response.status} ${response.statusText}`);

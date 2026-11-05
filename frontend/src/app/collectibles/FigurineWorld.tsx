@@ -510,7 +510,7 @@ export default function FigurineWorld() {
   const hoveredFigure = hovered ? findFigure(hovered) : null;
   const qualityBadge = (finish: FigurineQuality) => finish !== "standard" && <span className={styles.qualityBadge} data-quality={finish}>{qualityName(finish)}</span>;
 
-  return <main className={styles.showcase} data-phase={state.phase} data-view={view} data-panel={(isOverlayStation(view) && view !== "wheel") || undefined}>
+  return <main className={styles.showcase} data-phase={state.phase} data-view={view} data-panel={view === "gallery" || (isOverlayStation(view) && view !== "wheel") || undefined}>
     <Link href="/" className={styles.worldHomeLink} aria-label={nav("backToMain")}>
       <Image src="/logo.png" alt="SuomiWoW" width={112} height={51} priority />
     </Link>

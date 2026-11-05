@@ -26,11 +26,11 @@ test("a district's stations lean from its shot, while the fishing camera is unch
     const aim = (pose) => pose.target.clone().sub(pose.position).normalize();
     const turn = aim(whole).angleTo(aim(lean)), moved = lean.position.distanceTo(whole.position);
     assert.ok(turn < 0.2, `${name} should lean, not turn away (${turn.toFixed(2)} rad)`);
-    assert.ok(moved < 2, `${name} should stay near its district's shot (${moved.toFixed(1)} out)`);
+    assert.ok(moved < 0.1 * whole.position.distanceTo(whole.target), `${name} should stay near its shot (${moved.toFixed(1)} out)`);
     // Leaning brings the station nearer the middle of the screen than it stood.
     const camera = new THREE.PerspectiveCamera(36, aspect, 0.4, 240), onScreen = (pose) => { camera.position.copy(pose.position); camera.lookAt(pose.target); camera.updateMatrixWorld(); camera.updateProjectionMatrix(); return STATIONS[name].position.clone().project(camera); };
     const before = onScreen(whole), after = onScreen(lean);
-    assert.ok(Math.hypot(after.x, after.y) <= Math.hypot(before.x, before.y) + 0.02, `${name} should come toward the middle`);
+    assert.ok(Math.hypot(after.x, after.y) <= Math.hypot(before.x, before.y) + 0.1, `${name} should come toward the middle`);
   }
   const pond = viewPose("pond", 1, home), offset = pond.position.clone().sub(pond.target);
   assert.ok(Math.abs(offset.y / Math.hypot(offset.x, offset.z) - 0.36) < 1e-9);

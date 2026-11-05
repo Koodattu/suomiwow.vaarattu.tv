@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "./forever.models";
 import { ArmoryError, armoryUrl, parseArmoryUrl } from "./forever-armory";
 import { mayRequestRefresh, MINUTE } from "./forever-policy";
+import { normalizeTwitchChannel } from "./forever-twitch";
 
 export class ForeverError extends Error {
   constructor(public code: string, public status = 400) { super(code); }
@@ -26,7 +27,21 @@ export async function consumeLimit(userId: string, action: string, max: number, 
   }
 }
 
-export async function addCharacter(url: unknown, source: "admin" | "proposal", userId: string) {
+function twitchChannelInput(value: unknown) {
+  try { return normalizeTwitchChannel(value); } catch { throw new ForeverError("invalid_twitch"); }
+}
+
+export async function setCharacterTwitch(id: unknown, value: unknown) {
+  const twitchChannel = twitchChannelInput(value);
+  const result = await ForeverCharacter.updateOne({ _id: objectId(id) }, {
+    ...(twitchChannel ? { $set: { twitchChannel } } : {}),
+    $unset: { twitchIsLive: 1, twitchCheckedAt: 1, twitchNextCheckAt: 1, ...(!twitchChannel ? { twitchChannel: 1 } : {}) },
+  });
+  if (!result.matchedCount) throw new ForeverError("not_found", 404);
+}
+
+export async function addCharacter(url: unknown, source: "admin" | "proposal", userId: string, twitch?: unknown) {
+  const twitchChannel = source === "admin" && twitch !== undefined ? twitchChannelInput(twitch) : undefined;
   let identity;
   try { identity = parseArmoryUrl(url); } catch (error) {
     if (error instanceof ArmoryError) throw new ForeverError("invalid_url");
@@ -43,6 +58,7 @@ export async function addCharacter(url: unknown, source: "admin" | "proposal", u
     await ForeverCharacter.updateOne(identity, { $set: { status: "tracked" } });
   }
   const character = await ForeverCharacter.findOne(identity).select("status").lean();
+  if (twitchChannel !== undefined) await setCharacterTwitch(String(character!._id), twitchChannel);
   return { id: String(character!._id), status: character!.status };
 }
 
@@ -78,19 +94,25 @@ export async function refreshGuild(id: unknown) {
   await ForeverGuild.updateOne({ _id: guild._id, failures: 0 }, { $set: { nextFetchAt: new Date() } });
 }
 
-const publicFields = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt errorCode";
-export async function leaderboard(region: unknown, ruleset: unknown, page: unknown) {
-  const pageNumber = Math.min(1000, Math.max(1, Number.parseInt(String(page), 10) || 1));
-  const filter: Record<string, unknown> = { status: "tracked", level: { $gte: 1 } };
-  if (region === "eu" || region === "us") filter.region = region;
-  if (typeof ruleset === "string" && ruleset.length <= 80 && ruleset) filter.ruleset = ruleset;
-  const [characters, total, pending, rulesets, worker] = await Promise.all([
+const publicFields = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt errorCode twitchChannel twitchIsLive twitchCheckedAt";
+export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown } = {}) {
+  const pageNumber = Math.min(1000, Math.max(1, Number.parseInt(String(query.page), 10) || 1));
+  const base = { region: "eu", status: "tracked" as const, level: { $gte: 1 } };
+  const filter: Record<string, unknown> = { ...base };
+  const fields = ["race", "className", "faction", "ruleset"] as const;
+  for (const field of fields) {
+    const value = query[field];
+    if (value === undefined || value === "") continue;
+    if (typeof value !== "string" || value.length > 80) throw new ForeverError("invalid_input");
+    filter[field] = value;
+  }
+  const [characters, total, pending, options, worker] = await Promise.all([
     ForeverCharacter.find(filter).select(publicFields).sort({ level: -1, name: 1, _id: 1 }).skip((pageNumber - 1) * 50).limit(50).lean(),
-    ForeverCharacter.countDocuments(filter), ForeverCharacter.countDocuments({ status: "tracked", level: { $exists: false }, ...(region === "eu" || region === "us" ? { region } : {}) }),
-    ForeverCharacter.distinct("ruleset", { status: "tracked", level: { $gte: 1 } }),
+    ForeverCharacter.countDocuments(filter), ForeverCharacter.countDocuments({ status: "tracked", level: { $exists: false }, region: "eu" }),
+    Promise.all(fields.map((field) => ForeverCharacter.distinct(field, base).then((values: string[]) => values.filter(Boolean).sort((a, b) => a.localeCompare(b, "en"))))),
     ForeverWorker.findById("armory").select("lastTickAt lastSuccessAt nextRequestAt errorCode").lean(),
   ]);
-  return { characters, total, pending, rulesets, page: pageNumber, pageSize: 50, worker, enabled: process.env.FOREVER_WORKER_ENABLED !== "false" };
+  return { characters, total, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
 }
 export async function characterDetail(id: unknown) {
   const character = await ForeverCharacter.findOne({ _id: objectId(id), status: "tracked" }).select(`${publicFields} history`).lean();
@@ -109,7 +131,7 @@ export async function adminOverview(query: { status?: unknown; characterPage?: u
     ForeverWorker.findById("armory").select("-leaseToken").lean(),
     ForeverCharacter.countDocuments(filter), ForeverGuild.countDocuments(),
   ]);
-  return { characters, guilds, worker, totalCharacters, totalGuilds, enabled: process.env.FOREVER_WORKER_ENABLED !== "false" };
+  return { characters, guilds, worker, totalCharacters, totalGuilds, enabled: true };
 }
 export async function guildDetail(id: unknown) {
   const guild = await ForeverGuild.findById(objectId(id)).lean();

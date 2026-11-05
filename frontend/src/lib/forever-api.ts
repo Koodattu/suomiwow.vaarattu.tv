@@ -1,9 +1,32 @@
 export interface ForeverCharacter {
   _id: string; region: string; slug: string; status?: string; source?: string;
   name?: string; level?: number; className?: string; race?: string; faction?: string; ruleset?: string; avatarUrl?: string | null;
+  twitchChannel?: string; twitchIsLive?: boolean; twitchCheckedAt?: string;
   guild?: { name: string; slug: string; region: string } | null;
   lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string;
   history?: { level: number; observedAt: string; sourceUpdatedAt: string }[]; armoryUrl?: string;
+}
+export function isForeverStreamLive(character: Pick<ForeverCharacter, "twitchIsLive" | "twitchCheckedAt">, now: number): boolean {
+  const checkedAt = Date.parse(character.twitchCheckedAt || "");
+  return character.twitchIsLive === true && checkedAt <= now && now - checkedAt < 5 * 60_000;
+}
+export function formatForeverDate(value: string, compact = false): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("fi-FI", {
+    timeZone: "Europe/Helsinki", day: "numeric", month: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date).map(({ type, value: part }) => [type, part]));
+  return `${parts.day}.${parts.month}.${compact ? "" : parts.year} ${parts.hour}.${parts.minute}`;
+}
+export function foreverUpdateAge(value: string | null | undefined, now: number): { unit: "now" | "minutes" | "hours" | "days"; count: number } | null {
+  const timestamp = Date.parse(value || "");
+  if (!Number.isFinite(timestamp)) return null;
+  const minutes = Math.max(0, Math.floor((now - timestamp) / 60_000));
+  if (minutes === 0) return { unit: "now", count: 0 };
+  if (minutes < 60) return { unit: "minutes", count: minutes };
+  if (minutes < 1440) return { unit: "hours", count: Math.floor(minutes / 60) };
+  return { unit: "days", count: Math.floor(minutes / 1440) };
 }
 export interface ForeverGuild {
   _id: string; name: string; region: string; slug: string; status: string;
@@ -12,7 +35,8 @@ export interface ForeverGuild {
 }
 export interface ForeverWorker { lastTickAt?: string; lastSuccessAt?: string; nextRequestAt?: string; errorCode?: string }
 export interface ForeverBoard {
-  characters: ForeverCharacter[]; total: number; pending: number; rulesets: string[];
+  characters: ForeverCharacter[]; total: number; pending: number;
+  filterOptions: Record<"race" | "className" | "faction" | "ruleset", string[]>;
   page: number; pageSize: number; worker: ForeverWorker | null; enabled: boolean;
 }
 export interface ForeverAdminData {

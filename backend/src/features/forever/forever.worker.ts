@@ -5,12 +5,15 @@ import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } fr
 import { ArmoryError, fetchForeverCharacter, fetchForeverRoster, ForeverIdentity, ForeverMember, ForeverProfile } from "./forever-armory";
 import { failureDelay, MINUTE, refreshDelay, validateProgress } from "./forever-policy";
 
-const SPACING_MS = 15_000;
+const SPACING_MS = 500;
+const IDLE_MS = 5_000;
 const LEASE_MS = 90_000;
 export async function initializeForever() {
   await Promise.all([ForeverCharacter.init(), ForeverGuild.init(), ForeverRequestLimit.init(), ForeverWorker.init()]);
-  try { await ForeverWorker.updateOne({ _id: "armory" }, { $setOnInsert: { nextRequestAt: new Date() } }, { upsert: true }); }
-  catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
+  for (const id of ["armory", "twitch"]) {
+    try { await ForeverWorker.updateOne({ _id: id }, { $setOnInsert: { nextRequestAt: new Date() } }, { upsert: true }); }
+    catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
+  }
 }
 
 async function fence(token: string, session: ClientSession) {
@@ -29,23 +32,25 @@ export class ForeverRunner {
   start() {
     if (!this.stopped) return;
     this.stopped = false;
-    const schedule = () => {
+    const schedule = (delay = 0) => {
       if (this.stopped) return;
       this.timer = setTimeout(() => {
-        this.active = this.tick().catch(() => { logger.error("[Forever] Worker tick failed; persisted queue retained"); })
-          .finally(() => { this.active = undefined; schedule(); });
-      }, SPACING_MS);
+        let nextDelay = IDLE_MS;
+        this.active = this.tick().then((wait) => { nextDelay = wait; })
+          .catch(() => { logger.error("[Forever] Worker tick failed; persisted queue retained"); })
+          .finally(() => { this.active = undefined; schedule(nextDelay); });
+      }, delay);
     };
     schedule();
   }
   async stop() { this.stopped = true; clearTimeout(this.timer); await this.active; }
 
-  async tick(): Promise<void> {
+  async tick(): Promise<number> {
     const now = new Date(), token = randomUUID();
     const lease = await ForeverWorker.findOneAndUpdate({ _id: "armory", nextRequestAt: { $lte: now },
       $or: [{ leaseUntil: { $exists: false } }, { leaseUntil: { $lte: now } }],
     }, { $set: { leaseToken: token, leaseUntil: new Date(now.getTime() + LEASE_MS), lastTickAt: now } }, { returnDocument: "after" });
-    if (!lease) return;
+    if (!lease) return IDLE_MS;
     let nextRequestAt = new Date(Date.now() + SPACING_MS);
     try {
       const due = { $lte: now, $ne: null };
@@ -55,10 +60,15 @@ export class ForeverRunner {
       ]);
       const useGuild = guild && (!character || guild.nextFetchAt! < character.nextFetchAt!);
       const job = useGuild ? guild : character;
-      if (!job) return;
+      if (!job) {
+        nextRequestAt = new Date(Date.now() + IDLE_MS);
+        return IDLE_MS;
+      }
       let profile: ForeverProfile | undefined, roster: ForeverMember[] | undefined, failure: ArmoryError | undefined;
       try {
         const identity = { region: job.region, slug: job.slug } as ForeverIdentity;
+        // Space request starts, without adding another delay after a slow response.
+        nextRequestAt = new Date(Date.now() + SPACING_MS);
         if (useGuild) roster = await this.source.roster(identity);
         else {
           profile = await this.source.character(identity);
@@ -122,6 +132,7 @@ export class ForeverRunner {
         $max: { nextRequestAt }, $unset: { leaseToken: 1, leaseUntil: 1 },
       });
     }
+    return Math.max(0, nextRequestAt.getTime() - Date.now());
   }
 }
 export default new ForeverRunner();

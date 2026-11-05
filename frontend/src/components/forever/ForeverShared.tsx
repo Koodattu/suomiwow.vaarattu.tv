@@ -1,14 +1,39 @@
 "use client";
 
-import { useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import Image from "next/image";
-import { useLocale, useNow, useTranslations } from "next-intl";
+import { useNow, useTranslations } from "next-intl";
 import { useAuth } from "@/context/AuthContext";
-import { foreverApi, ForeverApiError, ForeverWorker, type ForeverCharacter } from "@/lib/forever-api";
+import { foreverApi, foreverUpdateAge, formatForeverDate, ForeverApiError, ForeverWorker, isForeverStreamLive, type ForeverCharacter } from "@/lib/forever-api";
 import styles from "./forever.module.css";
 
 export const controlClass = styles.select;
 export const buttonClass = styles.button;
+
+export function StreamerLink({ character }: { character: ForeverCharacter }) {
+  const t = useTranslations("forever"), now = useNow({ updateInterval: 30_000 });
+  if (!character.twitchChannel) return null;
+  const live = isForeverStreamLive(character, now.getTime());
+  return <a className={`${styles.streamer} ${live ? styles.streamerLive : ""}`} href={`https://www.twitch.tv/${encodeURIComponent(character.twitchChannel)}`} target="_blank" rel="noreferrer"
+    aria-label={t(live ? "watchLive" : "openTwitch", { channel: character.twitchChannel })}>
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M4 2 1 6v15h5v3l4-3h4l8-8V2H4zm16 10-4 4h-4l-3 3v-3H5V4h15v8zm-5-5h2v5h-2V7zm-5 0h2v5h-2V7z" /></svg>
+    {live && <strong>{t("live")}</strong>}<span>{character.twitchChannel}</span><span aria-hidden="true">↗</span>
+  </a>;
+}
+
+export function TwitchEditor({ character, onSaved }: { character: ForeverCharacter; onSaved: () => void }) {
+  const t = useTranslations("forever");
+  const [value, setValue] = useState(character.twitchChannel || ""), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>(null);
+  return <details className={styles.twitchEditor}><summary>{t("editTwitch")}</summary><form onSubmit={async (event) => {
+    event.preventDefault(); setBusy(true); setError(null);
+    try { await foreverApi(`admin/forever/characters/${character._id}/twitch`, "PATCH", { twitchChannel: value }); onSaved(); }
+    catch (caught) { setError(caught); } finally { setBusy(false); }
+  }}>
+    <label htmlFor={`twitch-${character._id}`}>{t("twitchChannel")}</label>
+    <div className={styles.formFields}><input id={`twitch-${character._id}`} className={styles.input} value={value} maxLength={100} onChange={(event) => setValue(event.target.value)} placeholder="twitch.tv/…" /><button className={styles.button} disabled={busy}>{t(busy ? "sending" : "save")}</button></div>
+    <p>{t("clearTwitch")}</p>{error != null && <ForeverErrorMessage error={error} />}
+  </form></details>;
+}
 
 // Match on names: retail/WCL class IDs are not Blizzard character class IDs.
 const classColors: Record<string, string> = {
@@ -35,15 +60,19 @@ export function Faction({ name }: { name?: string }) {
 }
 
 export function ForeverDate({ value, compact = false }: { value?: string | null; compact?: boolean }) {
-  const locale = useLocale();
   if (!value) return <span>—</span>;
-  const date = new Date(value), language = locale === "fi" ? "fi-FI" : "en-GB";
-  return <time dateTime={value} title={date.toLocaleString(language)}>{date.toLocaleString(language, compact ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" } : { dateStyle: "short", timeStyle: "short" })}</time>;
+  return <time dateTime={value} title={formatForeverDate(value)}>{formatForeverDate(value, compact)}</time>;
+}
+export function ForeverUpdated({ value }: { value?: string | null }) {
+  const t = useTranslations("forever"), now = useNow({ updateInterval: 30_000 });
+  const age = foreverUpdateAge(value, now.getTime());
+  if (!age || !value) return <span>—</span>;
+  return <time dateTime={value} title={formatForeverDate(value)}>{t(`timeAgo.${age.unit}`, { count: age.count })}</time>;
 }
 export function ForeverErrorMessage({ error }: { error: unknown }) {
   const t = useTranslations("forever");
   const code = error instanceof ForeverApiError ? error.code : "unavailable";
-  const key = ["invalid_url", "rate_limited", "login_required", "not_found"].includes(code) ? code : "unavailable";
+  const key = ["invalid_url", "invalid_twitch", "rate_limited", "login_required", "not_found"].includes(code) ? code : "unavailable";
   return <p role="alert" className="rounded-lg border border-red-800 bg-red-950/40 p-3 text-sm text-red-200">{t(`errors.${key}`)}</p>;
 }
 export function WorkerStatus({ worker, enabled }: { worker: ForeverWorker | null; enabled: boolean }) {
@@ -63,35 +92,27 @@ export function UpdateStatus({ worker, enabled }: { worker: ForeverWorker | null
   </span>;
 }
 
-const wideSnapshot = () => window.matchMedia("(min-width: 801px)").matches;
-function subscribeWidth(callback: () => void) {
-  const media = window.matchMedia("(min-width: 801px)");
-  media.addEventListener("change", callback); return () => media.removeEventListener("change", callback);
-}
-export function CharacterForm({ admin = false, onAdded }: { admin?: boolean; onAdded?: () => void }) {
+export function CharacterForm({ admin = false, compact = false, onAdded }: { admin?: boolean; compact?: boolean; onAdded?: () => void }) {
   const t = useTranslations("forever"), { user, login, isLoading } = useAuth();
   const [url, setUrl] = useState(""), [busy, setBusy] = useState(false), [success, setSuccess] = useState(false), [error, setError] = useState<unknown>(null);
-  const wide = useSyncExternalStore(subscribeWidth, wideSnapshot, () => false);
-  const [expanded, setExpanded] = useState<boolean | null>(null);
-  const open = expanded ?? (admin || wide);
-  return <details className={styles.form} open={open}>
-    <summary onClick={(event) => { event.preventDefault(); setExpanded(!open); }}>{t(admin ? "addTitle" : "proposeTitle")}</summary>
-    <div className={styles.formContents}>
-    {!admin && <p className={styles.formHelp}>{t("proposeDescription")}</p>}
+  const [twitchChannel, setTwitchChannel] = useState("");
+  const content = <div className={styles.formContents}>
     {!user ? <button className={buttonClass} disabled={isLoading} onClick={() => void login("/forever/leveling").catch(setError)}>{t("login")}</button> :
       <form onSubmit={async (event) => {
         event.preventDefault(); setBusy(true); setError(null); setSuccess(false);
-        try { await foreverApi(admin ? "admin/forever/characters" : "forever/proposals", "POST", { url }); setSuccess(true); setUrl(""); onAdded?.(); }
+        try { await foreverApi(admin ? "admin/forever/characters" : "forever/proposals", "POST", { url, ...(admin && twitchChannel.trim() ? { twitchChannel } : {}) }); setSuccess(true); setUrl(""); setTwitchChannel(""); onAdded?.(); }
         catch (caught) { setError(caught); } finally { setBusy(false); }
       }}>
-        <label htmlFor={admin ? "forever-add-url" : "forever-propose-url"}>{t("armoryUrl")}</label>
+        <label className={compact ? "sr-only" : undefined} htmlFor={admin ? "forever-add-url" : "forever-propose-url"}>{t("armoryUrl")}</label>
         <div className={styles.formFields}>
-          <input id={admin ? "forever-add-url" : "forever-propose-url"} type="url" required maxLength={500} value={url} onChange={(event) => { setUrl(event.target.value); setSuccess(false); }} className={styles.input} placeholder="https://worldofwarcraft.blizzard.com/…" />
-          <button disabled={busy} className={buttonClass}>{t(busy ? "sending" : admin ? "add" : "propose")}</button>
+          <input id={admin ? "forever-add-url" : "forever-propose-url"} type="url" required maxLength={500} value={url} onChange={(event) => { setUrl(event.target.value); setSuccess(false); }} className={styles.input} placeholder={compact ? t("armoryUrl") : "https://worldofwarcraft.blizzard.com/…"} />
+          <button disabled={busy} className={buttonClass}>{t(busy ? "sending" : admin ? "add" : compact ? "send" : "propose")}</button>
         </div>
+        {admin && <div className={styles.optionalTwitch}><label htmlFor="forever-add-twitch">{t("twitchChannel")}</label><input id="forever-add-twitch" className={styles.input} value={twitchChannel} maxLength={100} onChange={(event) => setTwitchChannel(event.target.value)} placeholder="twitch.tv/…" /></div>}
       </form>}
     {success && <p role="status" className={styles.formSuccess}>{t(admin ? "added" : "proposed")}</p>}
     {error != null && <div className="mt-3"><ForeverErrorMessage error={error} /></div>}
-    </div>
-  </details>;
+    </div>;
+  if (compact) return <section className={styles.compactForm} aria-label={t("proposeTitle")}><h2>{t("proposeTitle")}</h2>{content}</section>;
+  return <details className={styles.form} open><summary>{t(admin ? "addTitle" : "proposeTitle")}</summary>{content}</details>;
 }

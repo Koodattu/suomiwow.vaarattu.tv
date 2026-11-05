@@ -1,6 +1,28 @@
 {
   "forever": {
     "brand": "SuomiWoW Forever",
+    "timeAgo": {
+      "now": "Juuri nyt",
+      "minutes": "{count} min sitten",
+      "hours": "{count} h sitten",
+      "days": "{count} pv sitten"
+    },
+    "race": "Rotu",
+    "className": "Luokka",
+    "faction": "Osapuoli",
+    "stream": "Twitch",
+    "all": "Kaikki",
+    "send": "Lähetä",
+    "clearFilters": "Tyhjennä suodattimet",
+    "noMatches": "Ei hakuehtoja vastaavia hahmoja",
+    "tableScroll": "Tasoseurannan taulukko — vieritä sivusuunnassa nähdäksesi lisää sarakkeita",
+    "twitchChannel": "Twitch-kanava (valinnainen)",
+    "editTwitch": "Muokkaa Twitch-kanavaa",
+    "clearTwitch": "Poista jättämällä tyhjäksi.",
+    "save": "Tallenna",
+    "live": "LIVE",
+    "watchLive": "Katso kanavan {channel} suoraa lähetystä Twitchissä",
+    "openTwitch": "Avaa {channel} Twitchissä",
     "hubDescription": "Yhteisön matka tasolle 60.",
     "community": "Yhteisö",
     "title": "Tasoseuranta",
@@ -71,6 +93,7 @@
       "all": "Kaikki"
     },
     "errors": {
+      "invalid_twitch": "Anna Twitch-kanavan nimi tai linkki.",
       "invalid_url": "Anna Blizzardin Forever-hahmolinkki Euroopasta tai Amerikasta. Retail- ja Classic-linkkejä ei tueta.",
       "rate_limited": "Liian monta pyyntöä. Yritä uudelleen tunnin kuluttua.",
       "login_required": "Jatka kirjautumalla Discordilla.",

@@ -67,7 +67,7 @@ test("progress and scheduling preserve observations and do not allow refreshes t
   assert.throws(() => validateProgress({ level: 20, sourceUpdatedAt }, { level: 19, sourceUpdatedAt }), ArmoryError);
   assert.throws(() => validateProgress({ level: 20, sourceUpdatedAt }, { level: 21, sourceUpdatedAt: new Date("2026-11-04") }), ArmoryError);
   validateProgress({ level: 20, sourceUpdatedAt }, { level: 20, sourceUpdatedAt });
-  assert.equal(refreshDelay(20, sourceUpdatedAt, sourceUpdatedAt.getTime()), 15 * MINUTE);
+  assert.equal(refreshDelay(20, sourceUpdatedAt, sourceUpdatedAt.getTime()), 2 * MINUTE);
   assert.equal(refreshDelay(20, sourceUpdatedAt, sourceUpdatedAt.getTime() + 2 * 86400_000), 60 * MINUTE);
   assert.equal(refreshDelay(60, sourceUpdatedAt), 6 * 60 * MINUTE);
   const value = { status: "tracked", failures: 0, nextFetchAt: new Date(60 * MINUTE), lastAttemptAt: new Date(0) };

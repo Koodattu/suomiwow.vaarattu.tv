@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/context/AuthContext";
 import { foreverApi, ForeverCharacter } from "@/lib/forever-api";
-import { classColor, Faction, ForeverDate, ForeverErrorMessage, Portrait } from "@/components/forever/ForeverShared";
+import { classColor, Faction, ForeverDate, ForeverErrorMessage, Portrait, StreamerLink } from "@/components/forever/ForeverShared";
 import styles from "@/components/forever/forever.module.css";
 
 export default function ForeverCharacterPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,8 +20,8 @@ export default function ForeverCharacterPage({ params }: { params: Promise<{ id:
     {query.error && <ForeverErrorMessage error={query.error} />}
     {character && <div className={styles.profileGrid}>
       <section className={styles.profileCard}>
-        <div className={styles.profileIdentity}><Portrait character={character} /><div><h1 style={{ color: classColor(character.className) }}>{character.name || character.slug}</h1><p className={styles.raceClass}>{character.race} {character.className}</p><Faction name={character.faction} /></div></div>
-        <div className={styles.profileLevel}><div><span className={styles.level}>{character.level || "—"}</span><span className={styles.cap}>/ 60</span></div><div className="text-right"><p className={styles.guild}>{character.guild?.name ? `‹${character.guild.name}›` : "—"}</p><p className={styles.raceClass}>{character.region.toUpperCase()} · {character.ruleset}</p></div></div>
+        <div className={styles.profileIdentity}><Portrait character={character} /><div><h1 style={{ color: classColor(character.className) }}>{character.name || character.slug}</h1><p className={styles.raceClass}>{character.race} {character.className}</p><Faction name={character.faction} /><StreamerLink character={character} /></div></div>
+        <div className={styles.profileLevel}><div><span className={styles.level}>{character.level || "—"}</span></div><div className="text-right"><p className={styles.guild}>{character.guild?.name ? `‹${character.guild.name}›` : "—"}</p><p className={styles.raceClass}>{character.region.toUpperCase()} · {character.ruleset}</p></div></div>
         {character.errorCode && <p className={styles.notice}>{t("retryNotice")}</p>}
         <div className={styles.profileActions}>
           <a className={styles.button} href={character.armoryUrl} target="_blank" rel="noreferrer">{t("openArmory")}</a>

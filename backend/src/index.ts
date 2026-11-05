@@ -67,6 +67,7 @@ import reporterTriggerRouter from "./features/reporter/reporter-trigger.routes";
 import reporterScheduler from "./features/reporter/reporter-scheduler.service";
 import { foreverRouter, foreverAdminRouter } from "./features/forever/forever.routes";
 import foreverWorker, { initializeForever } from "./features/forever/forever.worker";
+import foreverTwitchWorker from "./features/forever/forever-twitch";
 
 // ============================================================================
 // WORKER MODE CONFIGURATION
@@ -668,7 +669,8 @@ const startServer = async () => {
     }
 
     if (isWorkerProcess) {
-      if (process.env.FOREVER_WORKER_ENABLED !== "false") foreverWorker.start();
+      foreverWorker.start();
+      foreverTwitchWorker.start();
       // Run background initialization (scheduler, processor, cache warming, etc.)
       // In "both" mode this is fire-and-forget so the API is available immediately.
       // In "worker" mode we await it so the process stays alive.
@@ -705,7 +707,7 @@ async function shutdown(): Promise<void> {
   for (const server of httpServers) server.close();
   logger.info("Shutting down; draining active ingestion...");
   if (isWorkerProcess) {
-    await foreverWorker.stop();
+    await Promise.all([foreverWorker.stop(), foreverTwitchWorker.stop()]);
     scheduler.stop();
     reporterScheduler.stop();
     backgroundGuildProcessor.stop();

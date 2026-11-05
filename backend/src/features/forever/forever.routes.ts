@@ -25,7 +25,7 @@ async function requireDiscord(req: Request, res: Response, next: NextFunction) {
   } catch { res.status(503).json({ code: "unavailable" }); }
 }
 export const foreverRouter = Router();
-foreverRouter.get("/leveling", route(async (req) => service.leaderboard(req.query.region, req.query.ruleset, req.query.page)));
+foreverRouter.get("/leveling", route(async (req) => service.leaderboard(req.query)));
 foreverRouter.get("/characters/:id", route(async (req) => service.characterDetail(req.params.id)));
 foreverRouter.post("/proposals", requireDiscord, route(async (req, res) => {
   const result = await service.addCharacter(req.body?.url, "proposal", req.session.userId!);
@@ -38,7 +38,8 @@ foreverRouter.post("/characters/:id/refresh", requireDiscord, route(async (req, 
 export const foreverAdminRouter = Router();
 foreverAdminRouter.use(requireAdmin);
 foreverAdminRouter.get("/", route(async (req) => service.adminOverview(req.query)));
-foreverAdminRouter.post("/characters", route(async (req) => service.addCharacter(req.body?.url, "admin", req.session.userId!)));
+foreverAdminRouter.post("/characters", route(async (req) => service.addCharacter(req.body?.url, "admin", req.session.userId!, req.body?.twitchChannel)));
+foreverAdminRouter.patch("/characters/:id/twitch", route(async (req) => service.setCharacterTwitch(req.params.id, req.body?.twitchChannel)));
 foreverAdminRouter.patch("/characters/:id", route(async (req) => service.setCharacterStatus(req.params.id, req.body?.status)));
 foreverAdminRouter.post("/characters/:id/refresh", route(async (req) => service.requestRefresh(req.params.id, req.session.userId!)));
 foreverAdminRouter.get("/guilds/:id", route(async (req) => service.guildDetail(req.params.id)));
