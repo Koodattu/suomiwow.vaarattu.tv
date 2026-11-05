@@ -238,8 +238,12 @@ bulk queue retries keep their existing limits.
 
 ## Leaderboard population statistics
 
-The compact summary above the table shows faction and ruleset counts and shares,
-average observed level, and characters at level 60. Aggregation uses the same
+The full-width header places compact faction and ruleset pie charts between the
+leveling title and the labeled character suggestion form. An adjacent count table
+shows faction-by-ruleset combinations and collapses into an expandable row on
+phones to keep the header short. Average observed level and characters at
+level 60 remain in the summary footer. Queue size and automatic-update status
+are omitted from the public header; worker status remains in admin. Aggregation uses the same
 EU/tracked/fetched population and every active table filter, before pagination.
 Missing faction or ruleset values remain an explicit unknown group; unfetched,
 paused, rejected, pending-approval and US characters do not enter the denominator.

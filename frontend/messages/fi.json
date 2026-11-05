@@ -41,7 +41,6 @@
     "us": "Amerikka",
     "ruleset": "Pelimuoto",
     "allRulesets": "Kaikki",
-    "waitingCount": "{count} jonossa",
     "loading": "Ladataan…",
     "emptyTitle": "Ei vielä hahmoja",
     "emptyDescription": "Hyväksytyt hahmot näkyvät ensimmäisen päivityksen jälkeen.",
@@ -85,6 +84,7 @@
       "tryAgain": "Yritä uudelleen"
     },
     "statistics": {
+      "combinations": "Osapuoli × pelimuoto",
       "loading": "Ladataan hahmotilastoja",
       "summary": "Valittujen hahmojen jakauma ({count})",
       "factions": "Horde vs Alliance",
@@ -175,10 +175,6 @@
     },
     "rankingShort": "Korkein taso ensin · Samat tasot tasoissa",
     "charactersShort": "hahmoa",
-    "updatesAutomatic": "Päivittyy automaattisesti",
-    "updatesPaused": "Päivitykset keskeytetty",
-    "updatesDelayed": "Päivitykset viivästyvät",
-    "updatesWaiting": "Odottaa päivityksiä",
     "pagination": "Tasoseurannan sivut",
     "aboutTracking": "Tietoa seurannasta",
     "trackingNote": "Profiilit päivittyvät vähitellen Blizzardin armorysta. Sama havaittu taso tarkoittaa tasapeliä, ei saavutusjärjestystä.",

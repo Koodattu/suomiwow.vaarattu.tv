@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { foreverApi, foreverRace, ForeverBoard } from "@/lib/forever-api";
 import { CharacterDetailsLoader } from "@/components/forever/ForeverCharacterDetails";
 import ForeverPopulation from "@/components/forever/ForeverPopulation";
-import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink, UpdateStatus } from "@/components/forever/ForeverShared";
+import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink } from "@/components/forever/ForeverShared";
 import styles from "@/components/forever/forever.module.css";
 
 const filterFields = ["guild", "race", "className", "faction", "ruleset"] as const;
@@ -27,17 +27,18 @@ export default function ForeverLeveling() {
   const showStreams = data?.characters.some((character) => character.twitchChannel) ?? false;
   const selected = data?.characters.find((character) => character._id === selectedId);
   const toggle = (id: string) => setSelectedId((current) => current === id ? null : id);
-  return <div className={styles.world}><div className={`${styles.shell} ${styles.levelingShell}`}>
+  return <div className={`${styles.world} ${styles.levelingWorld}`}>
     <header className={`${styles.header} ${styles.levelingHeader}`}>
       <div className={styles.heading}>
         <Link href="/forever" className={styles.wordmark} aria-label={t("brand")}><small>SuomiWoW</small><strong>Forever</strong></Link>
         <div><h1 className={styles.title}>{t("title")}</h1>
-          <div className={styles.headerMeta}>{data ? <><span><strong>{data.total}</strong> {t("charactersShort")}</span>{data.pending > 0 && <span>{t("waitingCount", { count: data.pending })}</span>}<UpdateStatus worker={data.worker} enabled={data.enabled} /></> : <span>{t("loading")}</span>}</div>
+          <div className={styles.headerMeta}>{data ? <span><strong>{data.total}</strong> {t("charactersShort")}</span> : <span>{t("loading")}</span>}</div>
         </div>
       </div>
+      <ForeverPopulation statistics={data?.statistics} total={data?.total || 0} filtered={Object.values(filters).some(Boolean)} loading={board.isPending} />
       <CharacterForm compact />
     </header>
-    <ForeverPopulation statistics={data?.statistics} total={data?.total || 0} filtered={Object.values(filters).some(Boolean)} loading={board.isPending} />
+    <div className={`${styles.shell} ${styles.levelingShell}`}>
     <section className={styles.board} aria-label={t("title")} aria-busy={board.isPending}>
       <div className={styles.toolbar}>
         <div className={styles.filters}>

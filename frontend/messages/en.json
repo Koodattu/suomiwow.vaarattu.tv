@@ -41,7 +41,6 @@
     "us": "Americas",
     "ruleset": "Ruleset",
     "allRulesets": "All rulesets",
-    "waitingCount": "{count} queued",
     "loading": "Loading…",
     "emptyTitle": "No characters yet",
     "emptyDescription": "Approved characters appear after their first update.",
@@ -85,6 +84,7 @@
       "tryAgain": "Try again"
     },
     "statistics": {
+      "combinations": "Faction × ruleset",
       "loading": "Loading population statistics",
       "summary": "Breakdown of {count} matching characters",
       "factions": "Horde vs Alliance",
@@ -175,10 +175,6 @@
     },
     "rankingShort": "Highest level first · Equal levels are tied",
     "charactersShort": "characters",
-    "updatesAutomatic": "Auto-updating",
-    "updatesPaused": "Updates paused",
-    "updatesDelayed": "Updates delayed",
-    "updatesWaiting": "Awaiting updates",
     "pagination": "Leaderboard pages",
     "aboutTracking": "About this board",
     "trackingNote": "Profiles refresh gradually from Blizzard’s Armory. Ties reflect the same observed level, not who reached it first.",
