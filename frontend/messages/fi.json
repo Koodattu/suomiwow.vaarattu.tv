@@ -285,7 +285,7 @@
         "resets": "nollautuu {time}"
       },
       "feed": {
-        "body": "Tuoreimmat kulta- ja galaksivedot.",
+        "body": "Kaupungin kello soi jokaiselle kulta- ja galaksivedolle. Kannusta vetoa, niin soitat sitä itse.",
         "empty": "Ei vielä kulta- tai galaksivetoja. Jatka avaamista!",
         "you": "Sinä",
         "fromBox": "laatikosta",

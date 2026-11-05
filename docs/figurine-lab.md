@@ -373,7 +373,7 @@ the world takes any input (taps, drags or keys).
 
 The world is a forest clearing round a cobbled square (`figurine-world.ts`). Facilities stand in
 groups round its edge, with open ground between the groups. Clockwise from the shop (north-west):
-the daily chest, quests and wheel; the collection; the scrying ball, hall of fame and leaderboards;
+the daily chest, quests and wheel; the collection; the town bell, hall of fame and leaderboards;
 the fishing pond (south-east); the forge and recycler; player trading, mail and deals. The shop and
 pond are anchors. Paths leave through the gaps between groups. Most facility origins are 13–16
 units from the centre, within 4.8 units of the cobbled edge; the pond is about 18.3 units out to
@@ -472,7 +472,9 @@ the collection on the server and Discord sign-in) and the latest pulls (this ses
 The districts. Four neighbourhoods stand round the square, each with its own game paving
 (`DISTRICT_FLOORS` in `figurine-world.ts`) and a few large props from `DISTRICT_DRESSING` in
 `figurine-districts.ts`. Each station is one clear idea: a major prop or two, not a heap of small
-ones. Nothing is built near the pond's banks.
+ones. A district's paving runs under its whole group, out to the sides and behind it, and its side
+and back props stand on that paving close to the stations, not out on the grass. When moving a prop,
+move its floor blob with it. Nothing is built near the pond's banks.
 
 The ground is a single mesh and shader (`blendGround`), blended the way the game's terrain is: grass,
 trodden earth, the square's cobbles, then each district's paving, each with a soft mask (painted once
@@ -484,11 +486,13 @@ desaturated toward the square's stone so the districts stay one family.
 - Trading, west, on brown fan brick: the merchant's wagon (Deals), the mailbox and gift table, and
   the red canopy with its table of wares (Trading), with stacked stock behind.
 - The daily fair, north, on red brick: the gold-banded chest on its heap of coins before the streak
-  board, the mission board on its beam with the campaign table (Quests), and the wheel between
-  balloons, with a ticket booth at each end.
-- Honours, east, on pale herringbone: the scrying ball on its runed pedestal with an orrery behind
-  (Feed), the memorial wall and garrison trophy (Hall of Fame), and the podium before a carved
-  monument (Leaderboards), with banners in the gaps.
+  board, the mission board on its beam with the campaign table (Quests), and the wheel with its
+  goblin and a bunch of balloons, with a ticket booth at each end: one behind the chest and quests, one past the wheel.
+- Honours, east, on pale herringbone: the town bell and the crier's stand with its register (Feed),
+  the garrison trophy before a carved monument (Hall of Fame), and the podium inside the curve of the
+  memorial wall (Leaderboards), with banners in the gaps. The bell tells the town about finds: it swings
+  and rings when a pull in the panel is cheered, and for the player's own golden and galaxy pulls
+  once they are back in the square, sending out rings in the find's colour.
 - The working yard, south-west, on ash-dark stones: the forge's anvil, hammer and carved stele with
   a void brazier, and the recycler's furnace, bellows and crucible, with coal, a weapon rack and a
   grindstone about them.

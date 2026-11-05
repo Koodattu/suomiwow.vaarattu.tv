@@ -9,6 +9,7 @@ import { figurineBodyBounds, figurineScale, restoreFigurineMaterials } from "@/l
 import { disposeFigurineObject } from "@/lib/figurine-cache";
 import { dailyChestAnimation, chestRewardPresentation, placeRewardCoin } from "@/lib/figurine-chest";
 import { coinCollectionFlight } from "@/lib/figurine-coin-flight";
+import { QUALITY_COLORS } from "@/lib/figurine-machine";
 
 // The plaza's facilities other than the shop and the two machines. Each is a small scene of game
 // props, some round a hand-built centrepiece, standing in the world unsigned: a mailbox is just a
@@ -21,6 +22,12 @@ export type Facility = "gallery" | "crate" | "wheel" | "mail" | "quests" | "feed
 export type FacilityAction = { kind: "spin"; segment: number } | { kind: "cast"; catch: CatchVisual } | { kind: "open" };
 export type ActionCue = "tick" | "splash" | "nibble" | "bite" | "escape" | "catch" | "burst" | "chestOpen" | "chestLift" | "chestReward" | "coinCollected";
 export type CastResult = "caught" | "missed" | "spooked";
+export type FacilityPoke = "hook" | "dismiss" | "ring";
+// The town bell: how tall it stands, how far it is turned from square-on so its swing shows, and
+// its pendulum (a ring's push, the spring and drag that bring it back, the widest it goes, and the
+// smallest swing that still reaches the clapper).
+const BELL_HEIGHT = 3.2, BELL_AT = -0.55, BELL_TURN = 0.5, CRIER_HEIGHT = 1.55, BELL_PUSH = 2.1, BELL_STIFFNESS = 26, BELL_DRAG = 1.6, BELL_REACH = 0.55, BELL_STRIKES_FROM = 0.12;
+const BELL_WAVE_SECONDS = 1.5, BELL_AXIS = new THREE.Vector3(0, 0, 1);
 // What comes up when a line is hooked: a prize (a coin or the awarded figure),
 // or a fish (or boot) of the given length, at its finish.
 export type CatchVisual = { kind: "coin" } | { kind: "figure"; model: string; quality: FigurineQuality } | { kind: "fish"; fish: FishId; length: number; quality: FigurineQuality };
@@ -52,14 +59,14 @@ function rippleNormals() {
   const map = new THREE.CanvasTexture(element); map.wrapS = map.wrapT = THREE.RepeatWrapping;
   return map;
 }
-export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, envMap, loadFigure }: { placeProp: PlaceProp; envMap: THREE.Texture; loadFigure?: (url: string) => Promise<THREE.Group> }) {
+export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, envMap, loadFigure, onBell }: { placeProp: PlaceProp; envMap: THREE.Texture; loadFigure?: (url: string) => Promise<THREE.Group>; onBell?: (strength: number) => void }) {
   // What the hover outline wraps: built parts now, game props once they have loaded.
   const frame: THREE.Mesh[] = [], props: Promise<THREE.Group>[] = [];
   // The action playing now, stepped each frame; null when idle.
   let acting: { step: (t: number) => boolean; t: number } | null = null;
   const actions: Partial<Record<FacilityAction["kind"], (action: FacilityAction, cue: (cue: ActionCue) => void, done: (result?: CastResult) => void) => void>> = {};
-  // Taps on a facility's parts while it acts (the pond: hooking the bite).
-  const pokes: Partial<Record<"hook" | "dismiss", () => void>> = {};
+  // Nudges from the panels: at the pond, hooking the bite; at the town bell, a ring.
+  const pokes: Partial<Record<FacilityPoke, (quality?: FigurineQuality) => void>> = {};
   const play = (step: (t: number) => boolean) => { acting = { step, t: 0 }; };
   // The crate's streak board, repainted when the streak changes.
   let paintStreak: ((opened: number, today: number | null) => void) | null = null;
@@ -211,8 +218,8 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     add(new THREE.BoxGeometry(2.3, 0.07, 0.07), wood, 0, 2.08, -0.62);
     for (const side of [-1, 1]) frame.push(add(new THREE.BoxGeometry(0.1, 2.12, 0.1), wood, side * 1.08, 1.06, -0.62));
   } else if (kind === "wheel") {
-    // Lucky wheel: a painted wheel of prizes on an A-frame, a pointer at the top, between two bunches
-    // of balloons. It idles with a slow sway.
+    // Lucky wheel: a painted wheel of prizes on an A-frame, a pointer at the top, with the goblin who
+    // runs it at one side and a bunch of balloons at the other. It idles with a slow sway.
     // Segment i spans canvas angles i·45° to (i+1)·45° clockwise from +x; on the wheel's face that is
     // the same sweep counter-clockwise from +x, so segment i's centre sits at −(i + ½)·45°.
     const [wheelCanvas, paint] = canvas(512, 512);
@@ -232,7 +239,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     for (let peg = 0; peg < 8; peg++) { const angle = peg / 8 * Math.PI * 2; add(new THREE.CylinderGeometry(0.025, 0.025, 0.12, 8).rotateX(Math.PI / 2), gold, Math.cos(angle) * 0.96, Math.sin(angle) * 0.96, 0.08, wheel); }
     for (const side of [-1, 1]) { const leg = add(new THREE.BoxGeometry(0.1, 1.9, 0.1), wood, side * 0.45, 0.95, -0.12); leg.rotation.z = side * 0.24; }
     add(new THREE.ConeGeometry(0.1, 0.24, 4).rotateZ(Math.PI), gold, 0, 2.75, 0.12);
-    prop("fairBalloonsBig", 3.3, -1.75, -0.45, 0.6);
+    prop("goblinStatue", 1.45, -1.4, 0.2, -Math.PI / 2 + 0.5);
     prop("fairBalloonsBig", 3.7, 1.8, -0.5, 2.4);
     // Idle, it rocks a little; a spin turns it five times over and settles the segment at the top.
     let rest = 0, spun = false;
@@ -260,34 +267,81 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     prop("giftRed", 0.2, 0.9, 0.2, -0.4, 0.72);
   } else if (kind === "quests") {
     // Quest giver: the mission board hung by its chains from a beam, under a floating golden "!",
-    // with the campaign table and its maps before it.
+    // with the campaign table and its maps at its side.
     for (const side of [-1, 1]) frame.push(add(new THREE.BoxGeometry(0.2, 3.2, 0.2), wood, side * 1.5, 1.6, -0.34));
     frame.push(add(new THREE.BoxGeometry(3.4, 0.2, 0.22), wood, 0, 3.14, -0.34));
     prop("questBoard", 2.75, 0, -0.26, -Math.PI / 2, 0.42);
-    prop("questTable", 0.92, 1.42, 0.62, -Math.PI / 2 - 0.3);
+    prop("questTable", 0.92, -2.05, 0.5, -Math.PI / 2 + 0.3);
     const mark = new THREE.Group(); mark.position.set(0, 3.75, -0.15); parent.add(mark);
     const glow = new THREE.MeshStandardMaterial({ color: 0xffd24a, emissive: 0xffb81c, emissiveIntensity: 0.9, metalness: 0.3, roughness: 0.35 });
     add(new THREE.BoxGeometry(0.13, 0.42, 0.13), glow, 0, 0.12, 0, mark);
     add(new THREE.SphereGeometry(0.085, 14, 10), glow, 0, -0.25, 0, mark);
     animate.push((_, time) => { mark.position.y = 3.75 + Math.sin(time * 2) * 0.06; mark.rotation.y = time * 1.2; });
   } else if (kind === "feed") {
-    // Pull feed: a scrying ball on a runed pedestal that glimmers with the latest golden and galaxy
-    // pulls, with an orrery turning its planets behind it.
-    prop("hallScryPedestal", 2.3, 0, 0.05, -Math.PI / 2);
-    prop("crystalBall", 0.72, 0, 0.05, -Math.PI / 2, 1.18);
-    prop("hallOrrery", 2.9, -0.2, -1.25, -Math.PI / 2 + 0.15);
-    const shine = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xb28cff, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending }));
-    const [glowCanvas, glowPaint] = canvas(64, 64), gradient = glowPaint.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gradient.addColorStop(0, "rgba(255,255,255,1)"); gradient.addColorStop(1, "rgba(255,255,255,0)"); glowPaint.fillStyle = gradient; glowPaint.fillRect(0, 0, 64, 64);
-    shine.material.map = srgb(glowCanvas); shine.position.set(0, 1.55, 0.05); shine.scale.setScalar(1.1); parent.add(shine);
-    animate.push((_, time) => { shine.material.opacity = 0.3 + 0.2 * Math.sin(time * 1.7); shine.material.color.setHSL(0.72 + 0.08 * Math.sin(time * 0.4), 0.8, 0.65); });
+    // The town bell, rung for every golden and galaxy find and by anyone cheering one, and at its
+    // side the crier's stand, with the register of finds open on the lectern. The bell is a single
+    // rigged game model: it hangs from the frame's axle on one bone, the clapper on another. The two
+    // are siblings, so the clapper's mount is carried round the axle with the bell.
+    const placed = prop("townBell", BELL_HEIGHT, BELL_AT, -0.1, -Math.PI / 2 + BELL_TURN);
+    prop("crierStand", CRIER_HEIGHT, 1.6, 0.35, -Math.PI / 2 - 0.35);
+    long("crierLedger", 0.5, 1.55, 0.79, -0.35, CRIER_HEIGHT - 0.11);
+    let bell: THREE.Object3D | undefined, clapper: THREE.Object3D | undefined, mount: THREE.Object3D | undefined;
+    const axle = new THREE.Vector3(), hung = new THREE.Vector3();
+    void placed.ready.then((group) => {
+      bell = group.getObjectByName("bone_5"); clapper = group.getObjectByName("bone_6"); mount = clapper?.parent ?? undefined;
+      if (bell?.parent && mount) { axle.copy(bell.parent.position); hung.copy(mount.position).sub(axle); }
+    });
+    // Spreading rings of the find's colour: the news going out over the town.
+    const [ringCanvas, ringPaint] = canvas(128, 128), ringGradient = ringPaint.createRadialGradient(64, 64, 34, 64, 64, 62);
+    ringGradient.addColorStop(0, "rgba(255,255,255,0)"); ringGradient.addColorStop(0.72, "rgba(255,255,255,0.95)"); ringGradient.addColorStop(1, "rgba(255,255,255,0)");
+    ringPaint.fillStyle = ringGradient; ringPaint.fillRect(0, 0, 128, 128);
+    const ringMap = srgb(ringCanvas), mouth = new THREE.Vector3(BELL_AT, BELL_HEIGHT * 0.46, -0.1);
+    const waves = Array.from({ length: 3 }, () => {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      sprite.visible = false; sprite.position.copy(mouth); parent.add(sprite);
+      return { sprite, age: BELL_WAVE_SECONDS, strength: 0 };
+    });
+    // A damped pendulum: a ring pushes it, and it sounds at each end of a swing wide enough for the
+    // clapper to reach the bell.
+    const accent = new THREE.Color();
+    let angle = 0, speed = 0, swingWas = 0, clap = 0, nextWave = 0;
+    pokes.ring = (quality) => {
+      accent.set(QUALITY_COLORS[quality ?? "golden"]);
+      speed += (speed < 0 ? -1 : 1) * BELL_PUSH;
+    };
+    animate.push((delta, time) => {
+      const step = Math.min(delta, 0.05);
+      speed += (-BELL_STIFFNESS * angle - BELL_DRAG * speed) * step;
+      angle = THREE.MathUtils.clamp(angle + speed * step, -BELL_REACH, BELL_REACH);
+      if (speed * swingWas < 0 && Math.abs(angle) > BELL_STRIKES_FROM) {
+        const strength = Math.min(1, Math.abs(angle) / 0.4), wave = waves[nextWave];
+        nextWave = (nextWave + 1) % waves.length;
+        wave.age = 0; wave.strength = strength; wave.sprite.material.color.copy(accent);
+        burst(mouth, accent);
+        onBell?.(strength);
+      }
+      swingWas = speed;
+      // At rest it barely stirs; the clapper trails the bell and catches it at the end of a swing.
+      const swing = angle + Math.sin(time * 0.8) * 0.012;
+      clap = THREE.MathUtils.damp(clap, swing * 0.45, 7, step);
+      if (bell && clapper && mount) {
+        bell.rotation.z = swing; clapper.rotation.z = clap;
+        mount.position.copy(hung).applyAxisAngle(BELL_AXIS, swing).add(axle);
+      }
+      for (const wave of waves) {
+        wave.age += delta;
+        const k = wave.age / BELL_WAVE_SECONDS;
+        wave.sprite.visible = k < 1;
+        if (k < 1) { wave.sprite.scale.setScalar(1 + (1 - (1 - k) ** 2) * 7); wave.sprite.material.opacity = (1 - k) ** 2 * 0.6 * wave.strength; }
+      }
+    });
   } else if (kind === "fame") {
-    // Hall of fame: a curved memorial wall of carved names round the trophy of the firsts.
-    long("hallMemorial", 4.8, 0, -0.45, -Math.PI / 2);
+    // Hall of fame: the trophy of the firsts before a carved monument.
+    prop("hallMonument", 3.2, 0, -0.75, -Math.PI / 2);
     prop("hallTrophyGold", 2.3, 0, 0.12, -Math.PI / 2);
   } else if (kind === "leaderboard") {
-    // Leaderboards: a winners' podium (1 in the middle) with the champion's shield on its top step
-    // and a carved monument behind.
+    // Leaderboards: a winners' podium (1 in the middle) with the champion's shield on its top step,
+    // inside the curve of a wall of carved names.
     const marble = new THREE.MeshStandardMaterial({ color: 0xcfc8ba, roughness: 0.7 });
     const step = (place: number, height: number, x: number, color: string) => {
       const [numberCanvas, paint] = canvas(128, 128);
@@ -298,7 +352,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       add(new THREE.BoxGeometry(0.74, 0.03, 0.74), gold, x, height, 0.15);
     };
     step(2, 0.55, -0.72, "#c9ccd4"); step(1, 0.8, 0, "#e8c165"); step(3, 0.4, 0.72, "#c08a5a");
-    prop("hallMonument", 3.2, 0, -0.85, -Math.PI / 2);
+    long("hallMemorial", 4.5, 0, -0.45, -Math.PI / 2);
     prop("hallTrophyShield", 1.55, 0, 0.15, -Math.PI / 2, 0.81);
   } else if (kind === "merchant") {
     // The daily merchant trades from a travelling wagon under a purple canopy.
@@ -860,8 +914,8 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       const run = actions[action.kind];
       if (run) run(action, cue, done); else done();
     },
-    // A tap on the facility while it acts: at the pond, a strike at the bite.
-    poke(kind: "hook" | "dismiss") { pokes[kind]?.(); },
+    // A nudge from its panel: at the pond, a strike at the bite; at the town bell, a ring.
+    poke(kind: FacilityPoke, quality?: FigurineQuality) { pokes[kind]?.(quality); },
     update(delta: number, time: number) {
       partOutlines.forEach((outline, part) => outline.update(hoveredPart === part ? 1 : 0, delta));
       animate.forEach((step) => step(delta, time));

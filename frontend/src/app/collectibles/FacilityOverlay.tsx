@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type Dispatch, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { LuArrowLeftRight, LuBadgePercent, LuHammer, LuRecycle, LuCheck, LuChevronRight, LuCoins, LuCrown, LuFerrisWheel, LuGift, LuHeart, LuMail, LuScrollText, LuSend, LuSparkles, LuTrophy, LuX } from "react-icons/lu";
+import { LuArrowLeftRight, LuBadgePercent, LuBell, LuHammer, LuRecycle, LuCheck, LuChevronRight, LuCoins, LuCrown, LuFerrisWheel, LuGift, LuHeart, LuMail, LuScrollText, LuSend, LuSparkles, LuTrophy, LuX } from "react-icons/lu";
 import { canSpin, questBoard, type FigurineCollection, type FigurineRecords, type QuestPeriod } from "@/lib/figurine-collection";
 import { findFigure } from "@/lib/figurine-series";
 import { PREVIEW_FEED, PREVIEW_FIGURES, PREVIEW_GIFTS, PREVIEW_HONOURS, matchesPreviewQuality, previewRankings, type PreviewAction, type PreviewState, type RankMetric } from "@/lib/figurine-community-preview";
@@ -17,7 +17,7 @@ type Props = {
   view: OverlayStation; collection: FigurineCollection; records: FigurineRecords; series: PanelSeries[];
   machine?: MachinePanel; away?: boolean; trading: TradingState; actions: PanelActions; preview: PreviewState; dispatch: Dispatch<PreviewAction>; onClose: () => void;
 };
-const ICONS = { merchant: LuBadgePercent, recycler: LuRecycle, forge: LuHammer, quests: LuScrollText, wheel: LuFerrisWheel, trading: LuArrowLeftRight, mail: LuGift, feed: LuSparkles, fame: LuCrown, leaderboard: LuTrophy };
+const ICONS = { merchant: LuBadgePercent, recycler: LuRecycle, forge: LuHammer, quests: LuScrollText, wheel: LuFerrisWheel, trading: LuArrowLeftRight, mail: LuGift, feed: LuBell, fame: LuCrown, leaderboard: LuTrophy };
 
 export default function FacilityOverlay(props: Props) {
   const { view, onClose } = props;
@@ -118,6 +118,7 @@ function Feed({ preview, dispatch, records, actions }: Props) {
   const t = useTranslations("figurineLab.world.overlays.feed"), common = useTranslations("figurineLab"), format = useFormatter();
   const [filter, setFilter] = useState<"all" | "galaxy" | "golden" | "mine">("all");
   return <>
+    <div className={styles.intro}><p>{common("world.feed.body")}</p></div>
     <Tabs values={["all", "galaxy", "golden", "mine"] as const} value={filter} onChange={setFilter} label={value => value === "galaxy" || value === "golden" ? common(`quality.${value}`) : t(value)} />
     {filter === "mine" ? records.feed.length ? <div className={styles.feed}>{records.feed.map((pull, index) => <article key={`${pull.at}-${index}`} className={styles.feedItem}><Portrait figureKey={pull.key} quality={pull.quality} /><div><span className={styles.eyebrow}>{common("world.feed.you")}</span><h3>{findFigure(pull.key)?.character.name}</h3><p>{common(`quality.${pull.quality}`)} · {format.relativeTime(new Date(pull.at), actions.now)}</p></div></article>)}</div> : <Empty icon={<LuSparkles />} text={common("world.feed.empty")} /> : <div className={styles.feed}>{PREVIEW_FEED.filter(entry => matchesPreviewQuality(entry.figure, filter)).map(entry => {
       const item = PREVIEW_FIGURES[entry.figure], cheered = preview.cheers.includes(entry.id);

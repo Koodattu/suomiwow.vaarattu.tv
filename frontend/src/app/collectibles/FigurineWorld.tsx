@@ -11,7 +11,7 @@ import { createFigurineFileCache } from "@/lib/figurine-cache";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { MACHINE_SLOTS, addToCollection, boostedQuality, claimQuest, COIN_INTERVAL_MS, crateState, dailyCatchesLeft, dayKey, fishOf, grantReward, landCatch, moveFavorite, openCrate, rollCatch, setFavoriteQuality, showcaseOf, spendBoost, initializeCoins, spendCoin, spinWheel, startQuestPeriods, toggleFavorite, type CatchRoll, type PullSource, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, RELEASED_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
-import type { StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
+import type { StageMachine, StagePoke, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
 import type { MachinePick, MachineSource } from "@/lib/figurine-machine";
 import { isStation, type Station } from "@/lib/figurine-world";
 import WorldPanel, { type LinePhase, type PanelResult, type PanelSeries } from "./WorldPanels";
@@ -26,7 +26,7 @@ import { onFigurinePointerExit } from "@/lib/figurine-pointer";
 import { useTradingPost } from "./TradingPost";
 import FacilityOverlay from "./FacilityOverlay";
 import { isOverlayStation } from "@/lib/figurine-facility-views";
-import { communityPreviewReducer, createCommunityPreview } from "@/lib/figurine-community-preview";
+import { PREVIEW_FEED, PREVIEW_FIGURES, communityPreviewReducer, createCommunityPreview, type PreviewAction } from "@/lib/figurine-community-preview";
 
 const FigurineStage = dynamic(() => import("@/app/tools/figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
@@ -40,6 +40,8 @@ const QUICK_OPEN_AFTER = 5;
 // The collection's catalogue docks wide on desktop; the other panels narrow.
 const catalogueWidth = (viewport: number) => Math.min(900, viewport * 0.6);
 
+// How long after the player is back in the square their find rings out.
+const BELL_DELAY_MS = 900;
 const isMachine = (view: WorldView): view is FigurineMachine => view === "recycler" || view === "forge";
 // Every series in shop order: released ones first, then the announced ones.
 const ALL_SERIES = [...FIGURINE_SERIES.map((entry) => entry.id), ...UPCOMING_SERIES.map((entry) => entry.id)];
@@ -228,7 +230,7 @@ export default function FigurineWorld() {
   const pondRecords = process.env.NODE_ENV === "development"
     ? { ...records, daily: { ...records.daily, catch: dayKey(now), caught: previewPondCaught } } : records;
   const [line, setLine] = useState<LinePhase | null>(null);
-  const [poke, setPoke] = useState<{ n: number; station: "pond" | "crate" | "recycler"; kind: "hook" | "dismiss" } | null>(null);
+  const [poke, setPoke] = useState<StagePoke | null>(null);
   // The pond's sheets (the fish log from its bucket, the anglers' board from the board on the bank,
   // or either's button), and the tackle under the pointer.
   const [pondSheet, setPondSheet] = useState<PondSheet | null>(null);
@@ -305,6 +307,22 @@ export default function FigurineWorld() {
     setLine("cast");
   }
   const hook = () => { if (pending?.roll) setPoke((current) => ({ n: (current?.n ?? 0) + 1, station: "pond", kind: "hook" })); };
+  // The town bell rings when a collector is cheered, and for the player's own golden and galaxy
+  // pulls, once they are back out in the square to hear it.
+  const ringBell = useCallback((quality?: FigurineQuality) => setPoke((current) => ({ n: (current?.n ?? 0) + 1, station: "feed", kind: "ring", quality })), []);
+  const communityAction = (action: PreviewAction) => {
+    const cheered = action.type === "cheer" && !communityPreview.cheers.includes(action.id) ? PREVIEW_FEED.find((entry) => entry.id === action.id) : null;
+    if (cheered) { unlockFigurineAudio(); ringBell(PREVIEW_FIGURES[cheered.figure].quality); }
+    dispatchCommunityPreview(action);
+  };
+  const newestFind = records.feed[0], rungFind = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!revealedWorld) return;
+    if (rungFind.current === undefined) rungFind.current = newestFind?.at ?? null;
+    if (view !== "overview" || !newestFind || newestFind.at === rungFind.current) return;
+    const timer = window.setTimeout(() => { rungFind.current = newestFind.at; ringBell(newestFind.quality); }, BELL_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [revealedWorld, view, newestFind, ringBell]);
   const dismissCatch = useCallback(() => {
     setResult(null);
     setPoke((current) => ({ n: (current?.n ?? 0) + 1, station: "pond", kind: "dismiss" }));
@@ -491,7 +509,7 @@ export default function FigurineWorld() {
     {revealedWorld && view !== "overview" && view !== "pond" && view !== "crate" && <OverviewBack onBack={back} disabled={state.phase === "loading" || state.phase === "opening"} />}
     {view === "crate" && revealedWorld && <ChestHud ready={crate.ready} day={crate.day} remainingMs={crate.remainingMs} bonusReady={crate.bonusReady} busy={busy} result={result?.station === "crate" ? result : null} onOpen={openDailyChest} onDismiss={dismissChest} onBack={() => { if (result?.station === "crate") dismissChest(); back(); }} />}
     {view === "recycler" && revealedWorld && recycledCoin && <CoinReward count={1} onDismiss={dismissRecycledCoin} />}
-    {revealedWorld && isOverlayStation(view) && <FacilityOverlay away={!!machineKind && (runningMachines[machineKind] || recycledCoin)} machine={machinePanel} trading={trading} view={view} collection={collection} records={records} series={panelSeries} actions={panelActions} preview={communityPreview} dispatch={dispatchCommunityPreview} onClose={back} />}
+    {revealedWorld && isOverlayStation(view) && <FacilityOverlay away={!!machineKind && (runningMachines[machineKind] || recycledCoin)} machine={machinePanel} trading={trading} view={view} collection={collection} records={records} series={panelSeries} actions={panelActions} preview={communityPreview} dispatch={communityAction} onClose={back} />}
     {isStation(view) && !isOverlayStation(view) && view !== "shop" && view !== "pond" && view !== "crate" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back}
       onInspect={(key, finish) => inspect(key, finish)}
       onFavorite={(item) => { unlockFigurineAudio(); toggleFavorite(item); }} onMoveFavorite={(key, to) => moveFavorite(key, to)} onFavoriteQuality={(key, finish) => setFavoriteQuality(key, finish)} />}

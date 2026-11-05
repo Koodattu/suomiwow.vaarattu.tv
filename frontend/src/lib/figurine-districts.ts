@@ -8,13 +8,13 @@ const piece = (prop: StationProp, x: number, z: number, height: number, yaw = 0,
 
 export const DISTRICT_DRESSING: Record<"trading" | "fair" | "honours" | "yard", Dressing[]> = {
   // Stock stacked behind the stalls.
-  trading: [piece("marketStack", -17.4, 4.4, 1.9, 0.6), piece("marketStack", -17.6, -5.2, 1.7, 2.2)],
-  // Striped ticket booths at either end of the fair.
-  fair: [piece("fairTicket", -7.2, -15.8, 4.2, 0.7), piece("fairTicket", 12, -13.4, 3.6, -0.7)],
+  trading: [piece("marketStack", -16.9, 3.7, 1.9, 0.6), piece("marketStack", -17, -5, 1.7, 2.2)],
+  // Striped ticket booths at either end of the fair: one between the chest and quests, one past the wheel.
+  fair: [piece("fairTicket", -0.1, -16.7, 3.8, 0.2), piece("fairTicket", 12.4, -12, 3.6, -0.7)],
   // Banners standing in the gaps along the terrace's back.
-  honours: [piece("hallBanner", 17.8, 2.6, 3.6, 2.9), piece("hallBanner", 16, 8, 3.6, 3.5)],
+  honours: [piece("hallBanner", 16.8, 2.6, 3.6, 2.9), piece("hallBanner", 15.7, 6.7, 3.6, 3.5)],
   // Coal by the furnace, and the smith's grindstone and weapons behind the yard.
-  yard: [piece("forgeCoalbin", -12.6, 14.6, 1.1, 0.5), piece("forgeWeaponrack", -7.3, 16.6, 1.8, 2.7), piece("forgeGrindstone", -1.4, 16.8, 1.3, -2.2)],
+  yard: [piece("forgeCoalbin", -12, 14.2, 1.1, 0.5), piece("forgeWeaponrack", -7.2, 15.8, 1.8, 2.7), piece("forgeGrindstone", -2.1, 15.6, 1.3, -2.2)],
 };
 
 // Places every district's dressing under `parent`, resolving once it has all loaded.

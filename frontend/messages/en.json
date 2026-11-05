@@ -285,7 +285,7 @@
         "resets": "resets {time}"
       },
       "feed": {
-        "body": "The newest golden and galaxy pulls.",
+        "body": "The town bell rings for every golden and galaxy pull. Cheer one to ring it yourself.",
         "empty": "No golden or galaxy pulls yet. Keep opening!",
         "you": "You",
         "fromBox": "from a box",

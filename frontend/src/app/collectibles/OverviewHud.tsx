@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { LuArrowLeftRight, LuChartNoAxesColumnIncreasing, LuChevronLeft, LuChevronUp, LuFerrisWheel, LuFish, LuGift, LuHammer, LuLibrary, LuMail, LuBadgePercent, LuPackageOpen, LuRecycle, LuScrollText, LuSparkles, LuStore, LuTrophy, LuUsers } from "react-icons/lu";
+import { LuArrowLeftRight, LuBell, LuChartNoAxesColumnIncreasing, LuChevronLeft, LuChevronUp, LuFerrisWheel, LuFish, LuGift, LuHammer, LuLibrary, LuMail, LuBadgePercent, LuPackageOpen, LuRecycle, LuScrollText, LuStore, LuTrophy, LuUsers } from "react-icons/lu";
 import type { Station, WorldView } from "@/lib/figurine-world";
 import styles from "./overview-hud.module.css";
 
@@ -16,7 +16,7 @@ const GROUPS = {
 } as const;
 type Group = keyof typeof GROUPS;
 const GROUP_ICONS = { community: LuUsers, play: LuFish, collection: LuLibrary, craft: LuHammer };
-const ICONS = { merchant: LuBadgePercent, shop: LuStore, gallery: LuLibrary, pond: LuFish, crate: LuGift, wheel: LuFerrisWheel, quests: LuScrollText, recycler: LuRecycle, forge: LuHammer, trading: LuArrowLeftRight, mail: LuMail, feed: LuSparkles, fame: LuTrophy, leaderboard: LuChartNoAxesColumnIncreasing };
+const ICONS = { merchant: LuBadgePercent, shop: LuStore, gallery: LuLibrary, pond: LuFish, crate: LuGift, wheel: LuFerrisWheel, quests: LuScrollText, recycler: LuRecycle, forge: LuHammer, trading: LuArrowLeftRight, mail: LuMail, feed: LuBell, fame: LuTrophy, leaderboard: LuChartNoAxesColumnIncreasing };
 
 export default function OverviewHud({ onNavigate, onHover, hovered }: {
   onNavigate: (view: WorldView) => void;

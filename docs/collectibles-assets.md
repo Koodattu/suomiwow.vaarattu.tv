@@ -38,8 +38,11 @@ streak; production retains the daily limit. Opening/lift/reward sounds were gene
 with the playground script and mastered offline; prompts and sources are recorded
 in `frontend/src/data/figurines/chest-audio.json`.
 District props (market, fair, hall, forge and quest models) come from
-`plaza-districts-models-001` to `-004` and `forge-tools-models-002`, recorded under `districts`
-in `source-models.json`. Item weapons (`item/objectcomponents/weapon`) fail in the worker's
+`plaza-districts-models-001` to `-004`, `forge-tools-models-002` and `feed-bell-models-001`,
+recorded under `districts` in `source-models.json`. The town bell keeps its skeleton, because the
+game swings it by `bone_5` and `bone_6`; its clips have repeated keyframes that fail the optimizer's
+validation, so they are stripped first. Its sound is synthesised by
+`frontend/scripts/make-bell-sound.mjs`. Item weapons (`item/objectcomponents/weapon`) fail in the worker's
 texture export, so tools such as the smith's hammer use world doodads.
 Their optimizer output is capped at 512px, or 256px for props seen only from afar, then
 converted from the original PNGs to embedded ETC1S. To compare candidates, export a batch

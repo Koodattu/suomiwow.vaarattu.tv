@@ -7,7 +7,7 @@ import { isOverlayStation } from "@/lib/figurine-facility-views";
 // The collectibles world: a painted sky bubble over a forest clearing. A cobbled square holds the
 // opening pedestal at its centre, and the destinations ring it in groups with open ground between
 // them. Clockwise from the shop (north-west, fixed): the daily fair (chest, quests, wheel), the
-// collection, the honours terrace (scrying ball, hall of fame, leaderboards), the pond (south-east,
+// collection, the honours terrace (town bell, hall of fame, leaderboards), the pond (south-east,
 // fixed, with nothing built near its banks), the working yard (forge, recycler), and the trading
 // street (player trading, mail, deals) back round to the shop. Paths leave through the gaps; scenery
 // gathers behind the districts, while showcase figures stand along both the plaza edge and the
@@ -30,15 +30,15 @@ export const STATION_SPECS: Record<Station, StationSpec> = {
   // The shop anchors the north-west.
   shop: { at: [-8.8, -8.2], face: [-4, -2.4], width: 6.6, back: -1.1, front: 1.8, shot: { height: 1.3, distance: 9.4, target: 2.45, fit: 6.6 } },
   // The daily fair, along the north edge.
-  crate: { at: [-1.9, -13.5], width: 2.6, back: -0.8, front: 1, shot: { height: 3.1, distance: 6.6, target: 0.55, fit: 3.2 } },
-  quests: { at: [2.8, -14], width: 3.8, back: -0.6, front: 1.2, shot: small(4.4, 1.5) },
-  wheel: { at: [7.2, -12.2], width: 3.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
+  crate: { at: [-2.2, -13.5], width: 2.6, back: -0.8, front: 1, shot: { height: 3.1, distance: 6.6, target: 0.55, fit: 3.2 } },
+  quests: { at: [2.6, -14.1], width: 4.4, back: -0.6, front: 1.2, shot: small(4.8, 1.5) },
+  wheel: { at: [7.6, -11.8], width: 3.2, back: -0.6, front: 0.9, shot: small(3.8, 1.6) },
   // The collection stands alone between the fair and the honours terrace.
   gallery: { at: [11.7, -5.9], width: 5.8, back: -0.7, front: 1.3, shot: { height: 1.2, distance: 8, target: 2.3, fit: 5.4, reach: 1.7 } },
-  // The honours terrace: the scrying ball, the hall and the podium, spaced along the east edge.
-  feed: { at: [15.6, 0.3], width: 2.6, back: -1.6, front: 0.8, shot: small(3.4, 1.4) },
-  fame: { at: [15.2, 4.8], width: 3.8, back: -0.8, front: 0.9, shot: small(4.2, 1.4) },
-  leaderboard: { at: [13.1, 8.6], width: 3, back: -1.4, front: 1, shot: small(4, 1.5) },
+  // The honours terrace: the town bell, the hall and the podium, spaced along the east edge.
+  feed: { at: [15.6, 0.1], width: 4, back: -0.9, front: 0.9, shot: small(4.6, 1.5) },
+  fame: { at: [15, 4.5], width: 2.8, back: -1.2, front: 0.9, shot: small(3.6, 1.5) },
+  leaderboard: { at: [13.4, 8.5], width: 4.6, back: -1.1, front: 1, shot: small(5.2, 1.3) },
   // The working yard: the forge and the recycler side by side, past the pond.
   forge: { at: [-4.5, 14.4], face: [-2, 6], width: 3.6, back: -1.5, front: 1, shot: big(4.4) },
   recycler: { at: [-9.2, 12.4], face: [-4.4, 6], width: 4.4, back: -1.6, front: 1.3, shot: big(4.8) },
@@ -86,10 +86,10 @@ export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", gra
 // stations: the patches of ground it covers ([x, z, radius]), how much ground a tile covers, its
 // turn, and the tint that keeps it in the family of the square's stones.
 export const DISTRICT_FLOORS: { texture: string; blobs: [number, number, number][]; tile: number; turn: number; tint: [number, number, number] }[] = [
-  { texture: "/figurines/world/floor-market.png", blobs: [[-13.4, 5.2, 3.4], [-13.9, 1.4, 3.2], [-13.4, -2.6, 3.4], [-10.6, 1.4, 2.6]], tile: 3.2, turn: 0.12, tint: [0.8, 0.74, 0.68] },
-  { texture: "/figurines/world/floor-fair.png", blobs: [[-1.8, -12.8, 2.6], [2.8, -13.2, 3], [7, -11.6, 2.6], [2.6, -10.4, 2.6]], tile: 3, turn: 0, tint: [0.68, 0.62, 0.58] },
-  { texture: "/figurines/world/floor-honours.png", blobs: [[14.6, 0.3, 2.7], [14.3, 4.6, 3], [12.5, 8.1, 2.7], [11.2, 3.2, 2.6]], tile: 3, turn: -0.12, tint: [0.4, 0.37, 0.33] },
-  { texture: "/figurines/world/floor-yard.png", blobs: [[-8.8, 11.6, 3.3], [-4.5, 13.6, 3], [-6, 9.8, 2.6]], tile: 3.4, turn: -0.3, tint: [1.15, 1.04, 0.92] },
+  { texture: "/figurines/world/floor-market.png", blobs: [[-14.5, 6, 3.7], [-15.2, 1.4, 3.6], [-14.9, -3, 3.7], [-17.4, 3.4, 2.7], [-17, -4.6, 2.3], [-10.8, 1.4, 2.8]], tile: 3.2, turn: 0.12, tint: [0.8, 0.74, 0.68] },
+  { texture: "/figurines/world/floor-fair.png", blobs: [[-2.2, -13.6, 3], [-0.4, -16.2, 2.6], [2.6, -14.2, 3.2], [7.5, -12, 3.1], [5.2, -15, 2.2], [2.6, -10.6, 2.8], [11.6, -12.2, 2.5]], tile: 3, turn: 0, tint: [0.68, 0.62, 0.58] },
+  { texture: "/figurines/world/floor-honours.png", blobs: [[15.8, 0.8, 3], [15.4, 4.5, 3.3], [13.8, 8.6, 3.5], [11.6, 3.4, 2.8], [17, 2.8, 2.3], [15.8, 6.6, 2.4]], tile: 3, turn: -0.12, tint: [0.4, 0.37, 0.33] },
+  { texture: "/figurines/world/floor-yard.png", blobs: [[-9.7, 13, 3.7], [-4.6, 15, 3.5], [-6, 10.2, 2.8], [-7.2, 15.8, 2.8], [-2.4, 15.4, 2.2], [-12, 14.2, 2.2]], tile: 3.4, turn: -0.3, tint: [1.15, 1.04, 0.92] },
 ];
 // Canvas x of the painted sun: the direction the stage's key light shines from (-x, +z).
 const SUN_X = 277;

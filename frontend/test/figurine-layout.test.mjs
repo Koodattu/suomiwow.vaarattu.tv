@@ -13,7 +13,7 @@ registerHooks({
     return next(specifier, context);
   },
 });
-const { STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, COBBLE_RADIUS, PATHS, FOREST_CLEARINGS, viewPose, isStation } = await import("../src/lib/figurine-world.ts");
+const { DISTRICT_FLOORS, STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, COBBLE_RADIUS, PATHS, FOREST_CLEARINGS, viewPose, isStation } = await import("../src/lib/figurine-world.ts");
 const { buildForest, forestLayout, groveLayout, marketLayout, POND, SECRET_BARREL } = await import("../src/lib/figurine-forest.ts");
 const { DISTRICT_DRESSING } = await import("../src/lib/figurine-districts.ts");
 
@@ -221,6 +221,21 @@ test("each district's dressing stays off the stations, the paths and the pond's 
     for (const [name] of stations) assert.ok(!inside(name, point, 0.1), `${prop} at ${x},${z} stands in ${name}`);
     if (y < 2) for (const step of walked) assert.ok(step.distanceTo(point) > 0.8, `${prop} at ${x},${z} blocks a path`);
     assert.ok(point.distanceTo(STATIONS.pond.position) > POND.radius + 4, `${prop} at ${x},${z} crowds the pond`);
+  }
+});
+
+test("each district's paving runs under its stations and its dressing", () => {
+  const floors = { trading: 0, fair: 1, honours: 2, yard: 3 };
+  const paved = (district, x, z) => DISTRICT_FLOORS[floors[district]].blobs.some(([bx, bz, radius]) => Math.hypot(x - bx, z - bz) < radius);
+  for (const [district, pieces] of Object.entries(DISTRICT_DRESSING)) for (const { prop, at: [x, z] } of pieces) assert.ok(paved(district, x, z), `${prop} at ${x},${z} stands off the ${district} paving`);
+  const members = { trading: ["trading", "mail", "merchant"], fair: ["crate", "quests", "wheel"], honours: ["feed", "fame", "leaderboard"], yard: ["forge", "recycler"] };
+  for (const [district, names] of Object.entries(members)) for (const name of names) {
+    const { position, rotation } = STATIONS[name], { back, width } = STATION_SPECS[name];
+    // Its back corners too, or the floor stops short of what stands behind it.
+    for (const side of [-1, 1]) {
+      const corner = new THREE.Vector3(side * width / 2 * 0.75, 0, back).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation).add(position);
+      assert.ok(paved(district, corner.x, corner.z), `${name}'s back corner stands off the ${district} paving`);
+    }
   }
 });
 

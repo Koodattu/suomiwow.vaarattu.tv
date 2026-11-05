@@ -75,3 +75,11 @@ test("the self-hosted KTX2 transcoder matches the installed Three.js decoder", a
     assert.deepEqual(served, dependency, `${name}: update the versioned public decoder when upgrading Three.js`);
   }
 });
+
+test("the town bell keeps the rig the game swings it by", async () => {
+  const file = await fs.readFile(new URL("../public/figurines/world/models/town-bell.glb", import.meta.url));
+  const { nodes, skins } = JSON.parse(file.subarray(20, 20 + file.readUInt32LE(12)).toString("utf8"));
+  const names = nodes.map(({ name }) => name);
+  assert.ok(skins?.length, "the bell is skinned");
+  for (const bone of ["bone_5", "bone_5_p", "bone_6", "bone_6_p"]) assert.ok(names.includes(bone), bone);
+});

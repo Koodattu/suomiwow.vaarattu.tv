@@ -19,7 +19,7 @@ import { STATIONS, WORLD_FOG, OVERVIEW_DISTANCE, buildWorld, isStation, placeSta
 import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
 import { buildForge, buildRecycler, type Machine, type MachineCue, type MachineSource } from "@/lib/figurine-machine";
 import { buildDistricts } from "@/lib/figurine-districts";
-import { buildFacility, type ActionCue, type CastResult, type Facility, type FacilityAction } from "@/lib/figurine-facilities";
+import { buildFacility, type ActionCue, type CastResult, type Facility, type FacilityAction, type FacilityPoke } from "@/lib/figurine-facilities";
 import { buildStatues } from "@/lib/figurine-statues";
 import { portraitAtlas } from "@/lib/figurine-portraits";
 import { propPlacer } from "@/lib/figurine-props";
@@ -38,6 +38,8 @@ export type { Station, WorldView };
 // One series as the world shows it: its box and its step in the shop.
 // Announced series have no figures yet and print in a colour from their hue.
 export type StageSeries = { id: string; number: string; theme?: keyof typeof PACKAGING_THEMES; hue?: number; hidden?: boolean; released: boolean; silhouettes?: string; keys: string[]; names: string[]; models: string[] };
+// A nudge passed on to a station; a new `n` delivers it once. `quality` colours the town bell's ring.
+export type StagePoke = { n: number; station: Facility | "recycler"; kind: FacilityPoke; quality?: FigurineQuality };
 export type StageWorld = {
   series: StageSeries[]; collection: FigurineCollection;
   labels: ShopLabels;
@@ -150,7 +152,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onActionDone?: (run: number, result?: CastResult) => void;
   onActionCue?: (run: number, cue: ActionCue) => void;
   // World mode: a tap passed on to an acting facility (a new `n` pokes it once).
-  poke?: { n: number; station: Facility | "recycler"; kind: "hook" | "dismiss" } | null;
+  poke?: StagePoke | null;
   // World mode: a working part of the facility the camera is at was tapped (the pond's rod, bobber or
   // tackle box), or is under the pointer (null when none is).
   onFacilityPart?: (station: Station, part: string) => void;
@@ -173,7 +175,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series), machinesRef = useRef(machines);
   useEffect(() => { labelsRef.current = labels; lineupRef.current = lineup; silhouettesRef.current = silhouettes; worldRef.current = world; seriesRef.current = series; machinesRef.current = machines; });
   // Lets later prop changes reach the running scene without rebuilding the renderer.
-  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; setChestReady: (ready: boolean) => void; setPrizes: (left: number) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: { n: number; station: Facility | "recycler"; kind: "hook" | "dismiss" }) => void } | null>(null);
+  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; setChestReady: (ready: boolean) => void; setPrizes: (left: number) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: StagePoke) => void } | null>(null);
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
@@ -298,6 +300,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     };
     const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, {
       placeProp, envMap: environment, loadFigure: async (url) => (await loadFigure(url)).scene,
+      onBell: (strength) => playFigurineCue("bell", { intensity: strength }),
     }) }] : []) : [];
     // Each district's own dressing, behind and between its stations.
     if (immersive && worldSetup) { const dressing = new THREE.Group(); scene.add(dressing); propsReady.push(buildDistricts(dressing, placeProp)); }
@@ -700,11 +703,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         const done = (result?: CastResult) => callbacks.current.onActionDone?.(run, result);
         if (facility) facility.act(next, sound, done); else done();
       },
-      poke: ({ n, station, kind }) => {
+      poke: ({ n, station, kind, quality }) => {
         if (n === pokedRun) return;
         pokedRun = n;
         if (station === "recycler") stationMachines.recycler?.dismiss();
-        else facilities.find((entry) => entry.kind === station)?.poke(kind);
+        else facilities.find((entry) => entry.kind === station)?.poke(kind, quality);
       },
     };
     if (worldSetup) { setCollection(worldSetup.collection); setShowcase(worldSetup.showcase); facilities.forEach((facility) => { facility.setStreak(worldSetup.streak.opened, worldSetup.streak.today); facility.setChestReady(worldSetup.chestReady); facility.setPrizes(worldSetup.prizes); }); }
