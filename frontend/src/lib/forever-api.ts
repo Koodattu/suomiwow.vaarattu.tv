@@ -52,6 +52,7 @@ export interface ForeverWorker { lastTickAt?: string; lastSuccessAt?: string; ne
 export interface ForeverStatistics {
   factions: { name: string | null; count: number }[];
   rulesets: { name: string | null; count: number }[];
+  combinations: { faction: string | null; ruleset: string | null; count: number }[];
   averageLevel: number | null;
   atMaxLevel: number;
 }

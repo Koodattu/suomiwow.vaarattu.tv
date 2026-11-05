@@ -299,7 +299,7 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       await ForeverCharacter.insertMany([
         ...Array.from({ length: 60 }, (_, index) => ({ ...base, slug: `stats-${index}`, faction: index < 40 ? "Horde" : "Alliance", ruleset: index < 30 ? "PvP" : index < 50 ? "Normal" : "Roleplay" })),
         { ...base, slug: "stats-missing", level: 60, className: "Warrior" },
-        { ...base, slug: "stats-empty", level: 10, faction: "", ruleset: "" },
+        { ...base, slug: "stats-empty", level: 10, faction: "", ruleset: "Normal" },
         { ...base, slug: "stats-us", region: "us", level: 60 },
         { ...base, slug: "stats-paused", status: "paused", level: 60 },
         { ...base, slug: "stats-private", status: "pending", level: 60 },
@@ -312,15 +312,19 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
         assert.deepEqual(first.statistics, second.statistics);
         const counts = (entries: { name: string | null; count: number }[]) => Object.fromEntries(entries.map((entry) => [entry.name ?? "unknown", entry.count]));
         assert.deepEqual(counts(first.statistics.factions), { Horde: 40, Alliance: 20, unknown: 2 });
-        assert.deepEqual(counts(first.statistics.rulesets), { PvP: 30, Normal: 20, Roleplay: 10, unknown: 2 });
+        assert.deepEqual(counts(first.statistics.rulesets), { PvP: 30, Normal: 21, Roleplay: 10, unknown: 1 });
+        assert.deepEqual(Object.fromEntries(first.statistics.combinations.map((entry) => [`${entry.faction ?? "unknown"}/${entry.ruleset ?? "unknown"}`, entry.count])), {
+          "Horde/PvP": 30, "Horde/Normal": 10, "Alliance/Normal": 10, "Alliance/Roleplay": 10, "unknown/Normal": 1, "unknown/unknown": 1,
+        });
+        assert.equal(first.statistics.combinations.reduce((sum, entry) => sum + entry.count, 0), first.total);
         assert.equal(first.statistics.atMaxLevel, 1);
         assert.ok(Math.abs(first.statistics.averageLevel! - 1270 / 62) < 0.00001);
         const filtered = await service.leaderboard({ guild: "Statistics Guild", race: "Human", className: "Mage", faction: "Horde", ruleset: "Normal" });
         assert.equal(filtered.total, 10);
-        assert.deepEqual(filtered.statistics, { factions: [{ name: "Horde", count: 10 }], rulesets: [{ name: "Normal", count: 10 }], averageLevel: 20, atMaxLevel: 0 });
+        assert.deepEqual(filtered.statistics, { factions: [{ name: "Horde", count: 10 }], rulesets: [{ name: "Normal", count: 10 }], combinations: [{ faction: "Horde", ruleset: "Normal", count: 10 }], averageLevel: 20, atMaxLevel: 0 });
         const empty = await service.leaderboard({ guild: "Statistics Guild", ruleset: "Nonexistent" });
         assert.equal(empty.total, 0);
-        assert.deepEqual(empty.statistics, { factions: [], rulesets: [], averageLevel: null, atMaxLevel: 0 });
+        assert.deepEqual(empty.statistics, { factions: [], rulesets: [], combinations: [], averageLevel: null, atMaxLevel: 0 });
         const beyond = await service.leaderboard({ guild: "Statistics Guild", page: 3 });
         assert.equal(beyond.characters.length, 0); assert.deepEqual(beyond.statistics, first.statistics);
       } finally { await ForeverCharacter.deleteMany({ slug: /^stats-/ }); }

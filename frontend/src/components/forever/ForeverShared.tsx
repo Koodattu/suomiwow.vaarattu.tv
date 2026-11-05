@@ -82,16 +82,6 @@ export function WorkerStatus({ worker, enabled }: { worker: ForeverWorker | null
     {worker?.errorCode && <span className="text-amber-200">{t("retryNotice")} <ForeverDate value={worker.nextRequestAt} /></span>}
   </div>;
 }
-export function UpdateStatus({ worker, enabled }: { worker: ForeverWorker | null; enabled: boolean }) {
-  const t = useTranslations("forever");
-  const now = useNow({ updateInterval: 60_000 });
-  const stale = !worker?.lastTickAt || now.getTime() - Date.parse(worker.lastTickAt) > 120_000;
-  const paused = !enabled || !!worker?.errorCode || stale;
-  return <span className={`${styles.live} ${paused ? styles.paused : ""}`}>
-    {t(!enabled ? "updatesPaused" : worker?.errorCode ? "updatesDelayed" : stale ? "updatesWaiting" : "updatesAutomatic")}
-  </span>;
-}
-
 export function CharacterForm({ admin = false, compact = false, onAdded }: { admin?: boolean; compact?: boolean; onAdded?: () => void }) {
   const t = useTranslations("forever"), { user, login, isLoading } = useAuth();
   const [url, setUrl] = useState(""), [busy, setBusy] = useState(false), [success, setSuccess] = useState(false), [error, setError] = useState<unknown>(null);
@@ -103,7 +93,7 @@ export function CharacterForm({ admin = false, compact = false, onAdded }: { adm
         try { await foreverApi(admin ? "admin/forever/characters" : "forever/proposals", "POST", { url, ...(admin && twitchChannel.trim() ? { twitchChannel } : {}) }); setSuccess(true); setUrl(""); setTwitchChannel(""); onAdded?.(); }
         catch (caught) { setError(caught); } finally { setBusy(false); }
       }}>
-        <label className={compact ? "sr-only" : undefined} htmlFor={admin ? "forever-add-url" : "forever-propose-url"}>{t("armoryUrl")}</label>
+        <label htmlFor={admin ? "forever-add-url" : "forever-propose-url"}>{t(compact ? "proposeTitle" : "armoryUrl")}</label>
         <div className={styles.formFields}>
           <input id={admin ? "forever-add-url" : "forever-propose-url"} type="url" required maxLength={500} value={url} onChange={(event) => { setUrl(event.target.value); setSuccess(false); }} className={styles.input} placeholder={compact ? t("armoryUrl") : "https://worldofwarcraft.blizzard.com/…"} />
           <button disabled={busy} className={buttonClass}>{t(busy ? "sending" : admin ? "add" : compact ? "send" : "propose")}</button>
@@ -113,6 +103,6 @@ export function CharacterForm({ admin = false, compact = false, onAdded }: { adm
     {success && <p role="status" className={styles.formSuccess}>{t(admin ? "added" : "proposed")}</p>}
     {error != null && <div className="mt-3"><ForeverErrorMessage error={error} /></div>}
     </div>;
-  if (compact) return <section className={styles.compactForm} aria-label={t("proposeTitle")}><h2>{t("proposeTitle")}</h2>{content}</section>;
+  if (compact) return <section className={styles.compactForm} aria-label={t("proposeTitle")}>{!user && <h2>{t("proposeTitle")}</h2>}{content}</section>;
   return <details className={styles.form} open={!admin}><summary>{t(admin ? "addTitle" : "proposeTitle")}</summary>{content}</details>;
 }

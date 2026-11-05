@@ -146,6 +146,7 @@ export async function leaderboard(query: { page?: unknown; race?: unknown; class
       summary: { total: number; averageLevel: number; atMaxLevel: number }[];
       factions: { name: string | null; count: number }[];
       rulesets: { name: string | null; count: number }[];
+      combinations: { faction: string | null; ruleset: string | null; count: number }[];
     }>([
       { $match: filter },
       { $facet: {
@@ -161,6 +162,14 @@ export async function leaderboard(query: { page?: unknown; race?: unknown; class
           { $group: { _id: { $cond: [{ $eq: [{ $ifNull: ["$ruleset", ""] }, ""] }, null, "$ruleset"] }, count: { $sum: 1 } } },
           { $sort: { count: -1, _id: 1 } }, { $project: { _id: 0, name: "$_id", count: 1 } },
         ],
+        combinations: [
+          { $group: { _id: {
+            faction: { $cond: [{ $eq: [{ $ifNull: ["$faction", ""] }, ""] }, null, "$faction"] },
+            ruleset: { $cond: [{ $eq: [{ $ifNull: ["$ruleset", ""] }, ""] }, null, "$ruleset"] },
+          }, count: { $sum: 1 } } },
+          { $sort: { count: -1, "_id.faction": 1, "_id.ruleset": 1 } },
+          { $project: { _id: 0, faction: "$_id.faction", ruleset: "$_id.ruleset", count: 1 } },
+        ],
       } },
     ]),
     ForeverCharacter.countDocuments({ status: "tracked", level: { $exists: false }, region: "eu" }),
@@ -171,7 +180,7 @@ export async function leaderboard(query: { page?: unknown; race?: unknown; class
   const population = breakdown[0];
   const summary = population.summary[0];
   const total = summary?.total || 0;
-  const statistics = { factions: population.factions, rulesets: population.rulesets, averageLevel: summary?.averageLevel ?? null, atMaxLevel: summary?.atMaxLevel || 0 };
+  const statistics = { factions: population.factions, rulesets: population.rulesets, combinations: population.combinations, averageLevel: summary?.averageLevel ?? null, atMaxLevel: summary?.atMaxLevel || 0 };
   return { characters, total, statistics, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
 }
 export async function characterDetail(id: unknown) {
