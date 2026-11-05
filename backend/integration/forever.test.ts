@@ -70,6 +70,7 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       await service.setGuildStatus(String(guild!._id), "approved"); await ready(); await runner.tick();
       const member = await ForeverCharacter.findOne({ slug: "guild-member" }).lean(); assert.equal(member?.status, "tracked");
       await service.setCharacterStatus(String(member!._id), "paused");
+      await ForeverGuild.updateOne({ _id: guild!._id }, { $set: { lastAttemptAt: new Date(0) } });
       await service.refreshGuild(String(guild!._id)); await ready(); await runner.tick();
       assert.equal((await ForeverCharacter.findById(member!._id).lean())?.status, "paused");
       await service.setGuildStatus(String(guild!._id), "paused");
@@ -258,6 +259,52 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
     await t.test("all persisted feature collections are isolated from retail", async () => {
       const names = (await mongoose.connection.db!.listCollections().toArray()).map((entry) => entry.name);
       assert.ok(names.length >= 4); assert.ok(names.every((name) => name.startsWith("forever_")));
+    });
+    await t.test("admin search and health filters apply before pagination and escape literal search text", async () => {
+      const base = { region: "eu", source: "admin", status: "tracked", errorCode: "upstream_error", guild: { region: "eu", slug: "fel", name: "Fel" } };
+      await ForeverCharacter.insertMany(Array.from({ length: 51 }, (_, i) => ({ ...base, slug: `admin-search-${i}`, name: `Search [${i}]` })));
+      const first = await service.adminOverview({ search: "Fel", health: "errors" });
+      const second = await service.adminOverview({ search: "Fel", health: "errors", characterPage: 2 });
+      assert.equal(first.totalCharacters, 51); assert.equal(first.characters.length, 50); assert.equal(second.characters.length, 1);
+      assert.equal((await service.adminOverview({ search: "[0]" })).totalCharacters, 1);
+      assert.equal((await service.adminOverview({ search: ".*" })).totalCharacters, 0);
+      await assert.rejects(service.adminOverview({ search: { $ne: "" } }), /invalid_input/);
+      await assert.rejects(service.adminOverview({ health: "unknown" }), /invalid_input/);
+      const guildView = await service.adminOverview({ guildSearch: "Test", guildStatus: "paused" });
+      assert.equal(guildView.totalGuilds, 1); assert.equal(guildView.guilds[0].rosterCount, 1);
+      const detail = await service.guildDetail(String(guildView.guilds[0]._id));
+      assert.equal(detail.roster[0].trackingStatus, "paused");
+      await ForeverCharacter.deleteMany({ slug: /^admin-search-/ });
+    });
+    await t.test("bounded admin bulk actions and failed retries preserve cooldowns, snapshots and shared pauses", async () => {
+      const next = new Date(Date.now() + 3600_000);
+      const records = await ForeverCharacter.insertMany([
+        { region: "eu", slug: "admin-retry", source: "admin", status: "tracked", level: 20, failures: 4, errorCode: "upstream_error", lastAttemptAt: new Date(0), nextFetchAt: next },
+        { region: "eu", slug: "admin-cooldown", source: "admin", status: "tracked", lastAttemptAt: new Date(), nextFetchAt: next },
+        { region: "eu", slug: "admin-paused", source: "admin", status: "paused", nextFetchAt: next },
+        { region: "eu", slug: "admin-pending", source: "proposal", status: "pending", nextFetchAt: next },
+      ]);
+      const ids = records.map((r) => String(r._id));
+      await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: next, errorCode: "upstream_error" } });
+      assert.deepEqual(await service.adminCharacterAction([...ids, ids[0]], "retry"), { updated: 1, skipped: 3 });
+      const retried = await ForeverCharacter.findById(ids[0]).lean();
+      assert.equal(retried?.failures, 4); assert.equal(retried?.level, 20); assert.ok(retried!.nextFetchAt!.getTime() < next.getTime());
+      assert.equal((await ForeverWorker.findById("armory").lean())!.nextRequestAt!.getTime(), next.getTime());
+      assert.deepEqual(await service.adminCharacterAction(ids, "rejected"), { updated: 1, skipped: 3 });
+      assert.deepEqual(await service.adminCharacterAction(ids, "paused"), { updated: 2, skipped: 2 });
+      assert.deepEqual(await service.adminCharacterAction(ids, "tracked"), { updated: 4, skipped: 0 });
+      await assert.rejects(service.adminCharacterAction([], "retry"), /invalid_input/);
+      await assert.rejects(service.adminCharacterAction(Array(51).fill(ids[0]), "retry"), /invalid_input/);
+      await assert.rejects(service.adminCharacterAction([ids[0], "bad-id"], "paused"), /not_found/);
+      assert.equal((await ForeverCharacter.findById(ids[0]).lean())?.status, "tracked");
+      const guild = await ForeverGuild.create({ region: "eu", slug: "admin-fel", name: "Fel", status: "pending", failures: 4, errorCode: "upstream_error", lastAttemptAt: new Date(0), nextFetchAt: next });
+      assert.deepEqual(await service.refreshGuild(String(guild._id)), { updated: 1, skipped: 0 });
+      await ForeverGuild.updateOne({ _id: guild._id }, { $set: { lastAttemptAt: new Date() } });
+      assert.deepEqual(await service.refreshGuild(String(guild._id)), { updated: 0, skipped: 1 });
+      await ForeverGuild.updateOne({ _id: guild._id }, { $set: { lastAttemptAt: new Date(0), status: "paused" } });
+      assert.deepEqual(await service.refreshGuild(String(guild._id)), { updated: 0, skipped: 1 });
+      assert.equal((await ForeverGuild.findById(guild._id).lean())?.roster.length, 0);
+      await ForeverCharacter.deleteMany({ _id: { $in: ids } }); await ForeverGuild.deleteOne({ _id: guild._id });
     });
   } finally {
     // The randomly named database is created solely by this test run.

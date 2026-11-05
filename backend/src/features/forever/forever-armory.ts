@@ -92,7 +92,11 @@ export function parseCharacterHtml(html: string, expected: ForeverIdentity): For
 
 export function parseRosterResponse(value: unknown, expected: ForeverIdentity): ForeverMember[] {
   const response = record(value);
-  if (response.errors?.length) throw new ArmoryError("invalid_data");
+  if (response.errors?.length) {
+    // The website can return HTTP 200 with a failed guild resolver during launch.
+    const internalError = Array.isArray(response.errors) && response.errors.some((error: any) => error?.extensions?.code === "INTERNAL_SERVER_ERROR");
+    throw new ArmoryError(internalError ? "upstream_error" : "invalid_data", internalError ? 500 : 0);
+  }
   const data = record(response.data);
   // Without the Forever Referer Blizzard returns retail data, even for this same query.
   if (data.GameConstants?.maxLevel !== 60 || data.Guild?._id !== `${expected.region}-none-${expected.slug}` ||

@@ -3,7 +3,7 @@ export interface ForeverCharacter {
   name?: string; level?: number; className?: string; race?: string; faction?: string; ruleset?: string; avatarUrl?: string | null;
   twitchChannel?: string; twitchIsLive?: boolean; twitchCheckedAt?: string;
   guild?: { name: string; slug: string; region: string } | null;
-  lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string;
+  lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string; failures?: number;
   history?: { level: number; observedAt: string; sourceUpdatedAt: string }[]; armoryUrl?: string;
 }
 export function isForeverStreamLive(character: Pick<ForeverCharacter, "twitchIsLive" | "twitchCheckedAt">, now: number): boolean {
@@ -30,8 +30,8 @@ export function foreverUpdateAge(value: string | null | undefined, now: number):
 }
 export interface ForeverGuild {
   _id: string; name: string; region: string; slug: string; status: string;
-  lastFetchedAt?: string; nextFetchAt?: string; errorCode?: string;
-  roster?: { region: string; slug: string; name: string; level: number; className: string }[];
+  lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; errorCode?: string; failures?: number; rosterCount?: number;
+  roster?: { region: string; slug: string; name: string; level: number; className: string; trackingStatus?: string }[];
 }
 export interface ForeverWorker { lastTickAt?: string; lastSuccessAt?: string; nextRequestAt?: string; errorCode?: string }
 export interface ForeverBoard {
@@ -42,6 +42,7 @@ export interface ForeverBoard {
 export interface ForeverAdminData {
   characters: ForeverCharacter[]; guilds: ForeverGuild[]; worker: ForeverWorker | null;
   totalCharacters: number; totalGuilds: number; enabled: boolean;
+  characterCounts: Record<string, number>; guildCounts: Record<string, number>;
 }
 export class ForeverApiError extends Error { constructor(public code: string) { super(code); } }
 export async function foreverApi<T>(path: string, method = "GET", body?: unknown): Promise<T> {

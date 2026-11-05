@@ -68,6 +68,21 @@ export async function setCharacterStatus(id: unknown, status: unknown) {
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
 }
 
+export async function adminCharacterAction(ids: unknown, action: unknown) {
+  if (!Array.isArray(ids) || !ids.length || ids.length > 50 || !["tracked", "paused", "rejected", "retry"].includes(String(action))) throw new ForeverError("invalid_input");
+  const uniqueIds = [...new Set(ids.map((id) => String(objectId(id))))];
+  const filter: Record<string, unknown> = { _id: { $in: uniqueIds } };
+  if (action === "retry") {
+    filter.status = "tracked";
+    filter.$or = [{ lastAttemptAt: { $exists: false } }, { lastAttemptAt: { $lte: new Date(Date.now() - 5 * MINUTE) } }];
+  } else if (action === "paused") filter.status = "tracked";
+  else if (action === "rejected") filter.status = "pending";
+  else filter.status = { $ne: "tracked" };
+  // Admin retries override an individual backoff, never the shared Retry-After pause.
+  const result = await ForeverCharacter.updateMany(filter, { $set: action === "retry" ? { nextFetchAt: new Date() } : { status: action } });
+  return { updated: result.modifiedCount, skipped: uniqueIds.length - result.modifiedCount };
+}
+
 export async function requestRefresh(id: unknown, userId: string) {
   await consumeLimit(userId, "refresh", 10);
   const character = await ForeverCharacter.findOne({ _id: objectId(id), status: "tracked" }).lean();
@@ -90,8 +105,10 @@ export async function setGuildStatus(id: unknown, status: unknown) {
 export async function refreshGuild(id: unknown) {
   const guild = await ForeverGuild.findById(objectId(id)).lean();
   if (!guild) throw new ForeverError("not_found", 404);
-  if (guild.status === "paused" || guild.failures > 0) return;
-  await ForeverGuild.updateOne({ _id: guild._id, failures: 0 }, { $set: { nextFetchAt: new Date() } });
+  const result = await ForeverGuild.updateOne({ _id: guild._id, status: { $ne: "paused" },
+    $or: [{ lastAttemptAt: { $exists: false } }, { lastAttemptAt: { $lte: new Date(Date.now() - 5 * MINUTE) } }],
+  }, { $set: { nextFetchAt: new Date() } });
+  return { updated: result.modifiedCount, skipped: 1 - result.modifiedCount };
 }
 
 const publicFields = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt errorCode twitchChannel twitchIsLive twitchCheckedAt";
@@ -119,22 +136,41 @@ export async function characterDetail(id: unknown) {
   if (!character) throw new ForeverError("not_found", 404);
   return { ...character, armoryUrl: armoryUrl(character as { region: "eu" | "us"; slug: string }) };
 }
-export async function adminOverview(query: { status?: unknown; characterPage?: unknown; guildPage?: unknown } = {}) {
+export async function adminOverview(query: { status?: unknown; characterPage?: unknown; guildPage?: unknown; search?: unknown; health?: unknown; guildStatus?: unknown; guildSearch?: unknown } = {}) {
   const characterPage = Math.min(1000, Math.max(1, Number.parseInt(String(query.characterPage), 10) || 1));
   const guildPage = Math.min(1000, Math.max(1, Number.parseInt(String(query.guildPage), 10) || 1));
   const status = query.status;
-  const filter: { status?: "pending" | "tracked" | "paused" | "rejected" } =
+  const filter: Record<string, unknown> =
     status === "pending" || status === "tracked" || status === "paused" || status === "rejected" ? { status } : {};
-  const [characters, guilds, worker, totalCharacters, totalGuilds] = await Promise.all([
+  const searchFilter = (value: unknown, fields: string[]) => {
+    if (value === undefined || value === "") return {};
+    if (typeof value !== "string" || value.length > 100) throw new ForeverError("invalid_input");
+    const escaped = value.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return { $or: fields.map((field) => ({ [field]: { $regex: escaped, $options: "i" } })) };
+  };
+  Object.assign(filter, searchFilter(query.search, ["name", "slug", "guild.name", "twitchChannel"]));
+  if (query.health === "errors") filter.errorCode = { $exists: true };
+  else if (query.health === "unfetched") filter.lastFetchedAt = { $exists: false };
+  else if (query.health !== undefined && query.health !== "all") throw new ForeverError("invalid_input");
+  const guildFilter: Record<string, unknown> = searchFilter(query.guildSearch, ["name", "slug"]);
+  if (["pending", "approved", "paused"].includes(String(query.guildStatus))) guildFilter.status = query.guildStatus;
+  const [characters, guilds, worker, totalCharacters, totalGuilds, characterCounts, guildCounts] = await Promise.all([
     ForeverCharacter.find(filter).select("-history -proposedBy").sort({ createdAt: -1, _id: -1 }).skip((characterPage - 1) * 50).limit(50).lean(),
-    ForeverGuild.find().select("-roster").sort({ createdAt: -1, _id: -1 }).skip((guildPage - 1) * 50).limit(50).lean(),
+    ForeverGuild.aggregate([{ $match: guildFilter }, { $sort: { name: 1, _id: 1 } }, { $skip: (guildPage - 1) * 50 }, { $limit: 50 },
+      { $addFields: { rosterCount: { $size: { $ifNull: ["$roster", []] } } } }, { $project: { roster: 0 } }]),
     ForeverWorker.findById("armory").select("-leaseToken").lean(),
-    ForeverCharacter.countDocuments(filter), ForeverGuild.countDocuments(),
+    ForeverCharacter.countDocuments(filter), ForeverGuild.countDocuments(guildFilter),
+    ForeverCharacter.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+    ForeverGuild.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
   ]);
-  return { characters, guilds, worker, totalCharacters, totalGuilds, enabled: true };
+  return { characters, guilds, worker, totalCharacters, totalGuilds,
+    characterCounts: Object.fromEntries(characterCounts.map((entry) => [entry._id, entry.count])),
+    guildCounts: Object.fromEntries(guildCounts.map((entry) => [entry._id, entry.count])), enabled: true };
 }
 export async function guildDetail(id: unknown) {
   const guild = await ForeverGuild.findById(objectId(id)).lean();
   if (!guild) throw new ForeverError("not_found", 404);
-  return guild;
+  const characters = await ForeverCharacter.find({ region: guild.region, slug: { $in: guild.roster.map((member) => member.slug) } }).select("slug status").lean();
+  const tracked = new Map(characters.map((character) => [character.slug, character]));
+  return { ...guild, roster: guild.roster.map((member) => ({ ...member, trackingStatus: tracked.get(member.slug)?.status || "untracked" })) };
 }
