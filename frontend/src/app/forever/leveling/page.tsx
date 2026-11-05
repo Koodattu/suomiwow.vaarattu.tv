@@ -12,7 +12,7 @@ import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage
 import styles from "@/components/forever/forever.module.css";
 
 const filterFields = ["guild", "race", "className", "faction", "ruleset"] as const;
-const emptyFilters = { guild: "", race: "", className: "", faction: "", ruleset: "" };
+const emptyFilters = { guild: "", race: "", className: "", faction: "", ruleset: "", search: "" };
 function subscribeNarrow(callback: () => void) {
   const media = window.matchMedia("(max-width: 1100px)");
   media.addEventListener("change", callback); return () => media.removeEventListener("change", callback);
@@ -22,7 +22,7 @@ export default function ForeverLeveling() {
   const [filters, setFilters] = useState(emptyFilters), [page, setPage] = useState(1), [selectedId, setSelectedId] = useState<string | null>(null);
   const narrow = useSyncExternalStore(subscribeNarrow, () => window.matchMedia("(max-width: 1100px)").matches, () => false);
   const board = useQuery({ queryKey: ["forever", "leveling", filters, page],
-    queryFn: () => foreverApi<ForeverBoard>(`forever/leveling?${new URLSearchParams({ ...filters, page: String(page) })}`), refetchInterval: 60_000 });
+    queryFn: () => foreverApi<ForeverBoard>(`forever/leveling?${new URLSearchParams({ ...filters, page: String(page) })}`), placeholderData: (previous) => previous, refetchInterval: 60_000 });
   const data = board.data;
   const showStreams = data?.characters.some((character) => character.twitchChannel) ?? false;
   const selected = data?.characters.find((character) => character._id === selectedId);
@@ -39,7 +39,7 @@ export default function ForeverLeveling() {
       <CharacterForm compact />
     </header>
     <div className={`${styles.shell} ${styles.levelingShell}`}>
-    <section className={styles.board} aria-label={t("title")} aria-busy={board.isPending}>
+    <section className={styles.board} aria-label={t("title")} aria-busy={board.isFetching}>
       <div className={styles.toolbar}>
         <div className={styles.filters}>
           {filterFields.map((field) => <label className={styles.filter} key={field}><span>{t(field)}</span>
@@ -49,7 +49,10 @@ export default function ForeverLeveling() {
             </select>
           </label>)}
         </div>
-        {Object.values(filters).some(Boolean) && <button className={`${styles.button} ${styles.quietButton}`} onClick={() => { setFilters(emptyFilters); setPage(1); setSelectedId(null); }}>{t("clearFilters")}</button>}
+        <div className={styles.boardSearch}>
+          <input className={styles.input} type="search" maxLength={100} aria-label={t("searchCharacters")} placeholder={t("searchCharacters")} value={filters.search} onChange={(event) => { setFilters({ ...filters, search: event.target.value }); setPage(1); setSelectedId(null); }} />
+          {Object.values(filters).some(Boolean) && <button className={`${styles.button} ${styles.quietButton}`} onClick={() => { setFilters(emptyFilters); setPage(1); setSelectedId(null); }}>{t("clearFilters")}</button>}
+        </div>
       </div>
       {board.error && <ForeverErrorMessage error={board.error} />}
       <div className={styles.tableScroll} role="region" aria-label={t("tableScroll")} tabIndex={0}>
