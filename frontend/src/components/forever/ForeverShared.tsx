@@ -114,5 +114,5 @@ export function CharacterForm({ admin = false, compact = false, onAdded }: { adm
     {error != null && <div className="mt-3"><ForeverErrorMessage error={error} /></div>}
     </div>;
   if (compact) return <section className={styles.compactForm} aria-label={t("proposeTitle")}><h2>{t("proposeTitle")}</h2>{content}</section>;
-  return <details className={styles.form} open><summary>{t(admin ? "addTitle" : "proposeTitle")}</summary>{content}</details>;
+  return <details className={styles.form} open={!admin}><summary>{t(admin ? "addTitle" : "proposeTitle")}</summary>{content}</details>;
 }

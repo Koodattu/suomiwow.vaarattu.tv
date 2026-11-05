@@ -5,6 +5,19 @@ with a small `/forever` hub and `/forever/characters/:id` profiles. These routes
 are excluded from navigation and the sitemap and marked `noindex, nofollow`.
 Administration lives at `/admin?tab=forever`.
 
+The admin panel has separate character and guild workspaces. Character search
+matches name, guild or Twitch channel across all pages; status and fetch-health
+filters can be combined. Page selection supports tracking, pausing, rejecting
+pending suggestions and retrying up to 50 characters. Actions report updated
+and skipped counts. Guild inspection shows roster membership/tracking states,
+attempts, errors and retry times beside the guild list. No guild is approved
+merely by inspecting it.
+
+Admin retries can bring forward an individual character or guild's failed
+retry, after five minutes since its last attempt. Paused entries are excluded,
+and the shared worker's rate-limit/Retry-After deadline is never shortened.
+Public-user refresh limits and retry protection remain unchanged.
+
 ## Adding characters
 
 An admin pastes a Blizzard Forever character URL to start tracking. Signed-in
@@ -49,6 +62,11 @@ a public Forever API contract. The implemented adapter instead uses the
   stored data intact. There is no retail or Classic fallback. Redirects are
   rejected, origins are fixed, requests time out after 20 seconds, and responses
   are capped at 4 MB. There are no Blizzard credentials in this path.
+
+The guild endpoint may return HTTP 200 with a GraphQL `INTERNAL_SERVER_ERROR`
+instead of a roster (observed for Fel on 2026-11-05). This is reported as a
+Blizzard upstream error, not an empty roster or a parser failure. Existing
+rosters remain intact and the normal retry policy applies.
 
 The first version supports EU and US links. Identity is region plus full-name
 slug, matching the verified Armory URL; ruleset is fetched, not inferred from

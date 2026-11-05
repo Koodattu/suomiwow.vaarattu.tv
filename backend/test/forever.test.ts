@@ -56,6 +56,8 @@ test("guild parser rejects retail context and partial errors, preserving only va
   const response = { data: { GameConstants: { maxLevel: 60 }, Guild: { _id: "eu-none-test-guild", roster: [member, member] } } };
   assert.equal(parseRosterResponse(response, guild).length, 1);
   assert.throws(() => parseRosterResponse({ ...response, errors: [{ message: "upstream unavailable" }] }, guild), ArmoryError);
+  assert.throws(() => parseRosterResponse({ data: { GameConstants: { maxLevel: 60 } }, errors: [{ message: "Internal Server Error", extensions: { code: "INTERNAL_SERVER_ERROR" } }] }, guild),
+    (error: unknown) => error instanceof ArmoryError && error.code === "upstream_error" && error.status === 500);
   assert.throws(() => parseRosterResponse({ data: { ...response.data, GameConstants: { maxLevel: 90 } } }, guild), ArmoryError);
   assert.throws(() => parseRosterResponse(response, { ...guild, slug: "other-guild" }), ArmoryError);
   member.character.realm = { slug: "retail-realm" } as any;
