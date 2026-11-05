@@ -371,14 +371,13 @@ camera, so swapping between a box and a figure never moves it, and returning fro
 where the camera was left. The opening shot flies in from far out and plays to its end before
 the world takes any input (taps, drags or keys).
 
-The world is a forest clearing round a cobbled square (`figurine-world.ts`). Facilities form an
-uneven ring around its ragged edge, sharing small forecourts rather than standing on an exact
-circle. The shop, lucky wheel and trading post occupy the west; the daily crate and quest board
-flank the north path; the collection and mailbox sit to the north-east; the scrying ball,
-leaderboards and hall of fame share the east garden; and the recycler and forge share the
-south-west yard. The fishing pond opens off the south-east corner. Most facility origins are
-13.5–15.6 units from the centre, within 4.5 units of the cobbled edge; the pond is about 18.3 units
-out to leave room for its water and dock. This is a first arrangement guided by the exported
+The world is a forest clearing round a cobbled square (`figurine-world.ts`). Facilities stand in
+groups round its edge, with open ground between the groups. Clockwise from the shop (north-west):
+the daily chest, quests and wheel; the collection; the scrying ball, hall of fame and leaderboards;
+the fishing pond (south-east); the forge and recycler; player trading, mail and deals. The shop and
+pond are anchors. Paths leave through the gaps between groups. Most facility origins are 13–16
+units from the centre, within 4.8 units of the cobbled edge; the pond is about 18.3 units out to
+leave room for its water and dock. This is a first arrangement guided by the exported
 layout sketch, not an exact import of its positions or rotations.
 
 Worn dirt paths (`PATHS`) leave through gaps between groups. Overlapping, irregular dirt patches
@@ -431,11 +430,14 @@ months go by the player's own clock):
   their segments' colours.
 - The fishing pond (scene in `figurine-facilities.ts`, controls in `PondHud.tsx`): seen from the
   foot of its dock, low over the water, as an angler sees it. A ragged shore of wet mud fades into
-  the grass, with half-sunk rocks, cattail beds, reeds and flowering lily pads; a Redridge
-  boardwalk runs out on pilings with a lantern; across the water hang a net and a rack of fish,
+  the grass, with half-sunk rocks, cattail beds, reeds and flowering lily pads; Elwynn's small
+  dock runs a short way out on its pilings with a lantern, so a cast carries well beyond it; the
+  anglers' board stands on the bank; across the water hang a net and a rack of fish,
   with a barrel of the catch, a fishing chair and a beached rowboat. Only the tackle takes taps:
   the rod in its holder at the dock's end casts (and strikes while the line is out), the bobber
-  strikes, and the open tackle box on the dock opens the fish log. The water does nothing, so a
+  strikes, the catch bucket on the dock opens the fish log, and the anglers' board (or B) opens
+  the rankings: each catch scores rarity × size × finish, and the best ten make the score
+  (`catchScore`, `anglerScore`); guild standings wait for sign-in. The water does nothing, so a
   stray tap never casts. Pointing at a piece names what it does, and the rod or the box lifts a
   little. A line of story along the top says what the water is doing; along the bottom are the
   fish log, the one action (Cast, then Strike) and Back. The bobber plops and bobs; a fish may
@@ -467,12 +469,33 @@ spent by it. A figure prize joins the collection and, when golden or galaxy, the
 placeholders: the trading post, the gifting post, the hall of fame and the leaderboards (they need
 the collection on the server and Discord sign-in) and the latest pulls (this session's own).
 
-Open item: the ten pond props added with the reworked pond (`dock-boardwalk`, `dock-pylon`,
-`lantern-garrison`, `tacklebox`, `fishing-bucket-2`, `fishing-barrel`, `fishing-net-1`,
-`fishing-basket`, `cattails-gilneas` and `lilypads-gilneas`, export job `pond-models-001`) still
-carry WebP textures, because no KTX2 encoder was installed when they were added. The KTX2 check in
-`test/figurine-ktx.test.mjs` fails on them until they are converted with
-`scripts/convert-figurine-assets.mjs` like the other world models (then bump `PROP_VERSION`).
+The districts. Four neighbourhoods stand round the square, each with its own game paving
+(`DISTRICT_FLOORS` in `figurine-world.ts`) and a few large props from `DISTRICT_DRESSING` in
+`figurine-districts.ts`. Each station is one clear idea: a major prop or two, not a heap of small
+ones. Nothing is built near the pond's banks.
+
+The ground is a single mesh and shader (`blendGround`), blended the way the game's terrain is: grass,
+trodden earth, the square's cobbles, then each district's paving, each with a soft mask (painted once
+from the stations' blobs, the paths and the square's outline). The texture's own brightness and a
+tiling noise decide what gives way first, so mortar goes before stones and stones thin out into the
+earth; toward its edge a layer also takes on the colour of what lies under it. Paving is partly
+desaturated toward the square's stone so the districts stay one family.
+
+- Trading, west, on brown fan brick: the merchant's wagon (Deals), the mailbox and gift table, and
+  the red canopy with its table of wares (Trading), with stacked stock behind.
+- The daily fair, north, on red brick: the gold-banded chest on its heap of coins before the streak
+  board, the mission board on its beam with the campaign table (Quests), and the wheel between
+  balloons, with a ticket booth at each end.
+- Honours, east, on pale herringbone: the scrying ball on its runed pedestal with an orrery behind
+  (Feed), the memorial wall and garrison trophy (Hall of Fame), and the podium before a carved
+  monument (Leaderboards), with banners in the gaps.
+- The working yard, south-west, on ash-dark stones: the forge's anvil, hammer and carved stele with
+  a void brazier, and the recycler's furnace, bellows and crucible, with coal, a weapon rack and a
+  grindstone about them.
+
+The source exports are `plaza-districts-models-001` to `-004`, `plaza-chest-models-001` and
+`forge-tools-models-002` (recorded under `districts` in `source-models.json`), and `district-textures-001` for the floors
+(`districtFloors` in `source.json`). Props seen only from afar are capped at 256px textures.
 
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
@@ -536,27 +559,24 @@ metal with the paint's light and shade kept as engraving, galaxy a screen-fixed 
 twinkling stars and a violet rim. Both reflect a neutral studio environment, not the green sky.
 The reveal and viewer show a quality badge; the case shows each figure in its finest quality.
 
-Two machines (`figurine-machine.ts`) take three figures each: three card slots, a display that
-says what the three will make (and holds it while the machine runs), and a trigger. Their cards
-are picked in the station panel, a portrait grid of what the machine can take (filter by
-series), and fly into the slots.
+Two machines (`figurine-machine.ts`) take three figures each. They are worked entirely from the
+station panel, a portrait grid of what the machine can take and three slots; in the world they are
+only game props, with no signs, screens or tap targets. A run hides the panel and centres the shot,
+and the three figures fly out of the panel's slots as cards, starting exactly over them.
 
-- The recycler is a gnomish grinder. Its picker lists every figure owned more than once. Pick a
-  card to load a copy, tap a loaded card to take it back, and pull the lever: the cards drop
-  into the hopper, toothed rollers chew them up and spit shreds, the machine shakes and clanks,
-  and a blind box of the series most of the three came from slides out of the chute (then drops
-  on the pedestal). It refuses to take the last copy of any figure, and never trades up.
-- The trade-up forge is an anvil on a stone plinth before a rune stele. Its picker lists only
-  what it can work on: a figure held three times at a quality below galaxy. Tapping a card sets
-  three copies in the cradles round the rune circle (tap one to clear them), and tapping the
-  trip hammer runs it: the three fly onto the anvil, the hammer strikes three times with sparks,
-  and the figure rises in a pillar of light one quality up, then is shown on the pedestal with
-  "Traded up!". The runes glow in the colour of the quality it will make. It may use the last
-  three copies, since the figure stays in the collection.
+- The recycler is a furnace. Its picker lists every figure owned more than once, and it refuses to
+  take the last copy of any figure. The cards go in at the door, the bellows pump, the fire roars,
+  and a single coin leaps out to hang mid-screen, the same show as the chest's and the pond's, until
+  a tap sends it to the wallet. Three spares make one coin, and a coin opens one box.
+- The trade-up forge is an anvil. Its picker lists only what it can work on: a figure held three
+  times at a quality below galaxy. The cards land on the anvil, the smith's hammer lifts from where
+  it leans and falls three times with sparks, and the figure grows out of the light on the anvil
+  one quality up, then is shown on the pedestal with "Traded up!". It may use the last three
+  copies, since the figure stays in the collection.
 
 The rules are pure functions in `figurine-collection.ts` (`trayGroups`, `machineOutcome`,
 `machineChanges`, each taking the machine) and the collection changes as one all-or-nothing
-set. There are no box limits yet, so a recycled box is just another box.
+set; the coin is granted as the run starts, so leaving mid-run never loses it.
 
 The collection is session-only (`sessionStorage`, `figurine-collection.ts`): figure key to
 copies per quality; nothing is sent anywhere. The first prototype's counts (key

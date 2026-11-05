@@ -127,22 +127,21 @@
     "comingSoon": "Coming soon",
     "stationTrading": "Trading post",
     "stationFame": "Hall of fame",
-    "machineLoad": "Load 3 figures",
-    "machineBox": "Blind box",
-    "machineUpgrade": "Trade up",
     "machineKeep": "Keep one",
-    "machineHint": "Tap a duplicate to load it · Pull the lever",
     "machineEmpty": "Your duplicates show up here",
     "stationRecycler": "Recycler",
     "stationForge": "Trade-up forge",
-    "forgeLoad": "Place 3 of a kind",
     "forgeMismatch": "Three of a kind",
-    "forgeHint": "Tap a figure to place three · Strike with the hammer",
     "forgeEmpty": "Own 3 of one figure at the same quality to trade it up",
     "world": {
       "overview": {
         "facilities": "Facilities",
-        "groups": { "play": "Play", "collection": "Collection", "community": "Community", "craft": "Craft" },
+        "groups": {
+          "play": "Play",
+          "collection": "Collection",
+          "community": "Community",
+          "craft": "Craft"
+        },
         "labels": {
           "shop": "Shop",
           "gallery": "Collection",
@@ -152,11 +151,12 @@
           "quests": "Quests",
           "recycler": "Recycle",
           "forge": "Forge",
-          "trading": "Trade",
+          "trading": "Trading",
           "mail": "Gifts",
           "feed": "Feed",
           "fame": "Fame",
-          "leaderboard": "Ranks"
+          "leaderboard": "Ranks",
+          "merchant": "Deals"
         },
         "openBoxes": "Open box",
         "boxCost": "1 coin per box",
@@ -165,15 +165,18 @@
       "close": "Close",
       "stations": {
         "gallery": "Collection",
-        "crate": "Daily crate",
+        "crate": "Treasure chest",
         "wheel": "Lucky wheel",
         "mail": "Gifting post",
         "quests": "Quest giver",
         "feed": "Latest pulls",
         "fame": "Hall of fame",
         "leaderboard": "Leaderboards",
-        "trading": "Trading post",
-        "pond": "Fishing pond"
+        "trading": "Trading",
+        "pond": "Fishing pond",
+        "merchant": "Daily deals",
+        "recycler": "Recycler",
+        "forge": "Forge"
       },
       "collection": {
         "owned": "{got}/{total} collected",
@@ -208,25 +211,26 @@
         "clear": "Clear"
       },
       "crate": {
-        "body": "A free coin every day. Come back days in a row: the seventh day also guarantees a golden roll.",
+        "body": "Open every 4 hours for 1 coin. Your first opening each day adds 1 streak coin; day 7 adds another 5. Miss a day and the streak restarts.",
         "day": "Day {day}",
-        "open": "Open today's crate",
+        "open": "Open treasure chest",
         "got": "Day {day}: {reward}",
-        "day7": "Golden roll",
-        "next": "Day {day}'s crate opens {time}",
-        "title": "Daily treasure",
+        "day7": "+5 bonus coins",
+        "next": "Chest opens in {time}",
+        "title": "Treasure chest",
         "action": "Open chest",
         "opening": "Opening…",
         "invitation": "A little treasure, just for you.",
         "hint": "Tap the chest or press Space to open.",
         "anticipation": "Something good is waiting inside.",
-        "reward": "+1 coin",
+        "reward": "+{count, plural, one {# coin} other {# coins}}",
         "collect": "Collect",
         "dismissReward": "Tap anywhere to collect",
-        "goldenReward": "A golden roll is yours, too.",
-        "claimed": "Claimed",
-        "comeBack": "Come back tomorrow for another treasure.",
-        "controls": "Daily chest controls",
+        "dailyBonus": "Includes your +1 daily streak coin.",
+        "weeklyBonus": "Includes your +1 daily streak coin and +5 seven-day bonus.",
+        "claimed": "Restocking",
+        "comeBack": "Ready in {hours}h {minutes}m",
+        "controls": "Treasure chest controls",
         "back": "Back"
       },
       "wheel": {
@@ -274,7 +278,7 @@
           "series": "Complete a series",
           "spin1": "Spin the wheel",
           "fish3": "Catch 3 fish",
-          "crates5": "Open 5 daily crates"
+          "crates5": "Open 5 treasure chests"
         },
         "claimed": "Claimed",
         "ready": "{count, plural, one {# reward ready to claim} other {# rewards ready to claim}}",
@@ -311,6 +315,106 @@
         },
         "you": "You",
         "signIn": "Guild boards arrive with Discord sign-in."
+      },
+      "overlays": {
+        "community": "The collectors’ circle",
+        "dailyActivities": "A little adventure, every day",
+        "preview": "Sample community · Try it here. Resets on reload.",
+        "sampleInventory": "{count, plural, one {# sample figure} other {# sample figures}}",
+        "quality": "Finish",
+        "all": "All finishes",
+        "cancel": "Cancel",
+        "quests": {
+          "keepGoing": "Play to earn coins",
+          "completed": "{count} of {total} claimed",
+          "inProgress": "In progress"
+        },
+        "wheel": {
+          "noCost": "Always free",
+          "used": "Today’s spin collected"
+        },
+        "gifts": {
+          "inbox": "Inbox",
+          "send": "Send a gift",
+          "sent": "Sent",
+          "from": "From {name}",
+          "to": "To {name}",
+          "claim": "Unwrap gift",
+          "claimed": "Unwrapped",
+          "claimedNotice": "Gift added to your sample inventory.",
+          "recipientPlaceholder": "A collector’s name",
+          "sendAction": "Send sample gift",
+          "sentNotice": "Sample gift prepared for {name}. No real message was sent.",
+          "delivered": "Sample gift sent",
+          "empty": "A little generosity goes a long way. Send your first sample gift.",
+          "notes": {
+            "welcome": "A little something to start your collection. Welcome to the circle!",
+            "lucky": "Found a spare and thought of you. May your next pull be lucky!"
+          }
+        },
+        "feed": {
+          "all": "Community",
+          "mine": "Your finds",
+          "minutes": "{count}m ago",
+          "cheer": "Cheer"
+        },
+        "fame": {
+          "title": "First to leave their mark",
+          "body": "Extraordinary finds. Unforgettable firsts. A place in collecting history.",
+          "waiting": "A place awaits",
+          "next": "The next name could be yours."
+        },
+        "ranks": {
+          "body": "A little friendly competition among collectors.",
+          "allTime": "All time",
+          "yourCollection": "Your collection",
+          "separate": "Your session totals, separate from the sample rankings."
+        },
+        "market": {
+          "dealsBody": "Three daily bargains from the local merchant. Fresh stock every day.",
+          "tradingBody": "Browse offers from other collectors. Find a figure you love or turn a spare into coins.",
+          "offers": "Offers",
+          "history": "Completed",
+          "refresh": "Refresh",
+          "refreshed": "Three fresh deals are ready.",
+          "show": "Show",
+          "all": "All offers",
+          "buy": "Buy figures",
+          "sell": "Sell figures",
+          "merchant": "Local merchant",
+          "goodDeal": "Good deal",
+          "receive": "You receive",
+          "give": "You give",
+          "completed": "Completed",
+          "confirm": "Exchange the coins or figure shown above? This trade changes your local collection.",
+          "confirmAction": "Confirm trade",
+          "success": "Trade complete. Your coins and collection are updated.",
+          "unavailable": "This offer is no longer available, or you no longer have the required coins or figure.",
+          "review": "Review trade",
+          "missingCoins": "Not enough coins",
+          "missingFigure": "Figure not owned",
+          "empty": "No offers here yet.",
+          "dailyNote": "Offers rotate daily. Refreshing costs 1 coin and replaces the current three offers.",
+          "preview": "Sample player listings for this alpha. Trades affect only your local coins and figures; nothing is sent to another player."
+        },
+        "workshop": {
+          "forgeBody": "Give your favourite figures a rarer finish. Choose a set of three identical copies.",
+          "recycleBody": "Put your spare figures to use. Smelt three copies down into a coin.",
+          "loaded": "{count} / 3 loaded",
+          "remove": "Remove {name}",
+          "slot": "Empty slot {number}",
+          "forgeRecipe": "Three matching copies, one rarer figure",
+          "recycleRecipe": "Choose three spare figures",
+          "forgeProtection": "Standard becomes Golden. Golden becomes Galaxy.",
+          "recycleProtection": "Your last copy of each figure is always protected.",
+          "working": "Working…",
+          "upgrade": "Rarer finish",
+          "newCoin": "1 coin",
+          "forge": "Forge",
+          "recycle": "Recycle",
+          "yourFigures": "Your spare figures"
+        },
+        "workshopLabel": "The workshop"
       },
       "trading": {
         "body": "Trade figures with other players: offer yours, ask for theirs, and both accept."
@@ -390,7 +494,7 @@
     "weaponsSheathed": "Weapons sheathed",
     "openAnother": "Open another",
     "coinsLabel": "Coins",
-    "coinsHelp": "Earned through play. Start with 3 coins; 1 regenerates every 4 hours. No purchases.",
+    "coinsHelp": "Start with 3 coins. Collect 1 from the chest every 4 hours, plus daily streak bonuses. No coin limit or purchases.",
     "pullToOpenCoin": "Pull the tape to open · 1 coin",
     "openBoxCoin": "Open box · 1 coin",
     "noCoins": "No coins · Fish, claim daily rewards or complete quests."
@@ -440,7 +544,11 @@
     "roles": "Roles",
     "allRoles": "All roles",
     "noRoles": "No roles selected",
-    "role": { "dps": "Damage", "healer": "Healer", "tank": "Tank" },
+    "role": {
+      "dps": "Damage",
+      "healer": "Healer",
+      "tank": "Tank"
+    },
     "minimumPulls": "Minimum pulls",
     "atLeastPulls": "At least {count}",
     "updating": "Updating…",
@@ -725,7 +833,10 @@
         "uploading": "Uploading and checking…",
         "withdraw": "Withdraw submission",
         "clearSelection": "Clear selection",
-        "remove": { "image": "Remove image", "audio": "Remove audio" },
+        "remove": {
+          "image": "Remove image",
+          "audio": "Remove audio"
+        },
         "confirmRemove": {
           "image": "Remove this alternative image from all copies of this card? The card will use its standard character image.",
           "audio": "Remove this audio from all copies of this card? The card will no longer play your uploaded audio."
@@ -2225,7 +2336,13 @@
       "pause": "Pause",
       "resume": "Resume",
       "retryJob": "Retry job",
-      "status": { "pending": "Queued", "in_progress": "Running", "paused": "Paused", "completed": "Run finished", "failed": "Failed" }
+      "status": {
+        "pending": "Queued",
+        "in_progress": "Running",
+        "paused": "Paused",
+        "completed": "Run finished",
+        "failed": "Failed"
+      }
     },
     "reportOverrides": {
       "title": "Correct report ownership",
@@ -2343,7 +2460,12 @@
     },
     "characterDataRefresh": {
       "fullTitle": "Full-history refresh",
-      "status": { "idle": "Idle", "running": "Running", "completed": "Completed", "failed": "Failed" },
+      "status": {
+        "idle": "Idle",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed"
+      },
       "incrementalTitle": "Incremental character-data refresh",
       "incrementalDescription": "Resolves newly discovered historical WCL identities, rebuilds participation, fetches only missing ranking pairs, and rebuilds mechanics and character tier lists only for affected raids. Missing Mythic+ profiles and character renders are also queued; CCG snapshots remain manual.",
       "discover": "Discover Missing Ranking Pairs"

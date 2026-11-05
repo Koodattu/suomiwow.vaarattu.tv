@@ -127,22 +127,21 @@
     "comingSoon": "Tulossa",
     "stationTrading": "Vaihtopiste",
     "stationFame": "Kunniagalleria",
-    "machineLoad": "Lataa 3 hahmoa",
-    "machineBox": "Yllätyslaatikko",
-    "machineUpgrade": "Paranna",
     "machineKeep": "Säilytä yksi",
-    "machineHint": "Napauta tuplaa ladataksesi · Vedä vivusta",
     "machineEmpty": "Tuplasi näkyvät täällä",
     "stationRecycler": "Kierrätin",
     "stationForge": "Jalostusahjo",
-    "forgeLoad": "Aseta 3 samaa",
     "forgeMismatch": "Kolme samaa",
-    "forgeHint": "Napauta hahmoa asettaaksesi kolme · Iske vasaralla",
     "forgeEmpty": "Kerää 3 samaa hahmoa samaa laatua jalostaaksesi sen",
     "world": {
       "overview": {
         "facilities": "Toiminnot",
-        "groups": { "play": "Pelaa", "collection": "Kokoelma", "community": "Yhteisö", "craft": "Paja" },
+        "groups": {
+          "play": "Pelaa",
+          "collection": "Kokoelma",
+          "community": "Yhteisö",
+          "craft": "Paja"
+        },
         "labels": {
           "shop": "Kauppa",
           "gallery": "Kokoelma",
@@ -156,7 +155,8 @@
           "mail": "Lahjat",
           "feed": "Saaliit",
           "fame": "Kunnia",
-          "leaderboard": "Sijat"
+          "leaderboard": "Sijat",
+          "merchant": "Tarjoukset"
         },
         "openBoxes": "Avaa laatikko",
         "boxCost": "1 kolikko / laatikko",
@@ -165,15 +165,18 @@
       "close": "Sulje",
       "stations": {
         "gallery": "Kokoelma",
-        "crate": "Päivän arkku",
+        "crate": "Aarrearkku",
         "wheel": "Onnenpyörä",
         "mail": "Lahjaposti",
         "quests": "Tehtävänantaja",
         "feed": "Tuoreimmat vedot",
         "fame": "Kunniagalleria",
         "leaderboard": "Tulostaulut",
-        "trading": "Vaihtopiste",
-        "pond": "Kalalampi"
+        "trading": "Vaihtokauppa",
+        "pond": "Kalalampi",
+        "merchant": "Päivän tarjoukset",
+        "recycler": "Kierrätys",
+        "forge": "Paja"
       },
       "collection": {
         "owned": "{got}/{total} kerätty",
@@ -208,25 +211,26 @@
         "clear": "Tyhjennä"
       },
       "crate": {
-        "body": "Ilmainen kolikko joka päivä. Tule päivittäin: seitsemäntenä päivänä saat myös kultaheiton.",
+        "body": "Avaa arkku 4 tunnin välein ja saat 1 kolikon. Päivän ensimmäinen avaus tuo 1 lisäkolikon; seitsemäntenä päivänä saat vielä 5 lisää. Jos päivä jää väliin, putki alkaa alusta.",
         "day": "Päivä {day}",
-        "open": "Avaa päivän arkku",
+        "open": "Avaa aarrearkku",
         "got": "Päivä {day}: {reward}",
-        "day7": "Kultaheitto",
-        "next": "Päivän {day} arkku aukeaa {time}",
-        "title": "Päivän aarre",
+        "day7": "+5 lisäkolikkoa",
+        "next": "Arkku aukeaa {time} kuluttua",
+        "title": "Aarrearkku",
         "action": "Avaa arkku",
         "opening": "Avataan…",
         "invitation": "Pieni aarre juuri sinulle.",
         "hint": "Avaa napauttamalla arkkua tai painamalla välilyöntiä.",
         "anticipation": "Sisällä odottaa jotain hyvää.",
-        "reward": "+1 kolikko",
+        "reward": "+{count, plural, one {# kolikko} other {# kolikkoa}}",
         "collect": "Kerää",
         "dismissReward": "Kerää napauttamalla ruutua",
-        "goldenReward": "Saat myös kultaheiton.",
-        "claimed": "Lunastettu",
-        "comeBack": "Tule huomenna hakemaan uusi aarre.",
-        "controls": "Päivän arkun toiminnot",
+        "dailyBonus": "Mukana päivän +1 lisäkolikko.",
+        "weeklyBonus": "Mukana päivän +1 lisäkolikko ja seitsemän päivän +5 kolikon bonus.",
+        "claimed": "Täyttyy",
+        "comeBack": "Valmis {hours} t {minutes} min kuluttua",
+        "controls": "Aarrearkun toiminnot",
         "back": "Takaisin"
       },
       "wheel": {
@@ -274,7 +278,7 @@
           "series": "Täydennä sarja",
           "spin1": "Pyöräytä onnenpyörää",
           "fish3": "Nappaa 3 kalaa",
-          "crates5": "Avaa 5 päivän arkkua"
+          "crates5": "Avaa 5 aarrearkkua"
         },
         "claimed": "Lunastettu",
         "ready": "{count, plural, one {# palkinto lunastettavissa} other {# palkintoa lunastettavissa}}",
@@ -311,6 +315,106 @@
         },
         "you": "Sinä",
         "signIn": "Killan tulostaulut tulevat Discord-kirjautumisen myötä."
+      },
+      "overlays": {
+        "community": "Keräilijöiden piiri",
+        "dailyActivities": "Pieni seikkailu joka päivä",
+        "preview": "Esimerkkiyhteisö · Kokeile tässä. Nollautuu sivun päivityksessä.",
+        "sampleInventory": "{count, plural, one {# esimerkkihahmo} other {# esimerkkihahmoa}}",
+        "quality": "Viimeistely",
+        "all": "Kaikki viimeistelyt",
+        "cancel": "Peruuta",
+        "quests": {
+          "keepGoing": "Ansaitse kolikoita pelaamalla",
+          "completed": "{count}/{total} lunastettu",
+          "inProgress": "Kesken"
+        },
+        "wheel": {
+          "noCost": "Aina ilmainen",
+          "used": "Päivän pyöräytys käytetty"
+        },
+        "gifts": {
+          "inbox": "Saapuneet",
+          "send": "Lähetä lahja",
+          "sent": "Lähetetyt",
+          "from": "Lähettäjä: {name}",
+          "to": "Vastaanottaja: {name}",
+          "claim": "Avaa lahja",
+          "claimed": "Avattu",
+          "claimedNotice": "Lahja lisättiin esimerkkikokoelmaasi.",
+          "recipientPlaceholder": "Keräilijän nimi",
+          "sendAction": "Lähetä esimerkkilahja",
+          "sentNotice": "Esimerkkilahja valmisteltiin vastaanottajalle {name}. Oikeaa viestiä ei lähetetty.",
+          "delivered": "Esimerkkilahja lähetetty",
+          "empty": "Pieni lahja ilahduttaa. Lähetä ensimmäinen esimerkkilahjasi.",
+          "notes": {
+            "welcome": "Pieni lahja kokoelmasi alkuun. Tervetuloa keräilijöiden piiriin!",
+            "lucky": "Löysin ylimääräisen ja ajattelin sinua. Onnea seuraavaan avaukseen!"
+          }
+        },
+        "feed": {
+          "all": "Yhteisö",
+          "mine": "Omat löydöt",
+          "minutes": "{count} min sitten",
+          "cheer": "Kannusta"
+        },
+        "fame": {
+          "title": "Ensimmäisinä historiaan",
+          "body": "Harvinaisia löytöjä ja unohtumattomia ensisaavutuksia keräilyn historiasta.",
+          "waiting": "Paikka odottaa",
+          "next": "Seuraava nimi voi olla sinun."
+        },
+        "ranks": {
+          "body": "Ystävällistä kilpailua keräilijöiden kesken.",
+          "allTime": "Kaikki ajat",
+          "yourCollection": "Oma kokoelmasi",
+          "separate": "Istuntosi tulokset, erillään esimerkkisijoituksista."
+        },
+        "market": {
+          "dealsBody": "Kolme päivittäistä tarjousta paikalliselta kauppiaalta. Uutta tavaraa joka päivä.",
+          "tradingBody": "Selaa muiden keräilijöiden tarjouksia. Löydä uusi suosikkihahmo tai vaihda ylimääräinen kolikoiksi.",
+          "offers": "Tarjoukset",
+          "history": "Tehdyt kaupat",
+          "refresh": "Vaihda tarjoukset",
+          "refreshed": "Kolme uutta tarjousta on valmiina.",
+          "show": "Näytä",
+          "all": "Kaikki tarjoukset",
+          "buy": "Osta hahmoja",
+          "sell": "Myy hahmoja",
+          "merchant": "Paikallinen kauppias",
+          "goodDeal": "Hyvä kauppa",
+          "receive": "Saat",
+          "give": "Annat",
+          "completed": "Tehty",
+          "confirm": "Vaihdatko yllä näkyvät kolikot tai hahmon? Kauppa muuttaa paikallista kokoelmaasi.",
+          "confirmAction": "Vahvista kauppa",
+          "success": "Kauppa tehty. Kolikkosi ja kokoelmasi on päivitetty.",
+          "unavailable": "Tarjous ei ole enää saatavilla tai sinulla ei enää ole tarvittavia kolikoita tai hahmoa.",
+          "review": "Tarkista kauppa",
+          "missingCoins": "Ei tarpeeksi kolikoita",
+          "missingFigure": "Et omista hahmoa",
+          "empty": "Täällä ei ole vielä tarjouksia.",
+          "dailyNote": "Tarjoukset vaihtuvat päivittäin. Uusien kolmen tarjouksen hakeminen maksaa yhden kolikon.",
+          "preview": "Alfaversion esimerkkitarjouksia. Kaupat vaikuttavat vain paikallisiin kolikoihisi ja hahmoihisi; toiselle pelaajalle ei lähetetä mitään."
+        },
+        "workshop": {
+          "forgeBody": "Tee suosikkihahmoistasi harvinaisempia. Valitse kolme samanlaista kopiota.",
+          "recycleBody": "Laita ylimääräiset figuurit hyötykäyttöön. Sulata kolme kopiota kolikoksi.",
+          "loaded": "{count} / 3 ladattu",
+          "remove": "Poista {name}",
+          "slot": "Tyhjä paikka {number}",
+          "forgeRecipe": "Kolme samanlaista kopiota, yksi harvinaisempi hahmo",
+          "recycleRecipe": "Valitse kolme ylimääräistä hahmoa",
+          "forgeProtection": "Tavallisesta tulee kultainen. Kultaisesta tulee galaksi.",
+          "recycleProtection": "Jokaisen hahmon viimeinen kopio säilytetään aina.",
+          "working": "Työstetään…",
+          "upgrade": "Harvinaisempi laatu",
+          "newCoin": "1 kolikko",
+          "forge": "Tako",
+          "recycle": "Kierrätä",
+          "yourFigures": "Ylimääräiset hahmosi"
+        },
+        "workshopLabel": "Työpaja"
       },
       "trading": {
         "body": "Vaihda hahmoja muiden pelaajien kanssa: tarjoa omaasi, pyydä heidän omaansa, ja molemmat hyväksyvät."
@@ -390,7 +494,7 @@
     "weaponsSheathed": "Aseet kannossa",
     "openAnother": "Avaa toinen",
     "coinsLabel": "Kolikot",
-    "coinsHelp": "Ansaitse pelaamalla. Alussa saat 3 kolikkoa ja yhden lisää 4 tunnin välein. Ei ostoksia.",
+    "coinsHelp": "Alussa saat 3 kolikkoa. Kerää arkusta 1 kolikko 4 tunnin välein sekä päivittäiset putkibonukset. Ei kolikkorajaa eikä ostoksia.",
     "pullToOpenCoin": "Avaa vetämällä teipistä · 1 kolikko",
     "openBoxCoin": "Avaa laatikko · 1 kolikko",
     "noCoins": "Ei kolikoita · Kalasta, lunasta päiväpalkintoja tai suorita tehtäviä."
@@ -440,7 +544,11 @@
     "roles": "Roolit",
     "allRoles": "Kaikki roolit",
     "noRoles": "Ei valittuja rooleja",
-    "role": { "dps": "Vahingontekijä", "healer": "Parantaja", "tank": "Tankki" },
+    "role": {
+      "dps": "Vahingontekijä",
+      "healer": "Parantaja",
+      "tank": "Tankki"
+    },
     "minimumPulls": "Yrityksiä vähintään",
     "atLeastPulls": "Vähintään {count}",
     "updating": "Päivitetään…",
@@ -725,7 +833,10 @@
         "uploading": "Lähetetään ja tarkistetaan…",
         "withdraw": "Peru lähetys",
         "clearSelection": "Tyhjennä valinta",
-        "remove": { "image": "Poista kuva", "audio": "Poista ääni" },
+        "remove": {
+          "image": "Poista kuva",
+          "audio": "Poista ääni"
+        },
         "confirmRemove": {
           "image": "Poistetaanko tämä vaihtoehtoinen kuva kortin kaikista kappaleista? Kortti käyttää tämän jälkeen tavallista hahmokuvaansa.",
           "audio": "Poistetaanko tämä ääni kortin kaikista kappaleista? Kortti ei tämän jälkeen toista lähettämääsi ääntä."
@@ -2225,7 +2336,13 @@
       "pause": "Keskeytä",
       "resume": "Jatka",
       "retryJob": "Yritä ajoa uudelleen",
-      "status": { "pending": "Jonossa", "in_progress": "Käynnissä", "paused": "Keskeytetty", "completed": "Ajo päättynyt", "failed": "Epäonnistunut" }
+      "status": {
+        "pending": "Jonossa",
+        "in_progress": "Käynnissä",
+        "paused": "Keskeytetty",
+        "completed": "Ajo päättynyt",
+        "failed": "Epäonnistunut"
+      }
     },
     "reportOverrides": {
       "title": "Korjaa raportin kilta",
@@ -2343,7 +2460,12 @@
     },
     "characterDataRefresh": {
       "fullTitle": "Koko historian päivitys",
-      "status": { "idle": "Ei käynnissä", "running": "Käynnissä", "completed": "Valmis", "failed": "Epäonnistunut" },
+      "status": {
+        "idle": "Ei käynnissä",
+        "running": "Käynnissä",
+        "completed": "Valmis",
+        "failed": "Epäonnistunut"
+      },
       "incrementalTitle": "Inkrementaalinen hahmodatan päivitys",
       "incrementalDescription": "Ratkaisee uudet historialliset WCL-hahmoidentiteetit, rakentaa osallistumistiedot uudelleen, hakee vain puuttuvat hahmo- ja raid-rankingparit sekä päivittää vain tarvittavien raidien mekaniikka- ja hahmotasolistat. Myös puuttuvat M+-profiilit ja hahmorenderit jonotetaan; CCG-snapshotit tehdään edelleen käsin.",
       "discover": "Etsi puuttuvat rankingparit"

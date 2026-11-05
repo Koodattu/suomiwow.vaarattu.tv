@@ -2,21 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { LuArrowLeftRight, LuChartNoAxesColumnIncreasing, LuChevronLeft, LuChevronUp, LuFerrisWheel, LuFish, LuGift, LuHammer, LuLibrary, LuMail, LuPackageOpen, LuRecycle, LuScrollText, LuSparkles, LuStore, LuTrophy, LuUsers } from "react-icons/lu";
+import { LuArrowLeftRight, LuChartNoAxesColumnIncreasing, LuChevronLeft, LuChevronUp, LuFerrisWheel, LuFish, LuGift, LuHammer, LuLibrary, LuMail, LuBadgePercent, LuPackageOpen, LuRecycle, LuScrollText, LuSparkles, LuStore, LuTrophy, LuUsers } from "react-icons/lu";
 import type { Station, WorldView } from "@/lib/figurine-world";
 import styles from "./overview-hud.module.css";
 
-const LEFT = ["shop", "gallery", "pond", "crate", "wheel", "quests"] as const;
-const RIGHT = ["recycler", "forge", "trading", "mail", "feed", "fame", "leaderboard"] as const;
+const LEFT = ["pond", "crate", "wheel", "quests", "merchant", "recycler", "forge"] as const;
+const RIGHT = ["gallery", "shop", "trading", "mail", "feed", "fame", "leaderboard"] as const;
 const GROUPS = {
   community: ["trading", "mail", "feed", "fame", "leaderboard"],
   play: ["pond", "crate", "wheel", "quests"],
-  collection: ["gallery", "shop"],
+  collection: ["gallery", "shop", "merchant"],
   craft: ["recycler", "forge"],
 } as const;
 type Group = keyof typeof GROUPS;
 const GROUP_ICONS = { community: LuUsers, play: LuFish, collection: LuLibrary, craft: LuHammer };
-const ICONS = { shop: LuStore, gallery: LuLibrary, pond: LuFish, crate: LuGift, wheel: LuFerrisWheel, quests: LuScrollText, recycler: LuRecycle, forge: LuHammer, trading: LuArrowLeftRight, mail: LuMail, feed: LuSparkles, fame: LuTrophy, leaderboard: LuChartNoAxesColumnIncreasing };
+const ICONS = { merchant: LuBadgePercent, shop: LuStore, gallery: LuLibrary, pond: LuFish, crate: LuGift, wheel: LuFerrisWheel, quests: LuScrollText, recycler: LuRecycle, forge: LuHammer, trading: LuArrowLeftRight, mail: LuMail, feed: LuSparkles, fame: LuTrophy, leaderboard: LuChartNoAxesColumnIncreasing };
 
 export default function OverviewHud({ onNavigate, onHover, hovered }: {
   onNavigate: (view: WorldView) => void;

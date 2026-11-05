@@ -1,24 +1,62 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ANGLER_TOP, FISH, QUESTS, WHEEL, anglerScore, boostedQuality, catchScore, claimQuest, dailyCatchesLeft, fishOf, landCatch, moveFavorite, rollCatch, setFavoriteQuality, showcaseOf, toggleFavorite, crateState, dayKey, regenerateCoins, spendCoin, COIN_INTERVAL_MS, RECORDS_KEY, grantReward, openCrate, parseRecords, questBoard, readRecords, recordPull, spinWheel, startQuestPeriods, weekKey, wheelSegment } from "../src/lib/figurine-collection.ts";
+import { ANGLER_TOP, FISH, QUESTS, WHEEL, anglerScore, boostedQuality, catchScore, claimQuest, dailyCatchesLeft, fishOf, landCatch, moveFavorite, rollCatch, setFavoriteQuality, showcaseOf, toggleFavorite, crateState, dayKey, initializeCoins, spendCoin, COIN_INTERVAL_MS, RECORDS_KEY, grantReward, openCrate, parseRecords, questBoard, readRecords, recordPull, spinWheel, startQuestPeriods, weekKey, wheelSegment } from "../src/lib/figurine-collection.ts";
 
 const store = () => { const data = new Map(); return { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 const day = (date, hour = 12) => new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
 
-test("the daily crate opens once a day, builds a streak to seven with a golden boost, and restarts", () => {
+test("the chest grants a daily streak coin and five more on every seventh consecutive day", () => {
   const memory = store();
-  for (let n = 1; n <= 7; n++) {
-    const now = day(`2026-11-${String(n).padStart(2, "0")}`);
-    assert.equal(crateState(readRecords(memory), now).day, n);
+  for (let n = 1; n <= 14; n++) {
+    const now = day(`2026-11-${String(n).padStart(2, "0")}`), streakDay = (n - 1) % 7 + 1;
+    assert.equal(crateState(readRecords(memory), now).day, streakDay);
     const { reward } = openCrate(now, memory);
-    assert.deepEqual(reward, n === 7 ? { coins: 1, boost: "golden" } : { coins: 1 });
-    grantReward(reward, memory);
-    assert.equal(openCrate(day(`2026-11-${String(n).padStart(2, "0")}`, 20), memory), null, "twice in a day");
+    assert.deepEqual(reward, { coins: streakDay === 7 ? 7 : 2 });
+    assert.equal(openCrate(now, memory), null, "duplicate claims cannot pay twice");
+    assert.deepEqual(openCrate(new Date(+now + COIN_INTERVAL_MS), memory).reward, { coins: 1 }, "later openings never repeat streak bonuses");
+    assert.equal(crateState(readRecords(memory), new Date(+now + COIN_INTERVAL_MS * 2)).bonusReady, false);
   }
-  assert.deepEqual(readRecords(memory).boons, { coins: 7, boost: "golden" });
-  assert.equal(crateState(readRecords(memory), day("2026-11-08")).day, 1, "after seven it starts over");
-  openCrate(day("2026-11-08"), memory);
-  assert.equal(crateState(readRecords(memory), day("2026-11-10")).day, 1, "a missed day starts over");
+  assert.deepEqual(readRecords(memory).boons, { coins: 52, boost: null });
+  assert.equal(readRecords(memory).stats.crates, 28);
+  assert.equal(crateState(readRecords(memory), day("2026-11-15")).day, 1, "after seven the cycle starts over");
+  assert.equal(openCrate(day("2026-11-16"), memory).day, 1, "a missed day starts over");
+});
+
+test("chests unlock exactly four hours after a claim, persist on reload and do not stack idle rewards", () => {
+  const memory = store(), start = day("2026-11-01");
+  assert.equal(crateState(readRecords(memory), start).ready, true);
+  assert.deepEqual(openCrate(start, memory).reward, { coins: 2 });
+  const reloaded = parseRecords(memory.getItem(RECORDS_KEY));
+  assert.equal(reloaded.boons.coins, 2, "reward is saved with the claim, even if the animation is interrupted");
+  assert.equal(crateState(reloaded, start).remainingMs, COIN_INTERVAL_MS);
+  assert.equal(openCrate(new Date(+start + COIN_INTERVAL_MS - 1), memory), null);
+  assert.equal(crateState(reloaded, new Date(+start + COIN_INTERVAL_MS)).ready, true);
+  assert.deepEqual(openCrate(new Date(+start + COIN_INTERVAL_MS), memory).reward, { coins: 1 });
+  assert.equal(openCrate(start, memory), null, "a backwards clock cannot claim");
+  assert.equal(openCrate(new Date(NaN), memory), null);
+  assert.deepEqual(openCrate(day("2026-11-05"), memory).reward, { coins: 2 }, "idle intervals do not stack");
+  assert.equal(readRecords(memory).daily.streak, 1);
+});
+
+test("midnight does not bypass the cooldown and the next local day's bonus is paid once", () => {
+  const memory = store(), start = day("2026-11-01", 23);
+  openCrate(start, memory);
+  const midnight = day("2026-11-02", 0), waiting = crateState(readRecords(memory), midnight);
+  assert.equal(waiting.ready, false);
+  assert.equal(waiting.bonusReady, true);
+  assert.equal(waiting.day, 2);
+  assert.equal(openCrate(midnight, memory), null);
+  assert.deepEqual(openCrate(new Date(+start + COIN_INTERVAL_MS), memory), { day: 2, reward: { coins: 2 } });
+  assert.deepEqual(openCrate(new Date(+start + COIN_INTERVAL_MS * 2), memory), { day: 2, reward: { coins: 1 } });
+});
+
+test("legacy daily claims preserve their streak and cannot receive today's bonus twice", () => {
+  const memory = store();
+  memory.setItem(RECORDS_KEY, JSON.stringify({ boons: { coins: 1000 }, coinAt: day("2026-11-01").toISOString(), daily: { crate: "2026-11-01", streak: 6 } }));
+  assert.equal(initializeCoins(day("2026-11-02"), memory), 0, "old wallet timestamps prevent another starter grant");
+  assert.deepEqual(openCrate(day("2026-11-01"), memory), { day: 6, reward: { coins: 1 } });
+  assert.deepEqual(openCrate(day("2026-11-02"), memory), { day: 7, reward: { coins: 7 } });
+  assert.equal(readRecords(memory).boons.coins, 1008);
 });
 
 test("the wheel spins once a day and lands by weight on its eight segments", () => {
@@ -111,7 +149,7 @@ test("boosts lift a roll, never lower it; periods use local days and ISO weeks; 
   assert.equal(weekKey(day("2026-11-01")), "2026-W44");
   const parsed = parseRecords(JSON.stringify({ boons: { coins: -2, boost: "standard" }, daily: { crate: "nope", streak: 40 }, stats: { opened: "x", fish: 4 } }));
   assert.deepEqual(parsed.boons, { coins: 0, boost: null });
-  assert.deepEqual(parsed.daily, { crate: null, streak: 7, spin: null, catch: null, caught: 0 });
+  assert.deepEqual(parsed.daily, { crate: null, crateAt: null, streak: 7, spin: null, catch: null, caught: 0 });
   assert.equal(parsed.stats.opened, 0); assert.equal(parsed.stats.fish, 4);
 });
 
@@ -137,19 +175,24 @@ test("a catch scores its rarity, its size for its kind and its finish, and the t
 });
 
 
-test("the session wallet starts with three coins, regenerates every four hours and preserves partial intervals", () => {
+test("the session wallet starts with three coins once and never regenerates outside the chest", () => {
   const memory = store(), start = day("2026-11-03");
-  assert.equal(regenerateCoins(start, memory), 3);
-  assert.equal(regenerateCoins(start, memory), 0, "mounting twice cannot grant twice");
-  assert.equal(regenerateCoins(new Date(+start + COIN_INTERVAL_MS - 1), memory), 0);
-  assert.equal(regenerateCoins(new Date(+start + COIN_INTERVAL_MS), memory), 1);
-  assert.equal(regenerateCoins(new Date(+start + COIN_INTERVAL_MS * 3.5), memory), 2);
-  assert.equal(readRecords(memory).boons.coins, 6);
-  assert.equal(readRecords(memory).coinAt, new Date(+start + COIN_INTERVAL_MS * 3).toISOString());
-  // Reading saved records retains the remaining half interval, with no duplicate reward.
-  assert.equal(parseRecords(memory.getItem(RECORDS_KEY)).boons.coins, 6);
-  assert.equal(regenerateCoins(new Date(+start + COIN_INTERVAL_MS * 4), memory), 1);
-  assert.equal(regenerateCoins(start, memory), 0, "a backwards clock cannot grant coins");
+  assert.equal(initializeCoins(new Date(NaN), memory), 0);
+  assert.equal(initializeCoins(start, memory), 3);
+  assert.equal(initializeCoins(start, memory), 0, "mounting twice cannot grant twice");
+  assert.equal(initializeCoins(new Date(+start + COIN_INTERVAL_MS), memory), 0);
+  assert.equal(initializeCoins(day("2026-12-03"), memory), 0);
+  assert.equal(readRecords(memory).boons.coins, 3);
+  assert.equal(readRecords(memory).coinAt, start.toISOString());
+});
+
+test("large coin balances survive rewards, saving, reloading and spending without a gameplay cap", () => {
+  const memory = store();
+  grantReward({ coins: 1_000_000 }, memory);
+  openCrate(day("2026-11-01"), memory);
+  assert.equal(parseRecords(memory.getItem(RECORDS_KEY)).boons.coins, 1_000_002);
+  assert.equal(spendCoin(memory), true);
+  assert.equal(readRecords(memory).boons.coins, 1_000_001);
 });
 
 test("each box costs one coin; empty wallets cannot spend, boosts are preserved and failures can refund", () => {
@@ -170,6 +213,6 @@ test("old box rewards are discarded and invalid coin values never become spendab
     assert.equal(parseRecords(JSON.stringify({ boons: { coins } })).boons.coins, 0);
   }
   const memory = store(); memory.setItem(RECORDS_KEY, JSON.stringify(legacy));
-  regenerateCoins(day("2026-11-03"), memory);
+  initializeCoins(day("2026-11-03"), memory);
   assert.equal(readRecords(memory).boons.coins, 3);
 });

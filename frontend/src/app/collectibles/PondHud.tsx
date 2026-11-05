@@ -8,6 +8,7 @@ import type { LinePhase, PanelResult } from "./WorldPanels";
 import Portrait from "./Portrait";
 import { OverviewBack } from "./OverviewHud";
 import styles from "./pond-hud.module.css";
+import { onFigurinePointerExit } from "@/lib/figurine-pointer";
 
 // The catch sits in the centre, with linked world objects and controls along the bottom.
 export type PondPart = "rod" | "bobber" | "bucket" | "board";
@@ -23,6 +24,7 @@ export default function PondHud({ records, line, result, busy, hovered, sheet, o
   const quality = useTranslations("figurineLab.quality");
   const [pointed, setPointed] = useState<PondPart | null>(null);
   const [focused, setFocused] = useState<PondPart | null>(null);
+  useEffect(() => onFigurinePointerExit(() => { setPointed(null); setFocused(null); }), []);
   const active = sheet ? null : pointed ?? hovered ?? focused;
   const buttonHover = sheet ? null : pointed ?? (hovered ? null : focused);
   useEffect(() => { onHover(buttonHover); return () => onHover(null); }, [buttonHover, onHover]);

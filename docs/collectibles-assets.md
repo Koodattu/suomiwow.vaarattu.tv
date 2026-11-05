@@ -24,9 +24,8 @@ Prop jobs use `{"kind":"models","search":["fishing"],"limit":200}` to discover
 paths, then `models: [{name, file}]` with returned M2 paths/fileDataIDs to export.
 Results: `worker/data/results/<job-id>/`; inspect `result.json` and `search.json`.
 Animated props use `"animations": true` on a model job. The daily chest is
-`world/skillactivated/containers/treasurechest01.m2` (fileDataID 219372), exported
-as `daily-chest-models-001/treasurechest01.glb`. Keep its skeleton and Open/Opened/Close
-clips through optimization and KTX2 conversion. `figurine-chest.ts` plays Open on
+`7du_challengechestuber01.m2`, exported as `plaza-chest-models-001/chest-uber.glb`.
+Keep its skeleton and Open/Opened/Close clips through optimization and KTX2 conversion. `figurine-chest.ts` plays Open on
 claim, holds the open pose, and plays Close when the next day's crate becomes ready.
 The fishing prize still uses the separate static `chest-02.glb`.
 The daily chest and fishing coin rewards use `spells/treasuregoblin_coinpile.m2`
@@ -38,6 +37,15 @@ development, each page load permits one opening without changing the saved daily
 streak; production retains the daily limit. Opening/lift/reward sounds were generated
 with the playground script and mastered offline; prompts and sources are recorded
 in `frontend/src/data/figurines/chest-audio.json`.
+District props (market, fair, hall, forge and quest models) come from
+`plaza-districts-models-001` to `-004` and `forge-tools-models-002`, recorded under `districts`
+in `source-models.json`. Item weapons (`item/objectcomponents/weapon`) fail in the worker's
+texture export, so tools such as the smith's hammer use world doodads.
+Their optimizer output is capped at 512px, or 256px for props seen only from afar, then
+converted from the original PNGs to embedded ETC1S. To compare candidates, export a batch
+of up to 32 models and render it as a contact sheet before choosing; the models retired on
+2026-11-04 and 2026-11-05 are in `.codex-runtime/retired-models-<date>/` with hashes in
+`manifest.json`.
 Character provenance: `worker/data/series/<batch>/sources/<figure>.json`, selected
 poses in `selection.json`, optimized files in `models/`. Preserve frozen snapshots;
 use catalog `authoringSeries` (per-character override takes precedence).

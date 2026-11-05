@@ -16,7 +16,7 @@ const { coinCollectionFlight } = await import("../src/lib/figurine-coin-flight.t
 const { pickFacilityPart } = await import("../src/lib/figurine-picking.ts");
 
 // Exercise the deployed geometry, skeleton and clips without a browser image decoder.
-const bytes = await fs.readFile(new URL("../public/figurines/world/models/treasurechest01.glb", import.meta.url));
+const bytes = await fs.readFile(new URL("../public/figurines/world/models/chest-uber.glb", import.meta.url));
 const jsonLength = bytes.readUInt32LE(12), doc = JSON.parse(bytes.subarray(20, 20 + jsonLength));
 doc.materials = doc.materials.map(({ name }) => ({ name }));
 delete doc.images; delete doc.textures;
@@ -181,6 +181,7 @@ test("chest taps target the model and the reward follows its lid with ordered, s
   const facility = buildFacility(root, "crate", { placeProp, envMap: new THREE.Texture() });
   await facility.ready;
   facility.setStreak(0, 1);
+  facility.setChestReady(true);
   root.updateMatrixWorld(true);
   const centre = new THREE.Box3().setFromObject(chest).getCenter(new THREE.Vector3());
   const ray = new THREE.Raycaster(centre.clone().add(new THREE.Vector3(0, 0, 20)), new THREE.Vector3(0, 0, -1));
@@ -188,6 +189,7 @@ test("chest taps target the model and the reward follows its lid with ordered, s
   assert.equal(pickFacilityPart(ray, root), "chest");
   const cues = []; let finishes = 0;
   facility.act({ kind: "open" }, cue => cues.push(cue), () => finishes++);
+  facility.setChestReady(false);
   await new Promise(setImmediate);
   assert.deepEqual(cues, ["chestOpen"]);
   facility.update(0.2, 0.2);
@@ -197,7 +199,18 @@ test("chest taps target the model and the reward follows its lid with ordered, s
   assert.equal(finishes, 1);
   assert.ok(root.getObjectByName("chest-reward").visible);
   facility.update(20, 23); assert.equal(finishes, 1);
+  facility.setStreak(1, null);
+  assert.equal(root.getObjectByName("chest-reward").visible, true, "claiming the daily bonus leaves the reward visible");
   facility.setStreak(1, 2);
-  assert.equal(root.getObjectByName("chest-reward").visible, false, "next day waits for the chest to open");
+  assert.equal(root.getObjectByName("chest-reward").visible, true, "midnight cannot reset the chest during its cooldown");
+  facility.setStreak(1, null);
+  facility.setChestReady(true);
+  assert.equal(root.getObjectByName("chest-reward").visible, false, "restocking resets the chest even after today's bonus was claimed");
+  facility.act({ kind: "open" }, cue => cues.push(cue), () => finishes++);
+  facility.setChestReady(false);
+  await new Promise(setImmediate);
+  for (let frame = 0; frame < 40; frame++) facility.update(0.05, 24 + frame * 0.05);
+  assert.equal(finishes, 2, "another opening on the same day completes once");
+  assert.deepEqual(cues.slice(3), ["chestOpen", "chestLift", "chestReward"]);
   facility.dispose();
 });

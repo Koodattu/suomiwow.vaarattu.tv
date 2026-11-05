@@ -47,7 +47,7 @@ test("each box rolls 1% galaxy, 10% golden and 89% standard", () => {
   for (const bad of [-0.1, 1, Number.NaN]) assert.throws(() => rollQuality(bad));
 });
 
-test("the recycler turns three spare copies into a box and never takes a last copy", () => {
+test("the recycler smelts three spare copies into a coin and never takes a last copy", () => {
   const collection = parseCollection(JSON.stringify({ "s1:a": { standard: 4 }, "s1:b": { standard: 1, golden: 1 }, "s2:c": { standard: 2 }, "s2:d": { galaxy: 3 }, "s1:e": { standard: 1 } }));
   // The board lists every quality of each figure owned more than once, in catalog order.
   assert.deepEqual(trayGroups(collection, ["s1:a", "s1:b", "s2:c", "s2:d", "s1:e"]).map(({ key, quality, count }) => `${key}/${quality}/${count}`), ["s1:a/standard/4", "s1:b/standard/1", "s1:b/golden/1", "s2:c/standard/2", "s2:d/galaxy/3"]);
@@ -55,12 +55,12 @@ test("the recycler turns three spare copies into a box and never takes a last co
   assert.deepEqual(machineOutcome("recycler", [{ key: "s1:a", quality: "standard" }], collection), { kind: "incomplete" });
   // Three of a kind are just three copies here: it never trades up.
   const three = Array.from({ length: 3 }, () => ({ key: "s1:a", quality: "standard" }));
-  assert.deepEqual(machineOutcome("recycler", three, collection), { kind: "box", series: "s1" });
+  assert.deepEqual(machineOutcome("recycler", three, collection), { kind: "coin" });
   assert.deepEqual(machineOutcome("recycler", Array.from({ length: 3 }, () => ({ key: "s2:d", quality: "galaxy" })), collection), { kind: "keep", key: "s2:d" });
-  // Mixed copies make a box of the series most of them came from.
+  // Mixed copies, from any series, make a coin too.
   const mixed = [{ key: "s2:c", quality: "standard" }, { key: "s1:a", quality: "standard" }, { key: "s1:a", quality: "standard" }];
-  assert.deepEqual(machineOutcome("recycler", mixed, collection), { kind: "box", series: "s1" });
-  assert.deepEqual(machineChanges(mixed, { kind: "box", series: "s1" }), mixed.map(({ key, quality }) => ({ key, quality, delta: -1 })));
+  assert.deepEqual(machineOutcome("recycler", mixed, collection), { kind: "coin" });
+  assert.deepEqual(machineChanges(mixed, { kind: "coin" }), mixed.map(({ key, quality }) => ({ key, quality, delta: -1 })));
   // Both of s1:b's copies would leave none.
   assert.deepEqual(machineOutcome("recycler", [{ key: "s1:b", quality: "standard" }, { key: "s1:b", quality: "golden" }, { key: "s1:a", quality: "standard" }], collection), { kind: "keep", key: "s1:b" });
   assert.deepEqual(machineChanges(three, { kind: "keep", key: "s1:a" }), []);
@@ -118,11 +118,11 @@ test("both series have unique figures, translations, silhouettes and class sound
     await access(new URL(`../public/figurines/${catalog.id}/silhouettes.png`, import.meta.url));
     for (const { classKey } of catalog.characters) for (const variant of ["a", "b"]) await access(new URL(`../public/figurines/audio/class-${classKey}-${variant}.mp3`, import.meta.url));
   }
-  for (const file of ["floor-cobble.png", "grass.png", "dirt.png", "clouds.jpg", "source.json", "source-models.json"]) await access(new URL(`../public/figurines/world/${file}`, import.meta.url));
+  for (const file of ["floor-cobble.png", "floor-market.png", "floor-fair.png", "floor-honours.png", "floor-yard.png", "grass.png", "dirt.png", "clouds.jpg", "source.json", "source-models.json"]) await access(new URL(`../public/figurines/world/${file}`, import.meta.url));
   // Every station prop is on disk and has its game source recorded.
   const props = await readFile(new URL("../src/lib/figurine-props.ts", import.meta.url), "utf8");
   const sources = JSON.parse(await readFile(new URL("../public/figurines/world/source-models.json", import.meta.url), "utf8"));
-  const recorded = new Set([...sources.models.models, ...sources.stations.models, ...sources.facilities.models, ...sources.dailyChest.models, ...sources.coins.models].map(({ name }) => name));
+  const recorded = new Set([...sources.models.models, ...sources.stations.models, ...sources.facilities.models, ...sources.dailyChest.models, ...sources.coins.models, ...sources.districts.models].map(({ name }) => name));
   for (const [, name] of props.matchAll(/"\/figurines\/world\/models\/([a-z0-9-]+)\.glb"/g)) {
     await access(new URL(`../public/figurines/world/models/${name}.glb`, import.meta.url));
     assert.ok(recorded.has(name), name);

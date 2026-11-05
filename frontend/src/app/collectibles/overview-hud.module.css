@@ -1,7 +1,7 @@
 .bar { position: absolute; z-index: 4; left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: minmax(0, 1fr) 132px minmax(0, 1fr); align-items: center; gap: 10px; }
 .fade { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; height: max(180px, calc(env(safe-area-inset-bottom) + 160px)); background: linear-gradient(transparent, rgba(6, 12, 18, .8)); pointer-events: none; }
-.wing { display: flex; gap: 6px; min-width: 0; overflow-x: auto; padding: 5px 0; scrollbar-width: thin; scrollbar-color: #c9ad7055 transparent; }
-.wing:first-child { justify-content: safe flex-end; }
+.wing { display: grid; grid-template-columns: repeat(7, minmax(0, 76px)); gap: 6px; min-width: 0; padding: 5px 0; }
+.wing:first-child { justify-content: end; }
 .group { display: none; position: relative; min-width: 0; }
 .facility, .groupToggle, .opening, .back { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #f3e4c7; transition: filter .15s, background .15s, border-color .15s; }
 .groupToggle { position: relative; width: 100%; flex-direction: column; gap: 6px; min-height: 68px; padding: 10px 2px; border: 1px solid #f0d9a859; border-radius: 16px; background: #0a101ac7; backdrop-filter: blur(6px); font: 500 12px/1.2 system-ui, sans-serif; }
