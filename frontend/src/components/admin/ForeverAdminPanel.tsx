@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNow, useTranslations } from "next-intl";
-import { foreverApi, formatForeverDate, type ForeverAdminData, type ForeverGuild } from "@/lib/forever-api";
+import { foreverApi, foreverCharacterPath, formatForeverDate, type ForeverAdminData, type ForeverGuild } from "@/lib/forever-api";
 import { buttonClass, CharacterForm, classColor, controlClass, ForeverDate, ForeverErrorMessage, ForeverUpdated, Portrait, StreamerLink, TwitchEditor, WorkerStatus } from "@/components/forever/ForeverShared";
 import styles from "@/components/forever/forever.module.css";
 
@@ -102,7 +102,7 @@ export default function ForeverAdminPanel() {
         </tr></thead><tbody>{data?.characters.map((character) => <tr key={character._id} data-selected={selected.includes(character._id)}>
           <td><input type="checkbox" aria-label={t("admin.selectCharacter", { name: character.name || character.slug })} disabled={busy} checked={selected.includes(character._id)} onChange={(event) => setSelected(event.target.checked ? [...selected, character._id] : selected.filter((id) => id !== character._id))} /></td>
           <td><div className={styles.identity}><Portrait character={character} /><div>
-            {character.status === "tracked" ? <Link className={styles.name} style={{ color: classColor(character.className) }} href={`/forever/characters/${character._id}`}>{character.name || character.slug}</Link> : <span className={styles.name} style={{ color: classColor(character.className) }}>{character.name || character.slug}</span>}
+            {character.status === "tracked" ? <Link className={styles.name} style={{ color: classColor(character.className) }} href={foreverCharacterPath(character)}>{character.name || character.slug}</Link> : <span className={styles.name} style={{ color: classColor(character.className) }}>{character.name || character.slug}</span>}
             <span className={styles.raceClass}>{[character.level, character.race, character.className].filter(Boolean).join(" · ")}</span>
             <a className={styles.adminLink} target="_blank" rel="noreferrer" href={`https://worldofwarcraft.blizzard.com/en-gb/forever/${character.region}/armory/character/${encodeURIComponent(character.slug)}`}>{t("openArmory")}</a>
           </div></div><StreamerLink character={character} /><TwitchEditor key={`${character._id}-${character.twitchChannel || ""}`} character={character} onSaved={refresh} /></td>

@@ -260,6 +260,39 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       const names = (await mongoose.connection.db!.listCollections().toArray()).map((entry) => entry.name);
       assert.ok(names.length >= 4); assert.ok(names.every((name) => name.startsWith("forever_")));
     });
+    await t.test("guild filtering combines with grouped Skyborne races without changing stored Armory identities", async () => {
+      const base = { region: "eu", source: "admin", status: "tracked", level: 22, guild: { region: "eu", slug: "sky-guild", name: "Sky Guild" } };
+      await ForeverCharacter.insertMany([
+        { ...base, slug: "sky-wind", race: "Windshaper Skyborne", className: "Warrior" },
+        { ...base, slug: "sky-order", race: "High Order Skyborne", className: "Mage" },
+        { ...base, slug: "sky-other", race: "Human", guild: { region: "eu", slug: "other-guild", name: "Other Guild" } },
+        { ...base, slug: "sky-private", status: "pending", guild: { region: "eu", slug: "private-guild", name: "Private Guild" } },
+        { ...base, slug: "sky-us", region: "us", guild: { region: "us", slug: "us-guild", name: "US Guild" } },
+      ]);
+      const board = await service.leaderboard({ guild: "Sky Guild", race: "Skyborne" });
+      assert.equal(board.total, 2); assert.ok(board.filterOptions.race.includes("Skyborne"));
+      assert.ok(!board.filterOptions.race.includes("Windshaper Skyborne"));
+      assert.ok(board.filterOptions.guild.includes("Other Guild"));
+      assert.ok(!board.filterOptions.guild.includes("Private Guild")); assert.ok(!board.filterOptions.guild.includes("US Guild"));
+      assert.equal((await service.leaderboard({ guild: "Sky Guild", race: "Skyborne", className: "Warrior" })).total, 1);
+      assert.equal((await ForeverCharacter.findOne({ slug: "sky-wind" }).lean())?.race, "Windshaper Skyborne");
+      await assert.rejects(service.leaderboard({ guild: { $ne: "" } }), /invalid_input/);
+      await ForeverCharacter.deleteMany({ slug: /^sky-/ });
+    });
+    await t.test("readable Unicode character names resolve only tracked EU profiles while old IDs still work", async () => {
+      const records = await ForeverCharacter.insertMany([
+        { region: "eu", slug: "väinö-korpi", name: "Väinö Korpi", source: "admin", status: "tracked", level: 15 },
+        { region: "us", slug: "väinö-korpi", name: "Väinö Korpi", source: "admin", status: "tracked", level: 40 },
+        { region: "eu", slug: "private-name", source: "proposal", status: "pending" },
+      ]);
+      assert.equal((await service.characterDetail("Väinö-Korpi")).level, 15);
+      assert.equal((await service.characterDetail(String(records[0]._id))).slug, "väinö-korpi");
+      assert.equal((await service.characterDetail(String(records[1]._id))).level, 40);
+      await assert.rejects(service.characterDetail("private-name"), /not_found/);
+      await assert.rejects(service.characterDetail("bad/name"), /not_found/);
+      await assert.rejects(service.characterDetail({ $ne: "" }), /not_found/);
+      await ForeverCharacter.deleteMany({ _id: { $in: records.map((record) => record._id) } });
+    });
     await t.test("admin search and health filters apply before pagination and escape literal search text", async () => {
       const base = { region: "eu", source: "admin", status: "tracked", errorCode: "upstream_error", guild: { region: "eu", slug: "fel", name: "Fel" } };
       await ForeverCharacter.insertMany(Array.from({ length: 51 }, (_, i) => ({ ...base, slug: `admin-search-${i}`, name: `Search [${i}]` })));
