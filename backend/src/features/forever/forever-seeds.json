@@ -80,6 +80,10 @@
     "region": "eu"
   },
   {
+    "name": "Hot Ted",
+    "region": "eu"
+  },
+  {
     "name": "Huutokauppa Keisari",
     "region": "eu"
   },
@@ -101,6 +105,10 @@
     "name": "Juoppojen Morsijan",
     "region": "eu",
     "twitchChannel": "milktrain"
+  },
+  {
+    "name": "Kaania Kuukkeli",
+    "region": "eu"
   },
   {
     "name": "Katti Mau",
@@ -224,6 +232,10 @@
     "region": "eu"
   },
   {
+    "name": "Sir Salomaa",
+    "region": "eu"
+  },
+  {
     "name": "Sota Kukko",
     "region": "eu",
     "twitchChannel": "parrupelaa"
@@ -256,6 +268,10 @@
   },
   {
     "name": "Tom Eestikeel",
+    "region": "eu"
+  },
+  {
+    "name": "Toveri Kissa",
     "region": "eu"
   },
   {
@@ -299,6 +315,10 @@
     "name": "Womber Moonfang",
     "region": "eu",
     "twitchChannel": "womberor"
+  },
+  {
+    "name": "Yara Walking",
+    "region": "eu"
   },
   {
     "name": "Yks Tykki",
