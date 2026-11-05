@@ -1,6 +1,28 @@
 import { ArmoryError } from "./forever-armory";
 
 export const MINUTE = 60_000;
+interface ArmoryQueueHealth {
+  failedJobs?: string[];
+  failureWindowStartedAt?: Date | null;
+}
+
+// Isolated launch failures must not stop unrelated profiles. Require ten distinct
+// failed jobs without a healthy response within five minutes before pausing.
+export function armoryQueueHealth(previous: ArmoryQueueHealth, job: string, error?: ArmoryError, now = Date.now()) {
+  const healthy = { failedJobs: [] as string[], failureWindowStartedAt: null, pauseMs: 0 };
+  if (!error) return healthy;
+  if (error.retryAfterMs > 0 || [429, 401, 403].includes(error.status)) {
+    return { ...healthy, pauseMs: Math.max(2 * MINUTE, error.retryAfterMs) };
+  }
+  // Missing, stale or mismatched individual profiles are not evidence of an outage.
+  if (error.status === 404 || ["stale_data", "identity_mismatch"].includes(error.code)) return healthy;
+  const startedAt = previous.failureWindowStartedAt?.getTime();
+  const inWindow = startedAt != null && now - startedAt < 5 * MINUTE;
+  const failedJobs = [...new Set([...(inWindow ? previous.failedJobs ?? [] : []), job])];
+  if (failedJobs.length >= 10) return { ...healthy, pauseMs: 2 * MINUTE };
+  return { failedJobs, failureWindowStartedAt: inWindow ? previous.failureWindowStartedAt! : new Date(now), pauseMs: 0 };
+}
+
 export function failureDelay(failures: number, error: ArmoryError, jitter = Math.random()): number {
   const base = error.status === 404 ? 15 * MINUTE : 2 * MINUTE;
   return Math.max(error.retryAfterMs, Math.min(24 * 60 * MINUTE, base * 2 ** Math.min(failures, 10)) * (1 + jitter * 0.2));

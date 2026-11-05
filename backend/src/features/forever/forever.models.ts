@@ -32,6 +32,7 @@ guildSchema.index({ status: 1, nextFetchAt: 1 });
 const workerSchema = new Schema({
   _id: { type: String, default: "armory" }, leaseToken: String, leaseUntil: Date,
   nextRequestAt: { type: Date, default: Date.now }, lastTickAt: Date, lastSuccessAt: Date, errorCode: String,
+  failedJobs: { type: [String], default: [] }, failureWindowStartedAt: Date,
 }, { collection: "forever_worker" });
 const limitSchema = new Schema({ _id: String, count: { type: Number, default: 0 }, expiresAt: Date }, { collection: "forever_request_limits" });
 limitSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

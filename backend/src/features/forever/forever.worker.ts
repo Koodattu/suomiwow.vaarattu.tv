@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import logger from "../../utils/logger";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "./forever.models";
 import { ArmoryError, fetchForeverCharacter, fetchForeverRoster, ForeverIdentity, ForeverMember, ForeverProfile } from "./forever-armory";
-import { failureDelay, MINUTE, refreshDelay, validateProgress } from "./forever-policy";
+import { armoryQueueHealth, failureDelay, MINUTE, refreshDelay, validateProgress } from "./forever-policy";
 
 const SPACING_MS = 500;
 const IDLE_MS = 5_000;
@@ -77,9 +77,8 @@ export class ForeverRunner {
       } catch (error) { failure = error instanceof ArmoryError ? error : new ArmoryError("unavailable"); }
       const completedAt = new Date();
       const delay = failure ? failureDelay(job.failures, failure) : 0;
-      // Global pause for outages, rate limits, auth failures, and changed source contracts.
-      // A missing individual profile is retried on its own schedule.
-      if (failure && failure.status !== 404) nextRequestAt = new Date(completedAt.getTime() + delay);
+      const health = armoryQueueHealth(lease, `${useGuild ? "guild" : "character"}:${job._id}`, failure, completedAt.getTime());
+      if (health.pauseMs) nextRequestAt = new Date(completedAt.getTime() + health.pauseMs);
 
       await mongoose.connection.transaction(async (session) => {
         await fence(token, session);
@@ -123,9 +122,13 @@ export class ForeverRunner {
             }
           }
         }
-        await ForeverWorker.updateOne({ _id: "armory", leaseToken: token }, failure
-          ? { $set: { errorCode: failure.code, nextRequestAt } }
-          : { $set: { lastSuccessAt: completedAt, nextRequestAt }, $unset: { errorCode: 1 } }, { session });
+        await ForeverWorker.updateOne({ _id: "armory", leaseToken: token }, {
+          $set: { nextRequestAt, failedJobs: health.failedJobs, failureWindowStartedAt: health.failureWindowStartedAt,
+            ...(!failure ? { lastSuccessAt: completedAt } : {}),
+            ...(health.pauseMs ? { errorCode: failure!.code } : {}),
+          },
+          ...(!health.pauseMs ? { $unset: { errorCode: 1 } } : {}),
+        }, { session });
       });
     } finally {
       await ForeverWorker.updateOne({ _id: "armory", leaseToken: token }, {
