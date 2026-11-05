@@ -235,3 +235,12 @@ Otherwise its durable priority request runs before ordinary characters and guild
 It bypasses per-character cooldowns, retains global Blizzard cooldowns, and consumes
 the priority after one attempt (including an upstream error). Public refreshes and
 bulk queue retries keep their existing limits.
+
+## Leaderboard population statistics
+
+The compact summary above the table shows faction and ruleset counts and shares,
+average observed level, and characters at level 60. Aggregation uses the same
+EU/tracked/fetched population and every active table filter, before pagination.
+Missing faction or ruleset values remain an explicit unknown group; unfetched,
+paused, rejected, pending-approval and US characters do not enter the denominator.
+An empty selection returns no average, rather than a misleading level zero.

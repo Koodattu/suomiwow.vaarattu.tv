@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { foreverApi, foreverRace, ForeverBoard } from "@/lib/forever-api";
 import { CharacterDetailsLoader } from "@/components/forever/ForeverCharacterDetails";
+import ForeverPopulation from "@/components/forever/ForeverPopulation";
 import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink, UpdateStatus } from "@/components/forever/ForeverShared";
 import styles from "@/components/forever/forever.module.css";
 
@@ -36,6 +37,7 @@ export default function ForeverLeveling() {
       </div>
       <CharacterForm compact />
     </header>
+    <ForeverPopulation statistics={data?.statistics} total={data?.total || 0} filtered={Object.values(filters).some(Boolean)} loading={board.isPending} />
     <section className={styles.board} aria-label={t("title")} aria-busy={board.isPending}>
       <div className={styles.toolbar}>
         <div className={styles.filters}>
