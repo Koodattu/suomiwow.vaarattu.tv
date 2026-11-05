@@ -179,8 +179,8 @@ previous observations; LIVE expires after five minutes. The Twitch worker also
 starts automatically. No Twitch credentials means plain channel links.
 The batch size fits the [Twitch Streams endpoint's default page size](https://dev.twitch.tv/docs/api/reference/#get-streams).
 
-`backend/src/features/forever/forever-seeds.json` contains 96 unique EU characters:
-50 friends and 47 streamer characters, with Wiba Wiba merged. The friend list is
+`backend/src/features/forever/forever-seeds.json` contains 99 unique EU characters:
+50 friends and 50 streamer characters, with Wiba Wiba merged. The friend list is
 the union of all supplied snapshots; no earlier entries are removed.
 The latest snapshot adds Galardodric Felrain, Jannun Mutsi, Jonio Pyhäshokki,
 Kick Kare, Morini Ikuisesti, Nasty Sock, Peikonkorvat Nokkavuotaa, Roo Perro,
@@ -191,6 +191,9 @@ user-confirmed Kiuza Tiäksää and Zaikow Reborn spellings. The resolved Edd Sh
 Haiga Prongs remains a tentative spelling (Armory returned HTTP 500 during verification).
 Warlockdrake is excluded as Retail; Tools Maldik remains unconfirmed. Names from the 2026-11-05 stream captures
 are not Armory-verified; the normal queue validates them before public listing.
+Tashi Washi (sekasingaming), Lancer Deadheart (rpsjesse) and Vaarattu Tv (vaarattu)
+are included. Pujo and taxfree_ lack readable full names; Loremaani was playing
+Retail, so these three associations remain excluded.
 EU is the initial region assumption for this Finnish community list.
 
 From `backend`, after `npm run build`:

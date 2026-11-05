@@ -205,6 +205,11 @@
     "twitchChannel": "yawnywolf"
   },
   {
+    "name": "Lancer Deadheart",
+    "region": "eu",
+    "twitchChannel": "rpsjesse"
+  },
+  {
     "name": "Loonie Tunes",
     "region": "eu"
   },
@@ -326,6 +331,11 @@
     "region": "eu"
   },
   {
+    "name": "Tashi Washi",
+    "region": "eu",
+    "twitchChannel": "sekasingaming"
+  },
+  {
     "name": "Tasse Kettu",
     "region": "eu",
     "twitchChannel": "tasse__"
@@ -359,6 +369,11 @@
     "name": "Tuhnu Tuire",
     "region": "eu",
     "twitchChannel": "tuhnutuire"
+  },
+  {
+    "name": "Vaarattu Tv",
+    "region": "eu",
+    "twitchChannel": "vaarattu"
   },
   {
     "name": "Vaivaava Noita",
