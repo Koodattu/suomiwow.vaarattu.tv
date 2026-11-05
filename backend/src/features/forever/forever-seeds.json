@@ -1,5 +1,9 @@
 [
   {
+    "name": "Aarneth Rautakoura",
+    "region": "eu"
+  },
+  {
     "name": "Absolute Halloww",
     "region": "eu"
   },
@@ -7,6 +11,11 @@
     "name": "Air Fryeri",
     "region": "eu",
     "twitchChannel": "skiprec"
+  },
+  {
+    "name": "Anna Wa",
+    "region": "eu",
+    "twitchChannel": "kirdez"
   },
   {
     "name": "Ari Stoo",
@@ -231,6 +240,11 @@
     "region": "eu"
   },
   {
+    "name": "Makko Ftw",
+    "region": "eu",
+    "twitchChannel": "makkoftw"
+  },
+  {
     "name": "Mansikan Pappi",
     "region": "eu",
     "twitchChannel": "aitomansikka"
@@ -332,6 +346,11 @@
     "twitchChannel": "salamimeister"
   },
   {
+    "name": "Riski Pelle",
+    "region": "eu",
+    "twitchChannel": "realriski"
+  },
+  {
     "name": "Roo Perro",
     "region": "eu"
   },
@@ -339,6 +358,11 @@
     "name": "Rotta Bob",
     "region": "eu",
     "twitchChannel": "doqq_"
+  },
+  {
+    "name": "Routa Lokki",
+    "region": "eu",
+    "twitchChannel": "corottplus"
   },
   {
     "name": "Saint Whiskey",
@@ -359,7 +383,15 @@
     "twitchChannel": "parrupelaa"
   },
   {
+    "name": "Spagetti Harri",
+    "region": "eu"
+  },
+  {
     "name": "Super Arde",
+    "region": "eu"
+  },
+  {
+    "name": "Synergos Vaelthorn",
     "region": "eu"
   },
   {
