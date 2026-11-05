@@ -91,26 +91,6 @@
 .form .input { width: 100%; min-width: 0; flex: 1 1 160px; }
 .form .button { flex: 1 1 auto; }
 .formSuccess { color: #a9cda0; font-size: 12px; line-height: 1.5; margin-top: 10px; }
-.notice { padding: 10px 16px; color: #d7bb85; border-bottom: 1px solid #675630; font-size: 12px; background: #6a4e191a; }
-.profileGrid { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 24px; align-items: start; }
-.profileCard { padding: 24px; border: 1px solid #64563c; background: radial-gradient(ellipse at 50% 0%, #64553740, transparent 70%), #1a1e17; border-radius: 3px; }
-.profileIdentity { display: flex; gap: 18px; align-items: center; }
-.profileIdentity .portrait { width: 72px; height: 72px; }
-.profileIdentity h1 { font-family: Georgia, serif; font-size: 25px; overflow-wrap: anywhere; line-height: 1.2; }
-.profileIdentity .raceClass { font-size: 12px; margin-top: 7px; }
-.profileLevel { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 24px 0 18px; border-block: 1px solid #aa915b35; padding: 16px 0; }
-.profileLevel .level { font-size: 38px; }
-.profileActions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
-.profileFacts { font-size: 11px; display: grid; gap: 12px; margin-top: 24px; }
-.profileFacts div { display: flex; justify-content: space-between; gap: 12px; }
-.profileFacts dt { color: #aaa58f; }
-.profileFacts dd { text-align: right; color: #d4cdbb; }
-.sectionHeading { font-family: Georgia, serif; font-size: 20px; padding: 16px 20px; border-bottom: 1px solid #4c4435; color: #e9d5a5; }
-.historyList { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0; padding: 8px 20px 20px; }
-.historyList li { display: flex; gap: 12px; align-items: center; padding: 16px 8px 16px 0; border-bottom: 1px solid #ffffff0a; }
-.historyLevel { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #77613f; border-radius: 50%; color: #e9cb89; font: 20px Georgia, serif; }
-.historyList p { font-size: 11px; color: #b3ae9f; }
-.historyList strong { font-size: 12px; color: #ded5bf; display: block; margin-bottom: 4px; }
 .hubLink { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px; border: 1px solid #6b5939; border-radius: 3px; background: linear-gradient(110deg, #363222, #1d2d20); max-width: 650px; text-decoration: none; }
 .hubLink:hover { border-color: #c5a56a; background: linear-gradient(110deg, #423b28, #233825); }
 .hubLink h2 { font: 28px Georgia, serif; color: #ecd8aa; }
@@ -132,11 +112,6 @@
   .formFields { flex-wrap: nowrap; }
   .form .button { flex: 0 0 auto; }
   .form .input { flex: 1 1 auto; }
-  .profileGrid { grid-template-columns: 1fr; gap: 16px; }
-  .profileCard { padding: 20px; }
-  .profileFacts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .profileFacts div { display: block; }
-  .profileFacts dd { text-align: left; margin-top: 4px; }
   .adminTop { grid-template-columns: 1fr; gap: 12px; }
 }
 @media (max-width: 540px) {
@@ -163,9 +138,6 @@
   .level { font-size: 25px; }
   .boardFoot { font-size: 10px; padding: 10px 12px; }
   .form .button { font-size: 11px; padding-inline: 8px; }
-  .profileFacts { grid-template-columns: 1fr; }
-  .profileFacts div { display: flex; }
-  .profileFacts dd { margin: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .button { transition: none; } }
 
@@ -186,6 +158,86 @@
 .table .faction { margin: 0; font-size: 11px; white-space: nowrap; }
 .streamCell { min-width: 135px; }
 .streamCell .streamer { font-size: 11px; }
+.characterToggle { width: 100%; cursor: pointer; text-align: left; color: inherit; }
+.expandChevron { color: #b9a778; font-size: 18px; margin-left: auto; padding-left: 4px; }
+.expandableRow { cursor: pointer; }
+.table .expandableRow[data-expanded="true"] { background: #b5954614; box-shadow: inset 3px 0 #bba06b; }
+.table .expandedRow > td { padding: 0; background: #131a14; border-bottom: 1px solid #75623e; }
+.expandedPanel { position: relative; background: radial-gradient(ellipse at 0 0, #34433340, transparent 70%); }
+.detailClose { position: absolute; top: 12px; right: 20px; z-index: 1; min-height: 28px; padding: 3px 9px; font-size: 10px; }
+.characterDetails { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 28px; padding: 22px 24px; }
+.progressChart { min-width: 0; }
+.chartHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.chartHeading h3 { font: 20px Georgia, serif; color: #e9d7a9; margin: 0; }
+.chartHeading > span { color: #a7ad9b; font-size: 11px; white-space: nowrap; }
+.progressChart svg { display: block; overflow: visible; touch-action: pan-y; }
+.chartGrid { stroke: #afc2a61c; stroke-dasharray: 3 5; }
+.chartTarget { stroke: #d6b46b66; stroke-dasharray: 4 5; }
+.chartTargetLabel { fill: #e3c782; font-size: 11px; }
+.chartAxis { fill: #9eaa96; font-size: 10px; font-variant-numeric: tabular-nums; }
+.chartCursor { stroke: #d8bd7938; stroke-dasharray: 3 4; }
+.chartObservation { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-block: 1px solid #b6a46f20; padding: 10px 0; margin-top: 4px; font-size: 12px; }
+.chartObservation strong { color: #f0d89b; white-space: nowrap; }
+.chartObservation time { color: #b5bdac; font-size: 11px; white-space: nowrap; }
+.observationControl { margin-left: auto; display: flex; align-items: center; gap: 10px; color: #a8ad9e; font-size: 10px; }
+.observationControl input { accent-color: #d2b06a; width: 120px; min-width: 60px; height: 22px; cursor: pointer; }
+.chartNote { color: #a8ad9e; font-size: 11px; line-height: 1.5; margin: 9px 0 0; }
+.chartEmpty { display: grid; place-items: center; min-height: 200px; border-block: 1px dashed #6c77583b; color: #a8ad9e; font-size: 13px; }
+.observationTable { margin-top: 10px; color: #bcb39b; font-size: 11px; }
+.observationTable summary { cursor: pointer; width: fit-content; padding-block: 4px; }
+.observationTable > div { max-height: 160px; overflow-y: auto; margin-top: 8px; }
+.observationTable table { width: 100%; text-align: left; }
+.observationTable th, .observationTable td { padding: 6px 10px; font-size: 11px; border-bottom: 1px solid #ffffff0a; }
+.progressAside { padding-left: 24px; border-left: 1px solid #b6a46f25; min-width: 0; }
+.expandedPanel .progressAside { padding-top: 28px; }
+.progressStats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.progressStats strong { display: block; color: #edd09a; font: 32px Georgia, serif; font-variant-numeric: tabular-nums; }
+.progressStats span { display: block; font-size: 10px; line-height: 1.45; color: #b2b4a5; margin-top: 5px; }
+.progressFacts { display: grid; gap: 12px; margin-top: 22px; font-size: 11px; }
+.progressFacts dt { color: #929d88; font-size: 10px; margin-bottom: 4px; }
+.progressFacts dd { color: #cbd0bf; margin: 0; }
+.progressActions { display: flex; align-items: start; flex-direction: column; gap: 10px; margin-top: 22px; }
+.progressActions .button { font-size: 11px; }
+.detailLink { color: #c4b58d; font-size: 11px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.detailLink:disabled { opacity: .5; cursor: default; }
+.detailsLoading { min-height: 230px; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; padding: 30px; color: #bcb39c; }
+.progressDialog { position: relative; z-index: 80; color: #eee9dc; }
+.progressDialog :is(a, button, input, summary):focus-visible { outline: 2px solid #efd58d; outline-offset: 3px; }
+.progressBackdrop { position: fixed; inset: 0; background: #030805d9; backdrop-filter: blur(4px); }
+.progressDialogPosition { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.progressDialogPanel { width: 100%; max-width: 920px; max-height: calc(100dvh - 32px); overflow-y: auto; border: 1px solid #8d7545; border-radius: 5px; background: radial-gradient(ellipse at 0 0, #30432d40, transparent 65%), #141b15; box-shadow: 0 24px 100px #000b; }
+.progressDialogHeading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 20px; border-bottom: 1px solid #a0894d33; }
+.progressDialogHeading h2 { font: 20px Georgia, serif; overflow-wrap: anywhere; }
+.progressDialogHeading > button { flex-shrink: 0; }
+.characterShell { max-width: 1200px; }
+.backToBoard { display: inline-flex; gap: 8px; align-items: center; min-height: 40px; margin-bottom: 16px; color: #d5c394; font-size: 14px; text-decoration: none; }
+.backToBoard:hover { text-decoration: underline; }
+.characterHeader { display: flex; align-items: center; flex-wrap: wrap; gap: 20px 28px; margin-bottom: 20px; }
+.characterHeader .portrait { width: 56px; height: 56px; }
+.characterHeader h1 { font: 28px Georgia, serif; overflow-wrap: anywhere; }
+.characterHeader > .level { margin-left: auto; font-size: 40px; }
+.characterMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; color: #b3b8a8; font-size: 12px; }
+.characterMeta .faction { margin: 0; }
+@media (max-width: 700px) {
+  .characterDetails { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 18px; }
+  .progressAside { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; padding: 16px 0 0; border-left: 0; border-top: 1px solid #b6a46f25; }
+  .progressFacts { margin: 0; gap: 10px; }
+  .progressStats { gap: 8px; }
+  .progressStats strong { font-size: 28px; }
+  .progressActions { grid-column: 1 / -1; margin: 0; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+  .progressAside > .chartNote { grid-column: 1 / -1; margin: 0; }
+  .progressDialogPosition { padding: 10px; }
+  .progressDialogPanel { max-height: calc(100dvh - 20px); }
+  .progressDialogHeading { padding: 14px 16px; }
+  .progressDialogHeading h2 { font-size: 18px; }
+  .chartHeading h3 { font-size: 18px; }
+  .observationControl { flex-basis: 100%; margin: 0; }
+  .observationControl input { flex: 1; }
+  .characterHeader { gap: 14px; }
+  .characterHeader > .identity { flex: 1; }
+  .characterMeta { order: 3; width: 100%; }
+  .characterHeader h1 { font-size: 25px; }
+}
 .adminPanel { min-width: 0; color: #eee9dc; --forever-line: #494338; --forever-muted: #aaa898; }
 .adminPanel :is(a, button, input, select, summary):focus-visible { outline: 2px solid #efd58d; outline-offset: 3px; }
 .adminPanel input[type="checkbox"] { width: 17px; height: 17px; accent-color: #c6a15c; cursor: pointer; }

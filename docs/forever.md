@@ -1,7 +1,8 @@
 # Forever leveling
 
 The first version is an unlisted community leaderboard at `/forever/leveling`,
-with a small `/forever` hub and `/forever/characters/:id` profiles. These routes
+with a small `/forever` hub and readable `/forever/characters/firstname-surname`
+links for EU profiles. Existing ID links still load and switch to the name URL. These routes
 are excluded from navigation and the sitemap and marked `noindex, nofollow`.
 Administration lives at `/admin?tab=forever`.
 
@@ -78,12 +79,28 @@ The public UI follows the Forever Armory's dark earthy surfaces, gold accents,
 and class-colored names. The EU-only leaderboard spans the content width, with a
 compact suggestion form in its header row. Race, class, guild, faction, ruleset,
 level and update time have separate columns; Twitch is the optional last column.
-Race, class, faction and ruleset filters apply before pagination. Their options
+Guild, race, class, faction and ruleset filters apply before pagination. Their options
 come from all published EU characters. On mobile the table scrolls horizontally
 with character identity pinned. Dates use Finnish numeric formatting and
 Europe/Helsinki time in both languages, including daylight saving time. The
 leaderboard's Updated column uses minutes/hours/days ago, updating every 30
 seconds, with the exact Finnish-formatted timestamp in its hover tooltip.
+Both Windshaper Skyborne and High Order Skyborne display as Skyborne and share
+one race filter; their original Armory race remains in storage.
+
+Selecting a character expands its row on desktop without navigating away.
+Below 1100px it opens an accessible dialog with Escape/outside-click dismissal
+and focus restoration. History is fetched only when details open. The chart
+plots observed levels on a proportional time axis with a fixed 1–60 level scale;
+steps show the last observed level between observations, not exact level-up
+times. Dots, a keyboard-operable observation selector and a dated data table
+expose the same observations. Single-point and not-yet-observed histories have
+explicit states. Summary gains start at the first observation; no XP percentage,
+estimated completion time or missing intermediate levels are invented.
+Direct name links reuse these details and place a clear return link above the
+character header. Names resolve to tracked EU characters only; legacy ID lookups
+continue to support existing non-EU identities.
+
 Portrait URLs are restricted to the matching Forever region on Blizzard's render
 host. Existing characters gain portraits on their next normal refresh; until then,
 or if an image fails, the UI shows a bundled class icon. The same compact visual

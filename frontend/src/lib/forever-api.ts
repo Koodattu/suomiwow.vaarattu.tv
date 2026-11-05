@@ -4,7 +4,22 @@ export interface ForeverCharacter {
   twitchChannel?: string; twitchIsLive?: boolean; twitchCheckedAt?: string;
   guild?: { name: string; slug: string; region: string } | null;
   lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string; failures?: number;
-  history?: { level: number; observedAt: string; sourceUpdatedAt: string }[]; armoryUrl?: string;
+  history?: { level: number; observedAt: string; sourceUpdatedAt?: string }[]; armoryUrl?: string;
+}
+export function foreverRace(race?: string): string {
+  return race === "Windshaper Skyborne" || race === "High Order Skyborne" ? "Skyborne" : race || "—";
+}
+export function foreverCharacterPath(character: Pick<ForeverCharacter, "slug" | "region" | "_id">): string {
+  return `/forever/characters/${encodeURIComponent(character.region === "eu" ? character.slug : character._id)}`;
+}
+export function foreverRouteIdentity(segment: string): string {
+  // Next's dynamic route segment may retain percent escapes; API callers use plain identities.
+  try { return decodeURIComponent(segment); } catch { return segment; }
+}
+export function foreverHistory(history: ForeverCharacter["history"]) {
+  return (history || []).map((entry) => ({ level: entry.level, timestamp: Date.parse(entry.observedAt) }))
+    .filter((point) => Number.isFinite(point.timestamp) && Number.isInteger(point.level) && point.level >= 1 && point.level <= 60)
+    .sort((a, b) => a.timestamp - b.timestamp);
 }
 export function isForeverStreamLive(character: Pick<ForeverCharacter, "twitchIsLive" | "twitchCheckedAt">, now: number): boolean {
   const checkedAt = Date.parse(character.twitchCheckedAt || "");
@@ -36,7 +51,7 @@ export interface ForeverGuild {
 export interface ForeverWorker { lastTickAt?: string; lastSuccessAt?: string; nextRequestAt?: string; errorCode?: string }
 export interface ForeverBoard {
   characters: ForeverCharacter[]; total: number; pending: number;
-  filterOptions: Record<"race" | "className" | "faction" | "ruleset", string[]>;
+  filterOptions: Record<"race" | "className" | "faction" | "ruleset" | "guild", string[]>;
   page: number; pageSize: number; worker: ForeverWorker | null; enabled: boolean;
 }
 export interface ForeverAdminData {

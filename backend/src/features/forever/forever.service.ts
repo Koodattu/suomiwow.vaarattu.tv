@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { createHash } from "node:crypto";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "./forever.models";
-import { ArmoryError, armoryUrl, parseArmoryUrl } from "./forever-armory";
+import { ArmoryError, armoryUrl, normalizeSlug, parseArmoryUrl } from "./forever-armory";
 import { mayRequestRefresh, MINUTE } from "./forever-policy";
 import { normalizeTwitchChannel } from "./forever-twitch";
 
@@ -112,27 +112,35 @@ export async function refreshGuild(id: unknown) {
 }
 
 const publicFields = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt errorCode twitchChannel twitchIsLive twitchCheckedAt";
-export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown } = {}) {
+const skyborneRaces = ["Skyborne", "Windshaper Skyborne", "High Order Skyborne"];
+export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown; guild?: unknown } = {}) {
   const pageNumber = Math.min(1000, Math.max(1, Number.parseInt(String(query.page), 10) || 1));
   const base = { region: "eu", status: "tracked" as const, level: { $gte: 1 } };
   const filter: Record<string, unknown> = { ...base };
-  const fields = ["race", "className", "faction", "ruleset"] as const;
+  const fields = ["race", "className", "faction", "ruleset", "guild"] as const;
   for (const field of fields) {
     const value = query[field];
     if (value === undefined || value === "") continue;
-    if (typeof value !== "string" || value.length > 80) throw new ForeverError("invalid_input");
-    filter[field] = value;
+    if (typeof value !== "string" || value.length > (field === "guild" ? 150 : 80)) throw new ForeverError("invalid_input");
+    filter[field === "guild" ? "guild.name" : field] = field === "race" && value === "Skyborne" ? { $in: skyborneRaces } : value;
   }
   const [characters, total, pending, options, worker] = await Promise.all([
     ForeverCharacter.find(filter).select(publicFields).sort({ level: -1, name: 1, _id: 1 }).skip((pageNumber - 1) * 50).limit(50).lean(),
     ForeverCharacter.countDocuments(filter), ForeverCharacter.countDocuments({ status: "tracked", level: { $exists: false }, region: "eu" }),
-    Promise.all(fields.map((field) => ForeverCharacter.distinct(field, base).then((values: string[]) => values.filter(Boolean).sort((a, b) => a.localeCompare(b, "en"))))),
+    Promise.all(fields.map((field) => ForeverCharacter.distinct(field === "guild" ? "guild.name" : field, base).then((values: (string | null)[]) =>
+      [...new Set(values.filter((value): value is string => !!value).map((value) => field === "race" && skyborneRaces.includes(value) ? "Skyborne" : value))].sort((a, b) => a.localeCompare(b, "en"))))),
     ForeverWorker.findById("armory").select("lastTickAt lastSuccessAt nextRequestAt errorCode").lean(),
   ]);
   return { characters, total, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
 }
 export async function characterDetail(id: unknown) {
-  const character = await ForeverCharacter.findOne({ _id: objectId(id), status: "tracked" }).select(`${publicFields} history`).lean();
+  let identity: Record<string, unknown>;
+  if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) identity = { _id: objectId(id) };
+  else {
+    try { identity = { region: "eu", slug: normalizeSlug(id) }; }
+    catch { throw new ForeverError("not_found", 404); }
+  }
+  const character = await ForeverCharacter.findOne({ ...identity, status: "tracked" }).select(`${publicFields} history`).lean();
   if (!character) throw new ForeverError("not_found", 404);
   return { ...character, armoryUrl: armoryUrl(character as { region: "eu" | "us"; slug: string }) };
 }
