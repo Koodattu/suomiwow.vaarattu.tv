@@ -10,7 +10,7 @@ test("Twitch associations accept only channel identities and support clearing", 
 });
 test("seeds merge friends and streamers, retain accents, and exclude unresolved identities", () => {
   const rows = foreverSeedRecords();
-  assert.equal(rows.length, 99); assert.equal(new Set(rows.map((row) => row.slug)).size, 99);
+  assert.equal(rows.length, 100); assert.equal(new Set(rows.map((row) => row.slug)).size, 100);
   assert.equal(rows.filter((row) => row.twitchChannel).length, 50);
   for (const [name, channel] of [["Mansikan Pappi", "aitomansikka"], ["Munapoolo Paladin", "munapoolo"], ["Kirjuri Committ", "comm1tt"], ["Cobra Gaming", "cobragam1ng"], ["Laenoril Stillmoon", "yawnywolf"]]) {
     assert.equal(rows.find((row) => row.name === name)?.twitchChannel, channel);
@@ -25,7 +25,7 @@ test("seeds merge friends and streamers, retain accents, and exclude unresolved 
   assert.equal(rows.find((row) => row.twitchChannel === "kiuza")?.slug, "kiuza-tiäksää");
   assert.equal(rows.find((row) => row.twitchChannel === "zaikki")?.slug, "zaikow-reborn");
   assert.ok(rows.some((row) => row.slug === "shyiez-eléntari"));
-  for (const name of ["Moist Wanderer", "Sysi Simsalabim", "Katti Mau", "Zeta Cygni", "Hot Ted", "Kaania Kuukkeli", "Sir Salomaa", "Toveri Kissa", "Yara Walking"]) {
+  for (const name of ["Bomb Kerava", "Moist Wanderer", "Sysi Simsalabim", "Katti Mau", "Zeta Cygni", "Hot Ted", "Kaania Kuukkeli", "Sir Salomaa", "Toveri Kissa", "Yara Walking"]) {
     assert.equal(rows.filter((row) => row.name === name).length, 1);
   }
   for (const name of ["Galardodric Felrain", "Jannun Mutsi", "Jonio Pyhäshokki", "Kick Kare", "Morini Ikuisesti", "Nasty Sock", "Peikonkorvat Nokkavuotaa", "Roo Perro", "Thaekor Stormcaller", "Wi Bank", "Zen Illusion"]) {
@@ -33,5 +33,5 @@ test("seeds merge friends and streamers, retain accents, and exclude unresolved 
   }
   assert.ok(rows.some((row) => row.slug === "jonio-pyhäshokki"));
   for (const channel of ["battlelion97", "wimmawebba", "pujo_", "taxfree_", "loremaani"]) assert.ok(!rows.some((row) => row.twitchChannel === channel));
-  for (const name of ["Elyrìanna", "Elyriannà", "Flînk", "Np", "Eppugrip"]) assert.ok(!rows.some((row) => row.name === name));
+  for (const name of ["Elyrìanna", "Elyriannà", "Flînk", "Np", "Eppugrip", "Perähudlari"]) assert.ok(!rows.some((row) => row.name === name));
 });
