@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useTranslations } from "next-intl";
 import type { ForeverStatistics } from "@/lib/forever-api";
 import styles from "./forever.module.css";
@@ -13,15 +15,27 @@ function Breakdown({ title, entries, total }: {
   title: string; entries: { name: string | null; count: number }[]; total: number;
 }) {
   const t = useTranslations("forever");
-  const slices = entries.filter((entry) => entry.count > 0).map((entry, index, visible) => {
-    const start = visible.slice(0, index).reduce((sum, previous) => sum + previous.count, 0) / total * 100;
-    const end = start + entry.count / total * 100;
-    return `${color(entry.name)} ${start}% ${end}%`;
-  });
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const chartData = entries.filter((entry) => entry.count > 0).map((entry) => ({ ...entry,
+    label: entry.name === "Horde" || entry.name === "Alliance" ? t(`factions.${entry.name.toLowerCase()}`) : entry.name || t("statistics.unknown"),
+  }));
   return <div className={styles.populationGroup}>
     <h2>{title}</h2>
     <div className={styles.populationPieRow}>
-      <div className={styles.populationPie} aria-hidden="true" style={{ background: slices.length ? `conic-gradient(${slices.join(",")})` : undefined }} />
+      <div className={styles.populationPie}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart aria-label={title}>
+            <Tooltip allowEscapeViewBox={{ x: true, y: true }} content={({ active, payload }) => {
+              const entry = payload?.[0]?.payload as (typeof chartData)[number] | undefined;
+              return active && entry ? <div className={styles.chartTooltip} role="status"><strong>{entry.label}</strong><span>{number.format(entry.count)} ({percent.format(total ? entry.count / total : 0)})</span></div> : null;
+            }} />
+            <Pie data={chartData} dataKey="count" nameKey="label" outerRadius="95%" stroke="#172018" strokeWidth={1} isAnimationActive={false}
+              onMouseEnter={(_, index) => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)}>
+              {chartData.map((entry, index) => <Cell key={entry.name ?? "unknown"} fill={color(entry.name)} opacity={activeIndex === null || activeIndex === index ? 1 : .45} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
       <dl className={styles.populationLegend}>{entries.map((entry) => <div key={entry.name ?? "unknown"}>
         <dt><i aria-hidden="true" style={{ background: color(entry.name) }} />{entry.name === "Horde" || entry.name === "Alliance" ? t(`factions.${entry.name.toLowerCase()}`) : entry.name || t("statistics.unknown")}</dt>
         <dd><strong>{number.format(entry.count)}</strong><span>{percent.format(total ? entry.count / total : 0)}</span></dd>
@@ -31,8 +45,8 @@ function Breakdown({ title, entries, total }: {
   </div>;
 }
 
-export default function ForeverPopulation({ statistics, total, filtered, loading }: {
-  statistics?: ForeverStatistics; total: number; filtered: boolean; loading: boolean;
+export default function ForeverPopulation({ statistics, total, loading }: {
+  statistics?: ForeverStatistics; total: number; loading: boolean;
 }) {
   const t = useTranslations("forever");
   if (!statistics) return loading ? <div className={`${styles.population} ${styles.populationLoading}`} aria-label={t("statistics.loading")} aria-busy="true" /> : null;
@@ -59,10 +73,17 @@ export default function ForeverPopulation({ statistics, total, filtered, loading
       <div className={styles.combinationsDesktop}>{combinations}</div>
       <details className={styles.combinationsMobile}><summary>{t("statistics.combinations")}</summary>{combinations}</details>
     </div>
-    <div className={styles.populationFoot}>
-      <span>{t(filtered ? "statistics.filtered" : "statistics.all")}</span>
-      <span>{t("statistics.averageLevel")} <strong>{statistics.averageLevel === null ? "—" : number.format(statistics.averageLevel)}</strong></span>
-      <span>{t("statistics.atMaxLevel")} <strong>{number.format(statistics.atMaxLevel)}</strong></span>
-    </div>
+
   </section>;
+}
+
+export function ForeverBoardSummary({ statistics, total, filtered }: { statistics?: ForeverStatistics; total?: number; filtered: boolean }) {
+  const t = useTranslations("forever");
+  if (!statistics || total === undefined) return null;
+  return <div className={styles.boardSummary}>
+    <span><strong>{number.format(total)}</strong> {t("charactersShort")}</span>
+    <span>{t(filtered ? "statistics.filtered" : "statistics.all")}</span>
+    <span>{t("statistics.averageLevel")} <strong>{statistics.averageLevel === null ? "\u2014" : number.format(statistics.averageLevel)}</strong></span>
+    <span>{t("statistics.atMaxLevel")} <strong>{number.format(statistics.atMaxLevel)}</strong></span>
+  </div>;
 }

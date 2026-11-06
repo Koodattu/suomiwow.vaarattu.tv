@@ -120,7 +120,7 @@ const getHorseRaceSegmentClass = (selected: boolean) =>
 export default function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
-  const shouldRemoveBottomMargin = pathname === "/analytics/network" || pathname.startsWith("/ccg");
+  const shouldRemoveBottomMargin = pathname === "/analytics/network" || pathname.startsWith("/ccg") || pathname === "/forever" || pathname.startsWith("/forever/");
   const t = useTranslations("navigation");
   const tEvents = useTranslations("eventsPage");
   const tInfo = useTranslations("infoDialog");

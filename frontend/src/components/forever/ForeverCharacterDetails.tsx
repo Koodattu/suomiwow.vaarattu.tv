@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useState } from "react";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/context/AuthContext";
@@ -14,44 +15,25 @@ export function useForeverCharacter(identity: string) {
 }
 
 function ProgressChart({ character }: { character: ForeverCharacter }) {
-  const t = useTranslations("forever"), chartId = useId(), host = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(640), [selected, setSelected] = useState<number | null>(null);
-  useEffect(() => {
-    const element = host.current;
-    if (!element) return;
-    const observer = new ResizeObserver(([entry]) => { if (entry.contentRect.width > 0) setWidth(Math.round(entry.contentRect.width)); });
-    observer.observe(element); return () => observer.disconnect();
-  }, []);
+  const t = useTranslations("forever");
   const points = foreverHistory(character.history), last = points.at(-1);
-  const activeIndex = Math.min(selected ?? points.length - 1, points.length - 1), active = points[activeIndex];
-  const left = 32, right = width - 16, top = 16, bottom = 195, height = 228;
-  const start = points[0]?.timestamp || 0, end = last?.timestamp || start;
-  const x = (time: number) => end === start ? (left + right) / 2 : left + (time - start) / (end - start) * (right - left);
-  const y = (level: number) => bottom - (level - 1) / 59 * (bottom - top);
-  const line = points.map((point, index) => index === 0 ? `M${x(point.timestamp)},${y(point.level)}` : `H${x(point.timestamp)}V${y(point.level)}`).join(" ");
-  const selectNearest = (clientX: number, bounds: DOMRect) => {
-    const cursor = (clientX - bounds.left) / bounds.width * width;
-    const index = points.reduce((best, point, i) => Math.abs(x(point.timestamp) - cursor) < Math.abs(x(points[best].timestamp) - cursor) ? i : best, 0);
-    setSelected(index);
-  };
-  return <div className={styles.progressChart} ref={host} style={{ "--progress-color": classColor(character.className) } as CSSProperties}>
+  const date = (timestamp: number) => formatForeverDate(new Date(timestamp).toISOString(), true);
+  return <div className={styles.progressChart}>
     <div className={styles.chartHeading}><h3>{t("progress.title")}</h3><span>{t("progress.observationCount", { count: points.length })}</span></div>
     {!last ? <div className={styles.chartEmpty}>{t("progress.noObservations")}</div> : <>
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-labelledby={`${chartId}-title ${chartId}-description`}
-        onPointerMove={(event) => { if (event.pointerType === "mouse") selectNearest(event.clientX, event.currentTarget.getBoundingClientRect()); }}
-        onPointerDown={(event) => selectNearest(event.clientX, event.currentTarget.getBoundingClientRect())}>
-        <title id={`${chartId}-title`}>{t("progress.chartLabel", { name: character.name || character.slug })}</title>
-        <desc id={`${chartId}-description`}>{t("progress.chartDescription", { start: points[0].level, end: last.level, count: points.length })} {t("historyNote")}</desc>
-        <defs><linearGradient id={`${chartId}-fill`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--progress-color)" stopOpacity=".18" /><stop offset="100%" stopColor="var(--progress-color)" stopOpacity=".015" /></linearGradient></defs>
-        {[1, 20, 40, 60].map((level) => <g key={level}><line x1={left} x2={right} y1={y(level)} y2={y(level)} className={level === 60 ? styles.chartTarget : styles.chartGrid} /><text x={left - 8} y={y(level) + 4} textAnchor="end" className={level === 60 ? styles.chartTargetLabel : styles.chartAxis}>{level}</text></g>)}
-        {points.length > 1 && <><path d={`${line} L${x(last.timestamp)},${bottom} L${x(start)},${bottom} Z`} fill={`url(#${chartId}-fill)`} /><path d={line} fill="none" stroke="var(--progress-color)" strokeWidth="2" strokeLinejoin="round" /></>}
-        <line x1={x(active.timestamp)} x2={x(active.timestamp)} y1={top} y2={bottom} className={styles.chartCursor} />
-        {points.map((point, index) => <circle key={`${point.timestamp}-${index}`} cx={x(point.timestamp)} cy={y(point.level)} r={index === activeIndex ? 5 : 3} fill={index === activeIndex ? "#f4dfa9" : "var(--progress-color)"} stroke="#151c17" strokeWidth="2" />)}
-        <text x={end === start ? x(start) : left} y={height - 8} textAnchor={end === start ? "middle" : "start"} className={styles.chartAxis}>{formatForeverDate(new Date(start).toISOString(), true)}</text>
-        {end !== start && <text x={right} y={height - 8} textAnchor="end" className={styles.chartAxis}>{formatForeverDate(new Date(end).toISOString(), true)}</text>}
-      </svg>
-      <div className={styles.chartObservation}><strong>{t("levelValue", { level: active.level })}</strong><time dateTime={new Date(active.timestamp).toISOString()}>{formatForeverDate(new Date(active.timestamp).toISOString())}</time>
-        {points.length > 1 && <div className={styles.observationControl}><label htmlFor={`${chartId}-observation`}>{t("progress.observationPosition", { index: activeIndex + 1, count: points.length })}</label><input id={`${chartId}-observation`} aria-valuetext={`${t("levelValue", { level: active.level })}, ${formatForeverDate(new Date(active.timestamp).toISOString())}`} type="range" min={0} max={points.length - 1} value={activeIndex} onChange={(event) => setSelected(Number(event.target.value))} /></div>}
+      <div className={styles.levelChart}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={points} margin={{ top: 12, right: 18, bottom: 4, left: 0 }} aria-label={t("progress.chartLabel", { name: character.name || character.slug })}>
+            <CartesianGrid strokeDasharray="3 4" stroke="#afc2a625" vertical={false} />
+            <XAxis dataKey="timestamp" type="number" scale="time" domain={["dataMin", "dataMax"]} padding={{ left: 12, right: 12 }} tickCount={4} minTickGap={70} tickFormatter={date} tick={{ fill: "#aaa898", fontSize: 10 }} tickLine={false} stroke="#494f40" />
+            <YAxis domain={[1, 60]} ticks={[1, 20, 40, 60]} width={30} tick={{ fill: "#aaa898", fontSize: 11 }} tickLine={false} axisLine={false} />
+            <Tooltip cursor={{ stroke: "#d7b87580", strokeDasharray: "3 4" }} content={({ active, payload }) => {
+              const point = payload?.[0]?.payload as (typeof points)[number] | undefined;
+              return active && point ? <div className={styles.chartTooltip} role="status"><strong>{t("levelValue", { level: point.level })}</strong><span>{formatForeverDate(new Date(point.timestamp).toISOString())}</span></div> : null;
+            }} />
+            <Line type="linear" dataKey="level" stroke={classColor(character.className)} strokeWidth={2.5} dot={{ r: 4, stroke: "#151c17", strokeWidth: 2 }} activeDot={{ r: 6, stroke: "#f4dfa9", strokeWidth: 2 }} isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
       {points.length === 1 && <p className={styles.chartNote}>{t("progress.firstObservation")}</p>}
     </>}

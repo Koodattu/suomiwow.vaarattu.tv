@@ -34,6 +34,10 @@ foreverRouter.post("/proposals", requireDiscord, route(async (req, res) => {
 foreverRouter.post("/characters/:id/refresh", requireDiscord, route(async (req, res) => {
   const result = await service.requestRefresh(req.params.id, req.session.userId!); res.status(202); return result;
 }));
+foreverRouter.post("/guild-proposals", requireDiscord, route(async (req, res) => {
+  const result = await service.addGuild(req.body?.url, "proposal", req.session.userId!);
+  res.status(202); return result;
+}));
 
 export const foreverAdminRouter = Router();
 foreverAdminRouter.use(requireAdmin);
@@ -45,5 +49,7 @@ foreverAdminRouter.patch("/characters/:id", route(async (req) => service.setChar
 foreverAdminRouter.post("/characters/:id/refresh", route(async (req) => service.adminCharacterAction([req.params.id], "retry")));
 foreverAdminRouter.post("/characters/:id/refresh-now", route(async (req) => service.adminRefreshNow(req.params.id)));
 foreverAdminRouter.get("/guilds/:id", route(async (req) => service.guildDetail(req.params.id)));
+foreverAdminRouter.post("/guilds", route(async (req) => service.addGuild(req.body?.url, "admin", req.session.userId!)));
+foreverAdminRouter.patch("/guilds/:id/visibility", route(async (req) => service.setGuildVisibility(req.params.id, req.body?.hidden)));
 foreverAdminRouter.patch("/guilds/:id", route(async (req) => service.setGuildStatus(req.params.id, req.body?.status)));
 foreverAdminRouter.post("/guilds/:id/refresh", route(async (req) => service.refreshGuild(req.params.id)));

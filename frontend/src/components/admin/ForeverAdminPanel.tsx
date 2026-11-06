@@ -123,29 +123,34 @@ export default function ForeverAdminPanel() {
     </section> : <section aria-label={t("discoveredGuilds")}>
       <div className={styles.adminGuildToolbar}>
         <label className={styles.adminSearch}>{t("admin.searchGuilds")}<input className={styles.input} type="search" maxLength={100} value={guildSearch} onChange={(event) => { setGuildSearch(event.target.value); setGuildPage(1); setGuildId(null); setRosterSearch(""); }} /></label>
-        <label className={styles.adminFilter}>{t("status")}<select className={controlClass} value={guildFilter} onChange={(event) => { setGuildFilter(event.target.value); setGuildPage(1); setGuildId(null); }}>{["all", "pending", "approved", "paused"].map((status) => <option key={status} value={status}>{t(`statuses.${status}`)}</option>)}</select></label>
+        <label className={styles.adminFilter}>{t("status")}<select className={controlClass} value={guildFilter} onChange={(event) => { setGuildFilter(event.target.value); setGuildPage(1); setGuildId(null); }}>{["all", "proposed", "pending", "approved", "paused", "rejected"].map((status) => <option key={status} value={status}>{t(`statuses.${status}`)}</option>)}</select></label>
       </div>
       {overview.isPending ? <p role="status">{t("loading")}</p> : <div className={styles.adminGuildGrid}>
         <div><div className={styles.adminGuildList}>{data?.guilds.map((entry) => <button className={styles.adminGuildChoice} key={entry._id} aria-pressed={activeGuildId === entry._id} onClick={() => { setGuildId(entry._id); setRosterSearch(""); }}>
-          <strong>{entry.name}</strong><span>{t(`statuses.${entry.status}`)} · {entry.lastFetchedAt ? t("rosterCount", { count: entry.rosterCount || 0 }) : t("admin.rosterNotLoaded")}</span><FetchState errorCode={entry.errorCode} /></button>)}</div>
+          <strong>{entry.name}{entry.hidden && <small className={styles.hiddenBadge}>{t("admin.hidden")}</small>}</strong><span>{t(`statuses.${entry.status}`)} · {entry.lastFetchedAt ? t("rosterCount", { count: entry.rosterCount || 0 }) : t("admin.rosterNotLoaded")}</span><FetchState errorCode={entry.errorCode} /></button>)}</div>
           {!data?.guilds.length && <p className={styles.empty}>{t("admin.noGuildMatches")}</p>}
           <Pagination page={guildPage} total={data?.totalGuilds || 0} onChange={(page) => { setGuildPage(page); setGuildId(null); }} disabled={busy} />
         </div>
         {activeGuildId && <div className={styles.adminInspector} aria-busy={guild.isFetching}>
           {guild.isPending && <p role="status">{t("loading")}</p>}{guild.error && <ForeverErrorMessage error={guild.error} />}
           {activeGuild && <>
-            <div className={styles.adminInspectorHeading}><div><h3>{activeGuild.name}</h3><span className={styles.adminStatus} data-status={activeGuild.status}>{t(`statuses.${activeGuild.status}`)}</span></div><a className={styles.adminLink} target="_blank" rel="noreferrer" href={`https://worldofwarcraft.blizzard.com/en-gb/forever/${activeGuild.region}/armory/guild/${encodeURIComponent(activeGuild.slug)}`}>{t("openArmory")}</a></div>
+            <div className={styles.adminInspectorHeading}><div><h3>{activeGuild.name}</h3>{activeGuild.hidden && <span className={styles.hiddenBadge}>{t("admin.hidden")}</span>}<span className={styles.adminStatus} data-status={activeGuild.status}>{t(`statuses.${activeGuild.status}`)}</span></div><a className={styles.adminLink} target="_blank" rel="noreferrer" href={`https://worldofwarcraft.blizzard.com/en-gb/forever/${activeGuild.region}/armory/guild/${encodeURIComponent(activeGuild.slug)}`}>{t("openArmory")}</a></div>
             <div className={styles.adminFacts}>
               <div><span>{t("admin.members")}</span><strong>{activeGuild.lastFetchedAt ? activeGuild.roster?.length || 0 : "—"}</strong></div>
               <div><span>{t("checked")}</span><ForeverUpdated value={activeGuild.lastFetchedAt} /></div>
               <div><span>{t("admin.lastAttempt")}</span><ForeverDate value={activeGuild.lastAttemptAt} /></div>
-              <div><span>{t("nextCheck")}</span><ForeverDate value={activeGuild.status === "paused" ? undefined : activeGuild.nextFetchAt} /></div>
+              <div><span>{t("nextCheck")}</span><ForeverDate value={activeGuild.hidden || !["pending", "approved"].includes(activeGuild.status) ? undefined : activeGuild.nextFetchAt} /></div>
             </div>
             <FetchState errorCode={activeGuild.errorCode} failures={activeGuild.failures} />
             <div className={styles.adminInspectorActions}>
               {activeGuild.status !== "approved" ? <button className={buttonClass} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}`, "PATCH", { status: "approved" })}>{t("approveGuild")}</button> : <button className={buttonClass} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}`, "PATCH", { status: "paused" })}>{t("pauseGuild")}</button>}
               {activeGuild.status === "pending" && <button className={`${buttonClass} ${styles.quietButton}`} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}`, "PATCH", { status: "paused" })}>{t("pauseGuild")}</button>}
-              <RetryButton lastAttemptAt={activeGuild.lastAttemptAt} disabled={busy || activeGuild.status === "paused"} onClick={() => void act(`guilds/${activeGuild._id}/refresh`, "POST")} />
+              <RetryButton lastAttemptAt={activeGuild.lastAttemptAt} disabled={busy || !!activeGuild.hidden || !["pending", "approved"].includes(activeGuild.status)} onClick={() => void act(`guilds/${activeGuild._id}/refresh`, "POST")} />
+            </div>
+            <div className={styles.guildVisibility}>
+              <button className={`${buttonClass} ${styles.quietButton}`} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}/visibility`, "PATCH", { hidden: !activeGuild.hidden })}>{t(activeGuild.hidden ? "admin.restoreGuild" : "admin.hideGuild")}</button>
+              <span>{t(activeGuild.hidden ? "admin.guildHiddenNote" : "admin.guildVisibilityNote")}</span>
+              {["proposed", "pending"].includes(activeGuild.status) && <button className={buttonClass} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}`, "PATCH", { status: "rejected" })}>{t("reject")}</button>}
             </div>
             <p className={styles.adminHelp}>{t("guildApprovalNote")}</p>
             {activeGuild.lastFetchedAt ? <>

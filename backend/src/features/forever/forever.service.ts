@@ -1,9 +1,10 @@
 import mongoose from "mongoose";
 import { createHash } from "node:crypto";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "./forever.models";
-import { ArmoryError, armoryUrl, normalizeSlug, parseArmoryUrl } from "./forever-armory";
+import { ArmoryError, armoryUrl, normalizeSlug, parseArmoryInput } from "./forever-armory";
 import { mayRequestRefresh, MINUTE } from "./forever-policy";
 import { normalizeTwitchChannel } from "./forever-twitch";
+import { visibleForeverCharacters } from "./forever-visibility";
 import foreverRunner from "./forever.worker";
 
 export class ForeverError extends Error {
@@ -23,7 +24,13 @@ export async function consumeLimit(userId: string, action: string, max: number, 
     }, { upsert: true, returnDocument: "after" });
     if (!result) throw new ForeverError("rate_limited", 429);
   } catch (error) {
-    if ((error as { code?: number }).code === 11000) throw new ForeverError("rate_limited", 429);
+    if ((error as { code?: number }).code === 11000) {
+      // Another request may have created the bucket after our upsert matched nothing.
+      // Retry only the bounded increment; a full bucket still cannot exceed max.
+      const result = await ForeverRequestLimit.findOneAndUpdate({ _id: hash, count: { $lt: max } }, { $inc: { count: 1 } }, { returnDocument: "after" });
+      if (result) return;
+      throw new ForeverError("rate_limited", 429);
+    }
     throw error;
   }
 }
@@ -44,7 +51,7 @@ export async function setCharacterTwitch(id: unknown, value: unknown) {
 export async function addCharacter(url: unknown, source: "admin" | "proposal", userId: string, twitch?: unknown) {
   const twitchChannel = source === "admin" && twitch !== undefined ? twitchChannelInput(twitch) : undefined;
   let identity;
-  try { identity = parseArmoryUrl(url); } catch (error) {
+  try { identity = parseArmoryInput(url); } catch (error) {
     if (error instanceof ArmoryError) throw new ForeverError("invalid_url");
     throw error;
   }
@@ -61,6 +68,28 @@ export async function addCharacter(url: unknown, source: "admin" | "proposal", u
   const character = await ForeverCharacter.findOne(identity).select("status").lean();
   if (twitchChannel !== undefined) await setCharacterTwitch(String(character!._id), twitchChannel);
   return { id: String(character!._id), status: character!.status };
+}
+
+export async function addGuild(input: unknown, source: "admin" | "proposal", userId: string) {
+  let identity;
+  try { identity = parseArmoryInput(input, "guild"); } catch { throw new ForeverError("invalid_url"); }
+  if (source === "proposal") await consumeLimit(userId, "proposal", 5);
+  const name = typeof input === "string" && !/^https?:/i.test(input.trim()) ? input.trim() : identity.slug.replace(/-/g, " ");
+  try {
+    await ForeverGuild.updateOne(identity, { $setOnInsert: {
+      ...identity, name, proposedBy: userId, status: source === "proposal" ? "proposed" : "pending", nextFetchAt: new Date(),
+    } }, { upsert: true });
+  } catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
+  // Admin additions queue a preview; importing members still requires explicit approval.
+  if (source === "admin") await ForeverGuild.updateOne({ ...identity, status: { $in: ["proposed", "rejected"] } }, { $set: { status: "pending", nextFetchAt: new Date() } });
+  const guild = await ForeverGuild.findOne(identity).select("status").lean();
+  return { id: String(guild!._id), status: guild!.status };
+}
+
+export async function setGuildVisibility(id: unknown, hidden: unknown) {
+  if (typeof hidden !== "boolean") throw new ForeverError("invalid_input");
+  const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { hidden } });
+  if (!result.matchedCount) throw new ForeverError("not_found", 404);
 }
 
 export async function setCharacterStatus(id: unknown, status: unknown) {
@@ -87,7 +116,7 @@ export async function adminCharacterAction(ids: unknown, action: unknown) {
 export async function adminRefreshNow(id: unknown) {
   const requestedAt = new Date();
   const characterId = objectId(id);
-  const result = await ForeverCharacter.updateOne({ _id: characterId, status: "tracked" }, {
+  const result = await ForeverCharacter.updateOne({ ...await visibleForeverCharacters(), _id: characterId, status: "tracked" }, {
     $set: { refreshRequestedAt: requestedAt, nextFetchAt: requestedAt },
   });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
@@ -101,7 +130,7 @@ export async function adminRefreshNow(id: unknown) {
 
 export async function requestRefresh(id: unknown, userId: string) {
   await consumeLimit(userId, "refresh", 10);
-  const character = await ForeverCharacter.findOne({ _id: objectId(id), status: "tracked" }).lean();
+  const character = await ForeverCharacter.findOne({ ...await visibleForeverCharacters(), _id: objectId(id), status: "tracked" }).lean();
   if (!character) throw new ForeverError("not_found", 404);
   if (mayRequestRefresh(character)) {
     await ForeverCharacter.updateOne({ _id: character._id, status: "tracked", failures: 0, nextFetchAt: character.nextFetchAt },
@@ -111,7 +140,7 @@ export async function requestRefresh(id: unknown, userId: string) {
 }
 
 export async function setGuildStatus(id: unknown, status: unknown) {
-  if (!["approved", "paused"].includes(String(status))) throw new ForeverError("invalid_input");
+  if (!["approved", "paused", "rejected"].includes(String(status))) throw new ForeverError("invalid_input");
   const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { status } });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
   // Approval queues a fresh roster. Pausing stops expansion; already tracked members remain tracked.
@@ -121,7 +150,7 @@ export async function setGuildStatus(id: unknown, status: unknown) {
 export async function refreshGuild(id: unknown) {
   const guild = await ForeverGuild.findById(objectId(id)).lean();
   if (!guild) throw new ForeverError("not_found", 404);
-  const result = await ForeverGuild.updateOne({ _id: guild._id, status: { $ne: "paused" },
+  const result = await ForeverGuild.updateOne({ _id: guild._id, status: { $in: ["pending", "approved"] }, hidden: { $ne: true },
     $or: [{ lastAttemptAt: { $exists: false } }, { lastAttemptAt: { $lte: new Date(Date.now() - 5 * MINUTE) } }],
   }, { $set: { nextFetchAt: new Date() } });
   return { updated: result.modifiedCount, skipped: 1 - result.modifiedCount };
@@ -131,7 +160,8 @@ const publicFields = "region slug name level className race faction ruleset avat
 const skyborneRaces = ["Skyborne", "Windshaper Skyborne", "High Order Skyborne"];
 export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown; guild?: unknown; search?: unknown } = {}) {
   const pageNumber = Math.min(1000, Math.max(1, Number.parseInt(String(query.page), 10) || 1));
-  const base = { region: "eu", status: "tracked" as const, level: { $gte: 1 } };
+  const visible = await visibleForeverCharacters();
+  const base = { ...visible, region: "eu", status: "tracked" as const, level: { $gte: 1 } };
   const filter: Record<string, unknown> = { ...base };
   if (query.search !== undefined && query.search !== "") {
     if (typeof query.search !== "string" || query.search.length > 100) throw new ForeverError("invalid_input");
@@ -145,7 +175,7 @@ export async function leaderboard(query: { page?: unknown; race?: unknown; class
     if (typeof value !== "string" || value.length > (field === "guild" ? 150 : 80)) throw new ForeverError("invalid_input");
     filter[field === "guild" ? "guild.name" : field] = field === "race" && value === "Skyborne" ? { $in: skyborneRaces } : value;
   }
-  const [characters, breakdown, pending, options, worker] = await Promise.all([
+  const [characters, breakdown, pending, options, worker, levels] = await Promise.all([
     ForeverCharacter.find(filter).select(publicFields).sort({ level: -1, name: 1, _id: 1 }).skip((pageNumber - 1) * 50).limit(50).lean(),
     ForeverCharacter.aggregate<{
       summary: { total: number; averageLevel: number; atMaxLevel: number }[];
@@ -177,16 +207,24 @@ export async function leaderboard(query: { page?: unknown; race?: unknown; class
         ],
       } },
     ]),
-    ForeverCharacter.countDocuments({ status: "tracked", level: { $exists: false }, region: "eu" }),
+    ForeverCharacter.countDocuments({ ...visible, status: "tracked", level: { $exists: false }, region: "eu" }),
     Promise.all(fields.map((field) => ForeverCharacter.distinct(field === "guild" ? "guild.name" : field, base).then((values: (string | null)[]) =>
       [...new Set(values.filter((value): value is string => !!value).map((value) => field === "race" && skyborneRaces.includes(value) ? "Skyborne" : value))].sort((a, b) => a.localeCompare(b, "en"))))),
     ForeverWorker.findById("armory").select("lastTickAt lastSuccessAt nextRequestAt errorCode").lean(),
+    ForeverCharacter.aggregate<{ _id: number; count: number }>([{ $match: base }, { $group: { _id: "$level", count: { $sum: 1 } } }]),
   ]);
   const population = breakdown[0];
   const summary = population.summary[0];
   const total = summary?.total || 0;
   const statistics = { factions: population.factions, rulesets: population.rulesets, combinations: population.combinations, averageLevel: summary?.averageLevel ?? null, atMaxLevel: summary?.atMaxLevel || 0 };
-  return { characters, total, statistics, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
+  // At most 60 buckets; covered by the level index when no guilds are hidden.
+  // Include empty levels too: an Armory update can land between the parallel reads.
+  const counts = new Map(levels.map((entry) => [entry._id, entry.count]));
+  const ranks = new Map<number, number>();
+  let rank = 1;
+  for (let level = 60; level >= 1; level--) { ranks.set(level, rank); rank += counts.get(level) || 0; }
+  const ranked = characters.map((character) => ({ ...character, rank: ranks.get(character.level!)! }));
+  return { characters: ranked, total, statistics, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
 }
 export async function characterDetail(id: unknown) {
   let identity: Record<string, unknown>;
@@ -195,7 +233,7 @@ export async function characterDetail(id: unknown) {
     try { identity = { region: "eu", slug: normalizeSlug(id) }; }
     catch { throw new ForeverError("not_found", 404); }
   }
-  const character = await ForeverCharacter.findOne({ ...identity, status: "tracked" }).select(`${publicFields} history`).lean();
+  const character = await ForeverCharacter.findOne({ ...await visibleForeverCharacters(), ...identity, status: "tracked" }).select(`${publicFields} history`).lean();
   if (!character) throw new ForeverError("not_found", 404);
   return { ...character, armoryUrl: armoryUrl(character as { region: "eu" | "us"; slug: string }) };
 }
@@ -216,7 +254,7 @@ export async function adminOverview(query: { status?: unknown; characterPage?: u
   else if (query.health === "unfetched") filter.lastFetchedAt = { $exists: false };
   else if (query.health !== undefined && query.health !== "all") throw new ForeverError("invalid_input");
   const guildFilter: Record<string, unknown> = searchFilter(query.guildSearch, ["name", "slug"]);
-  if (["pending", "approved", "paused"].includes(String(query.guildStatus))) guildFilter.status = query.guildStatus;
+  if (["proposed", "pending", "approved", "paused", "rejected"].includes(String(query.guildStatus))) guildFilter.status = query.guildStatus;
   const [characters, guilds, worker, totalCharacters, totalGuilds, characterCounts, guildCounts] = await Promise.all([
     ForeverCharacter.find(filter).select("-history -proposedBy").sort({ createdAt: -1, _id: -1 }).skip((characterPage - 1) * 50).limit(50).lean(),
     ForeverGuild.aggregate([{ $match: guildFilter }, { $sort: { name: 1, _id: 1 } }, { $skip: (guildPage - 1) * 50 }, { $limit: 50 },

@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { foreverApi, foreverRace, ForeverBoard } from "@/lib/forever-api";
 import { CharacterDetailsLoader } from "@/components/forever/ForeverCharacterDetails";
-import ForeverPopulation from "@/components/forever/ForeverPopulation";
+import ForeverPopulation, { ForeverBoardSummary } from "@/components/forever/ForeverPopulation";
 import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink } from "@/components/forever/ForeverShared";
 import styles from "@/components/forever/forever.module.css";
 
@@ -31,11 +31,9 @@ export default function ForeverLeveling() {
     <header className={`${styles.header} ${styles.levelingHeader}`}>
       <div className={styles.heading}>
         <Link href="/forever" className={styles.wordmark} aria-label={t("brand")}><small>SuomiWoW</small><strong>Forever</strong></Link>
-        <div><h1 className={styles.title}>{t("title")}</h1>
-          <div className={styles.headerMeta}>{data ? <span><strong>{data.total}</strong> {t("charactersShort")}</span> : <span>{t("loading")}</span>}</div>
-        </div>
+        <h1 className={styles.title}>{t("title")}</h1>
       </div>
-      <ForeverPopulation statistics={data?.statistics} total={data?.total || 0} filtered={Object.values(filters).some(Boolean)} loading={board.isPending} />
+      <ForeverPopulation statistics={data?.statistics} total={data?.total || 0} loading={board.isPending} />
       <CharacterForm compact />
     </header>
     <div className={`${styles.shell} ${styles.levelingShell}`}>
@@ -49,6 +47,7 @@ export default function ForeverLeveling() {
             </select>
           </label>)}
         </div>
+        <ForeverBoardSummary statistics={data?.statistics} total={data?.total} filtered={Object.values(filters).some(Boolean)} />
         <div className={styles.boardSearch}>
           <input className={styles.input} type="search" maxLength={100} aria-label={t("searchCharacters")} placeholder={t("searchCharacters")} value={filters.search} onChange={(event) => { setFilters({ ...filters, search: event.target.value }); setPage(1); setSelectedId(null); }} />
           {Object.values(filters).some(Boolean) && <button className={`${styles.button} ${styles.quietButton}`} onClick={() => { setFilters(emptyFilters); setPage(1); setSelectedId(null); }}>{t("clearFilters")}</button>}
@@ -58,18 +57,20 @@ export default function ForeverLeveling() {
       <div className={styles.tableScroll} role="region" aria-label={t("tableScroll")} tabIndex={0}>
         <table className={styles.table}>
           <thead><tr>
+            <th scope="col" className={styles.rankCell}>{t("rank")}</th>
             <th scope="col" className={styles.characterCell}>{t("character")}</th><th scope="col" className={styles.levelCell}>{t("level")}</th>
             <th scope="col">{t("race")}</th><th scope="col">{t("className")}</th><th scope="col">{t("guild")}</th>
             <th scope="col">{t("faction")}</th><th scope="col">{t("ruleset")}</th><th scope="col">{t("checked")}</th>
-            {showStreams && <th scope="col">{t("stream")}</th>}
+            {showStreams && <th scope="col">{t("stream")}</th>}<th scope="col" className={styles.expandCell}><span className="sr-only">{t("actions")}</span></th>
           </tr></thead>
-          <tbody>{board.isPending ? Array.from({ length: 6 }, (_, i) => <tr key={i} aria-hidden="true"><td colSpan={showStreams ? 9 : 8} className={styles.loading} /></tr>) : data?.characters.map((character) => <Fragment key={character._id}><tr className={styles.expandableRow} data-expanded={selectedId === character._id} onClick={(event) => {
+          <tbody>{board.isPending ? Array.from({ length: 6 }, (_, i) => <tr key={i} aria-hidden="true"><td colSpan={showStreams ? 11 : 10} className={styles.loading} /></tr>) : data?.characters.map((character) => <Fragment key={character._id}><tr className={styles.expandableRow} data-expanded={selectedId === character._id} onClick={(event) => {
             if ((event.target as HTMLElement).closest("a,button,input,select")) return;
             event.currentTarget.querySelector<HTMLButtonElement>("button[data-character-toggle]")?.focus(); toggle(character._id);
           }}>
+            <td className={styles.rankCell}>{character.rank}</td>
             <td className={styles.characterCell}>
               <button data-character-toggle className={`${styles.identity} ${styles.characterToggle}`} aria-expanded={selectedId === character._id} aria-controls={`forever-details-${character._id}`} onClick={() => toggle(character._id)}>
-                <Portrait character={character} /><span className={styles.name} style={{ color: classColor(character.className) }}>{character.name}</span><span className={styles.expandChevron} aria-hidden="true">{selectedId === character._id ? "−" : "+"}</span>
+                <Portrait character={character} /><span className={styles.name} style={{ color: classColor(character.className) }}>{character.name}</span>
               </button>
             </td>
             <td className={styles.levelCell}><span className={styles.level}>{character.level}</span></td>
@@ -79,7 +80,8 @@ export default function ForeverLeveling() {
             <td><Faction name={character.faction} /></td><td className={styles.attribute}>{character.ruleset || "—"}</td>
             <td><span className={styles.checked}><ForeverUpdated value={character.lastFetchedAt} /></span>{character.errorCode && <span className={styles.retry}>{t("retrying")}</span>}</td>
             {showStreams && <td className={styles.streamCell}><StreamerLink character={character} /></td>}
-          </tr>{selectedId === character._id && !narrow && <tr className={styles.expandedRow}><td colSpan={showStreams ? 9 : 8}>
+            <td className={styles.expandCell}><button className={styles.expandButton} aria-label={t("progress.characterDetails", { name: character.name || character.slug })} aria-expanded={selectedId === character._id} aria-controls={`forever-details-${character._id}`} onClick={() => toggle(character._id)}>{selectedId === character._id ? "−" : "+"}</button></td>
+          </tr>{selectedId === character._id && !narrow && <tr className={styles.expandedRow}><td colSpan={showStreams ? 11 : 10}>
             <section className={styles.expandedPanel} id={`forever-details-${character._id}`} aria-label={t("progress.characterDetails", { name: character.name || character.slug })}>
               <button className={`${styles.button} ${styles.detailClose}`} onClick={() => { setSelectedId(null); document.querySelector<HTMLButtonElement>(`button[aria-controls="forever-details-${character._id}"]`)?.focus(); }} aria-label={t("close")}>× {t("close")}</button>
               <CharacterDetailsLoader identity={character.region === "eu" ? character.slug : character._id} />

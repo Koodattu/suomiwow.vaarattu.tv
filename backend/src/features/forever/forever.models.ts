@@ -20,11 +20,13 @@ characterSchema.index({ region: 1, slug: 1 }, { unique: true });
 characterSchema.index({ status: 1, nextFetchAt: 1 });
 characterSchema.index({ status: 1, refreshRequestedAt: 1 });
 characterSchema.index({ status: 1, level: -1, name: 1 });
+characterSchema.index({ region: 1, status: 1, level: -1 });
 characterSchema.index({ status: 1, twitchNextCheckAt: 1 });
 
 const guildSchema = new Schema({
   ...identity, ...polling, name: { type: String, required: true },
-  status: { type: String, enum: ["pending", "approved", "paused"], default: "pending", required: true },
+  status: { type: String, enum: ["proposed", "pending", "approved", "paused", "rejected"], default: "pending", required: true },
+  proposedBy: String, hidden: { type: Boolean, default: false },
   roster: { type: [member], default: [] },
 }, { timestamps: true, collection: "forever_guilds" });
 guildSchema.index({ region: 1, slug: 1 }, { unique: true });

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import twitchService from "../../services/twitch.service";
 import logger from "../../utils/logger";
 import { ForeverCharacter, ForeverWorker } from "./forever.models";
+import { visibleForeverCharacters } from "./forever-visibility";
 
 // Store logins, never arbitrary links. Empty values explicitly remove an association.
 export function normalizeTwitchChannel(value: unknown): string | null {
@@ -49,7 +50,8 @@ export class ForeverTwitchRunner {
     let nextRequestAt = new Date(Date.now() + 15_000);
     try {
       // Twenty logins fit Twitch's default response page, even if every channel is live.
-      const due = await ForeverCharacter.find({ status: "tracked", twitchChannel: { $type: "string", $ne: "" },
+      const visible = await visibleForeverCharacters();
+      const due = await ForeverCharacter.find({ ...visible, status: "tracked", twitchChannel: { $type: "string", $ne: "" },
         $or: [{ twitchNextCheckAt: { $exists: false } }, { twitchNextCheckAt: { $lte: now } }],
       }).sort({ twitchNextCheckAt: 1, _id: 1 }).limit(20).select("twitchChannel").lean();
       const channels = [...new Set(due.map((character) => character.twitchChannel!))];
@@ -64,7 +66,7 @@ export class ForeverTwitchRunner {
           const status = statuses.get(channel);
           if (!status) throw new Error("Incomplete Twitch status response");
           // Matching the channel prevents an in-flight result from overwriting an admin edit.
-          await ForeverCharacter.updateMany({ status: "tracked", twitchChannel: channel }, { $set: {
+          await ForeverCharacter.updateMany({ ...visible, status: "tracked", twitchChannel: channel }, { $set: {
             twitchIsLive: status.isLive, twitchCheckedAt: checkedAt, twitchNextCheckAt: new Date(checkedAt.getTime() + 120_000),
           } }, { session });
         }

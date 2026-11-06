@@ -1,6 +1,6 @@
 export interface ForeverCharacter {
   _id: string; region: string; slug: string; status?: string; source?: string;
-  name?: string; level?: number; className?: string; race?: string; faction?: string; ruleset?: string; avatarUrl?: string | null;
+  rank?: number; name?: string; level?: number; className?: string; race?: string; faction?: string; ruleset?: string; avatarUrl?: string | null;
   twitchChannel?: string; twitchIsLive?: boolean; twitchCheckedAt?: string;
   guild?: { name: string; slug: string; region: string } | null;
   refreshRequestedAt?: string; lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string; failures?: number;
@@ -44,7 +44,7 @@ export function foreverUpdateAge(value: string | null | undefined, now: number):
   return { unit: "days", count: Math.floor(minutes / 1440) };
 }
 export interface ForeverGuild {
-  _id: string; name: string; region: string; slug: string; status: string;
+  _id: string; name: string; region: string; slug: string; status: string; hidden?: boolean;
   lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; errorCode?: string; failures?: number; rosterCount?: number;
   roster?: { region: string; slug: string; name: string; level: number; className: string; trackingStatus?: string }[];
 }
