@@ -4,6 +4,11 @@
     "region": "eu"
   },
   {
+    "name": "Abel Copper",
+    "region": "eu",
+    "twitchChannel": "arthori"
+  },
+  {
     "name": "Absolute Halloww",
     "region": "eu"
   },
@@ -305,9 +310,19 @@
     "region": "eu"
   },
   {
+    "name": "Mr Kojo",
+    "region": "eu",
+    "twitchChannel": "kojootti86"
+  },
+  {
     "name": "Munapoolo Paladin",
     "region": "eu",
     "twitchChannel": "munapoolo"
+  },
+  {
+    "name": "Mystis Faija",
+    "region": "eu",
+    "twitchChannel": "myst1s"
   },
   {
     "name": "Nasty Sock",
@@ -526,6 +541,11 @@
     "name": "Womber Moonfang",
     "region": "eu",
     "twitchChannel": "womberor"
+  },
+  {
+    "name": "Xipa Soulcinder",
+    "region": "eu",
+    "twitchChannel": "xiralin"
   },
   {
     "name": "Xvixiiv Ttv",

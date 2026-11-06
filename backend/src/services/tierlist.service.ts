@@ -1,9 +1,11 @@
-import { mainEncounterFilter } from "../config/raid-encounters";
-import Guild, { IGuild, IGuildCrest } from "../models/Guild";
+import { isMainEncounter, mainEncounterFilter } from "../config/raid-encounters";
+import Guild, { IBossProgress, IGuild, IGuildCrest } from "../models/Guild";
 import TierList, { IGuildTierScore, IRaidTierList } from "../models/TierList";
 import Fight from "../models/Fight";
 import { TRACKED_RAIDS } from "../config/guilds";
 import logger from "../utils/logger";
+
+type EfficiencyBoss = Pick<IBossProgress, "bossId" | "kills" | "firstKillReportCode" | "pullCount" | "timeSpent">;
 
 interface GuildRaidData {
   guildId: string;
@@ -16,20 +18,16 @@ interface GuildRaidData {
   raidName: string;
   // Heroic data
   heroicBossesDefeated: number;
-  heroicWclBossesDefeated: number;
+  heroicBosses: EfficiencyBoss[];
   heroicTotalBosses: number;
   heroicWorldRank: number | null;
   heroicGuildRank: number | null;
-  heroicTotalPulls: number;
-  heroicTimeSpent: number;
   // Mythic data
   mythicBossesDefeated: number;
-  mythicWclBossesDefeated: number;
+  mythicBosses: EfficiencyBoss[];
   mythicTotalBosses: number;
   mythicWorldRank: number | null;
   mythicGuildRank: number | null;
-  mythicTotalPulls: number;
-  mythicTimeSpent: number;
 }
 
 class TierListService {
@@ -48,7 +46,7 @@ class TierListService {
    * Calculate tier list scores for all guilds
    * Algorithm:
    * - Speed Score: Based on world rank and guild rank (lower = better)
-   * - Efficiency Score: Based on kills per pull ratio and time efficiency
+   * - Efficiency Score: Progress-capped, same-boss comparisons of first-kill pulls and combat time
    * - Overall Score: Weighted combination of speed and efficiency
    */
   async calculateTierLists(): Promise<void> {
@@ -105,14 +103,6 @@ class TierListService {
 
           const raidName = heroicProgress?.raidName || mythicProgress?.raidName || `Raid ${raidId}`;
 
-          // Calculate total pulls and WCL verified bosses from bosses array
-          const heroicTotalPulls = heroicProgress?.bosses.reduce((sum, boss) => sum + boss.pullCount, 0) || 0;
-          const mythicTotalPulls = mythicProgress?.bosses.reduce((sum, boss) => sum + boss.pullCount, 0) || 0;
-
-          // A boss is considered WCL-backed if it has a firstKillReportCode or essentially any verifiable WCL kill data
-          const heroicWclBossesDefeated = heroicProgress?.bosses.filter((b) => b.kills > 0 && b.firstKillReportCode).length || 0;
-          const mythicWclBossesDefeated = mythicProgress?.bosses.filter((b) => b.kills > 0 && b.firstKillReportCode).length || 0;
-
           raidDataList.push({
             guildId,
             guildName: guild.name,
@@ -123,19 +113,15 @@ class TierListService {
             raidId,
             raidName,
             heroicBossesDefeated: heroicProgress?.bossesDefeated || 0,
-            heroicWclBossesDefeated,
+            heroicBosses: heroicProgress?.bosses || [],
             heroicTotalBosses: heroicProgress?.totalBosses || 0,
             heroicWorldRank: heroicProgress?.worldRank || null,
             heroicGuildRank: heroicProgress?.guildRank || null,
-            heroicTotalPulls,
-            heroicTimeSpent: heroicProgress?.totalTimeSpent || 0,
             mythicBossesDefeated: mythicProgress?.bossesDefeated || 0,
-            mythicWclBossesDefeated,
+            mythicBosses: mythicProgress?.bosses || [],
             mythicTotalBosses: mythicProgress?.totalBosses || 0,
             mythicWorldRank: mythicProgress?.worldRank || null,
             mythicGuildRank: mythicProgress?.guildRank || null,
-            mythicTotalPulls,
-            mythicTimeSpent: mythicProgress?.totalTimeSpent || 0,
           });
         }
 
@@ -287,22 +273,12 @@ class TierListService {
   }
 
   /**
-   * Ascending interpolation helper: maps a value from [min, max] range to [0, 1000] score.
-   * Higher values get higher scores. Use for metrics where more = better (e.g. credit-per-time).
-   */
-  private interpolateScoreAscending(value: number, minValue: number, maxValue: number): number {
-    if (minValue === maxValue) return this.MAX_SCORE;
-    const normalized = (value - minValue) / (maxValue - minValue);
-    return Math.round(this.MAX_SCORE * normalized);
-  }
-
-  /**
    * Calculate exponential progress score for bosses defeated.
    * Later bosses are worth more than earlier bosses (exponential growth).
    * 0 bosses = 0 score, all bosses = 1000 score.
    *
    * @param k Steepness factor. Higher = more emphasis on later bosses.
-   *          Speed scoring uses k=10 (only near-full clears matter).
+   *          Speed scoring uses k=5 (moderate emphasis on full clears).
    *          Efficiency scoring uses k=3 (all progress meaningful).
    */
   private calculateExponentialProgressScore(bossesDefeated: number, totalBosses: number, k: number = 10): number {
@@ -313,6 +289,65 @@ class TierListService {
     const exponentialProgress = (Math.exp(k * progress) - 1) / (Math.exp(k) - 1);
 
     return Math.round(exponentialProgress * this.MAX_SCORE);
+  }
+
+  /**
+   * Compare each verified first kill with the same boss on the same difficulty.
+   * Median benchmarks limit the influence of unusually sparse or expensive logs.
+   * At the median a metric earns 0.5; less effort approaches 1, more approaches 0.
+   * Fewer than three guild samples earn neutral credit instead of an assumed best score.
+   *
+   * Progress multiplies the entire result: 1/8 cannot exceed its 24-point credit,
+   * even with perfect ratios. Unkilled or unlogged bosses cannot earn credit.
+   */
+  private calculateDifficultyEfficiencyScore(
+    bosses: EfficiencyBoss[],
+    totalBosses: number,
+    allBosses: EfficiencyBoss[][],
+    raidId: number,
+  ): number {
+    const isUsable = (boss: EfficiencyBoss): boolean =>
+      isMainEncounter(raidId, boss.bossId) &&
+      boss.kills > 0 && Boolean(boss.firstKillReportCode) &&
+      Number.isInteger(boss.pullCount) && boss.pullCount > 0 &&
+      Number.isFinite(boss.timeSpent) && boss.timeSpent > 0;
+
+    const killedBosses = bosses.filter(isUsable);
+    if (totalBosses <= 0 || killedBosses.length === 0) return 0;
+
+    const samplesByBoss = new Map<number, EfficiencyBoss[]>();
+    for (const guildBosses of allBosses) {
+      for (const boss of guildBosses.filter(isUsable)) {
+        const samples = samplesByBoss.get(boss.bossId) || [];
+        samples.push(boss);
+        samplesByBoss.set(boss.bossId, samples);
+      }
+    }
+
+    const median = (values: number[]): number => {
+      values.sort((a, b) => a - b);
+      const middle = Math.floor(values.length / 2);
+      return values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2;
+    };
+
+    let timeCredit = 0;
+    let pullCredit = 0;
+    for (const boss of killedBosses) {
+      const samples = samplesByBoss.get(boss.bossId) || [];
+      if (samples.length < 3) {
+        timeCredit += 0.5;
+        pullCredit += 0.5;
+        continue;
+      }
+
+      const medianTime = median(samples.map(sample => sample.timeSpent));
+      const medianPulls = median(samples.map(sample => sample.pullCount));
+      timeCredit += 1 / (1 + boss.timeSpent / medianTime);
+      pullCredit += 1 / (1 + boss.pullCount / medianPulls);
+    }
+
+    const progress = this.calculateExponentialProgressScore(killedBosses.length, totalBosses, 3);
+    return Math.round(progress * (0.25 + 0.5 * timeCredit / killedBosses.length + 0.25 * pullCredit / killedBosses.length));
   }
 
   /**
@@ -404,97 +439,21 @@ class TierListService {
     }
 
     // === CALCULATE EFFICIENCY SCORE ===
-    // Efficiency measures how effectively a guild clears bosses relative to time and effort.
-    // Score each difficulty independently, then apply the same heroic/mythic weights as speed.
-    // This prevents heroic-only clears from gaining unweighted ratio credit against mythic progression.
-    //
-    // Per difficulty: creditPerTime 50% + creditPerPull 25% + progress 25%.
-    // Final: heroicEfficiency * 0.2 + mythicEfficiency * 0.8.
-    let heroicEfficiencyScore = 0;
-    let mythicEfficiencyScore = 0;
-    let efficiencyScore = 0;
-    // For efficiency, ONLY count WCL-backed bosses since time/pull values originate purely from WCL logs
-    const hasHeroicEfficiency = guildData.heroicWclBossesDefeated > 0;
-    const hasMythicEfficiency = guildData.mythicWclBossesDefeated > 0;
-
-    if (hasHeroicEfficiency || hasMythicEfficiency) {
-      const EFFICIENCY_K = 3;
-
-      const calculateDifficultyEfficiencyScore = (
-        bossesDefeated: number,
-        totalBosses: number,
-        timeSpent: number,
-        totalPulls: number,
-        getBossesDefeated: (data: GuildRaidData) => number,
-        getTimeSpent: (data: GuildRaidData) => number,
-        getTotalPulls: (data: GuildRaidData) => number,
-      ): number => {
-        if (bossesDefeated <= 0 || totalBosses <= 0) return 0;
-
-        const progress = this.calculateExponentialProgressScore(bossesDefeated, totalBosses, EFFICIENCY_K);
-        const creditPerTimeValues: number[] = [];
-        const creditPerPullValues: number[] = [];
-
-        for (const g of allGuildsData) {
-          const gBossesDefeated = getBossesDefeated(g);
-          if (gBossesDefeated <= 0) continue;
-
-          const gProgress = this.calculateExponentialProgressScore(gBossesDefeated, totalBosses, EFFICIENCY_K);
-          const gTimeSpent = getTimeSpent(g);
-          const gTotalPulls = getTotalPulls(g);
-
-          if (gTimeSpent > 0) creditPerTimeValues.push(gProgress / gTimeSpent);
-          if (gTotalPulls > 0) creditPerPullValues.push(gProgress / gTotalPulls);
-        }
-
-        const minCPT = creditPerTimeValues.length > 0 ? Math.min(...creditPerTimeValues) : 0;
-        const maxCPT = creditPerTimeValues.length > 0 ? Math.max(...creditPerTimeValues) : 1;
-        const minCPP = creditPerPullValues.length > 0 ? Math.min(...creditPerPullValues) : 0;
-        const maxCPP = creditPerPullValues.length > 0 ? Math.max(...creditPerPullValues) : 1;
-
-        let creditPerTimeScore = 0;
-        if (timeSpent > 0) {
-          creditPerTimeScore = this.interpolateScoreAscending(progress / timeSpent, minCPT, maxCPT);
-        }
-
-        let creditPerPullScore = 0;
-        if (totalPulls > 0) {
-          creditPerPullScore = this.interpolateScoreAscending(progress / totalPulls, minCPP, maxCPP);
-        }
-
-        return Math.round(creditPerTimeScore * 0.5 + creditPerPullScore * 0.25 + progress * 0.25);
-      };
-
-      heroicEfficiencyScore = calculateDifficultyEfficiencyScore(
-        guildData.heroicWclBossesDefeated,
-        heroicTotalBosses,
-        guildData.heroicTimeSpent,
-        guildData.heroicTotalPulls,
-        (data) => data.heroicWclBossesDefeated,
-        (data) => data.heroicTimeSpent,
-        (data) => data.heroicTotalPulls,
-      );
-
-      mythicEfficiencyScore = calculateDifficultyEfficiencyScore(
-        guildData.mythicWclBossesDefeated,
-        mythicTotalBosses,
-        guildData.mythicTimeSpent,
-        guildData.mythicTotalPulls,
-        (data) => data.mythicWclBossesDefeated,
-        (data) => data.mythicTimeSpent,
-        (data) => data.mythicTotalPulls,
-      );
-
-      if (hasHeroicEfficiency && hasMythicEfficiency) {
-        efficiencyScore = heroicEfficiencyScore * this.HEROIC_WEIGHT + mythicEfficiencyScore * this.MYTHIC_WEIGHT;
-      } else if (hasHeroicEfficiency) {
-        efficiencyScore = heroicEfficiencyScore * this.HEROIC_WEIGHT;
-      } else if (hasMythicEfficiency) {
-        efficiencyScore = mythicEfficiencyScore * this.MYTHIC_WEIGHT;
-      }
-
-      efficiencyScore = Math.max(this.MIN_SCORE, Math.min(this.MAX_SCORE, efficiencyScore));
-    }
+    // Same-boss comparisons are capped by verified progress on each difficulty.
+    // Keep heroic/mythic weights fixed, including when one difficulty has no logs.
+    const heroicEfficiencyScore = this.calculateDifficultyEfficiencyScore(
+      guildData.heroicBosses,
+      heroicTotalBosses,
+      allGuildsData.map(data => data.heroicBosses),
+      guildData.raidId,
+    );
+    const mythicEfficiencyScore = this.calculateDifficultyEfficiencyScore(
+      guildData.mythicBosses,
+      mythicTotalBosses,
+      allGuildsData.map(data => data.mythicBosses),
+      guildData.raidId,
+    );
+    const efficiencyScore = heroicEfficiencyScore * this.HEROIC_WEIGHT + mythicEfficiencyScore * this.MYTHIC_WEIGHT;
 
     // === CALCULATE WEIGHTED SPEED SCORE ===
     // Heroic 20%, Mythic 80%. Single-difficulty guilds are scaled by their weight
