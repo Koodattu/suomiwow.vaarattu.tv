@@ -202,7 +202,7 @@
   .populationPie { width: 44px; height: 44px; }
   .populationLegend { font-size: 10px; column-gap: 6px; }
   .populationCombinations { grid-area: combinations; border-left: 0; padding: 0; }
-  .populationCombinations table { width: 100%; table-layout: fixed; overflow-wrap: anywhere; font-size: 10px; }
+  .populationCombinations table { width: auto; max-width: 100%; overflow-wrap: anywhere; font-size: 10px; }
   .populationCombinations caption { margin-bottom: 4px; }
   .populationCombinations :is(th, td) { padding: 2px 0 2px 6px; }
   .populationCombinations th:first-child { padding-left: 0; }
