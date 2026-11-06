@@ -202,13 +202,13 @@
   .populationLegend > div { font-size: 10px; gap: 0 4px; }
   .populationLegend dd span { font-size: 9px; }
   .populationCombinations { grid-area: combinations; border-left: 0; padding: 0; }
-  .populationCombinations table { width: 100%; font-size: 10px; }
+  .populationCombinations table { width: 100%; table-layout: fixed; overflow-wrap: anywhere; font-size: 10px; }
   .populationCombinations caption { margin-bottom: 4px; }
   .populationCombinations :is(th, td) { padding: 2px 0 2px 6px; }
   .populationCombinations th:first-child { padding-left: 0; }
   .populationLoading { display: block; grid-area: combinations; min-height: 100px; }
 }
-.tableScroll { overflow-x: auto; scrollbar-color: #75633f #171c16; }
+.tableScroll { position: relative; overflow-x: auto; scrollbar-color: #75633f #171c16; }
 .tableScroll:focus-visible { outline: 2px solid #efd58d; outline-offset: -2px; }
 .attribute { color: #c7c4b7; font-size: 12px; white-space: nowrap; }
 .table .faction { margin: 0; font-size: 11px; white-space: nowrap; }
