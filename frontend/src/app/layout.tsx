@@ -2,6 +2,7 @@
 
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import SiteActivityTracker from "@/components/SiteActivityTracker";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { usePathname } from "next/navigation";
@@ -214,6 +215,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased ${isCcgOverlayPage ? "ccg-overlay-body" : ""}`}>
         <QueryProvider>
           <AuthProvider>
+            <SiteActivityTracker />
             <NextIntlClientProvider locale={locale} messages={messages}>
               {!isCcgPage && !isCollectibleOpening && <Navigation />}
               {children}
