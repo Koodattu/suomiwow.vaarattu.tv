@@ -69,11 +69,7 @@ export default function ForeverPopulation({ statistics, total, loading }: {
   return <section className={styles.population} aria-label={t("statistics.summary", { count: total })}>
     <Breakdown title={t("statistics.factions")} entries={allFactions} total={total} />
     <Breakdown title={t("statistics.rulesets")} entries={statistics.rulesets} total={total} />
-    <div className={styles.populationCombinations}>
-      <div className={styles.combinationsDesktop}>{combinations}</div>
-      <details className={styles.combinationsMobile}><summary>{t("statistics.combinations")}</summary>{combinations}</details>
-    </div>
-
+    <div className={styles.populationCombinations}>{combinations}</div>
   </section>;
 }
 
