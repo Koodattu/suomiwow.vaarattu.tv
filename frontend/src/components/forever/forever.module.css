@@ -160,7 +160,6 @@
 .populationLegend dd { display: flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; }
 .populationLegend dd span { font-size: 10px; color: #aaa898; }
 .populationCombinations { min-width: 0; border-left: 1px solid #494338; padding-left: 14px; }
-.combinationsMobile { display: none; }
 .populationCombinations table { width: auto; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
 .populationCombinations :is(th, td) { padding: 1px 0 1px 16px; text-align: right; line-height: 1.3; }
 .populationCombinations th { font-weight: 500; color: #c2baa7; }
@@ -184,22 +183,30 @@
   .population { grid-template-columns: repeat(3, max-content); }
 }
 @media (max-width: 700px) {
-  .levelingHeader { grid-template-columns: minmax(0, 1fr); grid-template-areas: "heading" "population" "form"; gap: 14px; }
+  .levelingHeader { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "heading combinations" "factions rulesets" "form form"; gap: 14px 12px; }
   .levelingHeader .heading { align-items: flex-start; }
-  .population { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); justify-content: stretch; gap: 10px 16px; }
-  .boardSummary { margin-left: 0; }
+  .population { display: contents; }
+  .populationGroup:first-child { grid-area: factions; }
+  .populationGroup:nth-child(2) { grid-area: rulesets; }
+  .populationGroup h2, .populationCombinations caption { font-size: 9px; }
+  .levelingShell .toolbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 8px 12px; }
+  .levelingShell .filters { display: contents; }
+  .levelingShell .filter { flex-direction: column; align-items: stretch; gap: 4px; font-size: 10px; }
+  .levelingShell .select { width: 100%; max-width: none; }
+  .levelingShell .boardSearch { grid-column: 2; grid-row: 3; flex-direction: column; align-items: stretch; gap: 4px; width: auto; padding-top: 19px; }
+  .levelingShell .boardSearch .input { width: 100%; min-width: 0; flex: none; }
+  .levelingShell .boardSearch .quietButton { min-height: 28px; padding-block: 4px; font-size: 10px; }
+  .boardSummary { grid-column: 1 / -1; grid-row: 4; display: flex; flex-wrap: wrap; gap: 4px 12px; margin-left: 0; }
   .populationPieRow { gap: 8px; min-height: 56px; }
   .populationPie { width: 44px; height: 44px; }
   .populationLegend > div { font-size: 10px; gap: 0 4px; }
   .populationLegend dd span { font-size: 9px; }
-  .combinationsDesktop { display: none; }
-  .combinationsMobile { display: block; }
-  .combinationsMobile summary { font-size: 11px; color: #c1b79e; cursor: pointer; min-height: 28px; padding-block: 6px; }
-  .combinationsMobile caption { display: none; }
-  .populationCombinations { grid-column: 1 / -1; border-left: 0; padding: 0; border-top: 1px solid #494338; }
+  .populationCombinations { grid-area: combinations; border-left: 0; padding: 0; }
+  .populationCombinations table { width: 100%; font-size: 10px; }
   .populationCombinations caption { margin-bottom: 4px; }
-  .populationCombinations :is(th, td) { padding-block: 3px; }
-  .populationLoading { min-height: 140px; }
+  .populationCombinations :is(th, td) { padding: 2px 0 2px 6px; }
+  .populationCombinations th:first-child { padding-left: 0; }
+  .populationLoading { display: block; grid-area: combinations; min-height: 100px; }
 }
 .tableScroll { overflow-x: auto; scrollbar-color: #75633f #171c16; }
 .tableScroll:focus-visible { outline: 2px solid #efd58d; outline-offset: -2px; }
