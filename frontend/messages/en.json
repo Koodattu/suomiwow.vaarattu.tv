@@ -185,7 +185,7 @@
       "not_found": "This character or guild is not available.",
       "unavailable": "Could not load or save the data. Please try again."
     },
-    "rankingShort": "Highest level first · Equal levels are tied",
+    "rankingShort": "Highest level first · Earliest observed at that level wins ties",
     "charactersShort": "characters",
     "pagination": "Leaderboard pages",
     "aboutTracking": "About this board",

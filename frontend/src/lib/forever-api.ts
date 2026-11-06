@@ -57,7 +57,7 @@ export interface ForeverStatistics {
   atMaxLevel: number;
 }
 export interface ForeverBoard {
-  characters: ForeverCharacter[]; total: number; pending: number;
+  characters: ForeverCharacter[]; total: number; totalRanked: number; pending: number;
   statistics: ForeverStatistics;
   filterOptions: Record<"race" | "className" | "faction" | "ruleset" | "guild", string[]>;
   page: number; pageSize: number; worker: ForeverWorker | null; enabled: boolean;

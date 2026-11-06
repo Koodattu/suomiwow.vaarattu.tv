@@ -20,7 +20,7 @@ characterSchema.index({ region: 1, slug: 1 }, { unique: true });
 characterSchema.index({ status: 1, nextFetchAt: 1 });
 characterSchema.index({ status: 1, refreshRequestedAt: 1 });
 characterSchema.index({ status: 1, level: -1, name: 1 });
-characterSchema.index({ region: 1, status: 1, level: -1 });
+characterSchema.index({ region: 1, status: 1, level: -1, lastLevelAt: 1, _id: 1 });
 characterSchema.index({ status: 1, twitchNextCheckAt: 1 });
 
 const guildSchema = new Schema({

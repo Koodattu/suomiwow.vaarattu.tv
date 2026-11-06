@@ -185,7 +185,7 @@
       "not_found": "Hahmoa tai kiltaa ei ole saatavilla.",
       "unavailable": "Tietojen lataus tai tallennus epäonnistui. Yritä uudelleen."
     },
-    "rankingShort": "Korkein taso ensin · Samat tasot tasoissa",
+    "rankingShort": "Korkein taso ensin · Samalla tasolla ensin havaittu edellä",
     "charactersShort": "hahmoa",
     "pagination": "Tasoseurannan sivut",
     "aboutTracking": "Tietoa seurannasta",

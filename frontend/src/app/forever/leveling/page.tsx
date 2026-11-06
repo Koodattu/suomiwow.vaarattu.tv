@@ -6,6 +6,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/re
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { foreverApi, foreverRace, ForeverBoard } from "@/lib/forever-api";
+import { getRankColor } from "@/lib/utils";
 import { CharacterDetailsLoader } from "@/components/forever/ForeverCharacterDetails";
 import ForeverPopulation, { ForeverBoardSummary } from "@/components/forever/ForeverPopulation";
 import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink } from "@/components/forever/ForeverShared";
@@ -67,7 +68,7 @@ export default function ForeverLeveling() {
             if ((event.target as HTMLElement).closest("a,button,input,select")) return;
             event.currentTarget.querySelector<HTMLButtonElement>("button[data-character-toggle]")?.focus(); toggle(character._id);
           }}>
-            <td className={styles.rankCell}>{character.rank}</td>
+            <td className={styles.rankCell} style={character.rank ? getRankColor(character.rank, data.totalRanked) : undefined}>{character.rank ?? "—"}</td>
             <td className={styles.characterCell}>
               <button data-character-toggle className={`${styles.identity} ${styles.characterToggle}`} aria-expanded={selectedId === character._id} aria-controls={`forever-details-${character._id}`} onClick={() => toggle(character._id)}>
                 <Portrait character={character} /><span className={styles.name} style={{ color: classColor(character.className) }}>{character.name}</span>

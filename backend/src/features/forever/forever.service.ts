@@ -158,6 +158,7 @@ export async function refreshGuild(id: unknown) {
 
 const publicFields = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt errorCode twitchChannel twitchIsLive twitchCheckedAt";
 const skyborneRaces = ["Skyborne", "Windshaper Skyborne", "High Order Skyborne"];
+const levelRankOrder = { level: -1, lastLevelAt: 1, _id: 1 } as const;
 export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown; guild?: unknown; search?: unknown } = {}) {
   const pageNumber = Math.min(1000, Math.max(1, Number.parseInt(String(query.page), 10) || 1));
   const visible = await visibleForeverCharacters();
@@ -175,8 +176,8 @@ export async function leaderboard(query: { page?: unknown; race?: unknown; class
     if (typeof value !== "string" || value.length > (field === "guild" ? 150 : 80)) throw new ForeverError("invalid_input");
     filter[field === "guild" ? "guild.name" : field] = field === "race" && value === "Skyborne" ? { $in: skyborneRaces } : value;
   }
-  const [characters, breakdown, pending, options, worker, levels] = await Promise.all([
-    ForeverCharacter.find(filter).select(publicFields).sort({ level: -1, name: 1, _id: 1 }).skip((pageNumber - 1) * 50).limit(50).lean(),
+  const [characters, breakdown, pending, options, worker, rankedIds] = await Promise.all([
+    ForeverCharacter.find(filter).select(publicFields).sort(levelRankOrder).skip((pageNumber - 1) * 50).limit(50).lean(),
     ForeverCharacter.aggregate<{
       summary: { total: number; averageLevel: number; atMaxLevel: number }[];
       factions: { name: string | null; count: number }[];
@@ -211,20 +212,17 @@ export async function leaderboard(query: { page?: unknown; race?: unknown; class
     Promise.all(fields.map((field) => ForeverCharacter.distinct(field === "guild" ? "guild.name" : field, base).then((values: (string | null)[]) =>
       [...new Set(values.filter((value): value is string => !!value).map((value) => field === "race" && skyborneRaces.includes(value) ? "Skyborne" : value))].sort((a, b) => a.localeCompare(b, "en"))))),
     ForeverWorker.findById("armory").select("lastTickAt lastSuccessAt nextRequestAt errorCode").lean(),
-    ForeverCharacter.aggregate<{ _id: number; count: number }>([{ $match: base }, { $group: { _id: "$level", count: { $sum: 1 } } }]),
+    // One ordered ID scan, covered by the rank index when no guilds are hidden.
+    // Never load histories or issue a rank query for each returned character.
+    ForeverCharacter.find(base).select("_id").sort(levelRankOrder).lean(),
   ]);
   const population = breakdown[0];
   const summary = population.summary[0];
   const total = summary?.total || 0;
   const statistics = { factions: population.factions, rulesets: population.rulesets, combinations: population.combinations, averageLevel: summary?.averageLevel ?? null, atMaxLevel: summary?.atMaxLevel || 0 };
-  // At most 60 buckets; covered by the level index when no guilds are hidden.
-  // Include empty levels too: an Armory update can land between the parallel reads.
-  const counts = new Map(levels.map((entry) => [entry._id, entry.count]));
-  const ranks = new Map<number, number>();
-  let rank = 1;
-  for (let level = 60; level >= 1; level--) { ranks.set(level, rank); rank += counts.get(level) || 0; }
-  const ranked = characters.map((character) => ({ ...character, rank: ranks.get(character.level!)! }));
-  return { characters: ranked, total, statistics, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
+  const ranks = new Map(rankedIds.map((entry, index) => [String(entry._id), index + 1]));
+  const ranked = characters.map((character) => ({ ...character, rank: ranks.get(String(character._id)) }));
+  return { characters: ranked, total, totalRanked: rankedIds.length, statistics, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
 }
 export async function characterDetail(id: unknown) {
   let identity: Record<string, unknown>;
