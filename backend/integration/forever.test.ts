@@ -38,12 +38,12 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       await ForeverCharacter.deleteMany({}); await ForeverGuild.deleteMany({});
       await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
     });
-    await t.test("global tied ranks survive filtering/pagination and guild hiding is reversible without changing individual states", async () => {
+    await t.test("unique first-to-level ranks survive filtering/pagination and guild hiding is reversible without changing individual states", async () => {
       const future = new Date(Date.now() + 86400000);
       const guild = await ForeverGuild.create({ region: "eu", slug: "hidden-guild", name: "Hidden Guild", status: "approved", nextFetchAt: future, roster: [{ region: "eu", slug: "rank-unfetched" }] });
-      const base = { region: "eu", source: "admin", status: "tracked", nextFetchAt: future };
+      const base = { region: "eu", source: "admin", status: "tracked", nextFetchAt: future, lastLevelAt: new Date("2026-11-05T12:00:00Z") };
       await ForeverCharacter.insertMany([
-        ...["top-a", "top-b"].map((slug) => ({ ...base, slug, name: slug, level: 60, guild: { region: "eu", slug: guild.slug, name: guild.name }, history: [{ level: 60, observedAt: new Date() }] })),
+        ...["top-a", "top-b"].map((slug, index) => ({ ...base, slug, name: slug, level: 60, lastLevelAt: new Date(`2026-11-05T${index ? "10" : "11"}:00:00Z`), guild: { region: "eu", slug: guild.slug, name: guild.name }, history: [{ level: 60, observedAt: new Date() }] })),
         { ...base, slug: "rank-target", name: "Rank Target", level: 40, faction: "Alliance" },
         ...Array.from({ length: 51 }, (_, i) => ({ ...base, slug: `rank-low-${i}`, name: `Rank Low ${i}`, level: 30 })),
         { ...base, slug: "rank-paused", level: 60, status: "paused", guild: { region: "eu", slug: guild.slug, name: guild.name } },
@@ -51,13 +51,17 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
         { ...base, slug: "rank-us", level: 60, region: "us" },
         { ...base, slug: "rank-unfetched", nextFetchAt: new Date(0) },
       ]);
-      assert.deepEqual((await service.leaderboard()).characters.slice(0, 4).map(c => c.rank), [1, 1, 3, 4]);
-      assert.equal((await service.leaderboard({ search: "Rank Target", faction: "Alliance" })).characters[0].rank, 3);
-      assert.ok((await service.leaderboard({ page: 2 })).characters.every(c => c.rank === 4));
-      const plan = await ForeverCharacter.aggregate([{ $match: { region: "eu", status: "tracked", level: { $gte: 1 } } }, { $group: { _id: "$level", count: { $sum: 1 } } }]).explain("executionStats");
-      const cursor = plan.stages?.find((stage: Record<string, unknown>) => stage.$cursor)?.$cursor;
-      const stats = cursor?.executionStats || plan.executionStats;
-      assert.equal(stats.totalDocsExamined, 0, "global level counts must use the covering index, not character/history documents");
+      const first = await service.leaderboard(), second = await service.leaderboard({ page: 2 });
+      assert.deepEqual(first.characters.slice(0, 2).map(c => c.slug), ["top-b", "top-a"], "earlier level observation wins over alphabetical name or creation order");
+      assert.deepEqual([...first.characters, ...second.characters].map(c => c.rank), Array.from({ length: 54 }, (_, i) => i + 1));
+      const filtered = await service.leaderboard({ search: "Rank Target", faction: "Alliance" });
+      assert.equal(filtered.characters[0].rank, 3); assert.equal(filtered.total, 1); assert.equal(filtered.totalRanked, 54);
+      const last = second.characters[second.characters.length - 1];
+      assert.equal((await service.leaderboard({ search: last.name })).characters.find(c => String(c._id) === String(last._id))?.rank, 54);
+      assert.deepEqual((await service.leaderboard({ page: 2 })).characters.map(c => String(c._id)), second.characters.map(c => String(c._id)), "identical timestamps have deterministic unique ordering");
+      const plan = await ForeverCharacter.collection.find({ region: "eu", status: "tracked", level: { $gte: 1 } }, { projection: { _id: 1 } }).sort({ level: -1, lastLevelAt: 1, _id: 1 }).explain("executionStats");
+      const stats = plan.executionStats;
+      assert.equal(stats.totalDocsExamined, 0, "global ranks must use the covering index, not character/history documents");
       console.log(JSON.stringify({ rankQueryDocumentsExamined: stats.totalDocsExamined, rankQueryKeysExamined: stats.totalKeysExamined }));
       await service.setGuildVisibility(String(guild._id), true);
       const visible = await service.leaderboard();
