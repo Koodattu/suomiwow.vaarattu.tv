@@ -17,6 +17,66 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
   try {
     await initializeForever();
     const profile: ForeverProfile = { region: "eu", slug: "test-hero", name: "Test Hero", level: 10, className: "Paladin", race: "Human", faction: "Alliance", ruleset: "Normal", sourceUpdatedAt: new Date("2026-11-05T10:00:00Z"), guild: { region: "eu", slug: "test-guild", name: "Test Guild" } };
+    await t.test("guild suggestions wait for approval, share the submission limit, and deduplicate name/link inputs", async () => {
+      const guild = await service.addGuild("Review Guild", "proposal", "review-user");
+      assert.equal(guild.status, "proposed");
+      assert.equal((await service.addGuild(armoryUrl({ region: "eu", slug: "review-guild" }, "guild"), "proposal", "review-user")).id, guild.id);
+      let calls = 0;
+      const runner = new ForeverRunner({ character: async () => { throw new Error("No character should be fetched"); }, roster: async () => { calls++; return [{ region: "eu", slug: "review-member", name: "Review Member", level: 12, className: "Mage" }]; } });
+      await runner.tick(); assert.equal(calls, 0);
+      await service.addCharacter("Review Hero", "proposal", "review-user");
+      await service.addGuild("Another Guild", "proposal", "review-user");
+      await service.addCharacter("Another Hero", "proposal", "review-user");
+      await assert.rejects(service.addGuild("Rate Limited", "proposal", "review-user"), /rate_limited/);
+      await service.setGuildStatus(guild.id, "approved");
+      await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
+      await runner.tick(); assert.equal(calls, 1);
+      assert.equal((await ForeverCharacter.findOne({ slug: "review-member" }).lean())?.status, "tracked");
+      await service.setGuildStatus(guild.id, "rejected");
+      assert.equal((await service.addGuild("Review Guild", "proposal", "other-user")).status, "rejected");
+      assert.equal((await service.addGuild("Review Guild", "admin", "admin")).status, "pending");
+      await ForeverCharacter.deleteMany({}); await ForeverGuild.deleteMany({});
+      await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
+    });
+    await t.test("global tied ranks survive filtering/pagination and guild hiding is reversible without changing individual states", async () => {
+      const future = new Date(Date.now() + 86400000);
+      const guild = await ForeverGuild.create({ region: "eu", slug: "hidden-guild", name: "Hidden Guild", status: "approved", nextFetchAt: future, roster: [{ region: "eu", slug: "rank-unfetched" }] });
+      const base = { region: "eu", source: "admin", status: "tracked", nextFetchAt: future };
+      await ForeverCharacter.insertMany([
+        ...["top-a", "top-b"].map((slug) => ({ ...base, slug, name: slug, level: 60, guild: { region: "eu", slug: guild.slug, name: guild.name }, history: [{ level: 60, observedAt: new Date() }] })),
+        { ...base, slug: "rank-target", name: "Rank Target", level: 40, faction: "Alliance" },
+        ...Array.from({ length: 51 }, (_, i) => ({ ...base, slug: `rank-low-${i}`, name: `Rank Low ${i}`, level: 30 })),
+        { ...base, slug: "rank-paused", level: 60, status: "paused", guild: { region: "eu", slug: guild.slug, name: guild.name } },
+        { ...base, slug: "rank-private", level: 60, status: "pending" },
+        { ...base, slug: "rank-us", level: 60, region: "us" },
+        { ...base, slug: "rank-unfetched", nextFetchAt: new Date(0) },
+      ]);
+      assert.deepEqual((await service.leaderboard()).characters.slice(0, 4).map(c => c.rank), [1, 1, 3, 4]);
+      assert.equal((await service.leaderboard({ search: "Rank Target", faction: "Alliance" })).characters[0].rank, 3);
+      assert.ok((await service.leaderboard({ page: 2 })).characters.every(c => c.rank === 4));
+      const plan = await ForeverCharacter.aggregate([{ $match: { region: "eu", status: "tracked", level: { $gte: 1 } } }, { $group: { _id: "$level", count: { $sum: 1 } } }]).explain("executionStats");
+      const cursor = plan.stages?.find((stage: Record<string, unknown>) => stage.$cursor)?.$cursor;
+      const stats = cursor?.executionStats || plan.executionStats;
+      assert.equal(stats.totalDocsExamined, 0, "global level counts must use the covering index, not character/history documents");
+      console.log(JSON.stringify({ rankQueryDocumentsExamined: stats.totalDocsExamined, rankQueryKeysExamined: stats.totalKeysExamined }));
+      await service.setGuildVisibility(String(guild._id), true);
+      const visible = await service.leaderboard();
+      assert.equal(visible.total, 52); assert.equal(visible.characters[0].rank, 1); assert.equal(visible.pending, 0);
+      assert.ok(!visible.filterOptions.guild.includes(guild.name));
+      await assert.rejects(service.characterDetail("top-a"), /not_found/);
+      const top = await ForeverCharacter.findOne({ slug: "top-a" }).lean();
+      await assert.rejects(service.adminRefreshNow(String(top!._id)), /not_found/);
+      await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
+      let calls = 0;
+      await new ForeverRunner({ character: async () => { calls++; return profile; }, roster: async () => { calls++; return []; } }).tick();
+      assert.equal(calls, 0, "hidden unfetched members must not be polled");
+      await service.setGuildVisibility(String(guild._id), false);
+      assert.equal((await service.leaderboard({ search: "Rank Target" })).characters[0].rank, 3);
+      assert.equal((await ForeverCharacter.findOne({ slug: "rank-paused" }).lean())?.status, "paused");
+      assert.equal((await ForeverCharacter.findOne({ slug: "top-a" }).lean())?.history.length, 1);
+      await ForeverCharacter.deleteMany({}); await ForeverGuild.deleteMany({});
+      await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
+    });
     await t.test("admin refresh runs first, bypasses character backoff, and respects shared leases and cooldowns", async () => {
       const target = await ForeverCharacter.create({ region: "eu", slug: "priority-hero", source: "admin", status: "tracked", failures: 4, lastAttemptAt: new Date(), nextFetchAt: new Date(Date.now() + 86400000) });
       const regular = await ForeverCharacter.create({ region: "eu", slug: "regular-hero", source: "admin", status: "tracked", nextFetchAt: new Date(0) });
@@ -239,7 +299,7 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       assert.equal((await ForeverWorker.findById("armory").lean())?.leaseToken, "successor");
     });
     await t.test("seed reruns preserve edits, pauses and history without duplicate Wiba entries", async () => {
-      assert.equal((await seedForeverCharacters()).inserted, 100);
+      assert.equal((await seedForeverCharacters()).inserted, 125);
       const wiba = await ForeverCharacter.findOne({ slug: "wiba-wiba" }).lean();
       assert.equal(wiba?.twitchChannel, "wiba");
       await service.setCharacterStatus(String(wiba!._id), "paused");

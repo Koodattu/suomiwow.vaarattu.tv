@@ -42,6 +42,11 @@
     "twitchChannel": "cobragam1ng"
   },
   {
+    "name": "Dalierin Dawnshield",
+    "region": "eu",
+    "twitchChannel": "dalierin"
+  },
+  {
     "name": "Deacine Lightbound",
     "region": "eu"
   },
@@ -136,6 +141,10 @@
     "region": "eu"
   },
   {
+    "name": "Hiio Hoi",
+    "region": "eu"
+  },
+  {
     "name": "Hot Ted",
     "region": "eu"
   },
@@ -212,6 +221,10 @@
     "twitchChannel": "kurppatarppa"
   },
   {
+    "name": "Kuus Yo",
+    "region": "eu"
+  },
+  {
     "name": "La Ku",
     "region": "eu",
     "twitchChannel": "iakubu"
@@ -245,6 +258,10 @@
     "twitchChannel": "makkoftw"
   },
   {
+    "name": "Mamseri Suurmestari",
+    "region": "eu"
+  },
+  {
     "name": "Mansikan Pappi",
     "region": "eu",
     "twitchChannel": "aitomansikka"
@@ -253,6 +270,11 @@
     "name": "Marpsu Thefirst",
     "region": "eu",
     "twitchChannel": "marpsulii"
+  },
+  {
+    "name": "Masa Ahtisaari",
+    "region": "eu",
+    "twitchChannel": "klamppu"
   },
   {
     "name": "Melekoone Velho",
@@ -328,6 +350,11 @@
     "region": "eu"
   },
   {
+    "name": "Pena Shamaanimies",
+    "region": "eu",
+    "twitchChannel": "basicpena"
+  },
+  {
     "name": "Preazy Mortis",
     "region": "eu"
   },
@@ -344,6 +371,10 @@
     "name": "Puukko Jallu",
     "region": "eu",
     "twitchChannel": "salamimeister"
+  },
+  {
+    "name": "Ragge Gubbe",
+    "region": "eu"
   },
   {
     "name": "Riski Pelle",
@@ -384,6 +415,14 @@
   },
   {
     "name": "Spagetti Harri",
+    "region": "eu"
+  },
+  {
+    "name": "Starrk Coyotes",
+    "region": "eu"
+  },
+  {
+    "name": "Strong One",
     "region": "eu"
   },
   {
@@ -487,6 +526,11 @@
     "name": "Womber Moonfang",
     "region": "eu",
     "twitchChannel": "womberor"
+  },
+  {
+    "name": "Xvixiiv Ttv",
+    "region": "eu",
+    "twitchChannel": "xvixiiv"
   },
   {
     "name": "Yara Walking",

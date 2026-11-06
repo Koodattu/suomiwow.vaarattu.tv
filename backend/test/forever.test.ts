@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ArmoryError, armoryUrl, parseArmoryUrl, parseAvatarUrl, parseCharacterHtml, parseRosterResponse, retryAfter } from "../src/features/forever/forever-armory";
+import { ArmoryError, armoryUrl, parseArmoryInput, parseArmoryUrl, parseAvatarUrl, parseCharacterHtml, parseRosterResponse, retryAfter } from "../src/features/forever/forever-armory";
 import { armoryQueueHealth, failureDelay, mayRequestRefresh, MINUTE, refreshDelay, validateProgress } from "../src/features/forever/forever-policy";
 
 const identity = { region: "eu" as const, slug: "test-hero" };
@@ -8,6 +8,17 @@ const character = { ...identity, name: "Test", surname: "Hero", level: 12, class
   faction: { name: "Alliance" }, ruleset: { name: "Normal" }, lastUpdatedTimestamp: { epoch: 1_790_000_000_000 },
   url: "/forever/eu/armory/character/test-hero/", guild: { region: "eu", slug: "test-guild", name: "Test Guild" } };
 const html = (value: unknown) => `<script>var characterProfileInitialState = ${JSON.stringify({ character: value })};</script>`;
+
+test("name or link inputs preserve Unicode and keep guild and character identities separate", () => {
+  assert.deepEqual(parseArmoryInput("  Gerthald   Näätä  "), { region: "eu", slug: "gerthald-näätä" });
+  assert.deepEqual(parseArmoryInput("Fel", "guild"), { region: "eu", slug: "fel" });
+  assert.deepEqual(parseArmoryInput("High Order", "guild"), { region: "eu", slug: "high-order" });
+  assert.deepEqual(parseArmoryInput(armoryUrl(identity)), identity);
+  assert.deepEqual(parseArmoryInput(armoryUrl(identity, "guild"), "guild"), identity);
+  for (const value of ["Single", "", "https://example.com/First-Last", "first/last name", "javascript: bad", { name: "Test Hero" }]) assert.throws(() => parseArmoryInput(value), ArmoryError);
+  assert.throws(() => parseArmoryInput(armoryUrl(identity, "guild")), ArmoryError);
+  assert.throws(() => parseArmoryInput(armoryUrl(identity), "guild"), ArmoryError);
+});
 
 test("Forever URL parsing canonicalizes Unicode and rejects retail, arbitrary hosts and malformed identities", () => {
   assert.deepEqual(parseArmoryUrl(armoryUrl(identity)), identity);

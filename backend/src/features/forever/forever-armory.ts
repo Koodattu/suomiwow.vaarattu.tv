@@ -22,14 +22,22 @@ export function normalizeSlug(value: unknown): string {
   return slug;
 }
 
-export function parseArmoryUrl(value: unknown): ForeverIdentity {
+export function parseArmoryUrl(value: unknown, kind: "character" | "guild" = "character"): ForeverIdentity {
   if (typeof value !== "string" || value.length > 500) throw new ArmoryError("invalid_url", 400);
   try {
     const url = new URL(value.trim());
-    const match = url.pathname.match(/^\/[a-z]{2}-[a-z]{2}\/forever\/(eu|us)\/armory\/character\/([^/]+)\/?$/i);
+    const match = url.pathname.match(new RegExp(`^/[a-z]{2}-[a-z]{2}/forever/(eu|us)/armory/${kind}/([^/]+)/?$`, "i"));
     if (url.origin !== ARMORY_ORIGIN || url.username || url.password || !match) throw new Error();
     return { region: match[1].toLowerCase() as ForeverRegion, slug: normalizeSlug(decodeURIComponent(match[2])) };
   } catch { throw new ArmoryError("invalid_url", 400); }
+}
+
+export function parseArmoryInput(value: unknown, kind: "character" | "guild" = "character"): ForeverIdentity {
+  if (typeof value !== "string" || !value.trim() || value.length > 500) throw new ArmoryError("invalid_url", 400);
+  const input = value.trim().normalize("NFC");
+  if (/^https?:/i.test(input)) return parseArmoryUrl(input, kind);
+  if (kind === "character" && input.split(/\s+/).length < 2) throw new ArmoryError("invalid_url", 400);
+  return { region: "eu", slug: normalizeSlug(input.replace(/\s+/g, "-")) };
 }
 
 export function armoryUrl(identity: ForeverIdentity, kind: "character" | "guild" = "character"): string {

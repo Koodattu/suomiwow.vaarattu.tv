@@ -4,6 +4,7 @@ import logger from "../../utils/logger";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "./forever.models";
 import { ArmoryError, fetchForeverCharacter, fetchForeverRoster, ForeverIdentity, ForeverMember, ForeverProfile } from "./forever-armory";
 import { armoryQueueHealth, failureDelay, MINUTE, refreshDelay, validateProgress } from "./forever-policy";
+import { visibleForeverCharacters } from "./forever-visibility";
 
 const SPACING_MS = 500;
 const IDLE_MS = 5_000;
@@ -54,10 +55,11 @@ export class ForeverRunner {
     let nextRequestAt = new Date(Date.now() + SPACING_MS);
     try {
       const due = { $lte: now, $ne: null };
+      const visible = await visibleForeverCharacters();
       const [priorityCharacter, scheduledCharacter, guild] = await Promise.all([
-        ForeverCharacter.findOne({ status: "tracked", refreshRequestedAt: { $ne: null } }).sort({ refreshRequestedAt: 1, _id: 1 }).lean(),
-        ForeverCharacter.findOne({ status: "tracked", nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
-        ForeverGuild.findOne({ status: { $in: ["pending", "approved"] }, nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
+        ForeverCharacter.findOne({ ...visible, status: "tracked", refreshRequestedAt: { $ne: null } }).sort({ refreshRequestedAt: 1, _id: 1 }).lean(),
+        ForeverCharacter.findOne({ ...visible, status: "tracked", nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
+        ForeverGuild.findOne({ status: { $in: ["pending", "approved"] }, hidden: { $ne: true }, nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
       ]);
       const character = priorityCharacter || scheduledCharacter;
       const useGuild = !priorityCharacter && guild && (!character || guild.nextFetchAt! < character.nextFetchAt!);
@@ -88,7 +90,7 @@ export class ForeverRunner {
           nextFetchAt: new Date(completedAt.getTime() + delay) }, $inc: { failures: 1 } };
         if (useGuild) {
           const current = await ForeverGuild.findById(job._id).session(session);
-          if (current && current.status !== "paused") {
+          if (current && !current.hidden && ["pending", "approved"].includes(current.status)) {
             if (failure) await ForeverGuild.updateOne({ _id: job._id }, updateFailure, { session });
             else {
               await ForeverGuild.updateOne({ _id: job._id }, { $set: { roster, lastAttemptAt: completedAt, lastFetchedAt: completedAt,
