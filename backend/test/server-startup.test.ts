@@ -31,12 +31,14 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
   const errors: unknown[][] = [];
   let listeningWhenWarmupStarted = false;
   let warmupRuns = 0;
+  let analyticsInitialized = false;
   const noop = async () => {};
   const middleware: RequestHandler = (_req, _res, next) => next();
   const expressFactory = Object.assign(() => {
     const app = express();
     const listen = app.listen.bind(app);
     app.listen = ((_port: unknown, callback: () => void) => {
+      assert.equal(analyticsInitialized, true, "audience indexes must be ready before serving requests");
       const server = listen(0, "127.0.0.1", callback);
       servers.push(server);
       return server;
@@ -78,6 +80,11 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
     "./services/ccg-character-identity.service": { reconcileAll: noop },
     "./services/ccg-publisher.service": { ensureConfiguredSets: noop },
     "./middleware/analytics.middleware": { analyticsMiddleware: middleware, flushAnalytics: noop },
+    "./routes/frontend-api": { frontendApiRouter: () => express.Router() },
+    "./services/site-analytics.service": { async initializeSiteAnalytics() { analyticsInitialized = true; } },
+    "./features/forever/forever.worker": { initializeForever: noop, start() {}, stop() {} },
+    "./features/forever/forever-twitch": { start() {}, stop() {} },
+    "./features/forever/forever.routes": { foreverRouter: express.Router(), foreverAdminRouter: express.Router() },
     "./services/avoidable-damage.service": {
       async warmLeaderboardCaches() {
         warmupRuns++;

@@ -1,4 +1,9 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 export default function PrivacyPolicy() {
+  const t = useTranslations("siteAnalytics");
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
       <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
@@ -34,13 +39,9 @@ export default function PrivacyPolicy() {
           <h3 className="text-lg font-medium mb-2 text-white">Session Cookies</h3>
           <p className="mb-2">We use cookies solely to maintain your login session. We do not use tracking cookies of any kind.</p>
 
-          <h3 className="text-lg font-medium mb-2 text-white">Anonymous Usage &amp; Performance Statistics</h3>
-          <p className="mb-2">
-            We collect anonymous, aggregated statistics about site usage and performance to help us improve the service. This data cannot be tied to any individual user.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-white">Server Logs</h3>
-          <p>Basic technical logs (request timestamps, API calls) are kept for debugging purposes. These are not used for user tracking.</p>
+          <h3 className="text-lg font-medium mb-2 text-white">{t("privacyTitle")}</h3>
+          <p className="mb-2">{t("privacyAudience")}</p>
+          <p>{t("privacyRetention")}</p>
         </section>
 
         <section>
@@ -50,7 +51,7 @@ export default function PrivacyPolicy() {
             <li>To associate your WoW characters with your profile (if you choose to connect Battle.net)</li>
             <li>To display your Twitch stream status (if you choose to connect Twitch)</li>
             <li>To maintain your login session</li>
-            <li>To improve site performance and reliability using anonymous, aggregated data</li>
+            <li>{t("privacyPurpose")}</li>
             <li>To debug technical issues via server logs</li>
           </ul>
         </section>
@@ -114,7 +115,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <div className="mt-8 pt-6 border-t border-gray-700 text-sm text-gray-400">
-          <p>Last updated: March 21, 2026</p>
+          <p>{t("privacyUpdated")}</p>
         </div>
       </div>
     </div>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useTranslations } from "next-intl";
+import SiteAudiencePanel from "@/components/admin/SiteAudiencePanel";
 import { useRouter } from "next/navigation";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAuth } from "@/context/AuthContext";
@@ -42,6 +44,7 @@ function formatBytes(bytes: number): string {
 }
 
 function DailyTrafficChart({ data }: { data: DailyChartPoint[] }) {
+  const t = useTranslations("siteAnalytics");
   if (data.length === 0) {
     return <div className="flex h-72 items-center justify-center text-sm text-slate-500">No daily traffic data yet</div>;
   }
@@ -87,7 +90,7 @@ function DailyTrafficChart({ data }: { data: DailyChartPoint[] }) {
             labelStyle={{ color: "#9CA3AF" }}
             labelFormatter={(value) => formatFullChartDate(Number(value))}
             formatter={(value, name) => {
-              const label = name === "requests" ? "Requests" : "Unique visitors";
+              const label = name === "requests" ? "Requests" : t("requestIdentities");
               const numericValue = typeof value === "number" ? value : Number(value || 0);
               return [numericValue.toLocaleString(), label];
             }}
@@ -102,6 +105,7 @@ function DailyTrafficChart({ data }: { data: DailyChartPoint[] }) {
 
 export default function AdminAnalyticsPage() {
   const router = useRouter();
+  const t = useTranslations("siteAnalytics");
   const { user, isLoading: authLoading } = useAuth();
 
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
@@ -122,6 +126,12 @@ export default function AdminAnalyticsPage() {
 
   // Endpoint filtering
   const [endpointFilter, setEndpointFilter] = useState("");
+  const [endpointSearch, setEndpointSearch] = useState("");
+  const [endpointPage, setEndpointPage] = useState(1);
+  const [endpointTotal, setEndpointTotal] = useState(0);
+  const [endpointLoading, setEndpointLoading] = useState(false);
+  const [endpointError, setEndpointError] = useState(false);
+  const [endpointCoverage, setEndpointCoverage] = useState<string | null>(null);
   const [endpointSortBy, setEndpointSortBy] = useState<"count" | "avgResponseTime" | "errorCount">("count");
   const [endpointSortOrder, setEndpointSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -190,8 +200,7 @@ export default function AdminAnalyticsPage() {
           if (cancelled) return;
           setPeakHours(peakHoursData);
         } else if (activeTab === "endpoints") {
-          const endpointsData = await api.getAnalyticsEndpoints(selectedDays);
-          if (!cancelled) setEndpoints(endpointsData);
+          // Endpoint search has its own cancellable request below.
         } else if (activeTab === "performance") {
           const slowData = await api.getAnalyticsSlowEndpoints(selectedDays);
           if (!cancelled) setSlowEndpoints(slowData);
@@ -229,25 +238,22 @@ export default function AdminAnalyticsPage() {
     return () => clearInterval(interval);
   }, [user?.isAdmin]);
 
-  // Filter and sort endpoints
-  const filteredEndpoints = useMemo(() => {
-    let filtered = endpoints;
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setEndpointSearch(endpointFilter); setEndpointPage(1); }, 250);
+    return () => window.clearTimeout(timer);
+  }, [endpointFilter]);
 
-    // Apply text filter
-    if (endpointFilter.trim()) {
-      const searchTerm = endpointFilter.toLowerCase();
-      filtered = endpoints.filter((e) => e.endpoint.toLowerCase().includes(searchTerm));
-    }
-
-    // Apply sorting
-    filtered = [...filtered].sort((a, b) => {
-      const aVal = a[endpointSortBy];
-      const bVal = b[endpointSortBy];
-      return endpointSortOrder === "desc" ? bVal - aVal : aVal - bVal;
-    });
-
-    return filtered;
-  }, [endpoints, endpointFilter, endpointSortBy, endpointSortOrder]);
+  useEffect(() => {
+    if (!user?.isAdmin || activeTab !== "endpoints") return;
+    let cancelled = false;
+    setEndpointLoading(true);
+    setEndpointError(false);
+    api.getAnalyticsEndpoints(selectedDays, { search: endpointSearch, sort: endpointSortBy, order: endpointSortOrder, page: endpointPage })
+      .then(data => { if (!cancelled) { setEndpoints(data.items); setEndpointTotal(data.total); setEndpointCoverage(data.startedAt); } })
+      .catch(() => { if (!cancelled) setEndpointError(true); })
+      .finally(() => { if (!cancelled) setEndpointLoading(false); });
+    return () => { cancelled = true; };
+  }, [user?.isAdmin, activeTab, selectedDays, endpointSearch, endpointSortBy, endpointSortOrder, endpointPage]);
 
   const dailyChartData = useMemo(
     () =>
@@ -355,12 +361,12 @@ export default function AdminAnalyticsPage() {
         {/* Controls Row */}
         <div className="flex flex-wrap gap-4 mb-6 items-center justify-between">
           {/* Tabs */}
-          <div className="flex gap-1 bg-slate-800/50 rounded-lg p-1">
+          <div className="grid w-full grid-cols-4 gap-1 bg-slate-800/50 rounded-lg p-1 sm:flex sm:w-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                className={`px-2 sm:px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
                   activeTab === tab.id ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-slate-700"
                 }`}
               >
@@ -374,7 +380,7 @@ export default function AdminAnalyticsPage() {
             {[7, 14, 30, 90, 365].map((days) => (
               <button
                 key={days}
-                onClick={() => setSelectedDays(days)}
+                onClick={() => { setSelectedDays(days); setEndpointPage(1); }}
                 className={`min-h-10 px-3 py-1.5 rounded-lg transition-[background-color,color,transform] text-sm active:scale-[0.96] ${
                   selectedDays === days ? "bg-blue-600 text-white font-semibold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                 }`}
@@ -385,6 +391,9 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
+        {activeTab === "overview" && <div className="mb-6"><SiteAudiencePanel days={selectedDays} /></div>}
+        <h2 className="mb-2 text-xl font-semibold text-white">{t("apiTraffic")}</h2>
+        <p className="mb-4 text-sm text-slate-400">{t("requestNote")}</p>
         {/* Realtime Stats Bar */}
         {realtime && (
           <div className="mb-6 bg-slate-800/50 rounded-xl p-4 border border-slate-700">
@@ -393,7 +402,7 @@ export default function AdminAnalyticsPage() {
                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
                 <span className="text-sm font-medium text-slate-400">Live</span>
               </div>
-              <div className="flex gap-8">
+              <div className="flex flex-wrap gap-4 sm:gap-8">
                 <div className="text-center">
                   <div className="text-xl font-bold tabular-nums text-white">{realtime.requestsPerMinute}</div>
                   <div className="text-xs text-slate-400">req/min</div>
@@ -454,7 +463,7 @@ export default function AdminAnalyticsPage() {
                         <span className="font-semibold tabular-nums text-blue-400">{data.formattedData}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-300">Unique Visitors</span>
+                        <span className="text-slate-300">{t("requestIdentities")}</span>
                         <span className="font-semibold tabular-nums text-emerald-400">{data.uniqueVisitors.toLocaleString()}</span>
                       </div>
                     </div>
@@ -470,7 +479,7 @@ export default function AdminAnalyticsPage() {
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold text-amber-400 text-balance">Daily Traffic</h2>
-                    <p className="text-sm text-slate-500 text-pretty">Requests and unique visitors per day for the selected range.</p>
+                    <p className="text-sm text-slate-500 text-pretty">{t("dailyNote")}</p>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-right text-xs">
                     <div>
@@ -478,7 +487,7 @@ export default function AdminAnalyticsPage() {
                       <div className="text-base font-bold tabular-nums text-white">{dailyTotals.requests.toLocaleString()}</div>
                     </div>
                     <div>
-                      <div className="text-slate-500">Avg Unique</div>
+                      <div className="text-slate-500">{t("dailyIdentities")}</div>
                       <div className="text-base font-bold tabular-nums text-emerald-400">
                         {daily.length > 0 ? Math.round(dailyTotals.uniqueVisitors / daily.length).toLocaleString() : "0"}
                       </div>
@@ -546,7 +555,8 @@ export default function AdminAnalyticsPage() {
                 <div className="flex-1 min-w-[200px]">
                   <input
                     type="text"
-                    placeholder="Filter endpoints... (e.g., 'guilds', 'raids', 'events')"
+                    aria-label={t("searchEndpoints")}
+                    placeholder={t("searchEndpoints")}
                     value={endpointFilter}
                     onChange={(e) => setEndpointFilter(e.target.value)}
                     className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
@@ -556,7 +566,7 @@ export default function AdminAnalyticsPage() {
                   <span className="text-sm text-slate-400">Sort:</span>
                   <select
                     value={endpointSortBy}
-                    onChange={(e) => setEndpointSortBy(e.target.value as typeof endpointSortBy)}
+                    onChange={(e) => { setEndpointSortBy(e.target.value as typeof endpointSortBy); setEndpointPage(1); }}
                     className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-amber-500"
                   >
                     <option value="count">Request Count</option>
@@ -564,18 +574,26 @@ export default function AdminAnalyticsPage() {
                     <option value="errorCount">Error Count</option>
                   </select>
                   <button
-                    onClick={() => setEndpointSortOrder((o) => (o === "asc" ? "desc" : "asc"))}
+                    aria-label={t("reverseSort")}
+                    onClick={() => { setEndpointSortOrder((o) => (o === "asc" ? "desc" : "asc")); setEndpointPage(1); }}
                     className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white hover:bg-slate-600"
                   >
                     {endpointSortOrder === "desc" ? "↓" : "↑"}
                   </button>
                 </div>
                 <div className="text-sm text-slate-400">
-                  Showing {filteredEndpoints.length} of {endpoints.length} endpoints
+                  {t("endpointCount", { shown: endpoints.length, total: endpointTotal })}
                 </div>
               </div>
             </div>
 
+            <p className="text-sm text-slate-400">{t("endpointCoverage", { date: endpointCoverage ? new Date(endpointCoverage).toLocaleString("fi-FI") : "—" })}</p>
+            {endpointError && <p role="alert" className="text-red-400">{t("loadError")}</p>}
+            <div className="flex items-center justify-between text-sm text-slate-300">
+              <button disabled={endpointPage === 1 || endpointLoading} className="rounded border border-slate-600 px-3 py-2 disabled:opacity-40" onClick={() => setEndpointPage(p => p - 1)}>{t("previous")}</button>
+              <span role="status">{endpointLoading ? t("loading") : t("pageNumber", { page: endpointPage, pages: Math.max(1, Math.ceil(endpointTotal / 50)) })}</span>
+              <button disabled={endpointPage * 50 >= endpointTotal || endpointLoading} className="rounded border border-slate-600 px-3 py-2 disabled:opacity-40" onClick={() => setEndpointPage(p => p + 1)}>{t("next")}</button>
+            </div>
             {/* Endpoints Table */}
             <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
               <div className="overflow-x-auto">
@@ -593,10 +611,11 @@ export default function AdminAnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredEndpoints.map((endpoint) => (
+                    {endpoints.map((endpoint) => (
                       <tr key={endpoint.endpoint} className="border-b border-slate-700/50 hover:bg-slate-700/20">
                         <td className="py-2 px-2 font-mono text-sm text-slate-300" title={endpoint.endpoint}>
                           {endpoint.endpoint}
+                          {!!endpoint.legacyCount && <span className="ml-2 rounded bg-amber-900/50 px-1 text-xs text-amber-200">{t("legacy")}</span>}
                         </td>
                         <td className="py-2 px-2">
                           <div className="flex gap-1">
@@ -614,7 +633,7 @@ export default function AdminAnalyticsPage() {
                         </td>
                         <td className="py-2 px-2 text-right font-mono text-white">{endpoint.count.toLocaleString()}</td>
                         <td className={`py-2 px-2 text-right font-mono ${getResponseTimeColor(endpoint.avgResponseTime)}`}>{endpoint.avgResponseTime}</td>
-                        <td className="py-2 px-2 text-right text-blue-400 text-sm">{endpoint.formattedSize}</td>
+                        <td className="py-2 px-2 text-right text-blue-400 text-sm">{formatBytes(endpoint.totalSize)}</td>
                         <td className="py-2 px-2 text-right">
                           <span className={endpoint.successRate >= 95 ? "text-green-400" : endpoint.successRate >= 80 ? "text-yellow-400" : "text-red-400"}>
                             {endpoint.successRate}%
@@ -628,7 +647,7 @@ export default function AdminAnalyticsPage() {
                     ))}
                   </tbody>
                 </table>
-                {filteredEndpoints.length === 0 && <div className="text-center py-8 text-slate-400">No endpoints match your filter</div>}
+                {endpoints.length === 0 && <div className="text-center py-8 text-slate-400">No endpoints match your filter</div>}
               </div>
             </div>
           </div>
