@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { characterScoringBosses } from "@/lib/raid-encounters";
-import { buildCharacterPerformance, getPerformanceMetrics, performanceBossKey, type PerformanceMetric } from "@/lib/character-performance";
+import { buildCharacterPerformance, getPerformanceMetrics, type PerformanceMetric } from "@/lib/character-performance";
 import { Boss, CharacterProfileChoice, CharacterProfileLookupResponse, CharacterProfileResponse, CharacterRaidReportsResponse, RaidInfo } from "@/types";
 import { useRaids } from "@/lib/queries";
 import { buildRaidOrderIndex, compareRaidIdsByListOrder } from "@/lib/raid-priority";
@@ -249,13 +249,6 @@ function RankingsMetricCell({ row, compact = false }: { row: Pick<CharacterRanki
       <span className="font-semibold">{metric}</span>
     </div>
   );
-}
-
-function BossRoleIcon({ role, pulls }: { role: string; pulls: number }) {
-  const t = useTranslations("characterProfile.performance");
-  const label = t(role === "healer" ? "healer" : role === "tank" ? "tank" : "damage");
-  const icon = role === "tank" ? "/icons/roleicon_tank.png" : getMetricIcon(role === "healer" ? "hps" : "dps");
-  return <Image src={icon} alt={label} title={t("rolePulls", { role: label, count: pulls })} width={14} height={14} className="h-3.5 w-3.5" />;
 }
 
 function getMechanicsScoreValue(row: CharacterMechanic, scoreKind: MechanicsScoreKind) {
@@ -1317,7 +1310,6 @@ export default function CharacterProfilePage({ params }: PageProps) {
             <div>
               <h2 className="text-lg font-semibold text-white">Performance</h2>
               <p className="text-sm text-gray-400">{activePerformanceConfig.description}</p>
-              {performance.rebuiltZones.size > 0 && <p className="mt-1 max-w-xl text-xs text-gray-500">{tCharacterProfile("performance.selectionHint")}</p>}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {showMetricControl && (
@@ -1415,9 +1407,6 @@ export default function CharacterProfilePage({ params }: PageProps) {
                                   className="h-7 w-7 shrink-0 rounded object-cover ring-1 ring-white/10"
                                 />
                                 <RankingsBossParseCell row={bossColumn.bestRanking} classId={character.classID} compact />
-                                {performance.selectedBosses.has(performanceBossKey(group.zoneId, bossColumn.encounterId)) && (
-                                  <BossRoleIcon {...performance.selectedBosses.get(performanceBossKey(group.zoneId, bossColumn.encounterId))!} />
-                                )}
                                 {bossColumn.bestRanking?.rankPercent === null && performance.rebuiltZones.has(group.zoneId) && (
                                   <span className="sr-only">{tCharacterProfile("performance.noParse")}</span>
                                 )}
@@ -1519,9 +1508,6 @@ export default function CharacterProfilePage({ params }: PageProps) {
                                 <IconImage iconFilename={bossColumn.boss?.iconUrl} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded object-cover ring-1 ring-white/10" />
                               )}
                               <MechanicsBossScoreCell row={bossColumn.bestMechanic} scoreKind={activeMechanicsScoreKind} compact />
-                              {performance.selectedBosses.has(performanceBossKey(group.zoneId, bossColumn.encounterId)) && (
-                                <BossRoleIcon {...performance.selectedBosses.get(performanceBossKey(group.zoneId, bossColumn.encounterId))!} />
-                              )}
                             </div>
                           ))}
                         </div>
