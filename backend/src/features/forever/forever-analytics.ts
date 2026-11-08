@@ -17,7 +17,7 @@ export function buildForeverAnalytics(characters: AnalyticsCharacter[], now = Da
   const levels = Array.from({ length: 60 }, (_, index) => ({ level: index + 1, count: 0 }));
   const classes = new Map<string | null, number>(), races = new Map<string | null, number>();
   const raceFactions = new Map<string | null, { alliance: number; horde: number; unknown: number }>();
-  const combinations = new Map<string, { race: string | null; className: string | null; count: number }>();
+  const combinations = new Map<string, { race: string | null; className: string | null; count: number; factions: { alliance: number; horde: number; unknown: number } }>();
   const events: { at: number; active: number; observed: number }[] = [];
   let total = 0, levelSum = 0, historyCharacters = 0, coverageStart: number | null = null;
   for (const character of characters) {
@@ -27,12 +27,15 @@ export function buildForeverAnalytics(characters: AnalyticsCharacter[], now = Da
     classes.set(className, (classes.get(className) || 0) + 1); races.set(race, (races.get(race) || 0) + 1);
     const factions = raceFactions.get(race) || { alliance: 0, horde: 0, unknown: 0 };
     const faction = character.faction?.trim().toLowerCase();
-    factions[faction === "alliance" || faction === "horde" ? faction : "unknown"]++;
+    const factionKey = faction === "alliance" || faction === "horde" ? faction : "unknown";
+    factions[factionKey]++;
     raceFactions.set(race, factions);
     const key = JSON.stringify([race, className]);
-    const combination = combinations.get(key) || { race, className, count: 0 };
-    combination.count++; combinations.set(key, combination);
+    const combination = combinations.get(key) || { race, className, count: 0, factions: { alliance: 0, horde: 0, unknown: 0 } };
+    combination.count++; combination.factions[factionKey]++; combinations.set(key, combination);
 
+    // Level-one characters remain in population statistics, but not activity.
+    if (level === 1) continue;
     const history = (character.history || []).map(point => ({ level: point.level, at: new Date(point.observedAt).getTime() }))
       .filter(point => Number.isInteger(point.level) && point.level >= 1 && point.level <= 60 && Number.isFinite(point.at) && point.at <= now)
       .sort((a, b) => a.at - b.at || a.level - b.level);

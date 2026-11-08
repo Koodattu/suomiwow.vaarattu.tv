@@ -35,6 +35,24 @@ test("race faction segments use actual affiliations and combine both Skyborne va
   assert.deepEqual(result.races.find(race => race.name === "Human")?.factions, { alliance: 1, horde: 0, unknown: 1 });
   for (const race of result.races) assert.equal(Object.values(race.factions).reduce((sum, count) => sum + count, 0), race.count);
 });
+test("race-class faction counts split Skyborne without changing combined popularity totals", () => {
+  const result = buildForeverAnalytics([
+    { level: 20, race: "Windshaper Skyborne", className: "Mage", faction: "Horde" },
+    { level: 30, race: "High Order Skyborne", className: "Mage", faction: "Alliance" },
+    { level: 25, race: "Skyborne", className: "Mage", faction: "Horde" },
+    { level: 15, race: "Skyborne", className: "Warrior", faction: "Alliance" },
+    { level: 10, race: "Skyborne", className: "Warrior" },
+    { level: 10, race: "Orc", className: "Mage", faction: "Horde" },
+  ], now);
+  assert.equal(result.races.find(race => race.name === "Skyborne")?.count, 5);
+  assert.deepEqual(result.combinations.find(entry => entry.race === "Skyborne" && entry.className === "Mage"), {
+    race: "Skyborne", className: "Mage", count: 3, factions: { alliance: 1, horde: 2, unknown: 0 },
+  });
+  assert.deepEqual(result.combinations.find(entry => entry.race === "Skyborne" && entry.className === "Warrior")?.factions,
+    { alliance: 1, horde: 0, unknown: 1 });
+  for (const entry of result.combinations) assert.equal(Object.values(entry.factions).reduce((sum, count) => sum + count, 0), entry.count);
+  assert.equal(result.combinations.reduce((sum, entry) => sum + entry.count, 0), result.total);
+});
 test("activity counts unique characters with a genuine observed gain in (now - 24h, now]", () => {
   const result = buildForeverAnalytics([
     { level: 30, history: [point(30, 1)] }, // First sighting is not thirty gains.
@@ -56,6 +74,29 @@ test("activity drop-off is reconstructed between gains, with only thirty days re
   assert.equal(result.activity.find(row => row.at === new Date(now - 90 * hour).toISOString())?.active, 1);
   assert.equal(result.activity.find(row => row.at === new Date(now - 48 * hour).toISOString())?.active, 0);
   assert.equal(result.active24h, 1); assert.ok(result.activity.length <= 122);
+});
+test("current level-one characters are excluded only from activity, while gains from level one still count", () => {
+  const starter = { level: 1, race: "Orc", className: "Warrior", faction: "Horde", history: [point(1, 120), point(1, 1)] };
+  const leveled = { level: 2, race: "Human", className: "Mage", faction: "Alliance", history: [point(1, 48), point(2, 1)] };
+  const result = buildForeverAnalytics([starter, leveled], now);
+  const activityOnly = buildForeverAnalytics([leveled], now);
+  assert.deepEqual(result.activity, activityOnly.activity);
+  assert.equal(result.coverageStart, activityOnly.coverageStart);
+  assert.equal(result.historyCharacters, 1);
+  assert.equal(result.active24h, 1);
+  assert.equal(result.activity[result.activity.length - 1].observed, 1);
+  assert.equal(result.total, 2);
+  assert.equal(result.levels[0].count, 1);
+  assert.equal(result.averageLevel, 1.5);
+  assert.equal(result.medianLevel, 1.5);
+  assert.equal(result.races.find(row => row.name === "Orc")?.count, 1);
+  assert.equal(result.classes.find(row => row.name === "Warrior")?.count, 1);
+  assert.equal(result.combinations.find(row => row.race === "Orc")?.count, 1);
+  const startersOnly = buildForeverAnalytics([starter], now);
+  assert.deepEqual(startersOnly.activity, []);
+  assert.equal(startersOnly.coverageStart, null);
+  assert.equal(startersOnly.historyCharacters, 0);
+  assert.equal(startersOnly.total, 1);
 });
 test("empty and missing history produce no invented timeline or averages", () => {
   const empty = buildForeverAnalytics([], now);

@@ -35,29 +35,25 @@
 .matrix { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .matrix th { text-align: center; padding: 8px 6px; min-width: 68px; font-weight: 500; white-space: nowrap; }
 .matrix th:first-child { text-align: left; position: sticky; left: 0; z-index: 1; background: #171e18; min-width: 105px; padding-inline: 8px 14px; }
-.matrix td { background: color-mix(in srgb, #d7b875 var(--heat), #202b22); text-align: center; border-radius: 2px; min-width: 68px; }
+.matrix th[scope="row"] { text-align: right; }
+.matrix td { text-align: center; border-radius: 2px; min-width: 68px; }
+.matrix td[data-zero="false"] { background: color-mix(in srgb, #e8bc62 var(--heat), #28565a); }
+.matrix td[data-zero="true"] { background: transparent; }
 .matrix td span { display: block; padding: 9px 5px; }
-.matrix td[data-zero="true"] { background: #ffffff03; color: #969b8d !important; }
 .heatLegend { display: inline-flex; align-items: center; gap: 8px; }
-.heatLegend i { height: 9px; width: 76px; background: linear-gradient(to right, #202b22, #d7b875); }
-.combinations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; border-top: 1px solid #ffffff12; margin-top: 16px; padding-top: 16px; }
+.heatLegend i { height: 9px; width: 76px; background: linear-gradient(to right, #28565a, #e8bc62); }
+.combinations { display: grid; grid-template-columns: repeat(2, minmax(0, 360px)); gap: 32px; border-top: 1px solid #ffffff12; margin-top: 16px; padding-top: 16px; }
 .combinations h3 { color: #c5b794; font-size: 12px; margin: 0 0 10px; font-weight: 600; }
 .combinations ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
-.combinations li { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
-.combinations li > span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.combinations small { display: inline-block; min-width: 48px; text-align: right; color: #b2afa0; margin-left: 10px; }
+.combinations li { display: grid; grid-template-columns: minmax(0, 1fr) 36px 48px; gap: 10px; font-size: 12px; }
+.combinations li > span:nth-child(2), .combinations small { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.combinations small { color: #b2afa0; }
 .range { display: flex; gap: 4px; }
 .range button { color: #bdb6a3; background: none; border: 1px solid #494338; padding: 6px 12px; border-radius: 3px; cursor: pointer; font-size: 12px; }
 .range button[aria-pressed="true"] { background: #d7b87518; border-color: #9e8251; color: #edcf8d; }
 .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 11px; color: #b9b4a4; margin-bottom: 10px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 16px; height: 2px; }
-.dataTable { font-size: 11px; color: #b9b4a4; margin-top: 12px; }
-.dataTable summary { cursor: pointer; width: fit-content; }
-.dataTable .scroll { max-height: 260px; margin-top: 10px; }
-.dataTable table { width: 100%; border-collapse: collapse; text-align: left; }
-.dataTable :is(th, td) { padding: 6px 10px; border-bottom: 1px solid #ffffff12; }
-.dataTable th { font-weight: 500; }
 .loading, .error { padding: 24px 0; color: #b9b4a4; }
 .error { display: flex; align-items: center; gap: 16px; }
 .hubGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
