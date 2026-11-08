@@ -3,6 +3,7 @@ import { requireAdmin } from "../../middleware/admin.middleware";
 import discordService from "../../services/discord.service";
 import logger from "../../utils/logger";
 import * as service from "./forever.service";
+import { foreverAnalytics } from "./forever-analytics";
 
 function route(handler: (req: Request, res: Response) => Promise<unknown>) {
   return async (req: Request, res: Response) => {
@@ -26,6 +27,7 @@ async function requireDiscord(req: Request, res: Response, next: NextFunction) {
 }
 export const foreverRouter = Router();
 foreverRouter.get("/leveling", route(async (req) => service.leaderboard(req.query)));
+foreverRouter.get("/analytics", route(async () => foreverAnalytics()));
 foreverRouter.get("/characters/:id", route(async (req) => service.characterDetail(req.params.id)));
 foreverRouter.post("/proposals", requireDiscord, route(async (req, res) => {
   const result = await service.addCharacter(req.body?.url, "proposal", req.session.userId!);

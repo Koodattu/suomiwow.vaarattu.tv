@@ -1,5 +1,33 @@
 {
   "forever": {
+    "analytics": {
+      "title": "Analytics",
+      "tracked": "Tracked characters",
+      "hubDescription": "Levels, classes, races and leveling activity.",
+      "active24h": "Active · 24 h",
+      "medianLevel": "Median level",
+      "levelDistribution": "Level distribution",
+      "levelRange": "Characters at each level · 1–60",
+      "characterCount": "{count, plural, one {# character} other {# characters}}",
+      "charactersAndShare": "Characters · share",
+      "classes": "Classes",
+      "races": "Races",
+      "raceClass": "Race × class",
+      "matrixScroll": "Race and class counts — scroll horizontally for all classes",
+      "matrixNote": "Zero means no tracked characters, not necessarily an unavailable combination.",
+      "mostCommon": "Most common combinations",
+      "rarest": "Rarest observed combinations",
+      "activity": "Leveling activity",
+      "activeDefinition": "Active = gained at least one observed level in the previous 24 hours.",
+      "active": "Active characters",
+      "observed": "Characters observed so far",
+      "activityNote": "History of currently tracked characters. First sightings are not gains; characters at level 60 stop contributing after 24 hours.",
+      "partialWindow": "The first 24 hours have incomplete coverage.",
+      "noHistory": "Activity appears once level observations are available.",
+      "timeRange": "Time range",
+      "days": "{count} days",
+      "viewData": "View data"
+    },
     "brand": "SuomiWoW Forever",
     "timeAgo": {
       "now": "Just now",

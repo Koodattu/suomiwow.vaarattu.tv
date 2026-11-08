@@ -62,6 +62,15 @@ export interface ForeverBoard {
   filterOptions: Record<"race" | "className" | "faction" | "ruleset" | "guild", string[]>;
   page: number; pageSize: number; worker: ForeverWorker | null; enabled: boolean;
 }
+export interface ForeverAnalytics {
+  generatedAt: string; total: number; historyCharacters: number; averageLevel: number | null; medianLevel: number | null;
+  atMaxLevel: number; active24h: number; coverageStart: string | null;
+  levels: { level: number; count: number }[];
+  classes: { name: string | null; count: number }[];
+  races: { name: string | null; count: number }[];
+  combinations: { race: string | null; className: string | null; count: number }[];
+  activity: { at: string; active: number; observed: number; partial: boolean }[];
+}
 export interface ForeverAdminData {
   characters: ForeverCharacter[]; guilds: ForeverGuild[]; worker: ForeverWorker | null;
   totalCharacters: number; totalGuilds: number; enabled: boolean;

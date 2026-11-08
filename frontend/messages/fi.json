@@ -1,5 +1,33 @@
 {
   "forever": {
+    "analytics": {
+      "title": "Tilastot",
+      "tracked": "Seuratut hahmot",
+      "hubDescription": "Tasot, luokat, rodut ja hahmojen aktiivisuus.",
+      "active24h": "Aktiivisia · 24 h",
+      "medianLevel": "Mediaanitaso",
+      "levelDistribution": "Tasojakauma",
+      "levelRange": "Hahmot tasoittain · 1–60",
+      "characterCount": "{count, plural, one {# hahmo} other {# hahmoa}}",
+      "charactersAndShare": "Hahmoja · osuus",
+      "classes": "Luokat",
+      "races": "Rodut",
+      "raceClass": "Rotu × luokka",
+      "matrixScroll": "Rotujen ja luokkien hahmomäärät — vieritä sivulle nähdäksesi kaikki luokat",
+      "matrixNote": "Nolla tarkoittaa, ettei yhdistelmällä ole seurattuja hahmoja. Yhdistelmä ei välttämättä ole mahdoton.",
+      "mostCommon": "Yleisimmät yhdistelmät",
+      "rarest": "Harvinaisimmat havaitut yhdistelmät",
+      "activity": "Hahmojen aktiivisuus",
+      "activeDefinition": "Aktiivinen = vähintään yksi havaittu tasonnousu edeltävien 24 tunnin aikana.",
+      "active": "Aktiiviset hahmot",
+      "observed": "Siihen mennessä havaitut hahmot",
+      "activityNote": "Nykyisin seurattujen hahmojen historia. Ensihavainto ei ole tasonnousu. Tason 60 hahmo poistuu aktiivisista 24 tunnin kuluttua.",
+      "partialWindow": "Ensimmäisten 24 tunnin tiedot ovat puutteelliset.",
+      "noHistory": "Aktiivisuus näkyy, kun tasohavaintoja on saatavilla.",
+      "timeRange": "Aikaväli",
+      "days": "{count} päivää",
+      "viewData": "Näytä tiedot"
+    },
     "brand": "SuomiWoW Forever",
     "timeAgo": {
       "now": "Juuri nyt",

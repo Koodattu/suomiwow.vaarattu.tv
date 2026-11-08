@@ -9,6 +9,7 @@ import { foreverApi, foreverRace, ForeverBoard } from "@/lib/forever-api";
 import { getRankColor } from "@/lib/utils";
 import { CharacterDetailsLoader } from "@/components/forever/ForeverCharacterDetails";
 import ForeverPopulation, { ForeverBoardSummary } from "@/components/forever/ForeverPopulation";
+import ForeverNav from "@/components/forever/ForeverNav";
 import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink } from "@/components/forever/ForeverShared";
 import styles from "@/components/forever/forever.module.css";
 
@@ -33,6 +34,7 @@ export default function ForeverLeveling() {
       <div className={styles.heading}>
         <Link href="/forever" className={styles.wordmark} aria-label={t("brand")}><small>SuomiWoW</small><strong>Forever</strong></Link>
         <h1 className={styles.title}>{t("title")}</h1>
+        <ForeverNav current="leveling" />
       </div>
       <ForeverPopulation statistics={data?.statistics} total={data?.total || 0} loading={board.isPending} />
       <CharacterForm compact />

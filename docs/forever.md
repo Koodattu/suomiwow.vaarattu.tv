@@ -1,5 +1,51 @@
 # Forever leveling
 
+## Community analytics
+
+`/forever/analytics` is linked from the Forever hub and the Leveling/Analytics tabs.
+`GET /api/forever/analytics` returns aggregates for the same visible, tracked EU
+population as the leaderboard, with observed levels 1–60. Pending, paused, rejected,
+unfetched and US characters are excluded. Independently confirmed characters retain
+the existing exception to guild hiding. No retail collections are involved.
+
+The page includes all sixty level bins, class and race counts/shares, a race × class
+heatmap, and the five most common/rarest **observed** known combinations. Both Skyborne
+variants are grouped consistently with the board. Unknown race/class values remain
+explicit categories; zero heatmap cells mean no tracked characters, not a claim that
+the game disallows that combination. Bar axes start at zero and heat intensity is
+linear against the largest cell. Exact counts are visible without hover.
+
+Activity is a rolling 24-hour count of distinct characters with at least one observed
+level increase. The first observation, repeated/lower levels, malformed and future
+observations do not count. Multiple gains per character merge into a single active
+interval. A gain at exactly `sample time - 24h` has expired. Recently capped characters
+are active for 24 hours after the observed gain to 60, then leave the active count.
+The timeline samples every six hours for up to thirty days, plus the current endpoint;
+the UI offers 7/30-day views and shows the number of cohort members observed by each
+sample. There is no invented history before the first observation. The first day's
+incomplete coverage is labeled, and charts have expandable numeric data tables.
+
+History is retrospective for the **currently tracked cohort**, not a historical
+snapshot of all users or proof of logins/churn. Moderation/removal changes that cohort.
+First discovery is not a level gain; first sightings therefore do not create fake
+activity spikes. Armory delays can shift when gains become observable. Dates use
+Finnish formatting in Europe/Helsinki in both languages.
+
+The API reads only the fields needed for aggregation and caches the result in-process
+for 60 seconds, coalescing concurrent reads. Guild visibility is checked before cache
+reuse; a changed visibility predicate triggers a new aggregate immediately. Other
+updates appear within the cache interval. No history arrays or character identities
+are returned to the browser. The sweep over merged gain intervals avoids scanning
+every character for every timeline point. Tests:
+
+```powershell
+node --test -r ts-node/register test/forever-analytics.test.ts
+node --test -r ts-node/register integration/forever-analytics.test.ts
+```
+
+The integration test uses the same disposable replica-set environment variable as
+the other Forever tests below.
+
 The first version is an unlisted community leaderboard at `/forever/leveling`,
 with a small `/forever` hub and readable `/forever/characters/firstname-surname`
 links for EU profiles. Existing ID links still load and switch to the name URL. These routes

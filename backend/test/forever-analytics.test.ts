@@ -1,0 +1,49 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { buildForeverAnalytics } from "../src/features/forever/forever-analytics";
+
+const now = Date.parse("2026-11-08T12:00:00Z"), hour = 3_600_000;
+const point = (level: number, hoursAgo: number) => ({ level, observedAt: new Date(now - hoursAgo * hour) });
+test("level histogram includes every level; unknown labels and Skyborne grouping preserve totals", () => {
+  const result = buildForeverAnalytics([
+    { level: 1, race: "Windshaper Skyborne", className: "Mage" },
+    { level: 60, race: "High Order Skyborne", className: "Mage" },
+    { level: 20, race: "Orc", className: "Warrior" }, { level: 21 }, { level: 0 }, { level: 61 }, { level: null },
+  ], now);
+  assert.equal(result.total, 4); assert.equal(result.levels.length, 60);
+  assert.equal(result.levels[0].count, 1); assert.equal(result.levels[59].count, 1); assert.equal(result.levels[1].count, 0);
+  assert.equal(result.averageLevel, 25.5); assert.equal(result.medianLevel, 20.5); assert.equal(result.atMaxLevel, 1);
+  assert.equal(result.races.find(row => row.name === "Skyborne")?.count, 2);
+  assert.equal(result.classes.find(row => row.name === null)?.count, 1);
+  assert.equal(result.combinations.reduce((sum, row) => sum + row.count, 0), 4);
+  assert.equal(result.combinations[0].count, 2);
+});
+test("activity counts unique characters with a genuine observed gain in (now - 24h, now]", () => {
+  const result = buildForeverAnalytics([
+    { level: 30, history: [point(30, 1)] }, // First sighting is not thirty gains.
+    { level: 12, history: [point(10, 48), point(11, 23), point(12, 1)] },
+    { level: 60, history: [point(59, 48), point(60, 2)] }, // Recently capped is active.
+    { level: 21, history: [point(20, 48), point(21, 24)] }, // Exactly outside half-open window.
+    { level: 20, history: [point(20, 48), point(20, 1), point(19, 0.5)] },
+    { level: 2, history: [point(1, 48), point(2, -1)] }, // Future data cannot count.
+  ], now);
+  assert.equal(result.active24h, 2); assert.equal(result.historyCharacters, 6);
+  assert.equal(result.activity[result.activity.length - 1].observed, 6);
+  assert.equal(result.activity[result.activity.length - 1].active, 2);
+  assert.ok(result.activity.every(row => row.active <= row.observed));
+  assert.equal(result.activity[0].partial, true); assert.equal(result.activity[result.activity.length - 1].partial, false);
+});
+test("activity drop-off is reconstructed between gains, with only thirty days returned", () => {
+  const result = buildForeverAnalytics([{ level: 12, history: [point(10, 40 * 24), point(11, 4 * 24), point(12, 2)] }], now);
+  assert.equal(result.activity[0].at, new Date(now - 30 * 24 * hour).toISOString());
+  assert.equal(result.activity.find(row => row.at === new Date(now - 90 * hour).toISOString())?.active, 1);
+  assert.equal(result.activity.find(row => row.at === new Date(now - 48 * hour).toISOString())?.active, 0);
+  assert.equal(result.active24h, 1); assert.ok(result.activity.length <= 122);
+});
+test("empty and missing history produce no invented timeline or averages", () => {
+  const empty = buildForeverAnalytics([], now);
+  assert.equal(empty.total, 0); assert.equal(empty.averageLevel, null); assert.equal(empty.medianLevel, null);
+  assert.equal(empty.coverageStart, null); assert.deepEqual(empty.activity, []);
+  const unobserved = buildForeverAnalytics([{ level: 40, history: [{ level: 40, observedAt: new Date("invalid") }] }], now);
+  assert.equal(unobserved.historyCharacters, 0); assert.deepEqual(unobserved.activity, []);
+});
