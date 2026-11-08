@@ -4,7 +4,7 @@ import { visibleForeverCharacters } from "./forever-visibility";
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 interface AnalyticsCharacter {
-  level?: number | null; race?: string | null; className?: string | null;
+  level?: number | null; race?: string | null; className?: string | null; faction?: string | null;
   history?: { level: number; observedAt: Date }[];
 }
 const raceName = (name?: string | null) => ["Windshaper Skyborne", "High Order Skyborne"].includes(name || "") ? "Skyborne" : name?.trim() || null;
@@ -16,6 +16,7 @@ const namedCounts = (counts: Map<string | null, number>) => [...counts].map(([na
 export function buildForeverAnalytics(characters: AnalyticsCharacter[], now = Date.now()) {
   const levels = Array.from({ length: 60 }, (_, index) => ({ level: index + 1, count: 0 }));
   const classes = new Map<string | null, number>(), races = new Map<string | null, number>();
+  const raceFactions = new Map<string | null, { alliance: number; horde: number; unknown: number }>();
   const combinations = new Map<string, { race: string | null; className: string | null; count: number }>();
   const events: { at: number; active: number; observed: number }[] = [];
   let total = 0, levelSum = 0, historyCharacters = 0, coverageStart: number | null = null;
@@ -24,6 +25,10 @@ export function buildForeverAnalytics(characters: AnalyticsCharacter[], now = Da
     const level = character.level!, race = raceName(character.race), className = character.className?.trim() || null;
     total++; levelSum += level; levels[level - 1].count++;
     classes.set(className, (classes.get(className) || 0) + 1); races.set(race, (races.get(race) || 0) + 1);
+    const factions = raceFactions.get(race) || { alliance: 0, horde: 0, unknown: 0 };
+    const faction = character.faction?.trim().toLowerCase();
+    factions[faction === "alliance" || faction === "horde" ? faction : "unknown"]++;
+    raceFactions.set(race, factions);
     const key = JSON.stringify([race, className]);
     const combination = combinations.get(key) || { race, className, count: 0 };
     combination.count++; combinations.set(key, combination);
@@ -75,7 +80,7 @@ export function buildForeverAnalytics(characters: AnalyticsCharacter[], now = Da
     medianLevel: total ? (lowerMiddle! + upperMiddle!) / 2 : null,
     atMaxLevel: levels[59].count, active24h: active,
     coverageStart: coverageStart === null ? null : new Date(coverageStart).toISOString(),
-    levels, classes: namedCounts(classes), races: namedCounts(races),
+    levels, classes: namedCounts(classes), races: namedCounts(races).map(race => ({ ...race, factions: raceFactions.get(race.name)! })),
     combinations: [...combinations.values()].sort((a, b) => b.count - a.count ||
       `${a.race} ${a.className}`.localeCompare(`${b.race} ${b.className}`, "fi")), activity,
   };
@@ -91,7 +96,7 @@ export async function foreverAnalytics() {
   if (pending?.visibility === visibility) return pending.promise;
   const promise = (async () => {
     const characters = await ForeverCharacter.find({ ...visible, region: "eu", status: "tracked", level: { $gte: 1, $lte: 60 } })
-      .select("-_id level race className history.level history.observedAt").lean();
+      .select("-_id level race className faction history.level history.observedAt").lean();
     const data = buildForeverAnalytics(characters);
     cached = { visibility, expiresAt: Date.now() + 60_000, data };
     return data;

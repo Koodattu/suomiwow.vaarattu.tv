@@ -26,8 +26,9 @@
 .bars li { display: grid; grid-template-columns: 108px minmax(24px, 1fr) 42px 48px; align-items: center; gap: 12px; font-size: 12px; }
 .bars strong, .share { text-align: right; font-variant-numeric: tabular-nums; }
 .barName { color: #ded8c6; overflow-wrap: anywhere; }
-.barTrack { display: block; height: 13px; background: #ffffff05; }
-.barTrack i { display: block; height: 100%; min-width: 1px; border-radius: 0 2px 2px 0; opacity: .85; }
+.barTrack { display: flex; height: 13px; background: #ffffff05; }
+.barTrack i { display: block; height: 100%; opacity: .85; }
+.barTrack i:last-child { border-radius: 0 2px 2px 0; }
 .share { color: #b2afa0; font-size: 11px; }
 .scroll { overflow: auto; max-width: 100%; scrollbar-color: #80704b #151c16; }
 .scroll:focus-visible { outline: 2px solid #edcf8d; outline-offset: 2px; }

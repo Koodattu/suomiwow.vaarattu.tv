@@ -18,6 +18,23 @@ test("level histogram includes every level; unknown labels and Skyborne grouping
   assert.equal(result.combinations.reduce((sum, row) => sum + row.count, 0), 4);
   assert.equal(result.combinations[0].count, 2);
 });
+test("race faction segments use actual affiliations and combine both Skyborne variants", () => {
+  const result = buildForeverAnalytics([
+    { level: 20, race: "Windshaper Skyborne", faction: "Horde" },
+    { level: 30, race: "High Order Skyborne", faction: "Alliance" },
+    { level: 25, race: "Skyborne", faction: "Horde" },
+    { level: 10, race: "Orc", faction: "Horde" },
+    { level: 10, race: "Human", faction: "Alliance" },
+    { level: 10, race: "Human" },
+    { level: 0, race: "Skyborne", faction: "Alliance" },
+  ], now);
+  assert.deepEqual(result.races.find(race => race.name === "Skyborne"), {
+    name: "Skyborne", count: 3, factions: { alliance: 1, horde: 2, unknown: 0 },
+  });
+  assert.deepEqual(result.races.find(race => race.name === "Orc")?.factions, { alliance: 0, horde: 1, unknown: 0 });
+  assert.deepEqual(result.races.find(race => race.name === "Human")?.factions, { alliance: 1, horde: 0, unknown: 1 });
+  for (const race of result.races) assert.equal(Object.values(race.factions).reduce((sum, count) => sum + count, 0), race.count);
+});
 test("activity counts unique characters with a genuine observed gain in (now - 24h, now]", () => {
   const result = buildForeverAnalytics([
     { level: 30, history: [point(30, 1)] }, // First sighting is not thirty gains.

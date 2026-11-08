@@ -10,19 +10,29 @@ import styles from "./analytics.module.css";
 const number = new Intl.NumberFormat("fi-FI", { maximumFractionDigits: 1 });
 const percent = (count: number, total: number) => `${number.format(total ? 100 * count / total : 0)} %`;
 const axis = { fill: "#b9b4a4", fontSize: 11 };
+const factionColors = { alliance: "#5794db", horde: "#c75750", unknown: "#b5be89" };
 const date = (timestamp: number) => new Intl.DateTimeFormat("fi-FI", { timeZone: "Europe/Helsinki", day: "numeric", month: "numeric" }).format(timestamp);
 
 function PopulationBars({ title, entries, total, colored = false }: {
-  title: string; entries: ForeverAnalytics["classes"]; total: number; colored?: boolean;
+  title: string; entries: (ForeverAnalytics["classes"][number] | ForeverAnalytics["races"][number])[]; total: number; colored?: boolean;
 }) {
   const t = useTranslations("forever"), maximum = Math.max(1, ...entries.map(entry => entry.count));
   return <section className={styles.panel} aria-label={title}>
     <div className={styles.panelHeading}><h2>{title}</h2><span>{t("analytics.charactersAndShare")}</span></div>
-    <ol className={styles.bars}>{entries.map(entry => <li key={entry.name ?? "unknown"}>
+    {!colored && <div className={styles.legend}>{(["alliance", "horde"] as const).map(faction => <span key={faction}><i style={{ background: factionColors[faction] }} />{t(`factions.${faction}`)}</span>)}</div>}
+    <ol className={styles.bars}>{entries.map(entry => {
+      const segments = "factions" in entry ? (Object.keys(factionColors) as (keyof typeof factionColors)[])
+        .filter(faction => entry.factions[faction] > 0)
+        .map(faction => ({ count: entry.factions[faction], color: factionColors[faction], label: t(faction === "unknown" ? "statistics.unknown" : `factions.${faction}`) })) : null;
+      const breakdown = segments?.map(segment => `${segment.label}: ${number.format(segment.count)}`).join(" · ");
+      return <li key={entry.name ?? "unknown"}>
       <span className={styles.barName} style={colored ? { color: classColor(entry.name ?? undefined) } : undefined}>{entry.name || t("statistics.unknown")}</span>
-      <span className={styles.barTrack} aria-hidden="true"><i style={{ width: `${entry.count / maximum * 100}%`, background: colored ? classColor(entry.name ?? undefined) : "#b5be89" }} /></span>
+      <span className={styles.barTrack} role={segments ? "img" : undefined} aria-label={breakdown} title={breakdown} aria-hidden={segments ? undefined : true}>
+        {segments ? segments.map(segment => <i key={segment.label} aria-hidden="true" style={{ width: `${segment.count / maximum * 100}%`, background: segment.color }} />)
+          : <i style={{ width: `${entry.count / maximum * 100}%`, background: classColor(entry.name ?? undefined) }} />}
+      </span>
       <strong>{number.format(entry.count)}</strong><span className={styles.share}>{percent(entry.count, total)}</span>
-    </li>)}</ol>
+    </li>; })}</ol>
   </section>;
 }
 

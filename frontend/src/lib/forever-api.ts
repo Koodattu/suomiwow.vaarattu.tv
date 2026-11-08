@@ -67,7 +67,7 @@ export interface ForeverAnalytics {
   atMaxLevel: number; active24h: number; coverageStart: string | null;
   levels: { level: number; count: number }[];
   classes: { name: string | null; count: number }[];
-  races: { name: string | null; count: number }[];
+  races: { name: string | null; count: number; factions: { alliance: number; horde: number; unknown: number } }[];
   combinations: { race: string | null; className: string | null; count: number }[];
   activity: { at: string; active: number; observed: number; partial: boolean }[];
 }
