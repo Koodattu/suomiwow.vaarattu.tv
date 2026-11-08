@@ -15,6 +15,7 @@ const characterSchema = new Schema({
   name: String, level: Number, className: String, race: String, faction: String, ruleset: String, avatarUrl: String,
   sourceUpdatedAt: Date, lastLevelAt: Date, refreshRequestedAt: Date, refreshQueuedAt: Date,
   profileFetchedAt: Date, profileLevel: Number,
+  rulesetInferredFromGuild: String,
   rosterObservedAt: Date, rosterLevel: Number, rosterGuildSlug: String, rosterCoverageUntil: Date,
   guild: { type: new Schema({ ...identity, name: String }, { _id: false }), default: null },
   history: { type: [new Schema({ level: { type: Number, required: true }, observedAt: { type: Date, required: true }, sourceUpdatedAt: Date,

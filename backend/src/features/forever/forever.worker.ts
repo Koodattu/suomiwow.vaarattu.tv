@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import logger from "../../utils/logger";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "./forever.models";
 import { ArmoryError, fetchForeverCharacter, fetchForeverRoster, ForeverIdentity, ForeverMember, ForeverProfile } from "./forever-armory";
-import { armoryQueueHealth, failureDelay, nextRosterFetchAt, PROFILE_AUDIT_INTERVAL, profileComparison, refreshDelay, ROSTER_LAG_FALLBACK, validateProgress } from "./forever-policy";
+import { armoryQueueHealth, failureDelay, MIN_PROFILE_LEVEL, nextRosterFetchAt, profileFetchEligibility, PROFILE_AUDIT_INTERVAL, profileComparison, refreshDelay, ROSTER_LAG_FALLBACK, validateProgress } from "./forever-policy";
 import { visibleForeverCharacters } from "./forever-visibility";
 import { applyApprovedRoster, releaseRosterCoverage } from "./forever-roster-sync";
 import { foreverSeedRecords } from "./forever-seed";
@@ -23,6 +23,9 @@ export async function initializeForever() {
     { $set: { independentlyTracked: true } }, { timestamps: false });
   await ForeverCharacter.updateMany({ source: "proposal", status: "tracked", independentlyTracked: { $exists: false } },
     { $set: { independentlyTracked: true } }, { timestamps: false });
+  await ForeverCharacter.updateMany({ $or: [{ level: { $gte: 1, $lt: MIN_PROFILE_LEVEL } },
+    { level: null, rosterLevel: { $gte: 1, $lt: MIN_PROFILE_LEVEL } }] },
+    { $set: { nextFetchAt: null, failures: 0 }, $unset: { errorCode: 1, refreshRequestedAt: 1, refreshQueuedAt: 1 } }, { timestamps: false });
   const legacyGuilds = await ForeverGuild.find({ status: "approved", hidden: { $ne: true }, failures: 0, rosterPollingVersion: { $ne: 1 } }).select("region slug").lean();
   for (const guild of legacyGuilds) await ForeverGuild.updateOne({ _id: guild._id, failures: 0, rosterPollingVersion: { $ne: 1 } },
     { $set: { rosterPollingVersion: 1, nextFetchAt: nextRosterFetchAt(guild) } });
@@ -69,8 +72,8 @@ export class ForeverRunner {
       await releaseRosterCoverage({ rosterCoverageUntil: { $lte: now, $ne: null } }, now);
       const visible = await visibleForeverCharacters();
       const [priorityCharacter, scheduledCharacter, guild] = await Promise.all([
-        ForeverCharacter.findOne({ ...visible, status: "tracked", refreshRequestedAt: { $ne: null } }).sort({ refreshRequestedAt: 1, _id: 1 }).lean(),
-        ForeverCharacter.findOne({ ...visible, status: "tracked", nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
+        ForeverCharacter.findOne({ ...visible, ...profileFetchEligibility, status: "tracked", refreshRequestedAt: { $ne: null } }).sort({ refreshRequestedAt: 1, _id: 1 }).lean(),
+        ForeverCharacter.findOne({ ...visible, ...profileFetchEligibility, status: "tracked", nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
         ForeverGuild.findOne({ status: { $in: ["pending", "approved"] }, hidden: { $ne: true }, nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
       ]);
       const character = priorityCharacter || scheduledCharacter;
@@ -148,7 +151,7 @@ export class ForeverRunner {
                 lastLevelAt, lastAttemptAt: completedAt, lastFetchedAt: completedAt, failures: 0,
                 nextFetchAt: current.refreshRequestedAt || current.refreshQueuedAt ? completedAt
                   : new Date(completedAt.getTime() + (covered ? PROFILE_AUDIT_INTERVAL : refreshDelay(Math.max(profile.level, current.level ?? 0), lastLevelAt))),
-              }, $unset: { errorCode: 1, ...(!covered ? { rosterCoverageUntil: 1 } : {}) }, ...(changed ? { $push: { history: {
+              }, $unset: { errorCode: 1, rulesetInferredFromGuild: 1, ...(!covered ? { rosterCoverageUntil: 1 } : {}) }, ...(changed ? { $push: { history: {
                 level: profile.level, observedAt: completedAt, sourceUpdatedAt: profile.sourceUpdatedAt, source: "character",
               } } } : {}) }, { session });
               if (profile.guild) await ForeverGuild.updateOne({ region: profile.guild.region, slug: profile.guild.slug },

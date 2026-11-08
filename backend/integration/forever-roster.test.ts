@@ -57,7 +57,8 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       assert.ok(a!.nextFetchAt! <= new Date(), "oldest profile is a rotating audit sample");
       assert.equal(b?.history[1]?.source, "roster"); assert.equal(b?.history[1]?.sourceUpdatedAt, undefined);
       const newMember = await ForeverCharacter.findOne({ slug: "new-member" }).lean();
-      assert.equal(newMember?.level, 24); assert.equal(newMember?.ruleset, undefined); assert.ok(newMember!.nextFetchAt! <= new Date());
+      assert.equal(newMember?.level, 24); assert.equal(newMember?.ruleset, "Normal");
+      assert.equal(newMember?.rulesetInferredFromGuild, guildIdentity.slug); assert.ok(newMember!.nextFetchAt! <= new Date());
       const retry = await ForeverCharacter.findById(failed._id).lean();
       assert.equal(retry?.level, 23); assert.equal(retry?.failures, 3); assert.equal(retry?.nextFetchAt?.getTime(), failed.nextFetchAt?.getTime());
       assert.equal((await ForeverCharacter.findOne({ slug: "paused-member" }).lean())?.level, 20);
@@ -69,6 +70,81 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       assert.equal(board.characters[0].rank, 3);
       const schedule = (await ForeverGuild.findOne().lean())!.nextFetchAt!;
       assert.ok(schedule > new Date()); assert.ok(schedule.getTime() <= Date.now() + ROSTER_INTERVAL);
+    });
+
+    await t.test("three direct confirmations classify roster-only members; sub-10 profiles never enter either queue", async () => {
+      await guild();
+      for (const slug of ["known-one", "known-two", "known-three"]) await tracked(slug);
+      const roster = [member("known-one"), member("known-two"), member("known-three"), member("young-member", 9)];
+      await run(roster);
+      const young = (await ForeverCharacter.findOne({ slug: "young-member" }).lean())!;
+      assert.equal(young.ruleset, "Normal"); assert.equal(young.faction, "Alliance");
+      assert.equal(young.rulesetInferredFromGuild, guildIdentity.slug);
+      assert.equal(young.sourceUpdatedAt, undefined); assert.equal(young.profileFetchedAt, undefined);
+      assert.equal(young.nextFetchAt, null); assert.equal(young.history.length, 1);
+      await assert.rejects(service.adminRefreshNow(String(young._id)), /below_armory_level/);
+      await assert.rejects(service.requestRefresh(String(young._id), "low-level-user"), /below_armory_level/);
+      assert.deepEqual(await service.adminCharacterAction([String(young._id)], "retry"), { updated: 0, skipped: 1 });
+      await ForeverCharacter.updateMany({ slug: { $ne: "young-member" } }, { $set: { nextFetchAt: new Date(Date.now() + PROFILE_AUDIT_INTERVAL) } });
+      // Even a leftover priority request or due date cannot bypass the worker guard.
+      await ForeverCharacter.updateOne({ _id: young._id }, { $set: { nextFetchAt: new Date(0), refreshRequestedAt: new Date(0) } });
+      let calls = 0;
+      await ready(); await new ForeverRunner({ roster: async () => { calls++; return roster; }, character: async identity => { calls++; return profile(identity.slug); } }).tick();
+      assert.equal(calls, 0);
+
+      await ForeverCharacter.updateOne({ _id: young._id }, { $set: { failures: 6, errorCode: "upstream_error", nextFetchAt: new Date(Date.now() + 86400_000) } });
+      await initializeForever();
+      const reset = (await ForeverCharacter.findById(young._id).lean())!;
+      assert.equal(reset.nextFetchAt, null); assert.equal(reset.failures, 0); assert.equal(reset.errorCode, undefined);
+      assert.equal(reset.refreshRequestedAt, undefined);
+      await dueGuild(); await run(roster.map(m => m.slug === "young-member" ? member(m.slug, 10) : m));
+      const unlocked = (await ForeverCharacter.findById(young._id).lean())!;
+      assert.equal(unlocked.level, 10); assert.ok(unlocked.nextFetchAt! <= new Date());
+      await ForeverCharacter.updateMany({ slug: { $ne: "young-member" } }, { $set: { nextFetchAt: new Date(Date.now() + PROFILE_AUDIT_INTERVAL) } });
+      const fetched: string[] = [];
+      await run([], async identity => { fetched.push(identity.slug); return profile(identity.slug, 10); });
+      assert.deepEqual(fetched, ["young-member"]);
+      const confirmed = (await ForeverCharacter.findById(young._id).lean())!;
+      assert.equal(confirmed.ruleset, "Normal"); assert.equal(confirmed.rulesetInferredFromGuild, undefined);
+      assert.ok(confirmed.profileFetchedAt);
+    });
+
+    await t.test("conflicts and departures withdraw inferred rulesets without overwriting direct observations", async () => {
+      await guild();
+      for (const slug of ["known-one", "known-two", "known-three"]) await tracked(slug);
+      const roster = [member("known-one"), member("known-two"), member("known-three"), member("young-member", 5)];
+      await run(roster);
+      assert.equal((await ForeverCharacter.findOne({ slug: "young-member" }).lean())?.ruleset, "Normal");
+      await ForeverCharacter.updateOne({ slug: "known-three" }, { $set: { ruleset: "PvP", status: "paused" } });
+      await dueGuild(); await run(roster);
+      const conflict = (await ForeverCharacter.findOne({ slug: "young-member" }).lean())!;
+      assert.equal(conflict.ruleset, undefined); assert.equal(conflict.rulesetInferredFromGuild, undefined);
+      assert.equal((await ForeverCharacter.findOne({ slug: "known-three" }).lean())?.ruleset, "PvP");
+      assert.equal((await ForeverCharacter.findOne({ slug: "known-three" }).lean())?.status, "paused");
+      await ForeverCharacter.updateOne({ slug: "known-three" }, { $set: { ruleset: "Normal" } });
+      await dueGuild(); await run(roster);
+      assert.equal((await ForeverCharacter.findOne({ slug: "young-member" }).lean())?.ruleset, "Normal");
+      await ForeverCharacter.updateMany({ level: { $gte: 10 } }, { $set: { nextFetchAt: new Date(Date.now() + PROFILE_AUDIT_INTERVAL) } });
+      await dueGuild(); await run(roster.filter(m => m.slug !== "young-member"));
+      const left = (await ForeverCharacter.findOne({ slug: "young-member" }).lean())!;
+      assert.equal(left.ruleset, undefined); assert.equal(left.nextFetchAt, null);
+      assert.equal(left.status, "tracked"); assert.equal(left.history.length, 1);
+    });
+
+    await t.test("outdated sub-10 roster entries suppress lookups without publishing unverified progress", async () => {
+      await guild();
+      await run([{ ...member("outdated-young", 5), isOutdated: true }]);
+      const young = (await ForeverCharacter.findOne({ slug: "outdated-young" }).lean())!;
+      assert.equal(young.level, undefined); assert.equal(young.history.length, 0); assert.equal(young.rosterLevel, 5);
+      await assert.rejects(service.adminRefreshNow(String(young._id)), /below_armory_level/);
+      await ForeverCharacter.updateOne({ _id: young._id }, { $set: { nextFetchAt: new Date(0), refreshRequestedAt: new Date(0) } });
+      let calls = 0;
+      await ready(); await new ForeverRunner({ roster: async () => { calls++; return []; }, character: async identity => { calls++; return profile(identity.slug); } }).tick();
+      assert.equal(calls, 0);
+      await ForeverCharacter.updateOne({ _id: young._id }, { $unset: { refreshRequestedAt: 1 } });
+      await dueGuild(); await run([member("outdated-young", 10)]);
+      const unlocked = (await ForeverCharacter.findById(young._id).lean())!;
+      assert.equal(unlocked.level, 10); assert.equal(unlocked.history.length, 1); assert.ok(unlocked.nextFetchAt! <= new Date());
     });
 
     await t.test("older character pages supply profile details without lowering roster progress or resetting first-to-level time", async () => {

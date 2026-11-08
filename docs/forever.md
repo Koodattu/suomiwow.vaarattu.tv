@@ -36,27 +36,32 @@ population as the leaderboard, with observed levels 1–60. Pending, paused, rej
 unfetched and US characters are excluded. Independently confirmed characters retain
 the existing exception to guild hiding. No retail collections are involved.
 
-The page includes all sixty level bins, class and race counts/shares, a race × class
-heatmap, and the five most common/rarest **observed** known combinations. Both Skyborne
-variants are grouped consistently with the board. Unknown race/class values remain
-explicit categories; zero heatmap cells mean no tracked characters, not a claim that
-the game disallows that combination. Bar axes start at zero and heat intensity is
-linear against the largest cell. Exact counts are visible without hover.
+The page includes faction and ruleset pies with a faction × ruleset table, all sixty
+level bins, class and race counts/shares, and a centered race × class heatmap.
+Skyborne is split by faction in the race bars and matrix. Unknown race/class values
+remain explicit categories; zero heatmap cells are empty and transparent. Nonzero
+cells use a teal-to-orange scale from the smallest to the largest observed count,
+with white count labels. Bar axes start at zero. The population charts reuse the
+Leveling components and this same API response, without an extra request.
 
-Activity is a rolling 24-hour count of distinct characters with at least one observed
-level increase. The first observation, repeated/lower levels, malformed and future
-observations do not count. Multiple gains per character merge into a single active
-interval. A gain at exactly `sample time - 24h` has expired. Recently capped characters
-are active for 24 hours after the observed gain to 60, then leave the active count.
+Activity is a rolling 24-hour count of distinct characters first observed or gaining
+at least one level. First observations start an active window without inventing any
+level gains. Repeated/lower levels, malformed and future observations do not extend
+activity. Multiple overlapping windows per character merge so a character counts
+only once. An observation at exactly `sample time - 24h` has expired. Level-one
+characters remain excluded from activity. Newly observed level-60 characters and
+recently capped characters are active for 24 hours, then leave the active count.
 The timeline samples every six hours for up to thirty days, plus the current endpoint;
 the UI offers 7/30-day views and shows the number of cohort members observed by each
-sample. There is no invented history before the first observation. The first day's
-incomplete coverage is labeled, and charts have expandable numeric data tables.
+sample. There is no invented history before the first observation. The summary also
+shows first observations in the last 24 hours (including level one) and the sum of
+actual observed level increases in that window. Duplicate or regressed levels never
+inflate this sum, and first sightings contribute zero gains.
 
 History is retrospective for the **currently tracked cohort**, not a historical
 snapshot of all users or proof of logins/churn. Moderation/removal changes that cohort.
-First discovery is not a level gain; first sightings therefore do not create fake
-activity spikes. Armory delays can shift when gains become observable. Dates use
+First discovery now contributes to activity, so bulk imports can increase that
+metric without proving in-game activity. Armory delays can shift when gains become observable. Dates use
 Finnish formatting in Europe/Helsinki in both languages.
 
 The API reads only the fields needed for aggregation and caches the result in-process
@@ -111,6 +116,22 @@ does not pause members already being tracked; pause those individually if needed
 Leaving a guild does not automatically end character tracking. Newly discovered
 guilds always need their own approval, so discovery cannot recursively approve
 an entire network of guilds.
+
+Roster entries provide faction but not ruleset. During an approved roster sync,
+three directly fetched, current members must agree on faction and ruleset before
+missing rulesets are filled for other usable members. Any conflicting direct
+profile or current roster faction prevents inference. `rulesetInferredFromGuild`
+records the origin; inferred values never count as confirming evidence. Direct
+profile values are preserved. A later profile replaces the inference, and roster
+sync removes inferred values when confirmation is lost, membership ends, or the
+member is marked outdated. No profile timestamps or levels are invented.
+
+Known levels 1–9 are roster-only: scheduled, priority, public and admin profile
+refresh paths all exclude them. Startup clears their obsolete profile retries,
+and a roster observation reaching level 10 queues the first profile immediately.
+Unknown-level characters still need an initial lookup. A sub-10 character without
+coverage from a tracked guild cannot advance until a roster observes its new level;
+the worker does not probe an unsupported individual endpoint to guess that change.
 
 Hiding a guild only hides guild-dependent imports. Seeded characters, direct admin
 additions and individually approved characters remain visible and continue polling
@@ -382,6 +403,7 @@ node --test -r ts-node/register test/forever.test.ts test/forever-auth.test.ts t
 $env:FOREVER_TEST_MONGODB_URI='mongodb://127.0.0.1:27028/?directConnection=true'
 node --test -r ts-node/register integration/forever.test.ts
 node --test -r ts-node/register integration/forever-roster.test.ts
+node --test -r ts-node/register test/forever-guild-ruleset.test.ts
 ```
 
 The integration suite needs a disposable MongoDB replica set. It creates and

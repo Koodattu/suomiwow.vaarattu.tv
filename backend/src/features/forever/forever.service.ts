@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { createHash } from "node:crypto";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "./forever.models";
 import { ArmoryError, armoryUrl, normalizeSlug, parseArmoryInput } from "./forever-armory";
-import { mayRequestRefresh, MINUTE } from "./forever-policy";
+import { mayFetchProfile, mayRequestRefresh, MINUTE, profileFetchEligibility } from "./forever-policy";
 import { normalizeTwitchChannel } from "./forever-twitch";
 import { visibleForeverCharacters } from "./forever-visibility";
 import foreverRunner from "./forever.worker";
@@ -114,6 +114,7 @@ export async function adminCharacterAction(ids: unknown, action: unknown) {
   const filter: Record<string, unknown> = { _id: { $in: uniqueIds } };
   if (action === "retry") {
     filter.status = "tracked";
+    filter.$and = [profileFetchEligibility];
     filter.$or = [{ lastAttemptAt: { $exists: false } }, { lastAttemptAt: { $lte: new Date(Date.now() - 5 * MINUTE) } }];
   } else if (action === "paused") filter.status = "tracked";
   else if (action === "rejected") filter.status = "pending";
@@ -128,6 +129,8 @@ export async function adminCharacterAction(ids: unknown, action: unknown) {
 export async function adminRefreshNow(id: unknown) {
   const requestedAt = new Date();
   const characterId = objectId(id);
+  const existing = await ForeverCharacter.findById(characterId).select("level rosterLevel").lean();
+  if (existing && !mayFetchProfile(existing.level, existing.rosterLevel)) throw new ForeverError("below_armory_level");
   const result = await ForeverCharacter.updateOne({ ...await visibleForeverCharacters(), _id: characterId, status: "tracked" }, {
     $set: { refreshRequestedAt: requestedAt, nextFetchAt: requestedAt },
   });
@@ -145,6 +148,7 @@ export async function requestRefresh(id: unknown, userId: string) {
   await consumeLimit(userId, "refresh", 10);
   const character = await ForeverCharacter.findOne({ ...await visibleForeverCharacters(), _id: objectId(id), status: "tracked" }).lean();
   if (!character) throw new ForeverError("not_found", 404);
+  if (!mayFetchProfile(character.level, character.rosterLevel)) throw new ForeverError("below_armory_level");
   if (mayRequestRefresh(character)) {
     await ForeverCharacter.updateOne({ _id: character._id, status: "tracked", failures: 0, nextFetchAt: character.nextFetchAt },
       { $set: { nextFetchAt: new Date(), refreshQueuedAt: new Date() } });

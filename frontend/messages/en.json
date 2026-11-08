@@ -5,6 +5,8 @@
       "tracked": "Tracked characters",
       "hubDescription": "Levels, classes, races and leveling activity.",
       "active24h": "Active · 24 h",
+      "new24h": "New · 24 h",
+      "levelsGained24h": "Levels gained · 24 h",
       "medianLevel": "Median level",
       "levelDistribution": "Level distribution",
       "characterCount": "{count, plural, one {# character} other {# characters}}",
@@ -12,10 +14,8 @@
       "races": "Races",
       "raceClass": "Race × class",
       "matrixScroll": "Race and class counts — scroll horizontally for all classes",
-      "mostCommon": "Most common combinations",
-      "rarest": "Rarest observed combinations",
       "activity": "Leveling activity",
-      "activeDefinition": "Active = gained at least one observed level in the previous 24 hours.",
+      "activeDefinition": "Active = first observed or gained a level in the last 24 hours. Level 1 excluded.",
       "active": "Active characters",
       "observed": "Characters observed so far",
       "partialWindow": "The first 24 hours have incomplete coverage.",
@@ -202,6 +202,7 @@
       "all": "All"
     },
     "errors": {
+      "below_armory_level": "Armory profiles become available at level 10. Below that, updates require a tracked guild roster.",
       "invalid_twitch": "Enter a Twitch channel name or channel link.",
       "invalid_url": "Enter a full character name, a guild name, or the matching Blizzard Forever Armory link. Retail and Classic links are not supported.",
       "rate_limited": "Too many requests. Please try again in an hour.",

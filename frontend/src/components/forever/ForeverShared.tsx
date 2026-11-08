@@ -72,7 +72,7 @@ export function ForeverUpdated({ value }: { value?: string | null }) {
 export function ForeverErrorMessage({ error }: { error: unknown }) {
   const t = useTranslations("forever");
   const code = error instanceof ForeverApiError ? error.code : "unavailable";
-  const key = ["invalid_url", "invalid_twitch", "rate_limited", "login_required", "not_found"].includes(code) ? code : "unavailable";
+  const key = ["invalid_url", "invalid_twitch", "rate_limited", "login_required", "not_found", "below_armory_level"].includes(code) ? code : "unavailable";
   return <p role="alert" className="rounded-lg border border-red-800 bg-red-950/40 p-3 text-sm text-red-200">{t(`errors.${key}`)}</p>;
 }
 export function WorkerStatus({ worker, enabled }: { worker: ForeverWorker | null; enabled: boolean }) {

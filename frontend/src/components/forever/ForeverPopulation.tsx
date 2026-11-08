@@ -45,8 +45,8 @@ function Breakdown({ title, entries, total }: {
   </div>;
 }
 
-export default function ForeverPopulation({ statistics, total, loading }: {
-  statistics?: ForeverStatistics; total: number; loading: boolean;
+export default function ForeverPopulation({ statistics, total, loading, layout = "compact" }: {
+  statistics?: ForeverStatistics; total: number; loading: boolean; layout?: "compact" | "analytics";
 }) {
   const t = useTranslations("forever");
   if (!statistics) return loading ? <div className={`${styles.population} ${styles.populationLoading}`} aria-label={t("statistics.loading")} aria-busy="true" /> : null;
@@ -66,7 +66,7 @@ export default function ForeverPopulation({ statistics, total, loading }: {
     </table>
     {!total && <p className={styles.populationEmpty}>{t("statistics.noData")}</p>}
   </>;
-  return <section className={styles.population} aria-label={t("statistics.summary", { count: total })}>
+  return <section className={`${styles.population} ${layout === "analytics" ? styles.populationAnalytics : ""}`} aria-label={t("statistics.summary", { count: total })}>
     <Breakdown title={t("statistics.factions")} entries={allFactions} total={total} />
     <Breakdown title={t("statistics.rulesets")} entries={statistics.rulesets} total={total} />
     <div className={styles.populationCombinations}>{combinations}</div>

@@ -14,7 +14,7 @@ test("Forever analytics API scopes the population and coalesces history reads", 
   try {
     await ForeverCharacter.init(); await ForeverGuild.init();
     const now = Date.now();
-    const base = { region: "eu", source: "guild", status: "tracked", level: 20, race: "Human", className: "Mage",
+    const base = { region: "eu", source: "guild", status: "tracked", level: 20, race: "Human", className: "Mage", faction: "Alliance", ruleset: "PvP",
       history: [{ level: 10, observedAt: new Date(now - 48 * 3600_000) }, { level: 20, observedAt: new Date(now - 3600_000) }] };
     await ForeverCharacter.insertMany([
       { ...base, slug: "visible-member" },
@@ -29,11 +29,14 @@ test("Forever analytics API scopes the population and coalesces history reads", 
     mongoose.set("debug", (collection, method) => { if (collection === "forever_characters" && method === "find") characterReads++; });
     const results = await Promise.all(Array.from({ length: 10 }, () => foreverAnalytics()));
     assert.ok(results.every(result => result.total === 3 && result.active24h === 3));
+    assert.deepEqual(results[0].statistics.rulesets, [{ name: "PvP", count: 3 }]);
+    assert.equal(results[0].levelsGained24h, 30); assert.equal(results[0].new24h, 0);
     assert.equal(characterReads, 1, "concurrent viewers share one history read");
     await foreverAnalytics(); assert.equal(characterReads, 1, "cached viewers do not reread all histories");
     await ForeverGuild.updateOne({ _id: guild._id }, { $set: { hidden: true } });
     const hidden = await foreverAnalytics();
     assert.equal(hidden.total, 2); assert.equal(hidden.active24h, 2); assert.equal(characterReads, 2, "guild hiding changes the cache visibility key immediately");
+    assert.equal(hidden.statistics.combinations[0].count, 2); assert.equal(hidden.levelsGained24h, 20);
     process.env.BLIZZARD_CLIENT_ID ??= "test-client"; process.env.BLIZZARD_CLIENT_SECRET ??= "test-secret";
     const { foreverRouter } = await import("../src/features/forever/forever.routes");
     const app = express(); app.use("/api/forever", foreverRouter);

@@ -62,7 +62,7 @@ export function CharacterDetails({ character, showCharacterLink = true }: { char
       <div className={styles.progressActions}>
         <a className={styles.button} href={character.armoryUrl} target="_blank" rel="noreferrer">{t("openArmory")}</a>
         {showCharacterLink && <Link className={styles.detailLink} href={foreverCharacterPath(character)}>{t("progress.characterLink")} ↗</Link>}
-        {user && <button className={styles.detailLink} disabled={busy || queued || !!character.errorCode} onClick={async () => {
+        {user && (character.level == null || character.level >= 10) && <button className={styles.detailLink} disabled={busy || queued || !!character.errorCode} onClick={async () => {
           setBusy(true); setError(null);
           try { await foreverApi(`forever/characters/${character._id}/refresh`, "POST"); setQueued(true); }
           catch (caught) { setError(caught); } finally { setBusy(false); }

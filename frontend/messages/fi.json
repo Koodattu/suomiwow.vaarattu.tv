@@ -5,6 +5,8 @@
       "tracked": "Seuratut hahmot",
       "hubDescription": "Tasot, luokat, rodut ja hahmojen aktiivisuus.",
       "active24h": "Aktiivisia · 24 h",
+      "new24h": "Uusia · 24 h",
+      "levelsGained24h": "Tasonnousuja · 24 h",
       "medianLevel": "Mediaanitaso",
       "levelDistribution": "Tasojakauma",
       "characterCount": "{count, plural, one {# hahmo} other {# hahmoa}}",
@@ -12,10 +14,8 @@
       "races": "Rodut",
       "raceClass": "Rotu × luokka",
       "matrixScroll": "Rotujen ja luokkien hahmomäärät — vieritä sivulle nähdäksesi kaikki luokat",
-      "mostCommon": "Yleisimmät yhdistelmät",
-      "rarest": "Harvinaisimmat havaitut yhdistelmät",
       "activity": "Hahmojen aktiivisuus",
-      "activeDefinition": "Aktiivinen = vähintään yksi havaittu tasonnousu edeltävien 24 tunnin aikana.",
+      "activeDefinition": "Aktiivinen = havaittu ensi kertaa tai noussut tasolla viimeisten 24 tunnin aikana. Tason 1 hahmot eivät kuulu mukaan.",
       "active": "Aktiiviset hahmot",
       "observed": "Siihen mennessä havaitut hahmot",
       "partialWindow": "Ensimmäisten 24 tunnin tiedot ovat puutteelliset.",
@@ -202,6 +202,7 @@
       "all": "Kaikki"
     },
     "errors": {
+      "below_armory_level": "Armory-profiili on saatavilla tasolta 10 alkaen. Sitä ennen päivitykset vaativat seuratun killan jäsenlistan.",
       "invalid_twitch": "Anna Twitch-kanavan nimi tai linkki.",
       "invalid_url": "Anna hahmon koko nimi, killan nimi tai vastaava Blizzardin Forever-Armory-linkki. Retail- ja Classic-linkkejä ei tueta.",
       "rate_limited": "Liian monta pyyntöä. Yritä uudelleen tunnin kuluttua.",

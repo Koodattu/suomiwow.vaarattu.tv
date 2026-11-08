@@ -214,6 +214,21 @@
   .populationLegend { grid-template-columns: minmax(0, 1fr) max-content max-content; }
 }
 .tableScroll { position: relative; overflow-x: auto; scrollbar-color: #75633f #171c16; }
+.population.populationAnalytics { display: grid; grid-area: auto; grid-template-columns: repeat(3, max-content); justify-content: center; gap: 24px 64px; padding: 18px; margin-bottom: 18px; border: 1px solid #494338; border-radius: 3px; background: #141a15b8; }
+.population.populationAnalytics > * { grid-area: auto; }
+.populationAnalytics .populationGroup h2, .populationAnalytics .populationCombinations caption { font-size: 11px; }
+.populationAnalytics .populationLegend, .populationAnalytics .populationCombinations table { font-size: 12px; }
+.populationAnalytics .populationPie { width: 76px; height: 76px; }
+@media (max-width: 1000px) {
+  .population.populationAnalytics { gap: 20px 24px; }
+}
+@media (max-width: 800px) {
+  .population.populationAnalytics { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; }
+  .population.populationAnalytics > :last-child { grid-column: 1 / -1; justify-self: center; border-left: 0; padding-left: 0; }
+  .populationAnalytics .populationPieRow { flex-direction: column; align-items: center; gap: 8px; }
+  .populationAnalytics .populationPie { width: 64px; height: 64px; }
+  .populationAnalytics .populationLegend { width: 100%; grid-template-columns: minmax(0, 1fr) max-content max-content; font-size: 11px; column-gap: 6px; }
+}
 .tableScroll:focus-visible { outline: 2px solid #efd58d; outline-offset: -2px; }
 .attribute { color: #c7c4b7; font-size: 12px; white-space: nowrap; }
 .table .faction { margin: 0; font-size: 11px; white-space: nowrap; }

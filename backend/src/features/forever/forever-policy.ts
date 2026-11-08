@@ -6,6 +6,14 @@ export const ROSTER_INTERVAL = 15 * MINUTE;
 export const ROSTER_COVERAGE = 45 * MINUTE;
 export const PROFILE_AUDIT_INTERVAL = 6 * 60 * MINUTE;
 export const ROSTER_LAG_FALLBACK = 60 * MINUTE;
+export const MIN_PROFILE_LEVEL = 10;
+// Unknown levels still need an initial lookup; known low levels are roster-only.
+export const profileFetchEligibility = { $or: [{ level: { $gte: MIN_PROFILE_LEVEL } },
+  { level: null, $or: [{ rosterLevel: { $gte: MIN_PROFILE_LEVEL } }, { rosterLevel: null }] }] };
+export function mayFetchProfile(level?: number | null, rosterLevel?: number | null) {
+  const observedLevel = level ?? rosterLevel;
+  return observedLevel == null || observedLevel >= MIN_PROFILE_LEVEL;
+}
 
 // Stable slots avoid a burst every quarter hour and survive process restarts.
 export function nextRosterFetchAt(identity: { region: string; slug: string }, now = Date.now()): Date {
@@ -56,8 +64,8 @@ export function validateProgress(previous: { level?: number | null; sourceUpdate
   if ((previous.level != null && next.level < previous.level) ||
       (previous.sourceUpdatedAt && next.sourceUpdatedAt < previous.sourceUpdatedAt)) throw new ArmoryError("stale_data");
 }
-export function mayRequestRefresh(character: { status: string; failures: number; nextFetchAt?: Date | null; lastAttemptAt?: Date | null }, now = Date.now()): boolean {
-  return character.status === "tracked" && character.failures === 0 &&
+export function mayRequestRefresh(character: { status: string; level?: number | null; rosterLevel?: number | null; failures: number; nextFetchAt?: Date | null; lastAttemptAt?: Date | null }, now = Date.now()): boolean {
+  return mayFetchProfile(character.level, character.rosterLevel) && character.status === "tracked" && character.failures === 0 &&
     !!character.nextFetchAt && character.nextFetchAt.getTime() > now &&
     (!character.lastAttemptAt || now - character.lastAttemptAt.getTime() >= 5 * MINUTE);
 }

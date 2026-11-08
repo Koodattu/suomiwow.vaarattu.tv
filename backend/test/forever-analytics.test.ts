@@ -53,7 +53,7 @@ test("race-class faction counts split Skyborne without changing combined popular
   for (const entry of result.combinations) assert.equal(Object.values(entry.factions).reduce((sum, count) => sum + count, 0), entry.count);
   assert.equal(result.combinations.reduce((sum, entry) => sum + entry.count, 0), result.total);
 });
-test("activity counts unique characters with a genuine observed gain in (now - 24h, now]", () => {
+test("activity counts unique new or leveling characters in (now - 24h, now] without inventing gains", () => {
   const result = buildForeverAnalytics([
     { level: 30, history: [point(30, 1)] }, // First sighting is not thirty gains.
     { level: 12, history: [point(10, 48), point(11, 23), point(12, 1)] },
@@ -62,11 +62,39 @@ test("activity counts unique characters with a genuine observed gain in (now - 2
     { level: 20, history: [point(20, 48), point(20, 1), point(19, 0.5)] },
     { level: 2, history: [point(1, 48), point(2, -1)] }, // Future data cannot count.
   ], now);
-  assert.equal(result.active24h, 2); assert.equal(result.historyCharacters, 6);
+  assert.equal(result.active24h, 3); assert.equal(result.historyCharacters, 6);
+  assert.equal(result.new24h, 1); assert.equal(result.levelsGained24h, 3);
   assert.equal(result.activity[result.activity.length - 1].observed, 6);
-  assert.equal(result.activity[result.activity.length - 1].active, 2);
+  assert.equal(result.activity[result.activity.length - 1].active, 3);
   assert.ok(result.activity.every(row => row.active <= row.observed));
   assert.equal(result.activity[0].partial, true); assert.equal(result.activity[result.activity.length - 1].partial, false);
+});
+test("new arrivals expire after 24h, repeated observations do not extend activity, and genuine gains restart it", () => {
+  const fresh = buildForeverAnalytics([{ level: 30, history: [point(30, 2), point(30, 1)] }], now);
+  assert.equal(fresh.active24h, 1); assert.equal(fresh.new24h, 1); assert.equal(fresh.levelsGained24h, 0);
+  assert.equal(fresh.activity[0].active, 1);
+  const expired = buildForeverAnalytics([{ level: 30, history: [point(30, 24), point(30, 1)] }], now);
+  assert.equal(expired.active24h, 0); assert.equal(expired.new24h, 0);
+  const restarted = buildForeverAnalytics([{ level: 35, history: [point(30, 72), point(35, 1), point(32, 0.5), point(35, 0)] }], now);
+  assert.equal(restarted.active24h, 1); assert.equal(restarted.new24h, 0); assert.equal(restarted.levelsGained24h, 5);
+  const overlap = buildForeverAnalytics([{ level: 22, history: [point(20, 23), point(21, 22), point(22, 1)] }], now);
+  assert.equal(overlap.active24h, 1); assert.equal(overlap.new24h, 1); assert.equal(overlap.levelsGained24h, 2);
+  assert.ok(overlap.activity.every(row => row.active === 1));
+  const starter = buildForeverAnalytics([{ level: 1, history: [point(1, 2)] }], now);
+  assert.equal(starter.new24h, 1); assert.equal(starter.active24h, 0); assert.equal(starter.levelsGained24h, 0);
+});
+
+test("faction and ruleset charts share the full analytics population, including unknowns and level one", () => {
+  const result = buildForeverAnalytics([
+    { level: 1, faction: "Horde", ruleset: "PvP" }, { level: 25, faction: "Horde", ruleset: "Normal" },
+    { level: 60, faction: "Alliance", ruleset: "PvP" }, { level: 10, faction: "Alliance" }, { level: 20 }, { level: 0, faction: "Horde" },
+  ], now);
+  assert.deepEqual(result.statistics.factions, [{ name: "Alliance", count: 2 }, { name: "Horde", count: 2 }, { name: null, count: 1 }]);
+  assert.equal(result.statistics.rulesets.find(entry => entry.name === "PvP")?.count, 2);
+  assert.equal(result.statistics.rulesets.find(entry => entry.name === null)?.count, 2);
+  assert.equal(result.statistics.combinations.reduce((sum, entry) => sum + entry.count, 0), 5);
+  assert.equal(result.statistics.combinations.find(entry => entry.faction === "Alliance" && entry.ruleset === null)?.count, 1);
+  assert.equal(result.statistics.averageLevel, result.averageLevel); assert.equal(result.statistics.atMaxLevel, result.atMaxLevel);
 });
 test("activity drop-off is reconstructed between gains, with only thirty days returned", () => {
   const result = buildForeverAnalytics([{ level: 12, history: [point(10, 40 * 24), point(11, 4 * 24), point(12, 2)] }], now);

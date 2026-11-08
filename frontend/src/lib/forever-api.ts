@@ -66,6 +66,7 @@ export interface ForeverBoard {
 export interface ForeverAnalytics {
   generatedAt: string; total: number; historyCharacters: number; averageLevel: number | null; medianLevel: number | null;
   atMaxLevel: number; active24h: number; coverageStart: string | null;
+  new24h: number; levelsGained24h: number; statistics: ForeverStatistics;
   levels: { level: number; count: number }[];
   classes: { name: string | null; count: number }[];
   races: { name: string | null; count: number; factions: { alliance: number; horde: number; unknown: number } }[];

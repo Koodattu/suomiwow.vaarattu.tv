@@ -39,9 +39,6 @@ export default function ForeverAnalyticsCharts({ data }: { data: ForeverAnalytic
   const t = useTranslations("forever"), [days, setDays] = useState(7);
   const cutoff = Date.parse(data.generatedAt) - days * 86400_000;
   const activity = data.activity.filter(point => Date.parse(point.at) >= cutoff).map(point => ({ ...point, timestamp: Date.parse(point.at) }));
-  const combinations = data.combinations.filter(entry => entry.race && entry.className);
-  const popular = combinations.slice(0, 5);
-  const rare = [...combinations].sort((a, b) => a.count - b.count || `${a.race} ${a.className}`.localeCompare(`${b.race} ${b.className}`, "fi")).slice(0, 5);
   const cells = new Map(data.combinations.map(entry => [JSON.stringify([entry.race, entry.className]), entry]));
   const raceRows = data.races.flatMap(race => {
     const factions = race.name === "Skyborne"
@@ -108,10 +105,6 @@ export default function ForeverAnalyticsCharts({ data }: { data: ForeverAnalytic
           </tr>)}</tbody>
         </table>
       </div>
-      <div className={styles.combinations}>{[{ title: t("analytics.mostCommon"), entries: popular }, { title: t("analytics.rarest"), entries: rare }].map(group => <div key={group.title}>
-        <h3>{group.title}</h3><ol>{group.entries.map(entry => <li key={`${entry.race}-${entry.className}`}><span><span style={raceStyles.get(entry.race)}>{entry.race}</span> <strong style={{ color: classColor(entry.className!) }}>{entry.className}</strong></span><span>{number.format(entry.count)}</span><small>{percent(entry.count, data.total)}</small></li>)}</ol>
-        {!group.entries.length && <p className={styles.note}>{t("statistics.noData")}</p>}
-      </div>)}</div>
     </section>
     <section className={`${styles.panel} ${styles.full}`} aria-labelledby="forever-activity-title">
       <div className={styles.panelHeading}><div><h2 id="forever-activity-title">{t("analytics.activity")}</h2><p>{t("analytics.activeDefinition")}</p></div>
