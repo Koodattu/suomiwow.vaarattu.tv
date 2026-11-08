@@ -1,6 +1,27 @@
 import { ArmoryError } from "./forever-armory";
+import { createHash } from "node:crypto";
 
 export const MINUTE = 60_000;
+export const ROSTER_INTERVAL = 15 * MINUTE;
+export const ROSTER_COVERAGE = 45 * MINUTE;
+export const PROFILE_AUDIT_INTERVAL = 6 * 60 * MINUTE;
+export const ROSTER_LAG_FALLBACK = 60 * MINUTE;
+
+// Stable slots avoid a burst every quarter hour and survive process restarts.
+export function nextRosterFetchAt(identity: { region: string; slug: string }, now = Date.now()): Date {
+  const phase = createHash("sha256").update(`${identity.region}:${identity.slug}`).digest().readUInt32BE(0) % ROSTER_INTERVAL;
+  const slot = Math.floor(now / ROSTER_INTERVAL) * ROSTER_INTERVAL + phase;
+  return new Date(slot > now ? slot : slot + ROSTER_INTERVAL);
+}
+
+export function profileComparison(rosterLevel: number, profile: { level: number; sourceUpdatedAt: Date }, rosterObservedAt: Date) {
+  // A later character save can legitimately be ahead of an earlier roster.
+  // Only an already-saved level missing from that roster establishes lag.
+  return {
+    profileAhead: profile.level > rosterLevel && profile.sourceUpdatedAt <= rosterObservedAt,
+    rosterAhead: rosterLevel > profile.level,
+  };
+}
 interface ArmoryQueueHealth {
   failedJobs?: string[];
   failureWindowStartedAt?: Date | null;

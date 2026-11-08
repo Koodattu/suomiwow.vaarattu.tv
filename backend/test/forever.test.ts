@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ArmoryError, armoryUrl, parseArmoryInput, parseArmoryUrl, parseAvatarUrl, parseCharacterHtml, parseRosterResponse, retryAfter } from "../src/features/forever/forever-armory";
-import { armoryQueueHealth, failureDelay, mayRequestRefresh, MINUTE, refreshDelay, validateProgress } from "../src/features/forever/forever-policy";
+import { armoryQueueHealth, failureDelay, mayRequestRefresh, MINUTE, nextRosterFetchAt, profileComparison, refreshDelay, ROSTER_INTERVAL, validateProgress } from "../src/features/forever/forever-policy";
 
 const identity = { region: "eu" as const, slug: "test-hero" };
 const character = { ...identity, name: "Test", surname: "Hero", level: 12, class: { name: "Paladin" }, race: { name: "Human" },
@@ -63,9 +63,14 @@ test("upstream errors, retail responses, mismatches and stale flags are never ac
 });
 test("guild parser rejects retail context and partial errors, preserving only validated members", () => {
   const guild = { region: "eu" as const, slug: "test-guild" };
-  const member = { character: { _id: "eu-test-hero", region: "eu", name: "Test", surname: "Hero", level: 12, realm: null, class: { name: "Paladin" } } };
+  const member = { character: { _id: "eu-test-hero", region: "eu", name: "Test", surname: "Hero", level: 12, realm: null,
+    class: { name: "Paladin" }, race: { name: "Human" }, faction: { name: "Alliance" }, isOutdated: false } };
   const response = { data: { GameConstants: { maxLevel: 60 }, Guild: { _id: "eu-none-test-guild", roster: [member, member] } } };
   assert.equal(parseRosterResponse(response, guild).length, 1);
+  assert.deepEqual(parseRosterResponse(response, guild)[0], { region: "eu", slug: "test-hero", name: "Test Hero", level: 12,
+    className: "Paladin", race: "Human", faction: "Alliance", isOutdated: false });
+  member.character.isOutdated = true;
+  assert.equal(parseRosterResponse(response, guild)[0].isOutdated, true);
   assert.throws(() => parseRosterResponse({ ...response, errors: [{ message: "upstream unavailable" }] }, guild), ArmoryError);
   assert.throws(() => parseRosterResponse({ data: { GameConstants: { maxLevel: 60 } }, errors: [{ message: "Internal Server Error", extensions: { code: "INTERNAL_SERVER_ERROR" } }] }, guild),
     (error: unknown) => error instanceof ArmoryError && error.code === "upstream_error" && error.status === 500);
@@ -73,6 +78,24 @@ test("guild parser rejects retail context and partial errors, preserving only va
   assert.throws(() => parseRosterResponse(response, { ...guild, slug: "other-guild" }), ArmoryError);
   member.character.realm = { slug: "retail-realm" } as any;
   assert.throws(() => parseRosterResponse(response, guild), ArmoryError);
+});
+
+test("guild slots spread refreshes across fifteen minutes and remain stable after restarts", () => {
+  const now = Date.parse("2026-11-08T10:00:00Z");
+  const slots = Array.from({ length: 79 }, (_, index) => nextRosterFetchAt({ region: "eu", slug: `guild-${index}` }, now).getTime());
+  assert.ok(slots.every(slot => slot > now && slot <= now + ROSTER_INTERVAL));
+  assert.ok(new Set(slots.map(slot => Math.floor((slot - now) / MINUTE))).size >= 13);
+  const guild = { region: "eu", slug: "el-forever" };
+  const first = nextRosterFetchAt(guild, now);
+  assert.equal(nextRosterFetchAt(guild, now).getTime(), first.getTime());
+  assert.equal(nextRosterFetchAt(guild, first.getTime()).getTime(), first.getTime() + ROSTER_INTERVAL);
+});
+
+test("freshness comparisons distinguish delayed rosters from legitimate later level gains", () => {
+  const observed = new Date("2026-11-08T10:00:00Z");
+  assert.deepEqual(profileComparison(47, { level: 51, sourceUpdatedAt: new Date("2026-11-08T09:50:00Z") }, observed), { profileAhead: true, rosterAhead: false });
+  assert.deepEqual(profileComparison(47, { level: 51, sourceUpdatedAt: new Date("2026-11-08T10:01:00Z") }, observed), { profileAhead: false, rosterAhead: false });
+  assert.deepEqual(profileComparison(51, { level: 47, sourceUpdatedAt: observed }, observed), { profileAhead: false, rosterAhead: true });
 });
 test("retry policy honors both Retry-After formats and increases delays without abandoning 404s", () => {
   assert.equal(retryAfter("120"), 120_000);

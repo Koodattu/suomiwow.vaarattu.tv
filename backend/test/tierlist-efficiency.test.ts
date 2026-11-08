@@ -177,3 +177,51 @@ test("materialized raid and overall lists use boss comparisons and respect exclu
     TierList.prototype.save = originals.save;
   }
 });
+
+test("Sporefall never contributes to guild tier scores, eligibility, or available raids", async () => {
+  const mainProgress = {
+    raidId: 46, raidName: "Main raid", difficulty: "mythic", totalBosses: 8,
+    bossesDefeated: 8, bosses: bosses(8, 50, 10000),
+  };
+  const sporefallProgress = {
+    raidId: 50, raidName: "Sporefall", difficulty: "heroic", totalBosses: 1,
+    bossesDefeated: 1, bosses: bosses(1, 1, 100),
+  };
+  const documents = [
+    { _id: new mongoose.Types.ObjectId(), name: "Both raids", realm: "Test", progress: [mainProgress, sporefallProgress] },
+    { _id: new mongoose.Types.ObjectId(), name: "Sporefall only", realm: "Test", progress: [sporefallProgress] },
+  ];
+  const originals = { find: Guild.find, aggregate: Fight.aggregate, deleteMany: TierList.deleteMany, save: TierList.prototype.save, findOne: TierList.findOne };
+  let saved: any;
+  let fightQuery: any;
+  try {
+    (Guild as any).find = () => ({ select: async () => documents });
+    (Fight as any).aggregate = async (pipeline: any) => {
+      fightQuery = pipeline;
+      return documents.flatMap(g => g.progress.map(p => ({ _id: { guildId: g._id, zoneId: p.raidId } })));
+    };
+    (TierList as any).deleteMany = async () => ({});
+    (TierList.prototype as any).save = async function () { saved = this.toObject(); return this; };
+    (TierList as any).findOne = () => ({ sort: () => ({ lean: async () => saved }) });
+
+    await tierListService.calculateTierLists();
+
+    assert.deepEqual(saved.raids.map((r: any) => r.raidId), [46]);
+    assert.deepEqual(saved.overall.map((g: any) => g.guildName), ["Both raids"]);
+    // One Mythic full clear with neutral comparison credit; Heroic has no eligible data.
+    assert.equal(saved.overall[0].efficiencyScore, 500);
+    assert.equal(saved.overall[0].speedScore, 200);
+    assert.equal(saved.overall[0].overallScore, 350);
+    assert.ok(fightQuery[0].$match.$or.every((entry: any) => entry.zoneId !== 50));
+    assert.deepEqual(await tierListService.getAvailableRaids(), [{ raidId: 46, raidName: "Main raid" }]);
+    assert.equal(await tierListService.getTierListForRaid(50), null);
+    assert.deepEqual((await tierListService.getTierList()).raids.map((r: any) => r.raidId), [46]);
+    assert.equal((await tierListService.getOverallTierList())?.guilds[0].overallScore, 350);
+  } finally {
+    Guild.find = originals.find;
+    Fight.aggregate = originals.aggregate;
+    TierList.deleteMany = originals.deleteMany;
+    TierList.prototype.save = originals.save;
+    TierList.findOne = originals.findOne;
+  }
+});

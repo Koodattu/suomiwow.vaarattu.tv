@@ -8,7 +8,10 @@ export interface ForeverProfile extends ForeverIdentity {
   avatarUrl?: string | null;
   ruleset: string; sourceUpdatedAt: Date; guild: (ForeverIdentity & { name: string }) | null;
 }
-export interface ForeverMember extends ForeverIdentity { name: string; level: number; className: string }
+export interface ForeverMember extends ForeverIdentity {
+  name: string; level: number; className: string;
+  race?: string; faction?: string; isOutdated?: boolean;
+}
 export class ArmoryError extends Error {
   constructor(public code: string, public status = 0, public retryAfterMs = 0) { super(code); }
 }
@@ -116,7 +119,9 @@ export function parseRosterResponse(value: unknown, expected: ForeverIdentity): 
     const name = label(character.name), surname = label(character.surname);
     const slug = normalizeSlug(`${name}-${surname}`);
     if (character._id !== `${expected.region}-${slug}`) throw new ArmoryError("identity_mismatch");
-    members.set(slug, { region: expected.region, slug, name: `${name} ${surname}`, level: level(character.level), className: label(character.class?.name) });
+    members.set(slug, { region: expected.region, slug, name: `${name} ${surname}`, level: level(character.level),
+      className: label(character.class?.name), race: label(character.race?.name), faction: label(character.faction?.name),
+      isOutdated: character.isOutdated === true });
   }
   return [...members.values()];
 }

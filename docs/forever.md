@@ -31,12 +31,22 @@ fingerprint is collected for this feature.
 
 A successful character fetch discovers its guild. The worker fetches a preview
 roster once, but **does not track its members until an admin approves the guild**.
-Approval imports the current roster and checks for new members every six hours.
+Approval imports the current roster and checks for new members every fifteen minutes.
 Explicitly paused/rejected characters remain excluded. Pausing guild imports
 does not pause members already being tracked; pause those individually if needed.
 Leaving a guild does not automatically end character tracking. Newly discovered
 guilds always need their own approval, so discovery cannot recursively approve
 an entire network of guilds.
+
+Hiding a guild only hides guild-dependent imports. Seeded characters, direct admin
+additions and individually approved characters remain visible and continue polling
+even in hidden/rejected guilds. Their own explicit pause/rejection still wins.
+`independentlyTracked` records this confirmation without losing the original
+`source`. Adding/approving an existing guild import also sets that flag. Seed reruns
+and initialization confirm already-stored seed identities without changing status,
+channels or history. Legacy tracked proposals are treated as individually approved;
+new proposals promoted automatically through guild approval explicitly remain
+guild-dependent.
 
 ## Source research and limitations
 
@@ -68,6 +78,81 @@ The guild endpoint may return HTTP 200 with a GraphQL `INTERNAL_SERVER_ERROR`
 instead of a roster (observed for Fel on 2026-11-05). This is reported as a
 Blizzard upstream error, not an empty roster or a parser failure. Existing
 rosters remain intact and the normal retry policy applies.
+
+### Roster-first polling (verified 8 November 2026)
+
+Read-only production checks found 3,144 visible tracked characters and 79 approved
+guilds. Median successful character-check age was approximately 76 minutes (90th
+percentile 137 minutes), despite two-minute eligibility. The individual queue was
+saturated, with 2,758 characters due at the time of inspection.
+
+The current public website contracts provide:
+
+| Data | Guild `GetGuildRoster` | Character page |
+| --- | --- | --- |
+| Full name, level, race, class, faction | Yes, per member | Yes |
+| Guild membership | Membership in the returned roster, plus guild rank | Current guild identity or no guild |
+| Ruleset, portrait | No | Yes |
+| Upstream character save timestamp | No | Yes |
+| Outdated flag | Yes | Yes |
+| Other data | Gender, average item level, achievement points, nullable spec/PvP fields | Gear, stats, professions, specs, media and PvP data (not stored here) |
+
+The site's persisted query has only guild identity and two display-flag variables.
+Its `roster` field has no pagination arguments or page metadata: it returns one
+array (observed 134, 60 and 127 members in three guilds). The adapter validates the
+entire response and retains its 2,000-member/4 MB safety bounds; it never accepts
+GraphQL partial errors as a partial or empty roster.
+
+These sources do **not** update together. At the same check, Hávi Hávi was level 51
+in its roster but 47 on its profile; Herkku Reidet was 47 versus 36. Those profiles
+carried older save timestamps. Three other sampled profiles agreed with their
+rosters. This establishes that profiles can lag, not a guaranteed refresh cadence.
+
+- Approved visible rosters now supply bulk level/race/class/faction updates and
+  observed level history. Only increasing levels append history; repeated or lower
+  levels never reset first-to-level ordering. Outdated members and conflicting
+  guild memberships go to individual verification. Paused/rejected characters
+  never resume automatically. Unapproved rosters remain previews only.
+- Each guild has a stable hash-selected slot in a 15-minute period. Due rosters
+  precede the individual backlog, but at most three roster turns run before an
+  eligible individual turn. Admin instant refresh still goes first. Global
+  request spacing, leases and Retry-After protection are unchanged.
+- New members still fetch their profile for ruleset/portrait. For hydrated members
+  with healthy roster coverage, individual audits run every six hours. Each roster
+  also queues one rotating member with the oldest profile check as a freshness
+  probe. Those probes overlap with audits rather than forming a second queue.
+- Characters outside healthy approved roster coverage keep the individual
+  schedule. A roster omission ends that member's coverage and queues verification;
+  it does not delete the character, clear its guild speculatively or erase history.
+  Profile-confirmed new guilds enter review as before.
+- Coverage expires after 45 minutes without a usable roster observation. Failed
+  rosters preserve prior data; expired coverage returns to individual polling.
+  Hiding/pausing/rejecting a guild releases coverage immediately. None of these
+  operations shortens an individual failure's retry deadline.
+- A roster below an already-observed level, or a sampled profile level saved before
+  a roster check but missing from that roster, triggers individual polling for that
+  guild for an hour. Roster checks continue and can still contribute higher levels.
+  A profile saved *after* the roster can legitimately be ahead and does not establish
+  lag. No endpoint is assumed universally fresher than the other.
+- Rosters have no source timestamp, so roster history stores `observedAt` and
+  `source: roster`, never an invented `sourceUpdatedAt`. The profile's own level
+  and timestamp remain separate. An older/lower profile can refresh metadata
+  without undoing a newer roster level; regressions against its own previous
+  profile snapshot are still rejected.
+
+`profileFetchedAt`/`profileLevel` identify the last successful individual snapshot.
+`rosterObservedAt`/`rosterLevel`/`rosterGuildSlug` identify the usable roster observation,
+and `rosterCoverageUntil` bounds its scheduling authority. `lastFetchedAt` is the
+latest accepted observation from either endpoint; `lastAttemptAt`, errors and
+retry counters continue to describe individual profile requests. Guild admin API
+responses include `profileComparisons`, `profileAheadCount`, `rosterAheadCount`,
+`lastComparedAt`, `rosterLaggingMembers` and `individualUntil` for operational review.
+These are observations, not claims about exact level-up times or upstream cache TTLs.
+
+Initialization spreads legacy successful guild schedules across the next 15 minutes
+once (`rosterPollingVersion: 1`), without bypassing failed retry deadlines. Stored
+profile-only characters are upgraded lazily on their first roster check. No retail
+collection is read or written.
 
 The first version supports EU and US links. Identity is region plus full-name
 slug, matching the verified Armory URL; ruleset is fetched, not inferred from
@@ -106,8 +191,10 @@ host. Existing characters gain portraits on their next normal refresh; until the
 or if an image fails, the UI shows a bundled class icon. The same compact visual
 system is used on character profiles and the hub.
 
-The leaderboard orders by latest observed level; equal levels are tied, with
-names used only for stable display ordering. It is not a verified race finish
+The leaderboard orders by latest observed level, then the earliest observation of
+that level, then stable record ID. Ranks are unique and calculated globally before
+filtering/pagination. A roster observes several members at the same time; it cannot
+establish their actual in-game level-up order. It is not a verified race finish
 order. History records only observed levels, from first tracking onward, with
 observation and upstream update times. It does not invent intermediate levels
 or claim exact level-up times. Lower levels and older upstream snapshots are
@@ -120,7 +207,8 @@ and `forever_request_limits`. No retail model, raid, character identity, or CCG
 collection is used. Only the existing Discord session/admin checks and MongoDB
 connection are shared. The request-limit collection has a TTL index. Proposals
 retain the submitter's internal user ID for administration, never in public
-responses. No data migration or production dependency is required.
+responses. Startup performs the bounded additive initialization described above;
+no separate migration command or production dependency is required.
 
 The existing `WORKER_MODE=worker` or `both` process always starts this worker;
 there is no Forever enable flag. Both API and worker
@@ -133,12 +221,13 @@ lease token. Expired leases recover after crashes. Shutdown waits for the active
 fetch. Request starts are at least 500 milliseconds apart, including across
 processes, with one request in flight (up to two requests/second). The queue starts
 immediately, continues as soon as that spacing permits, and checks for new work
-every five seconds when idle. The oldest eligible character or guild is picked first.
+every five seconds when idle. Due rosters get bounded priority over individual
+checks as described above.
 
-- Active leveling: eligible every two minutes.
-- No observed level change for 24 hours: hourly.
-- Level 60: every six hours.
-- Approved guild rosters: every six hours; unapproved successful previews wait
+- Individual polling without healthy roster coverage: active leveling every two
+  minutes, no observed level change for 24 hours hourly, level 60 every six hours.
+- Hydrated members covered by healthy rosters: six-hour profile audits plus rotating probes.
+- Approved guild rosters: stable fifteen-minute slots; unapproved successful previews wait
   for an admin refresh or approval.
 - Failures: exponential backoff with jitter; 404 starts at 15 minutes, other
   failures at two minutes, increasing to approximately one day. Retry-After
@@ -218,6 +307,7 @@ npm run build
 node --test -r ts-node/register test/forever.test.ts test/forever-auth.test.ts test/forever-twitch.test.ts test/twitch.service.test.ts
 $env:FOREVER_TEST_MONGODB_URI='mongodb://127.0.0.1:27028/?directConnection=true'
 node --test -r ts-node/register integration/forever.test.ts
+node --test -r ts-node/register integration/forever-roster.test.ts
 ```
 
 The integration suite needs a disposable MongoDB replica set. It creates and

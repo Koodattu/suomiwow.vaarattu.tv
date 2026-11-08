@@ -6,6 +6,7 @@ import { mayRequestRefresh, MINUTE } from "./forever-policy";
 import { normalizeTwitchChannel } from "./forever-twitch";
 import { visibleForeverCharacters } from "./forever-visibility";
 import foreverRunner from "./forever.worker";
+import { releaseRosterCoverage } from "./forever-roster-sync";
 
 export class ForeverError extends Error {
   constructor(public code: string, public status = 400) { super(code); }
@@ -63,7 +64,7 @@ export async function addCharacter(url: unknown, source: "admin" | "proposal", u
   } catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
   if (source === "admin") {
     // Explicit admin action may resume a paused/rejected character. Existing retry deadlines remain intact.
-    await ForeverCharacter.updateOne(identity, { $set: { status: "tracked" } });
+    await ForeverCharacter.updateOne(identity, { $set: { status: "tracked", independentlyTracked: true } });
   }
   const character = await ForeverCharacter.findOne(identity).select("status").lean();
   if (twitchChannel !== undefined) await setCharacterTwitch(String(character!._id), twitchChannel);
@@ -90,11 +91,15 @@ export async function setGuildVisibility(id: unknown, hidden: unknown) {
   if (typeof hidden !== "boolean") throw new ForeverError("invalid_input");
   const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { hidden } });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
+  if (hidden) {
+    const guild = await ForeverGuild.findById(objectId(id)).select("region slug").lean();
+    await releaseRosterCoverage({ region: guild!.region, rosterGuildSlug: guild!.slug }, new Date());
+  }
 }
 
 export async function setCharacterStatus(id: unknown, status: unknown) {
   if (!["tracked", "paused", "rejected"].includes(String(status))) throw new ForeverError("invalid_input");
-  const result = await ForeverCharacter.updateOne({ _id: objectId(id) }, { $set: { status } });
+  const result = await ForeverCharacter.updateOne({ _id: objectId(id) }, { $set: { status, ...(status === "tracked" ? { independentlyTracked: true } : {}) } });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
 }
 
@@ -107,9 +112,10 @@ export async function adminCharacterAction(ids: unknown, action: unknown) {
     filter.$or = [{ lastAttemptAt: { $exists: false } }, { lastAttemptAt: { $lte: new Date(Date.now() - 5 * MINUTE) } }];
   } else if (action === "paused") filter.status = "tracked";
   else if (action === "rejected") filter.status = "pending";
-  else filter.status = { $ne: "tracked" };
+  else filter.$or = [{ status: { $ne: "tracked" } }, { independentlyTracked: { $ne: true } }];
   // Admin retries override an individual backoff, never the shared Retry-After pause.
-  const result = await ForeverCharacter.updateMany(filter, { $set: action === "retry" ? { nextFetchAt: new Date() } : { status: action } });
+  const result = await ForeverCharacter.updateMany(filter, { $set: action === "retry" ? { nextFetchAt: new Date(), refreshQueuedAt: new Date() }
+    : { status: action, ...(action === "tracked" ? { independentlyTracked: true } : {}) } });
   return { updated: result.modifiedCount, skipped: uniqueIds.length - result.modifiedCount };
 }
 
@@ -134,7 +140,7 @@ export async function requestRefresh(id: unknown, userId: string) {
   if (!character) throw new ForeverError("not_found", 404);
   if (mayRequestRefresh(character)) {
     await ForeverCharacter.updateOne({ _id: character._id, status: "tracked", failures: 0, nextFetchAt: character.nextFetchAt },
-      { $set: { nextFetchAt: new Date() } });
+      { $set: { nextFetchAt: new Date(), refreshQueuedAt: new Date() } });
   }
   return { queued: true };
 }
@@ -145,6 +151,10 @@ export async function setGuildStatus(id: unknown, status: unknown) {
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
   // Approval queues a fresh roster. Pausing stops expansion; already tracked members remain tracked.
   if (status === "approved") await ForeverGuild.updateOne({ _id: objectId(id), failures: 0 }, { $set: { nextFetchAt: new Date() } });
+  else {
+    const guild = await ForeverGuild.findById(objectId(id)).select("region slug").lean();
+    await releaseRosterCoverage({ region: guild!.region, rosterGuildSlug: guild!.slug }, new Date());
+  }
 }
 
 export async function refreshGuild(id: unknown) {

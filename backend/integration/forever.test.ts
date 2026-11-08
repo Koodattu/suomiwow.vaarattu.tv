@@ -43,13 +43,13 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       const guild = await ForeverGuild.create({ region: "eu", slug: "hidden-guild", name: "Hidden Guild", status: "approved", nextFetchAt: future, roster: [{ region: "eu", slug: "rank-unfetched" }] });
       const base = { region: "eu", source: "admin", status: "tracked", nextFetchAt: future, lastLevelAt: new Date("2026-11-05T12:00:00Z") };
       await ForeverCharacter.insertMany([
-        ...["top-a", "top-b"].map((slug, index) => ({ ...base, slug, name: slug, level: 60, lastLevelAt: new Date(`2026-11-05T${index ? "10" : "11"}:00:00Z`), guild: { region: "eu", slug: guild.slug, name: guild.name }, history: [{ level: 60, observedAt: new Date() }] })),
+        ...["top-a", "top-b"].map((slug, index) => ({ ...base, source: "guild", slug, name: slug, level: 60, lastLevelAt: new Date(`2026-11-05T${index ? "10" : "11"}:00:00Z`), guild: { region: "eu", slug: guild.slug, name: guild.name }, history: [{ level: 60, observedAt: new Date() }] })),
         { ...base, slug: "rank-target", name: "Rank Target", level: 40, faction: "Alliance" },
         ...Array.from({ length: 51 }, (_, i) => ({ ...base, slug: `rank-low-${i}`, name: `Rank Low ${i}`, level: 30 })),
         { ...base, slug: "rank-paused", level: 60, status: "paused", guild: { region: "eu", slug: guild.slug, name: guild.name } },
         { ...base, slug: "rank-private", level: 60, status: "pending" },
         { ...base, slug: "rank-us", level: 60, region: "us" },
-        { ...base, slug: "rank-unfetched", nextFetchAt: new Date(0) },
+        { ...base, source: "guild", slug: "rank-unfetched", nextFetchAt: new Date(0) },
       ]);
       const first = await service.leaderboard(), second = await service.leaderboard({ page: 2 });
       assert.deepEqual(first.characters.slice(0, 2).map(c => c.slug), ["top-b", "top-a"], "earlier level observation wins over alphabetical name or creation order");
@@ -119,7 +119,10 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
         assert.equal(failed?.history.length, 1);
         await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
         await priorityRunner.tick();
-        assert.equal(calls[2], "regular-hero", "failed priority request must return to backoff, not starve the queue");
+        assert.equal(calls[2], "guild", "failed priority request returns to backoff so a due roster can run");
+        await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
+        await priorityRunner.tick();
+        assert.equal(calls[3], "regular-hero", "ordinary characters continue after the due roster");
         fail = false; requestAgain = true;
         await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0) } });
         assert.deepEqual(await service.adminRefreshNow(id), { refreshState: "prioritized" });

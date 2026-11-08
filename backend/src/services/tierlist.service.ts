@@ -5,6 +5,9 @@ import Fight from "../models/Fight";
 import { TRACKED_RAIDS } from "../config/guilds";
 import logger from "../utils/logger";
 
+// Sporefall is tracked separately but must not influence any guild tier rating.
+const GUILD_TIER_RAIDS = TRACKED_RAIDS.filter(raidId => raidId !== 50);
+
 type EfficiencyBoss = Pick<IBossProgress, "bossId" | "kills" | "firstKillReportCode" | "pullCount" | "timeSpent">;
 
 interface GuildRaidData {
@@ -63,7 +66,7 @@ class TierListService {
 
       // Find which guilds have WarcraftLogs fight data per raid
       // Efficiency scores depend on fight data, so exclude guilds without any
-      const fightAgg = await Fight.aggregate([{ $match: { $or: TRACKED_RAIDS.map(raidId => ({ zoneId: raidId, ...mainEncounterFilter(raidId) })) } }, { $group: { _id: { guildId: "$guildId", zoneId: "$zoneId" } } }]);
+      const fightAgg = await Fight.aggregate([{ $match: { $or: GUILD_TIER_RAIDS.map(raidId => ({ zoneId: raidId, ...mainEncounterFilter(raidId) })) } }, { $group: { _id: { guildId: "$guildId", zoneId: "$zoneId" } } }]);
 
       const guildsWithFights = new Map<number, Set<string>>();
       for (const doc of fightAgg) {
@@ -84,7 +87,7 @@ class TierListService {
         const guildId = (guild._id as any).toString();
         const raidDataList: GuildRaidData[] = [];
 
-        for (const raidId of TRACKED_RAIDS) {
+        for (const raidId of GUILD_TIER_RAIDS) {
           // Skip if guild is excluded from this raid tier
           if (guild.excludedRaidIds?.includes(raidId)) continue;
 
@@ -134,7 +137,7 @@ class TierListService {
       const raidTierLists: IRaidTierList[] = [];
       const raidScoresMap = new Map<number, Map<string, { speedScore: number; efficiencyScore: number }>>();
 
-      for (const raidId of TRACKED_RAIDS) {
+      for (const raidId of GUILD_TIER_RAIDS) {
         const raidGuildsData: GuildRaidData[] = [];
 
         // Collect all guilds' data for this raid

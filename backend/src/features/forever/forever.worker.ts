@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto";
 import logger from "../../utils/logger";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "./forever.models";
 import { ArmoryError, fetchForeverCharacter, fetchForeverRoster, ForeverIdentity, ForeverMember, ForeverProfile } from "./forever-armory";
-import { armoryQueueHealth, failureDelay, MINUTE, refreshDelay, validateProgress } from "./forever-policy";
+import { armoryQueueHealth, failureDelay, nextRosterFetchAt, PROFILE_AUDIT_INTERVAL, profileComparison, refreshDelay, ROSTER_LAG_FALLBACK, validateProgress } from "./forever-policy";
 import { visibleForeverCharacters } from "./forever-visibility";
+import { applyApprovedRoster, releaseRosterCoverage } from "./forever-roster-sync";
+import { foreverSeedRecords } from "./forever-seed";
 
 const SPACING_MS = 500;
 const IDLE_MS = 5_000;
@@ -15,6 +17,15 @@ export async function initializeForever() {
     try { await ForeverWorker.updateOne({ _id: id }, { $setOnInsert: { nextRequestAt: new Date() } }, { upsert: true }); }
     catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
   }
+  // Existing seed names can have been imported by a guild before seeding.
+  // Mark their independent provenance without resuming pauses or changing history.
+  await ForeverCharacter.updateMany({ region: "eu", slug: { $in: foreverSeedRecords().map(record => record.slug) }, independentlyTracked: { $ne: true } },
+    { $set: { independentlyTracked: true } }, { timestamps: false });
+  await ForeverCharacter.updateMany({ source: "proposal", status: "tracked", independentlyTracked: { $exists: false } },
+    { $set: { independentlyTracked: true } }, { timestamps: false });
+  const legacyGuilds = await ForeverGuild.find({ status: "approved", hidden: { $ne: true }, failures: 0, rosterPollingVersion: { $ne: 1 } }).select("region slug").lean();
+  for (const guild of legacyGuilds) await ForeverGuild.updateOne({ _id: guild._id, failures: 0, rosterPollingVersion: { $ne: 1 } },
+    { $set: { rosterPollingVersion: 1, nextFetchAt: nextRosterFetchAt(guild) } });
 }
 
 async function fence(token: string, session: ClientSession) {
@@ -55,6 +66,7 @@ export class ForeverRunner {
     let nextRequestAt = new Date(Date.now() + SPACING_MS);
     try {
       const due = { $lte: now, $ne: null };
+      await releaseRosterCoverage({ rosterCoverageUntil: { $lte: now, $ne: null } }, now);
       const visible = await visibleForeverCharacters();
       const [priorityCharacter, scheduledCharacter, guild] = await Promise.all([
         ForeverCharacter.findOne({ ...visible, status: "tracked", refreshRequestedAt: { $ne: null } }).sort({ refreshRequestedAt: 1, _id: 1 }).lean(),
@@ -62,7 +74,10 @@ export class ForeverRunner {
         ForeverGuild.findOne({ status: { $in: ["pending", "approved"] }, hidden: { $ne: true }, nextFetchAt: due }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
       ]);
       const character = priorityCharacter || scheduledCharacter;
-      const useGuild = !priorityCharacter && guild && (!character || guild.nextFetchAt! < character.nextFetchAt!);
+      // A due roster updates a whole guild. Do not bury it behind thousands of
+      // overdue individual jobs. Reserve at least every fourth turn for an
+      // eligible character even during guild outages; instant refresh wins.
+      const useGuild = !priorityCharacter && guild && (!character || (lease.consecutiveGuilds ?? 0) < 3);
       const job = useGuild ? guild : character;
       if (!job) {
         nextRequestAt = new Date(Date.now() + IDLE_MS);
@@ -76,7 +91,8 @@ export class ForeverRunner {
         if (useGuild) roster = await this.source.roster(identity);
         else {
           profile = await this.source.character(identity);
-          validateProgress(character!, profile);
+          validateProgress({ level: character!.profileLevel ?? (character!.rosterObservedAt ? undefined : character!.level),
+            sourceUpdatedAt: character!.sourceUpdatedAt }, profile);
         }
       } catch (error) { failure = error instanceof ArmoryError ? error : new ArmoryError("unavailable"); }
       const completedAt = new Date();
@@ -94,17 +110,10 @@ export class ForeverRunner {
             if (failure) await ForeverGuild.updateOne({ _id: job._id }, updateFailure, { session });
             else {
               await ForeverGuild.updateOne({ _id: job._id }, { $set: { roster, lastAttemptAt: completedAt, lastFetchedAt: completedAt,
-                failures: 0, nextFetchAt: current.status === "approved" ? new Date(completedAt.getTime() + 6 * 60 * MINUTE) : null },
+                failures: 0, rosterPollingVersion: 1,
+                nextFetchAt: current.status === "approved" ? nextRosterFetchAt(current, completedAt.getTime()) : null },
                 $unset: { errorCode: 1 } }, { session });
-              if (current.status === "approved" && roster?.length) {
-                // Only approved guilds can expand tracking. Never resume an explicit rejection/pause.
-                await ForeverCharacter.bulkWrite(roster.map((member) => ({ updateOne: {
-                  filter: { region: member.region, slug: member.slug },
-                  update: { $setOnInsert: { region: member.region, slug: member.slug, source: "guild", status: "tracked", nextFetchAt: completedAt } }, upsert: true,
-                } })), { session });
-                await ForeverCharacter.updateMany({ region: current.region, slug: { $in: roster.map((member) => member.slug) }, status: "pending" },
-                  { $set: { status: "tracked" } }, { session });
-              }
+              if (current.status === "approved") await applyApprovedRoster(current, roster!, completedAt, session);
             }
           }
         } else {
@@ -112,18 +121,35 @@ export class ForeverRunner {
           if (character?.refreshRequestedAt) await ForeverCharacter.updateOne({
             _id: job._id, refreshRequestedAt: character.refreshRequestedAt,
           }, { $unset: { refreshRequestedAt: 1 } }, { session });
-          const current = await ForeverCharacter.findById(job._id).session(session);
+          if (character?.refreshQueuedAt) await ForeverCharacter.updateOne({ _id: job._id, refreshQueuedAt: character.refreshQueuedAt },
+            { $unset: { refreshQueuedAt: 1 } }, { session });
+          const current = await ForeverCharacter.findOne({ _id: job._id, ...await visibleForeverCharacters() }).session(session);
           if (current?.status === "tracked") {
             if (failure) await ForeverCharacter.updateOne({ _id: job._id }, updateFailure, { session });
             else if (profile) {
-              validateProgress(current, profile);
-              const changed = current.level !== profile.level;
+              validateProgress({ level: current.profileLevel ?? (current.rosterObservedAt ? undefined : current.level), sourceUpdatedAt: current.sourceUpdatedAt }, profile);
+              const changed = profile.level > (current.level ?? 0);
               const lastLevelAt = changed ? completedAt : current.lastLevelAt || completedAt;
+              let covered = !!current.rosterCoverageUntil && current.rosterCoverageUntil > completedAt &&
+                current.rosterGuildSlug === profile.guild?.slug;
+              if (current.rosterObservedAt && current.rosterLevel != null && current.rosterGuildSlug === profile.guild?.slug) {
+                const comparison = profileComparison(current.rosterLevel, profile, current.rosterObservedAt);
+                await ForeverGuild.updateOne({ region: current.region, slug: current.rosterGuildSlug }, {
+                  $inc: { profileComparisons: 1, profileAheadCount: Number(comparison.profileAhead), rosterAheadCount: Number(comparison.rosterAhead) },
+                  $set: { lastComparedAt: completedAt, ...(comparison.profileAhead ? { individualUntil: new Date(completedAt.getTime() + ROSTER_LAG_FALLBACK) } : {}) },
+                }, { session });
+                if (comparison.profileAhead) {
+                  covered = false;
+                  await releaseRosterCoverage({ region: current.region, rosterGuildSlug: current.rosterGuildSlug }, completedAt, session);
+                }
+              }
               await ForeverCharacter.updateOne({ _id: job._id }, { $set: { ...profile,
+                level: Math.max(profile.level, current.level ?? 0), profileLevel: profile.level, profileFetchedAt: completedAt,
                 lastLevelAt, lastAttemptAt: completedAt, lastFetchedAt: completedAt, failures: 0,
-                nextFetchAt: new Date(completedAt.getTime() + refreshDelay(profile.level, lastLevelAt)),
-              }, $unset: { errorCode: 1 }, ...(changed ? { $push: { history: {
-                level: profile.level, observedAt: completedAt, sourceUpdatedAt: profile.sourceUpdatedAt,
+                nextFetchAt: current.refreshRequestedAt || current.refreshQueuedAt ? completedAt
+                  : new Date(completedAt.getTime() + (covered ? PROFILE_AUDIT_INTERVAL : refreshDelay(Math.max(profile.level, current.level ?? 0), lastLevelAt))),
+              }, $unset: { errorCode: 1, ...(!covered ? { rosterCoverageUntil: 1 } : {}) }, ...(changed ? { $push: { history: {
+                level: profile.level, observedAt: completedAt, sourceUpdatedAt: profile.sourceUpdatedAt, source: "character",
               } } } : {}) }, { session });
               if (profile.guild) await ForeverGuild.updateOne({ region: profile.guild.region, slug: profile.guild.slug },
                 { $set: { name: profile.guild.name }, $setOnInsert: { status: "pending", nextFetchAt: completedAt } }, { upsert: true, session });
@@ -132,6 +158,7 @@ export class ForeverRunner {
         }
         await ForeverWorker.updateOne({ _id: "armory", leaseToken: token }, {
           $set: { nextRequestAt, failedJobs: health.failedJobs, failureWindowStartedAt: health.failureWindowStartedAt,
+            consecutiveGuilds: useGuild ? Math.min(3, (lease.consecutiveGuilds ?? 0) + 1) : 0,
             ...(!failure ? { lastSuccessAt: completedAt } : {}),
             ...(health.pauseMs ? { errorCode: failure!.code } : {}),
           },
