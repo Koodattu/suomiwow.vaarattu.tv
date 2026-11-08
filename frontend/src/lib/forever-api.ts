@@ -57,6 +57,7 @@ export interface ForeverStatistics {
   atMaxLevel: number;
 }
 export interface ForeverBoard {
+  generatedAt?: string;
   characters: ForeverCharacter[]; total: number; totalRanked: number; pending: number;
   statistics: ForeverStatistics;
   filterOptions: Record<"race" | "className" | "faction" | "ruleset" | "guild", string[]>;
@@ -77,9 +78,9 @@ export interface ForeverAdminData {
   characterCounts: Record<string, number>; guildCounts: Record<string, number>;
 }
 export class ForeverApiError extends Error { constructor(public code: string) { super(code); } }
-export async function foreverApi<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+export async function foreverApi<T>(path: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/${path}`, {
-    method, credentials: "include", headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    method, signal, credentials: "include", headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {

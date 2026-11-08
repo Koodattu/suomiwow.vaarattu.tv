@@ -9,6 +9,7 @@ import foreverRunner, { ForeverRunner, initializeForever } from "../src/features
 import * as service from "../src/features/forever/forever.service";
 import { ForeverTwitchRunner } from "../src/features/forever/forever-twitch";
 import { seedForeverCharacters } from "../src/features/forever/forever-seed";
+import { invalidateForeverLeaderboard, stopForeverLeaderboard } from "../src/features/forever/forever-leaderboard";
 
 const uri = process.env.FOREVER_TEST_MONGODB_URI;
 test("Forever tracking integration (isolated replica-set database)", { skip: !uri }, async (t) => {
@@ -16,6 +17,9 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
   await mongoose.connect(uri!, { dbName: database, serverSelectionTimeoutMS: 5000 });
   try {
     await initializeForever();
+    // Each subtest installs fixtures directly, bypassing the admin invalidation path.
+    t.beforeEach(() => invalidateForeverLeaderboard());
+    t.after(() => stopForeverLeaderboard());
     const profile: ForeverProfile = { region: "eu", slug: "test-hero", name: "Test Hero", level: 10, className: "Paladin", race: "Human", faction: "Alliance", ruleset: "Normal", sourceUpdatedAt: new Date("2026-11-05T10:00:00Z"), guild: { region: "eu", slug: "test-guild", name: "Test Guild" } };
     await t.test("guild suggestions wait for approval, share the submission limit, and deduplicate name/link inputs", async () => {
       const guild = await service.addGuild("Review Guild", "proposal", "review-user");

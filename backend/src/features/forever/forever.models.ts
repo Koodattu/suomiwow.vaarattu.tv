@@ -46,6 +46,7 @@ const workerSchema = new Schema({
   nextRequestAt: { type: Date, default: Date.now }, lastTickAt: Date, lastSuccessAt: Date, errorCode: String,
   failedJobs: { type: [String], default: [] }, failureWindowStartedAt: Date,
   consecutiveGuilds: { type: Number, default: 0 },
+  leaderboardRevision: { type: Number, default: 0 },
 }, { collection: "forever_worker" });
 const limitSchema = new Schema({ _id: String, count: { type: Number, default: 0 }, expiresAt: Date }, { collection: "forever_request_limits" });
 limitSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

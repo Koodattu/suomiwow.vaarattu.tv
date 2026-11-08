@@ -8,9 +8,10 @@ import { visibleForeverCharacters } from "./forever-visibility";
 import foreverRunner from "./forever.worker";
 import { releaseRosterCoverage } from "./forever-roster-sync";
 
-export class ForeverError extends Error {
-  constructor(public code: string, public status = 400) { super(code); }
-}
+import { ForeverError } from "./forever-errors";
+import { FOREVER_PUBLIC_FIELDS as publicFields, invalidateForeverLeaderboard } from "./forever-leaderboard";
+export { ForeverError } from "./forever-errors";
+export { leaderboard } from "./forever-leaderboard";
 export function objectId(value: unknown): mongoose.Types.ObjectId {
   if (typeof value !== "string" || !/^[a-f\d]{24}$/i.test(value)) throw new ForeverError("not_found", 404);
   return new mongoose.Types.ObjectId(value);
@@ -47,6 +48,7 @@ export async function setCharacterTwitch(id: unknown, value: unknown) {
     $unset: { twitchIsLive: 1, twitchCheckedAt: 1, twitchNextCheckAt: 1, ...(!twitchChannel ? { twitchChannel: 1 } : {}) },
   });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
+  await invalidateForeverLeaderboard();
 }
 
 export async function addCharacter(url: unknown, source: "admin" | "proposal", userId: string, twitch?: unknown) {
@@ -68,6 +70,7 @@ export async function addCharacter(url: unknown, source: "admin" | "proposal", u
   }
   const character = await ForeverCharacter.findOne(identity).select("status").lean();
   if (twitchChannel !== undefined) await setCharacterTwitch(String(character!._id), twitchChannel);
+  else if (source === "admin") await invalidateForeverLeaderboard();
   return { id: String(character!._id), status: character!.status };
 }
 
@@ -91,6 +94,7 @@ export async function setGuildVisibility(id: unknown, hidden: unknown) {
   if (typeof hidden !== "boolean") throw new ForeverError("invalid_input");
   const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { hidden } });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
+  await invalidateForeverLeaderboard();
   if (hidden) {
     const guild = await ForeverGuild.findById(objectId(id)).select("region slug").lean();
     await releaseRosterCoverage({ region: guild!.region, rosterGuildSlug: guild!.slug }, new Date());
@@ -101,6 +105,7 @@ export async function setCharacterStatus(id: unknown, status: unknown) {
   if (!["tracked", "paused", "rejected"].includes(String(status))) throw new ForeverError("invalid_input");
   const result = await ForeverCharacter.updateOne({ _id: objectId(id) }, { $set: { status, ...(status === "tracked" ? { independentlyTracked: true } : {}) } });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
+  await invalidateForeverLeaderboard();
 }
 
 export async function adminCharacterAction(ids: unknown, action: unknown) {
@@ -116,6 +121,7 @@ export async function adminCharacterAction(ids: unknown, action: unknown) {
   // Admin retries override an individual backoff, never the shared Retry-After pause.
   const result = await ForeverCharacter.updateMany(filter, { $set: action === "retry" ? { nextFetchAt: new Date(), refreshQueuedAt: new Date() }
     : { status: action, ...(action === "tracked" ? { independentlyTracked: true } : {}) } });
+  if (result.modifiedCount && action !== "retry") await invalidateForeverLeaderboard();
   return { updated: result.modifiedCount, skipped: uniqueIds.length - result.modifiedCount };
 }
 
@@ -131,6 +137,7 @@ export async function adminRefreshNow(id: unknown) {
   await foreverRunner.tick();
   const character = await ForeverCharacter.findById(characterId).select("refreshRequestedAt lastAttemptAt errorCode").lean();
   const attempted = !character?.refreshRequestedAt && character?.lastAttemptAt && character.lastAttemptAt >= requestedAt;
+  if (attempted) await invalidateForeverLeaderboard();
   return { refreshState: attempted ? (character.errorCode ? "failed" : "refreshed") : "prioritized" };
 }
 
@@ -166,78 +173,6 @@ export async function refreshGuild(id: unknown) {
   return { updated: result.modifiedCount, skipped: 1 - result.modifiedCount };
 }
 
-const publicFields = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt errorCode twitchChannel twitchIsLive twitchCheckedAt";
-const skyborneRaces = ["Skyborne", "Windshaper Skyborne", "High Order Skyborne"];
-const levelRankOrder = { level: -1, lastLevelAt: 1, _id: 1 } as const;
-export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown; guild?: unknown; twitch?: unknown; search?: unknown } = {}) {
-  const pageNumber = Math.min(1000, Math.max(1, Number.parseInt(String(query.page), 10) || 1));
-  const visible = await visibleForeverCharacters();
-  const base = { ...visible, region: "eu", status: "tracked" as const, level: { $gte: 1 } };
-  const filter: Record<string, unknown> = { ...base };
-  if (query.twitch !== undefined && query.twitch !== "") {
-    if (query.twitch !== "only") throw new ForeverError("invalid_input");
-    filter.twitchChannel = { $type: "string", $ne: "" };
-  }
-  if (query.search !== undefined && query.search !== "") {
-    if (typeof query.search !== "string" || query.search.length > 100) throw new ForeverError("invalid_input");
-    const escaped = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    if (escaped) filter.$or = ["name", "guild.name"].map((field) => ({ [field]: { $regex: escaped, $options: "i" } }));
-  }
-  const fields = ["race", "className", "faction", "ruleset", "guild"] as const;
-  for (const field of fields) {
-    const value = query[field];
-    if (value === undefined || value === "") continue;
-    if (typeof value !== "string" || value.length > (field === "guild" ? 150 : 80)) throw new ForeverError("invalid_input");
-    filter[field === "guild" ? "guild.name" : field] = field === "race" && value === "Skyborne" ? { $in: skyborneRaces } : value;
-  }
-  const [characters, breakdown, pending, options, worker, rankedIds] = await Promise.all([
-    ForeverCharacter.find(filter).select(publicFields).sort(levelRankOrder).skip((pageNumber - 1) * 50).limit(50).lean(),
-    ForeverCharacter.aggregate<{
-      summary: { total: number; averageLevel: number; atMaxLevel: number }[];
-      factions: { name: string | null; count: number }[];
-      rulesets: { name: string | null; count: number }[];
-      combinations: { faction: string | null; ruleset: string | null; count: number }[];
-    }>([
-      { $match: filter },
-      { $facet: {
-        summary: [{ $group: {
-          _id: null, total: { $sum: 1 }, averageLevel: { $avg: "$level" },
-          atMaxLevel: { $sum: { $cond: [{ $eq: ["$level", 60] }, 1, 0] } },
-        } }],
-        factions: [
-          { $group: { _id: { $cond: [{ $eq: [{ $ifNull: ["$faction", ""] }, ""] }, null, "$faction"] }, count: { $sum: 1 } } },
-          { $sort: { count: -1, _id: 1 } }, { $project: { _id: 0, name: "$_id", count: 1 } },
-        ],
-        rulesets: [
-          { $group: { _id: { $cond: [{ $eq: [{ $ifNull: ["$ruleset", ""] }, ""] }, null, "$ruleset"] }, count: { $sum: 1 } } },
-          { $sort: { count: -1, _id: 1 } }, { $project: { _id: 0, name: "$_id", count: 1 } },
-        ],
-        combinations: [
-          { $group: { _id: {
-            faction: { $cond: [{ $eq: [{ $ifNull: ["$faction", ""] }, ""] }, null, "$faction"] },
-            ruleset: { $cond: [{ $eq: [{ $ifNull: ["$ruleset", ""] }, ""] }, null, "$ruleset"] },
-          }, count: { $sum: 1 } } },
-          { $sort: { count: -1, "_id.faction": 1, "_id.ruleset": 1 } },
-          { $project: { _id: 0, faction: "$_id.faction", ruleset: "$_id.ruleset", count: 1 } },
-        ],
-      } },
-    ]),
-    ForeverCharacter.countDocuments({ ...visible, status: "tracked", level: { $exists: false }, region: "eu" }),
-    Promise.all(fields.map((field) => ForeverCharacter.distinct(field === "guild" ? "guild.name" : field, base).then((values: (string | null)[]) =>
-      [...new Set(values.filter((value): value is string => !!value).map((value) => field === "race" && skyborneRaces.includes(value) ? "Skyborne" : value))].sort((a, b) => a.localeCompare(b, "en"))))),
-    ForeverWorker.findById("armory").select("lastTickAt lastSuccessAt nextRequestAt errorCode").lean(),
-    // One ordered ID scan, covered by the rank index when no guilds are hidden.
-    // Never load histories or issue a rank query for each returned character.
-    ForeverCharacter.find(base).select("_id").sort(levelRankOrder).lean(),
-  ]);
-  const population = breakdown[0];
-  const summary = population.summary[0];
-  const total = summary?.total || 0;
-  const statistics = { factions: population.factions, rulesets: population.rulesets, combinations: population.combinations, averageLevel: summary?.averageLevel ?? null, atMaxLevel: summary?.atMaxLevel || 0 };
-  const ranks = new Map(rankedIds.map((entry, index) => [String(entry._id), index + 1]));
-  const ranked = characters.map((character) => ({ ...character, rank: ranks.get(String(character._id)) }));
-  return { characters: ranked, total, totalRanked: rankedIds.length, statistics, pending, filterOptions: Object.fromEntries(fields.map((field, index) => [field, options[index]])), page: pageNumber, pageSize: 50, worker, enabled: true };
-}
 export async function characterDetail(id: unknown) {
   let identity: Record<string, unknown>;
   if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) identity = { _id: objectId(id) };

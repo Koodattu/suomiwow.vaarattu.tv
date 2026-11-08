@@ -71,6 +71,7 @@ import reporterScheduler from "./features/reporter/reporter-scheduler.service";
 import { foreverRouter, foreverAdminRouter } from "./features/forever/forever.routes";
 import foreverWorker, { initializeForever } from "./features/forever/forever.worker";
 import foreverTwitchWorker from "./features/forever/forever-twitch";
+import { startForeverLeaderboard, stopForeverLeaderboard } from "./features/forever/forever-leaderboard";
 
 // ============================================================================
 // WORKER MODE CONFIGURATION
@@ -629,6 +630,7 @@ const startServer = async () => {
     }
 
     if (isApiProcess) {
+      startForeverLeaderboard();
       httpServers.push(app.listen(PORT, () => {
         logger.info(`[Startup] Server running on port ${PORT}`);
         logger.info(`[Startup] API available at http://localhost:${PORT}/api`);
@@ -711,6 +713,7 @@ async function shutdown(): Promise<void> {
   shuttingDown = true;
   ingestionLeases.beginShutdown();
   for (const server of httpServers) server.close();
+  await stopForeverLeaderboard();
   logger.info("Shutting down; draining active ingestion...");
   if (isWorkerProcess) {
     await Promise.all([foreverWorker.stop(), foreverTwitchWorker.stop()]);

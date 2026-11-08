@@ -9,6 +9,7 @@ import { MINUTE, PROFILE_AUDIT_INTERVAL, ROSTER_COVERAGE, ROSTER_INTERVAL } from
 import { releaseRosterCoverage } from "../src/features/forever/forever-roster-sync";
 import * as service from "../src/features/forever/forever.service";
 import { seedForeverCharacters } from "../src/features/forever/forever-seed";
+import { invalidateForeverLeaderboard, stopForeverLeaderboard } from "../src/features/forever/forever-leaderboard";
 
 const uri = process.env.FOREVER_TEST_MONGODB_URI;
 test("roster-driven polling (isolated replica-set database)", { skip: !uri }, async t => {
@@ -29,6 +30,8 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
   };
   try {
     await initializeForever();
+    t.beforeEach(() => invalidateForeverLeaderboard());
+    t.after(() => stopForeverLeaderboard());
     t.afterEach(async () => {
       await ForeverCharacter.deleteMany({}); await ForeverGuild.deleteMany({});
       await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0), failedJobs: [], consecutiveGuilds: 0 },
