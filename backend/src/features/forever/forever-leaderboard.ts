@@ -17,7 +17,7 @@ async function buildSnapshot() {
   const visible = await visibleForeverCharacters();
   const [characters, pending] = await Promise.all([
     ForeverCharacter.find({ ...visible, region: "eu", status: "tracked", level: { $gte: 1 } })
-      .select(FOREVER_PUBLIC_FIELDS).sort({ level: -1, lastLevelAt: 1, _id: 1 }).lean().maxTimeMS(10_000),
+      .select(FOREVER_PUBLIC_FIELDS).sort({ level: -1, lastLevelAt: 1, _id: 1 }).readConcern("snapshot").lean().maxTimeMS(10_000),
     ForeverCharacter.countDocuments({ ...visible, region: "eu", status: "tracked", level: { $exists: false } }).maxTimeMS(10_000),
   ]);
   // Rank once, before any filtering or pagination. Histories never enter the snapshot.
