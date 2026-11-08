@@ -11,5 +11,5 @@ export default async function ForeverLevelingPage() {
   } catch {
     // The client query can recover if the API is restarting or the initial fetch times out.
   }
-  return <ForeverLeveling initialData={initialData} />;
+  return <ForeverLeveling initialData={initialData} now={new Date().toISOString()} />;
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { NextIntlClientProvider, useLocale, useTranslations } from "next-intl";
 import { foreverRace, ForeverBoard } from "@/lib/forever-api";
 import { emptyForeverFilters as emptyFilters, foreverLevelingOptions } from "@/lib/forever-leveling-query";
 import { getRankColor } from "@/lib/utils";
@@ -19,7 +19,15 @@ function subscribeNarrow(callback: () => void) {
   const media = window.matchMedia("(max-width: 1100px)");
   media.addEventListener("change", callback); return () => media.removeEventListener("change", callback);
 }
-export default function ForeverLeveling({ initialData }: { initialData?: ForeverBoard }) {
+export default function ForeverLeveling({ initialData, now }: { initialData?: ForeverBoard; now: string }) {
+  const locale = useLocale();
+  // Relative update ages and LIVE badges must start from the same server/client clock.
+  return <NextIntlClientProvider locale={locale} now={new Date(now)} timeZone="Europe/Helsinki">
+    <ForeverLevelingBoard initialData={initialData} />
+  </NextIntlClientProvider>;
+}
+
+function ForeverLevelingBoard({ initialData }: { initialData?: ForeverBoard }) {
   const t = useTranslations("forever");
   const [filters, setFilters] = useState(emptyFilters), [page, setPage] = useState(1), [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");

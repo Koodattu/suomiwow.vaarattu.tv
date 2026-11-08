@@ -1,5 +1,33 @@
 # Forever leveling
 
+## Leaderboard performance and freshness
+
+The leveling endpoint shares a 30-second ranked snapshot across API processes,
+using the same lease-based cache service as M+. Its storage remains isolated in
+`forever_leaderboard_cache` and `forever_leaderboard_leases`. Each API process
+warms the snapshot every 15 seconds; a shared lease prevents duplicate builds.
+Expired snapshots wait for a fresh build rather than serving indefinitely stale data.
+
+A build reads only public character fields, without histories, using MongoDB
+snapshot read concern for a consistent population during concurrent worker updates.
+Ranks are assigned once by level descending, first observation of that level,
+then ID. Filtering, statistics and pagination operate on that ranked population
+in memory. Warm requests perform one indexed worker-revision read, rather than
+repeating population scans and ranking queries. Admin visibility/status changes
+bump that revision so all API processes invalidate the old population.
+
+The first page receives server-fetched data and renders its rows in the initial
+HTML. The browser caches filter/page results, prefetches adjacent pages, debounces
+search and cancels obsolete requests. Active views refresh within roughly one
+minute of the snapshot timestamp, including when revisiting cached pages. This
+bounds presentation delay for data already in our database; Blizzard publication
+delays and the separate Armory polling schedule still apply.
+
+The isolated `integration/forever-leaderboard.test.ts` checks global ranks,
+concurrent build coalescing, shared cache reuse, moderation and expiry. Frontend
+query freshness and cancellation are covered by
+`node --test test/forever-leveling-query.test.mjs`.
+
 ## Community analytics
 
 `/forever/analytics` is linked from the Forever hub and the Leveling/Analytics tabs.

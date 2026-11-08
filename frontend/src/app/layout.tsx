@@ -60,7 +60,10 @@ export default function RootLayout({
       ? "noindex, nofollow"
       : "index, follow";
   const [locale, setLocale] = useState<Locale>("en");
-  const [messages, setMessages] = useState<AbstractIntlMessages | null>(null);
+  // Render the public leaderboard with its server data before locale hydration.
+  const [messages, setMessages] = useState<AbstractIntlMessages | null>(
+    pathname === "/forever/leveling" ? englishMessages : null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -216,7 +219,7 @@ export default function RootLayout({
         <QueryProvider>
           <AuthProvider>
             <SiteActivityTracker />
-            <NextIntlClientProvider locale={locale} messages={messages}>
+            <NextIntlClientProvider locale={locale} messages={messages} timeZone={pathname === "/forever/leveling" ? "Europe/Helsinki" : undefined}>
               {!isCcgPage && !isCollectibleOpening && <Navigation />}
               {children}
               {!isLivestreamsPage && !isNetworkAnalyticsPage && !isCcgPage && !isCollectibleOpening && <Footer />}
