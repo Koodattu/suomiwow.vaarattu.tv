@@ -34,6 +34,7 @@
     "className": "Luokka",
     "faction": "Osapuoli",
     "stream": "Twitch",
+    "twitchOnly": "Vain",
     "all": "Kaikki",
     "send": "Lähetä",
     "clearFilters": "Tyhjennä suodattimet",

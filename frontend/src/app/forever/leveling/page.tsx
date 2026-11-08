@@ -14,7 +14,7 @@ import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage
 import styles from "@/components/forever/forever.module.css";
 
 const filterFields = ["guild", "race", "className", "faction", "ruleset"] as const;
-const emptyFilters = { guild: "", race: "", className: "", faction: "", ruleset: "", search: "" };
+const emptyFilters = { guild: "", race: "", className: "", faction: "", ruleset: "", twitch: "", search: "" };
 function subscribeNarrow(callback: () => void) {
   const media = window.matchMedia("(max-width: 1100px)");
   media.addEventListener("change", callback); return () => media.removeEventListener("change", callback);
@@ -49,6 +49,12 @@ export default function ForeverLeveling() {
               {Array.from(new Set([...(data?.filterOptions?.[field] || []), ...(filters[field] ? [filters[field]] : [])])).map((value) => <option key={value} value={value}>{field === "faction" && ["Horde", "Alliance"].includes(value) ? t(`factions.${value.toLowerCase()}`) : value}</option>)}
             </select>
           </label>)}
+          <label className={styles.filter}><span>{t("stream")}</span>
+            <select className={styles.select} value={filters.twitch} onChange={(event) => { setFilters({ ...filters, twitch: event.target.value }); setPage(1); setSelectedId(null); }}>
+              <option value="">{t("all")}</option>
+              <option value="only">{t("twitchOnly")}</option>
+            </select>
+          </label>
         </div>
         <ForeverBoardSummary statistics={data?.statistics} total={data?.total} filtered={Object.values(filters).some(Boolean)} />
         <div className={styles.boardSearch}>

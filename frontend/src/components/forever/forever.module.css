@@ -194,10 +194,10 @@
   .levelingShell .filters { display: contents; }
   .levelingShell .filter { flex-direction: column; align-items: stretch; gap: 4px; font-size: 10px; }
   .levelingShell .select { width: 100%; max-width: none; }
-  .levelingShell .boardSearch { grid-column: 2; grid-row: 3; flex-direction: column; align-items: stretch; gap: 4px; width: auto; padding-top: 19px; }
+  .levelingShell .boardSearch { grid-column: 1 / -1; grid-row: 4; flex-direction: column; align-items: stretch; gap: 4px; width: auto; }
   .levelingShell .boardSearch .input { width: 100%; min-width: 0; flex: none; }
   .levelingShell .boardSearch .quietButton { min-height: 28px; padding-block: 4px; font-size: 10px; }
-  .boardSummary { grid-column: 1 / -1; grid-row: 4; display: flex; flex-wrap: wrap; gap: 4px 12px; margin-left: 0; }
+  .boardSummary { grid-column: 1 / -1; grid-row: 5; display: flex; flex-wrap: wrap; gap: 4px 12px; margin-left: 0; }
   .populationPieRow { gap: 8px; min-height: 56px; }
   .populationPie { width: 44px; height: 44px; }
   .populationLegend { font-size: 10px; column-gap: 6px; }

@@ -14,7 +14,7 @@ const factionColors = { alliance: "#5794db", horde: "#c75750", unknown: "#b5be89
 const date = (timestamp: number) => new Intl.DateTimeFormat("fi-FI", { timeZone: "Europe/Helsinki", day: "numeric", month: "numeric" }).format(timestamp);
 
 function PopulationBars({ title, entries, total, colored = false }: {
-  title: string; entries: (ForeverAnalytics["classes"][number] | ForeverAnalytics["races"][number])[]; total: number; colored?: boolean;
+  title: string; entries: ((ForeverAnalytics["classes"][number] | ForeverAnalytics["races"][number]) & { key?: string })[]; total: number; colored?: boolean;
 }) {
   const t = useTranslations("forever"), maximum = Math.max(1, ...entries.map(entry => entry.count));
   return <section className={styles.panel} aria-label={title}>
@@ -24,7 +24,7 @@ function PopulationBars({ title, entries, total, colored = false }: {
         .filter(faction => entry.factions[faction] > 0)
         .map(faction => ({ count: entry.factions[faction], color: factionColors[faction], label: t(faction === "unknown" ? "statistics.unknown" : `factions.${faction}`) })) : null;
       const breakdown = segments?.map(segment => `${segment.label}: ${number.format(segment.count)}`).join(" · ");
-      return <li key={entry.name ?? "unknown"}>
+      return <li key={entry.key ?? entry.name ?? "unknown"}>
       <span className={styles.barName} style={colored ? { color: classColor(entry.name ?? undefined) } : undefined}>{entry.name || t("statistics.unknown")}</span>
       <span className={styles.barTrack} role={segments ? "img" : undefined} aria-label={breakdown} title={breakdown} aria-hidden={segments ? undefined : true}>
         {segments ? segments.map(segment => <i key={segment.label} aria-hidden="true" style={{ width: `${segment.count / maximum * 100}%`, background: segment.color }} />)
@@ -49,7 +49,8 @@ export default function ForeverAnalyticsCharts({ data }: { data: ForeverAnalytic
       : [null];
     return factions.map(faction => ({
       key: JSON.stringify([race.name, faction]),
-      name: faction ? `${race.name} · ${t(faction === "unknown" ? "statistics.unknown" : `factions.${faction}`)}` : race.name || t("statistics.unknown"),
+      name: race.name || t("statistics.unknown"),
+      accessibleName: faction ? `${race.name} · ${t(faction === "unknown" ? "statistics.unknown" : `factions.${faction}`)}` : race.name || t("statistics.unknown"),
       race: race.name, faction,
       count: faction ? race.factions[faction] : race.count,
       factions: faction ? { alliance: 0, horde: 0, unknown: 0, [faction]: race.factions[faction] } : race.factions,
@@ -96,12 +97,12 @@ export default function ForeverAnalyticsCharts({ data }: { data: ForeverAnalytic
       <div className={styles.scroll} tabIndex={0} role="region" aria-label={t("analytics.matrixScroll")}>
         <table className={styles.matrix}>
           <thead><tr><th scope="col">{t("race")}</th>{data.classes.map(entry => <th key={entry.name ?? "unknown"} scope="col" style={{ color: classColor(entry.name ?? undefined) }}>{entry.name || t("statistics.unknown")}</th>)}</tr></thead>
-          <tbody>{raceRows.map(row => <tr key={row.key}><th scope="row"><span style={row.faction ? { color: factionColors[row.faction] } : raceStyles.get(row.race)}>{row.name}</span></th>
+          <tbody>{raceRows.map(row => <tr key={row.key}><th scope="row" aria-label={row.accessibleName}><span style={row.faction ? { color: factionColors[row.faction] } : raceStyles.get(row.race)}>{row.name}</span></th>
             {data.classes.map((classEntry, index) => {
               const count = row.counts[index];
               const ratio = maximum === minimum ? 1 : (count - minimum) / (maximum - minimum);
-              return <td key={classEntry.name ?? "unknown"} style={count ? { "--heat": `${Math.round(ratio * 100)}%`, color: ratio >= .36 ? "#000" : "#fff" } as CSSProperties : undefined} data-zero={count === 0}>
-                {count > 0 && <span title={`${row.name} · ${classEntry.name || t("statistics.unknown")}: ${number.format(count)} (${percent(count, data.total)})`}>{number.format(count)}</span>}
+              return <td key={classEntry.name ?? "unknown"} style={count ? { "--heat": `${Math.round(ratio * 100)}%` } as CSSProperties : undefined} data-zero={count === 0}>
+                {count > 0 && <span title={`${row.accessibleName} · ${classEntry.name || t("statistics.unknown")}: ${number.format(count)} (${percent(count, data.total)})`}>{number.format(count)}</span>}
               </td>;
             })}
           </tr>)}</tbody>

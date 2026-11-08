@@ -169,11 +169,15 @@ export async function refreshGuild(id: unknown) {
 const publicFields = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt errorCode twitchChannel twitchIsLive twitchCheckedAt";
 const skyborneRaces = ["Skyborne", "Windshaper Skyborne", "High Order Skyborne"];
 const levelRankOrder = { level: -1, lastLevelAt: 1, _id: 1 } as const;
-export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown; guild?: unknown; search?: unknown } = {}) {
+export async function leaderboard(query: { page?: unknown; race?: unknown; className?: unknown; faction?: unknown; ruleset?: unknown; guild?: unknown; twitch?: unknown; search?: unknown } = {}) {
   const pageNumber = Math.min(1000, Math.max(1, Number.parseInt(String(query.page), 10) || 1));
   const visible = await visibleForeverCharacters();
   const base = { ...visible, region: "eu", status: "tracked" as const, level: { $gte: 1 } };
   const filter: Record<string, unknown> = { ...base };
+  if (query.twitch !== undefined && query.twitch !== "") {
+    if (query.twitch !== "only") throw new ForeverError("invalid_input");
+    filter.twitchChannel = { $type: "string", $ne: "" };
+  }
   if (query.search !== undefined && query.search !== "") {
     if (typeof query.search !== "string" || query.search.length > 100) throw new ForeverError("invalid_input");
     const escaped = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
