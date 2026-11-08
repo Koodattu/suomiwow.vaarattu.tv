@@ -438,6 +438,40 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       await assert.rejects(service.leaderboard({ race: { $ne: "Human" } }), /invalid_input/);
       await ForeverCharacter.deleteMany({ slug: /^filter-/ });
     });
+    await t.test("Twitch-only filtering includes offline channels before pagination and statistics", async () => {
+      const base = { region: "eu", source: "admin", status: "tracked", level: 20, faction: "Horde", ruleset: "Normal", guild: { region: "eu", slug: "stream-filter-guild", name: "Stream Filter Guild" } };
+      await ForeverCharacter.insertMany([
+        ...Array.from({ length: 51 }, (_, index) => ({ ...base, slug: `stream-filter-${index}`, name: `Streamer ${index}`, twitchChannel: `streamer_${index}`, twitchIsLive: index === 0 })),
+        { ...base, slug: "stream-filter-unknown", twitchChannel: "unknown_status", faction: "Alliance" },
+        { ...base, slug: "stream-filter-missing", level: 60, twitchIsLive: true },
+        { ...base, slug: "stream-filter-empty", twitchChannel: "" },
+        { ...base, slug: "stream-filter-null", twitchChannel: null },
+        { ...base, slug: "stream-filter-private", twitchChannel: "private", status: "pending" },
+        { ...base, slug: "stream-filter-us", twitchChannel: "us_channel", region: "us" },
+      ]);
+      try {
+        const filters = { guild: base.guild.name, twitch: "only" };
+        const first = await service.leaderboard(filters);
+        const second = await service.leaderboard({ ...filters, page: 2 });
+        const all = await service.leaderboard({ guild: base.guild.name });
+        assert.equal(first.total, 52); assert.equal(first.characters.length, 50); assert.equal(second.characters.length, 2);
+        const characters = [...first.characters, ...second.characters];
+        assert.ok(characters.every((character) => character.twitchChannel));
+        assert.equal(characters.filter((character) => character.twitchIsLive === false).length, 50);
+        assert.ok(characters.some((character) => character.slug === "stream-filter-unknown"));
+        assert.deepEqual(first.statistics, second.statistics);
+        assert.equal(first.statistics.averageLevel, 20);
+        assert.equal(first.statistics.atMaxLevel, 0);
+        assert.equal(all.total, 55);
+        assert.equal((await service.leaderboard({ guild: base.guild.name, twitch: "" })).total, all.total);
+        assert.equal(first.totalRanked, all.totalRanked);
+        assert.equal(first.characters[0].rank, all.characters.find((character) => String(character._id) === String(first.characters[0]._id))?.rank);
+        assert.equal((await service.leaderboard({ ...filters, faction: "Alliance", ruleset: "Normal" })).total, 1);
+        assert.equal((await service.leaderboard({ ...filters, search: "Streamer 50" })).total, 1);
+        await assert.rejects(service.leaderboard({ twitch: "live" }), /invalid_input/);
+        await assert.rejects(service.leaderboard({ twitch: { $ne: "" } }), /invalid_input/);
+      } finally { await ForeverCharacter.deleteMany({ slug: /^stream-filter-/ }); }
+    });
     await t.test("all persisted feature collections are isolated from retail", async () => {
       const names = (await mongoose.connection.db!.listCollections().toArray()).map((entry) => entry.name);
       assert.ok(names.length >= 4); assert.ok(names.every((name) => name.startsWith("forever_")));
