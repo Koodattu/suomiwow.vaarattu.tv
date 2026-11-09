@@ -26,6 +26,7 @@ test("ranking reads replace stale current-guild fields with the dominant raid gu
           reportGuildRealm: "Outland",
           reportCount: 68,
           mythicReportCount: 43,
+          affiliationQualifiedAt: new Date("2021-01-01T00:00:00Z"),
           lastSeenAt: new Date("2021-05-23T13:51:01.701Z"),
         },
       ],

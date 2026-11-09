@@ -22,9 +22,15 @@ export type CharacterRaidGuildParticipation = {
   reportCount: number;
   mythicReportCount: number;
   lastSeenAt: Date;
+  raidNightCount?: number;
+  mythicNightCount?: number;
+  affiliationQualifiedAt?: Date | null;
 };
 
 function isPreferredGuild(candidate: CharacterRaidGuildParticipation, current: CharacterRaidGuildParticipation): boolean {
+  // Sustained attendance wins over a short Mythic visit to another guild.
+  if (candidate.raidNightCount !== current.raidNightCount) return (candidate.raidNightCount ?? 0) > (current.raidNightCount ?? 0);
+  if (candidate.mythicNightCount !== current.mythicNightCount) return (candidate.mythicNightCount ?? 0) > (current.mythicNightCount ?? 0);
   if (candidate.mythicReportCount !== current.mythicReportCount) return candidate.mythicReportCount > current.mythicReportCount;
   if (candidate.reportCount !== current.reportCount) return candidate.reportCount > current.reportCount;
 
@@ -39,7 +45,7 @@ function isPreferredGuild(candidate: CharacterRaidGuildParticipation, current: C
 
 export function selectPrimaryCharacterRaidGuilds(rows: readonly CharacterRaidGuildParticipation[], zoneId: number): Map<string, CharacterRaidGuild> {
   return new Map(
-    Array.from(summarizeCharacterRaidParticipation(rows, zoneId), ([characterId, summary]) => [characterId, summary.guild]),
+    Array.from(summarizeCharacterRaidParticipation(rows.filter((row) => row.affiliationQualifiedAt), zoneId), ([characterId, summary]) => [characterId, summary.guild]),
   );
 }
 
@@ -92,7 +98,7 @@ export async function getCharacterRaidParticipationSummaries(
     zoneId,
     characterId: { $in: uniqueCharacterIds },
   })
-    .select("characterId zoneId reportGuildId reportGuildName reportGuildRealm reportCount mythicReportCount lastSeenAt -_id")
+    .select("characterId zoneId reportGuildId reportGuildName reportGuildRealm reportCount mythicReportCount lastSeenAt raidNightCount mythicNightCount affiliationQualifiedAt -_id")
     .lean<CharacterRaidGuildParticipation[]>();
 
   return summarizeCharacterRaidParticipation(rows, zoneId);
@@ -102,12 +108,30 @@ export async function getPrimaryCharacterRaidGuilds(
   zoneId: number,
   characterIds: readonly (mongoose.Types.ObjectId | string)[],
 ): Promise<Map<string, CharacterRaidGuild>> {
-  const summaries = await getCharacterRaidParticipationSummaries(zoneId, characterIds);
-  return new Map(Array.from(summaries, ([characterId, summary]) => [characterId, summary.guild]));
+  const uniqueCharacterIds = normalizeCharacterIds(characterIds);
+  if (uniqueCharacterIds.length === 0) return new Map();
+  const rows = await CharacterRaidParticipation.find({
+    zoneId,
+    characterId: { $in: uniqueCharacterIds },
+    affiliationQualifiedAt: { $type: "date" },
+  })
+    .select("characterId zoneId reportGuildId reportGuildName reportGuildRealm reportCount mythicReportCount lastSeenAt raidNightCount mythicNightCount affiliationQualifiedAt -_id")
+    .lean<CharacterRaidGuildParticipation[]>();
+  return selectPrimaryCharacterRaidGuilds(rows, zoneId);
 }
 
 function normalizeCharacterIds(characterIds: readonly (mongoose.Types.ObjectId | string)[]): mongoose.Types.ObjectId[] {
   return Array.from(new Set(characterIds.map(String)))
     .filter((characterId) => mongoose.Types.ObjectId.isValid(characterId))
     .map((characterId) => new mongoose.Types.ObjectId(characterId));
+}
+
+/** Filter before ranking/counting/pagination, including rows from older builds. */
+export async function getRaidRankingEligibleCharacterIds(zoneId: number, reportGuildId?: mongoose.Types.ObjectId): Promise<mongoose.Types.ObjectId[]> {
+  return CharacterRaidParticipation.distinct("characterId", {
+    zoneId,
+    ...(reportGuildId ? { reportGuildId } : {}),
+    characterId: { $ne: null },
+    affiliationQualifiedAt: { $type: "date" },
+  });
 }

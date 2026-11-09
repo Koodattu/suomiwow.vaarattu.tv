@@ -9,7 +9,7 @@ import Fight, { IFightCombatant, IPlayerDeath } from "../models/Fight";
 import Ranking from "../models/Ranking";
 import Report from "../models/Report";
 import cacheService from "./cache.service";
-import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
+import { getPrimaryCharacterRaidGuilds, getRaidRankingEligibleCharacterIds } from "./character-raid-guild.service";
 import logger from "../utils/logger";
 import { resolveSpecByBlizzardSpecId, slugifySpecName, tryResolveRole } from "../utils/spec";
 import { ROLE_BY_CLASS_AND_SPEC } from "../config/specs";
@@ -1097,6 +1097,7 @@ class CharacterMechanicsService {
 
     const baseQuery: any = {
       zoneId,
+      characterId: { $in: await getRaidRankingEligibleCharacterIds(zoneId) },
       difficulty: MYTHIC_DIFFICULTY,
       type: isBossType ? "boss" : "overall",
       encounterId: encounterId ?? null,

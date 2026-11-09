@@ -34,7 +34,7 @@ test("participation rebuild uses the same nine encounters before counting report
   const originalDb = connection.db;
   const stop = new Error("Captured participation pipeline; no database needed");
   let pipeline: any[] = [];
-  connection.db = { collection: () => ({ drop: async () => {} }) } as any;
+  Object.defineProperty(connection, "db", { value: { collection: () => ({ drop: async () => {} }) }, configurable: true, writable: true });
   t.mock.method(Report.collection, "createIndex", async () => "test");
   t.mock.method(Report, "aggregate", (stages: any[]) => {
     pipeline = stages;
@@ -44,9 +44,11 @@ test("participation rebuild uses the same nine encounters before counting report
     await assert.rejects(service.rebuildCharacterRaidParticipations({ reconcileIdentities: false }), error => error === stop);
     const filterIndex = pipeline.findIndex(stage => stage.$set?.fightSequence);
     const filter = pipeline[filterIndex].$set.fightSequence.$filter;
-    const rule = filter.cond.$switch.branches.find((branch: any) => branch.case.$eq[1] === 53);
+    assert.deepEqual(filter.cond.$and[0], { $in: ["$$fight.difficulty", [4, 5]] });
+    const encounterRule = filter.cond.$and[1].$switch;
+    const rule = encounterRule.branches.find((branch: any) => branch.case.$eq[1] === 53);
     assert.deepEqual(rule.then, { $in: ["$$fight.encounterID", scoringIds] });
-    assert.equal(filter.cond.$switch.default, true, "other raids retain their participation rules");
+    assert.equal(encounterRule.default, true, "other raids retain their participation rules");
     assert.deepEqual(pipeline[filterIndex + 1], { $match: { "fightSequence.difficulty": { $in: [4, 5] } } });
     const projection = pipeline[filterIndex + 2].$project;
     assert.equal(projection.scoringFightIds, "$fightSequence.fightId");
@@ -55,6 +57,6 @@ test("participation rebuild uses the same nine encounters before counting report
     assert.deepEqual(appearanceMatch[1].$gt[0].$size.$setIntersection, ["$scoringFightIds", { $ifNull: ["$appearance.rankingFightIds", []] }]);
     assert.deepEqual(appearanceMatch[0], { $eq: [{ $size: { $ifNull: ["$appearance.rankingFightIds", []] } }, 0] }, "preserve the existing fallback for report-only appearances");
   } finally {
-    connection.db = originalDb;
+    Object.defineProperty(connection, "db", { value: originalDb, configurable: true, writable: true });
   }
 });

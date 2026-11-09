@@ -16,7 +16,7 @@ import {
   MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY,
 } from "../config/character-eligibility";
 import { TRACKED_RAIDS } from "../config/guilds";
-import { getPrimaryCharacterRaidGuilds, type CharacterRaidGuild } from "./character-raid-guild.service";
+import { getPrimaryCharacterRaidGuilds, getRaidRankingEligibleCharacterIds, type CharacterRaidGuild } from "./character-raid-guild.service";
 import logger from "../utils/logger";
 
 const MYTHIC_DIFFICULTY = 5;
@@ -279,6 +279,7 @@ class CharacterTierListService {
     const raid = await this.getRaidInfo(zoneId);
     const normalizedFilters = this.normalizeFilters(filters, 3);
     const query = this.buildEntryQuery(zoneId, normalizedFilters, null);
+    query.characterId = { $in: await getRaidRankingEligibleCharacterIds(zoneId) };
 
     const characterQuery = CharacterTierListEntry.find(query).sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 });
     if (normalizedFilters.limit !== null) {
@@ -310,6 +311,7 @@ class CharacterTierListService {
     const raid = await this.getRaidInfo(zoneId);
     const normalizedFilters = this.normalizeFilters(filters, 1);
     const query = this.buildEntryQuery(zoneId, normalizedFilters, guild._id);
+    query.characterId = { $in: await getRaidRankingEligibleCharacterIds(zoneId, guild._id) };
 
     const characters = await CharacterTierListEntry.find(query).sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 }).lean<ICharacterTierListEntry[]>();
     const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(characters);
@@ -493,7 +495,7 @@ class CharacterTierListService {
           "characterId wclCanonicalCharacterId name realm region classID role metric specName bestSpecName identityMethod identityConfidence ilvl score parseScore survivalScore survivalPercentile rankPercent medianPercent totalKills pulls evaluatedPulls deaths survivedPulls earlyDeaths averageDeathPercent deathDataAvailable bossScores scoreVersion raidFightCoverage eligibleFightCount evaluatedFightCount updatedAt",
         )
         .lean<MechanicsRow[]>(),
-      CharacterRaidParticipation.find({ zoneId })
+      CharacterRaidParticipation.find({ zoneId, affiliationQualifiedAt: { $type: "date" } })
         .select("characterId wclCanonicalCharacterId zoneId reportGuildId reportGuildName reportGuildRealm characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount mythicReportCount updatedAt")
         .lean<ParticipationRow[]>(),
     ]);
@@ -769,7 +771,7 @@ class CharacterTierListService {
 
     const raid = await this.getRaidInfo(zoneId);
     const [participationRows, generatedEntries] = await Promise.all([
-      CharacterRaidParticipation.find({ reportGuildId: guild._id, zoneId, reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } })
+      CharacterRaidParticipation.find({ reportGuildId: guild._id, zoneId, affiliationQualifiedAt: { $type: "date" }, reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } })
         .sort({ classID: 1, characterName: 1 })
         .select("characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount mythicReportCount updatedAt")
         .lean<ParticipationRow[]>(),

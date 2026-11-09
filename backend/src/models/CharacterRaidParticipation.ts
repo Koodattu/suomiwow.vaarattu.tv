@@ -19,6 +19,9 @@ export interface ICharacterRaidParticipation extends Document {
   lastSeenAt: Date;
   reportCount: number;
   mythicReportCount: number;
+  raidNightCount: number;
+  mythicNightCount: number;
+  affiliationQualifiedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +42,9 @@ const CharacterRaidParticipationSchema = new Schema<ICharacterRaidParticipation>
     lastSeenAt: { type: Date, required: true },
     reportCount: { type: Number, required: true, default: 0 },
     mythicReportCount: { type: Number, required: true, default: 0 },
+    raidNightCount: { type: Number, default: 0 },
+    mythicNightCount: { type: Number, default: 0 },
+    affiliationQualifiedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
@@ -48,6 +54,7 @@ CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, cl
 CharacterRaidParticipationSchema.index({ zoneId: 1, lastSeenAt: -1 });
 CharacterRaidParticipationSchema.index({ reportCount: -1, characterId: 1 });
 CharacterRaidParticipationSchema.index({ zoneId: 1, mythicReportCount: -1, characterId: 1 });
+CharacterRaidParticipationSchema.index({ zoneId: 1, affiliationQualifiedAt: 1, characterId: 1 });
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, zoneId: 1, lastSeenAt: -1 }, { collation: CASE_INSENSITIVE_COLLATION });
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, reportGuildId: 1, zoneId: 1, classID: 1 }, { collation: CASE_INSENSITIVE_COLLATION });
 CharacterRaidParticipationSchema.index({ characterName: 1, lastSeenAt: -1 }, { collation: ACCENT_INSENSITIVE_COLLATION });

@@ -35,7 +35,8 @@ import mythicPlusCache from "./mythic-plus-cache.service";
 import characterMediaService from "./character-media.service";
 import characterContinuityService from "./character-continuity.service";
 import { updateCharacterIdentityFromObservation } from "./character-observed-identity.service";
-import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
+import { getPrimaryCharacterRaidGuilds, getRaidRankingEligibleCharacterIds } from "./character-raid-guild.service";
+import { qualifyRaidAffiliations, type RaidAffiliationInput } from "../utils/character-raid-affiliation";
 import { AccountRaidTimeline, getAccountRaidTimeline } from "./account-raid-timeline.service";
 import mythicPlusService, { CharacterMythicPlusProfileResponse } from "./mythic-plus.service";
 import rateLimitService from "./rate-limit.service";
@@ -2259,12 +2260,12 @@ class CharacterService {
           $set: {
             fightSequence: { $filter: {
               input: { $ifNull: ["$fightSequence", []] }, as: "fight",
-              cond: { $switch: {
+              cond: { $and: [{ $in: ["$$fight.difficulty", [4, 5]] }, { $switch: {
                 branches: Object.entries(RAID_ENCOUNTERS).map(([id, definition]) => ({
                   case: { $eq: ["$zoneId", Number(id)] },
                   then: { $in: ["$$fight.encounterID", [...definition.characterScoring]] },
                 })), default: true,
-              } },
+              } }] },
             } },
           },
         },
@@ -2274,6 +2275,10 @@ class CharacterService {
             _id: 0,
             code: 1,
             scoringFightIds: "$fightSequence.fightId",
+            mythicFightIds: { $map: {
+              input: { $filter: { input: "$fightSequence", as: "fight", cond: { $eq: ["$$fight.difficulty", 5] } } },
+              as: "fight", in: "$$fight.fightId",
+            } },
             hasMythicReport: {
               $anyElementTrue: {
                 $map: {
@@ -2298,7 +2303,11 @@ class CharacterService {
           { $eq: [{ $size: { $ifNull: ["$appearance.rankingFightIds", []] } }, 0] },
           { $gt: [{ $size: { $setIntersection: ["$scoringFightIds", { $ifNull: ["$appearance.rankingFightIds", []] }] } }, 0] },
         ] } } },
-        { $replaceRoot: { newRoot: { $mergeObjects: ["$appearance", { hasMythicReport: "$hasMythicReport" }] } } },
+        { $replaceRoot: { newRoot: { $mergeObjects: ["$appearance", { hasMythicReport: { $cond: [
+          { $eq: [{ $size: { $ifNull: ["$appearance.rankingFightIds", []] } }, 0] },
+          "$hasMythicReport",
+          { $gt: [{ $size: { $setIntersection: ["$mythicFightIds", "$appearance.rankingFightIds"] } }, 0] },
+        ] } }] } } },
         { $match: { reportZoneId: { $gt: 0 } } },
         {
           $group: {
@@ -2338,6 +2347,11 @@ class CharacterService {
             lastSeenAt: { $max: "$reportStartTime" },
             reportCount: { $sum: 1 },
             mythicReportCount: { $sum: { $cond: ["$hasMythicReport", 1, 0] } },
+            attendanceEvidence: { $push: {
+              startedAt: "$reportStartTime",
+              mythic: "$hasMythicReport",
+              guilds: { $ifNull: ["$wclGuilds", []] },
+            } },
           },
         },
         {
@@ -2357,6 +2371,7 @@ class CharacterService {
             lastSeenAt: 1,
             reportCount: 1,
             mythicReportCount: 1,
+            attendanceEvidence: 1,
             createdAt: "$$NOW",
             updatedAt: "$$NOW",
           },
@@ -2370,6 +2385,21 @@ class CharacterService {
       const tempExists = (await db.listCollections({ name: tempCollectionName }, { nameOnly: true }).toArray()).length > 0;
       if (!tempExists) {
         await db.createCollection(tempCollectionName);
+      }
+
+      // Derive confidence before the swap so readers never see a partial rebuild.
+      await tempCollection.createIndex({ zoneId: 1 });
+      for (const zoneId of await tempCollection.distinct("zoneId")) {
+        const rows = await tempCollection.find({ zoneId }).toArray();
+        const affiliations = qualifyRaidAffiliations(rows as unknown as RaidAffiliationInput[]);
+        for (let offset = 0; offset < rows.length; offset += 500) {
+          await tempCollection.bulkWrite(rows.slice(offset, offset + 500).map((row, index) => ({
+            updateOne: {
+              filter: { _id: row._id },
+              update: { $set: affiliations[offset + index], $unset: { attendanceEvidence: "" } },
+            },
+          })));
+        }
       }
 
       const inserted = await tempCollection.estimatedDocumentCount();
@@ -2419,6 +2449,7 @@ class CharacterService {
       CharacterRaidParticipation.find({
         reportGuildId: guild._id,
         zoneId,
+        affiliationQualifiedAt: { $type: "date" },
         reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
       })
         .sort({ classID: 1, characterName: 1 })
@@ -3545,6 +3576,7 @@ class CharacterService {
         zoneId: CURRENT_TIER_ID,
         characterId: { $ne: null },
         mythicReportCount: { $gt: 0 },
+        affiliationQualifiedAt: { $type: "date" },
         lastSeenAt: { $gte: cutoffDate },
       });
       const eligibleFilter: any = {
@@ -4451,6 +4483,7 @@ class CharacterService {
       // ── Deduplicate entries by unique key ──────────────────────────
       const deduped = new Map<string, (typeof entries)[0]>();
       for (const e of entries) {
+        if (!guildMap.has(String(e.characterId))) continue;
         const key = `${e.zoneId}|${e.difficulty}|${e.type}|${e.encounterId}|${e.partition}|${e.metric}|${e.characterId}`;
         const existing = deduped.get(key);
         if (!existing || e.score > existing.score) {
@@ -4559,6 +4592,7 @@ class CharacterService {
     // ── Base query identifies the leaderboard view ───────────────────
     const baseQuery: any = {
       zoneId,
+      characterId: { $in: await getRaidRankingEligibleCharacterIds(zoneId) },
       difficulty: MYTHIC_DIFFICULTY,
       type: encounterId !== undefined ? "boss" : "allstars",
       encounterId: encounterId ?? null,

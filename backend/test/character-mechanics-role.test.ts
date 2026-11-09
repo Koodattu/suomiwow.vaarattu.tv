@@ -388,6 +388,10 @@ test("an overall spec filter preserves all role mechanics and combined queries r
     ...fights(1, "destruction", 20), ...fights(2, "demonology", 40, true),
   ], [parse(1, "destruction", 70)]);
   let query: any;
+  t.mock.method(CharacterRaidParticipation, "distinct", async (_field: string, filter: any) => {
+    assert.deepEqual(filter.affiliationQualifiedAt, { $type: "date" });
+    return [characterId];
+  });
   t.mock.method(CharacterMechanicsLeaderboard, "countDocuments", async () => 1);
   t.mock.method(CharacterMechanicsLeaderboard, "find", (filter: any) => {
     query = filter;
@@ -396,6 +400,7 @@ test("an overall spec filter preserves all role mechanics and combined queries r
   });
   const result = await service.getMechanicsRankings({ zoneId: 53, specName: "demonology", scoreType: "combined" });
   assert.equal(query.specName, "demonology");
+  assert.deepEqual(query.characterId, { $in: [characterId] });
   assert.deepEqual(query.score, { $ne: null });
   assert.equal(result.data[0].stats.mechanics.pulls, 60);
   assert.equal(result.data[0].stats.mechanics.parseScore, 70);

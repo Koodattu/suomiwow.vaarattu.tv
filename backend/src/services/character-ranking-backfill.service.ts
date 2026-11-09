@@ -1496,6 +1496,11 @@ class CharacterRankingBackfillService {
   private async rebuildLeaderboardForCharacterZone(characterId: mongoose.Types.ObjectId, zoneId: number, invalidateOptions = true): Promise<number> {
     const characterObjectId = new mongoose.Types.ObjectId(String(characterId));
     const guild = (await getPrimaryCharacterRaidGuilds(zoneId, [characterObjectId])).get(String(characterObjectId));
+    if (!guild) {
+      await CharacterLeaderboard.deleteMany({ characterId: characterObjectId, zoneId, difficulty: MYTHIC_DIFFICULTY });
+      if (invalidateOptions) await cacheService.invalidate(cacheService.getCharacterRankingsOptionsKey());
+      return 0;
+    }
     const guildName = guild?.name ?? null;
     const guildRealm = guild?.realm ?? null;
 
