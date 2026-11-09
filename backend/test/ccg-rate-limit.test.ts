@@ -9,6 +9,8 @@ import session from "express-session";
 import { CCG_GUEST_COOKIE } from "../src/config/ccg";
 
 test("CCG pack openings allow 60 requests per owner instead of sharing an IP limit", async () => {
+  process.env.BLIZZARD_CLIENT_ID ??= "test-client";
+  process.env.BLIZZARD_CLIENT_SECRET ??= "test-secret";
   const [{ default: ccgRouter }, { default: ccgService }] = await Promise.all([
     import("../src/routes/ccg"),
     import("../src/services/ccg.service"),

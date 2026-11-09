@@ -261,17 +261,23 @@ test("Community identity resolution recognizes an active Blizzard identity overr
   }
 });
 
-test("Community identity reconciliation preserves and merges already-awarded ownership", async () => {
+test("Community identity reconciliation preserves and merges already-awarded ownership", async (t) => {
   const [
     { default: ccgCharacterIdentityService },
     { default: CcgOwnership },
     { default: CcgSeriesOwnership },
     { default: TwitchCcgRedemption },
+    { default: User },
+    { default: CcgDuplicateRewardAccount },
+    { default: CcgDuplicateRewardProgress },
   ] = await Promise.all([
     import("../src/services/ccg-character-identity.service"),
     import("../src/models/CcgOwnership"),
     import("../src/models/CcgSeriesOwnership"),
     import("../src/models/TwitchCcgRedemption"),
+    import("../src/models/User"),
+    import("../src/models/CcgDuplicateRewardAccount"),
+    import("../src/models/CcgDuplicateRewardProgress"),
   ]);
   const service = ccgCharacterIdentityService as any;
   const ownershipModel = CcgOwnership as any;
@@ -283,6 +289,18 @@ test("Community identity reconciliation preserves and merges already-awarded own
   const cardId = new mongoose.Types.ObjectId();
   const ownerA = new mongoose.Types.ObjectId();
   const ownerB = new mongoose.Types.ObjectId();
+  const session = {} as mongoose.ClientSession;
+  const userLock = t.mock.method(User, "updateMany", (async () => ({})) as any);
+  const rewardLock = t.mock.method(CcgDuplicateRewardAccount, "updateMany", (async () => ({})) as any);
+  const rewards = t.mock.method(CcgDuplicateRewardProgress, "find", ((filter: unknown) => {
+    assert.deepEqual(filter, { setId, characterId: sourceCharacterId });
+    assert.equal(userLock.mock.callCount(), 1, "lock owners before migrating reward progress");
+    assert.equal(rewardLock.mock.callCount(), 1, "lock reward accounts before migrating reward progress");
+    return { session: async (value: mongoose.ClientSession) => {
+      assert.equal(value, session);
+      return [];
+    } };
+  }) as any);
   const sourceOwnershipRows = [
     {
       _id: new mongoose.Types.ObjectId(), ownerType: "user", ownerId: ownerA, finish: "normal",
@@ -336,9 +354,16 @@ test("Community identity reconciliation preserves and merges already-awarded own
       setId,
       sourceCharacterId,
       targetCharacterId,
-      {} as mongoose.ClientSession,
+      session,
     );
 
+    assert.deepEqual(userLock.mock.calls[0].arguments, [
+      { _id: { $in: [ownerA, ownerB] } }, { $inc: { __v: 1 } }, { session },
+    ]);
+    assert.deepEqual(rewardLock.mock.calls[0].arguments, [
+      { ownerId: { $in: [ownerA, ownerB] } }, { $inc: { revision: 1 } }, { session },
+    ]);
+    assert.equal(rewards.mock.callCount(), 1);
     assert.deepEqual(migrated, { ownershipRows: 2, seriesRows: 1 });
     assert.equal(ownershipBulkWrites.length, 1);
     assert.deepEqual(ownershipBulkWrites[0][0].updateOne.update.$inc, { quantity: 2, alternativeQuantity: 1 });

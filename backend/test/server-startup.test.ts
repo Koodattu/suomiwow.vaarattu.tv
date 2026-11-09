@@ -72,7 +72,7 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
         return drain.promise;
       },
     },
-    "./services/pickem.service": { ensureCcgRewardDefaults: noop },
+    "./services/pickem.service": { ensureStreakRules: noop, ensureCcgRewardDefaults: noop },
     "./services/ccg-guest-persistence-migration.service": { ensurePersistentCcgGuests: noop },
     "./services/ccg-ownership-migration.service": { ensureCcgSeriesOwnershipMigration: noop },
     "./services/ccg-pack-migration.service": { assertCcgUnifiedPacksReady: noop },
@@ -84,6 +84,7 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
     "./services/site-analytics.service": { async initializeSiteAnalytics() { analyticsInitialized = true; } },
     "./features/forever/forever.worker": { initializeForever: noop, start() {}, stop() {} },
     "./features/forever/forever-twitch": { start() {}, stop() {} },
+    "./features/forever/forever-leaderboard": { startForeverLeaderboard() {}, stopForeverLeaderboard() {} },
     "./features/forever/forever.routes": { foreverRouter: express.Router(), foreverAdminRouter: express.Router() },
     "./services/avoidable-damage.service": {
       async warmLeaderboardCaches() {

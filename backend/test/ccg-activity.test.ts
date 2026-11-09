@@ -43,6 +43,8 @@ test("CCG activity uses the opened pack source instead of the first pulled card"
 });
 
 test("CCG activity requires an authenticated user", async () => {
+  process.env.BLIZZARD_CLIENT_ID ??= "test-client";
+  process.env.BLIZZARD_CLIENT_SECRET ??= "test-secret";
   const { default: ccgRouter } = await import("../src/routes/ccg");
   const app = express();
   app.use(express.json());

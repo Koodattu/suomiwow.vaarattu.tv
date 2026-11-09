@@ -61,6 +61,16 @@ Media endpoints: `POST /api/ccg/studio/media/:sourceId/:kind` with an `applicati
 
 Verification adds actual image/audio normalization tests and replica-set integration coverage for privacy, ownership, publication gating, independent review, concurrent approval, replacement, withdrawal, rejection, cleanup, audio range serving, and real pack alternative-art/audio results.
 
+For local media tests, use `ffmpeg` and `ffprobe` from the same modern installation (verified with FFmpeg 8.0.1). An older `ffprobe` earlier on PATH can fail to read AVIF animations even when `ffmpeg` can encode them. On Windows, set both overrides to the actual executables in that installation's `bin` directory; a WinGet link may be inaccessible from a sandbox account. Run the tests in an environment allowed to execute those binaries. For example, in PowerShell from `backend`:
+
+```powershell
+$env:FFMPEG_PATH = 'C:\path\to\ffmpeg\bin\ffmpeg.exe'
+$env:FFPROBE_PATH = 'C:\path\to\ffmpeg\bin\ffprobe.exe'
+& $env:FFMPEG_PATH -version
+& $env:FFPROBE_PATH -version
+node --test -r ts-node/register test/ccg-supporter-media.test.ts
+```
+
 ## Product contract
 
 **Card Studio** at `/ccg/studio` uses a slot-driven workspace without tabs. The top grid starts with ten positions: two base slots, three follower opportunities, and five subscriber opportunities. Permanent grants unlock those positions; additional earned capacity extends the grid. Clicking an available position opens a compact character picker below the slots; clicking a creation opens its editor. The roster is hidden until creation begins. Draft placement is provisional and only publication spends capacity. A saved-drafts drawer keeps all five working copies accessible even when publication capacity is exhausted.

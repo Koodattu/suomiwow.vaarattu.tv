@@ -22,7 +22,8 @@ test("boss API keeps progression at eight and marks the separate character scori
   const { default: Raid } = await import("../src/models/Raid");
   const { default: router } = await import("../src/routes/raids");
   t.mock.method(Raid, "findOne", () => ({ select: async () => ({ bosses: metadata }) }) as any);
-  const handler = router.stack.find((layer: any) => layer.route?.path === "/:id/bosses")!.route!.stack.at(-1)!.handle;
+  const handlers = router.stack.find((layer: any) => layer.route?.path === "/:id/bosses")!.route!.stack;
+  const handler = handlers[handlers.length - 1].handle;
   let response: any[] = [];
   const res: any = { json: (body: any) => { response = body; } };
   await handler({ params: { id: "53" }, query: {} } as any, res, () => {});

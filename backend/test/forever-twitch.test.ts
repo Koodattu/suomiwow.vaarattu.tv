@@ -10,8 +10,8 @@ test("Twitch associations accept only channel identities and support clearing", 
 });
 test("seeds merge friends and streamers, retain accents, and exclude unresolved identities", () => {
   const rows = foreverSeedRecords();
-  assert.equal(rows.length, 100); assert.equal(new Set(rows.map((row) => row.slug)).size, 100);
-  assert.equal(rows.filter((row) => row.twitchChannel).length, 50);
+  assert.equal(rows.length, 129); assert.equal(new Set(rows.map((row) => row.slug)).size, 129);
+  assert.equal(rows.filter((row) => row.twitchChannel).length, 66);
   for (const [name, channel] of [["Mansikan Pappi", "aitomansikka"], ["Munapoolo Paladin", "munapoolo"], ["Kirjuri Committ", "comm1tt"], ["Cobra Gaming", "cobragam1ng"], ["Laenoril Stillmoon", "yawnywolf"]]) {
     assert.equal(rows.find((row) => row.name === name)?.twitchChannel, channel);
   }
