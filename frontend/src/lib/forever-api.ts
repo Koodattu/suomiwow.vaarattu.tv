@@ -64,6 +64,7 @@ export interface ForeverBoard {
   page: number; pageSize: number; worker: ForeverWorker | null; enabled: boolean;
 }
 export interface ForeverAnalytics {
+  timeline?: ForeverAnalyticsTimeline;
   generatedAt: string; total: number; historyCharacters: number; averageLevel: number | null; medianLevel: number | null;
   atMaxLevel: number; active24h: number; coverageStart: string | null;
   new24h: number; levelsGained24h: number; statistics: ForeverStatistics;
@@ -72,6 +73,12 @@ export interface ForeverAnalytics {
   races: { name: string | null; count: number; factions: { alliance: number; horde: number; unknown: number } }[];
   combinations: { race: string | null; className: string | null; count: number; factions: { alliance: number; horde: number; unknown: number } }[];
   activity: { at: string; active: number; observed: number; partial: boolean }[];
+}
+export interface ForeverAnalyticsTimeline {
+  startedAt: string;
+  facets: { race: string | null; className: string | null; faction: string | null; ruleset: string | null }[];
+  days: { date: string; at: string;
+    buckets: [facet: number, level: number, count: number, active: number, added: number, gains: number, observed: number][] }[];
 }
 export interface ForeverAdminData {
   characters: ForeverCharacter[]; guilds: ForeverGuild[]; worker: ForeverWorker | null;

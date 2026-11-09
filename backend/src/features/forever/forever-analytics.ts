@@ -1,5 +1,6 @@
 import { ForeverCharacter } from "./forever.models";
 import { visibleForeverCharacters } from "./forever-visibility";
+import { buildForeverAnalyticsTimeline } from "./forever-analytics-timeline";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -102,7 +103,7 @@ export function buildForeverAnalytics(characters: AnalyticsCharacter[], now = Da
   };
 }
 
-type Analytics = ReturnType<typeof buildForeverAnalytics>;
+type Analytics = ReturnType<typeof buildForeverAnalytics> & { timeline: ReturnType<typeof buildForeverAnalyticsTimeline> };
 let cached: { visibility: string; expiresAt: number; data: Analytics } | undefined;
 let pending: { visibility: string; promise: Promise<Analytics> } | undefined;
 
@@ -113,7 +114,8 @@ export async function foreverAnalytics() {
   const promise = (async () => {
     const characters = await ForeverCharacter.find({ ...visible, region: "eu", status: "tracked", level: { $gte: 1, $lte: 60 } })
       .select("-_id level race className faction ruleset history.level history.observedAt").lean();
-    const data = buildForeverAnalytics(characters);
+    const now = Date.now();
+    const data = { ...buildForeverAnalytics(characters, now), timeline: buildForeverAnalyticsTimeline(characters, now) };
     cached = { visibility, expiresAt: Date.now() + 60_000, data };
     return data;
   })();

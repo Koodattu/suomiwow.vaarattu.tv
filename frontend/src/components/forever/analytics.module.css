@@ -1,4 +1,15 @@
 .shell { min-width: 0; }
+.controls { position: sticky; top: 8px; z-index: 10; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 0 48px; padding: 14px 18px 10px; border: 1px solid #494338; border-radius: 3px; background: #141a15; margin-bottom: 16px; box-shadow: 0 4px 12px #0002; }
+.control { min-width: 0; }
+.controlLabel, .controlEnds { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.controlLabel { color: #ded8c6; font-size: 12px; }
+.controlLabel output { color: #edcf8d; font-variant-numeric: tabular-nums; }
+.control input { display: block; width: 100%; height: 26px; margin: 2px 0; accent-color: #d7b875; cursor: pointer; }
+.control input:focus-visible, .control button:focus-visible { outline: 2px solid #edcf8d; outline-offset: 3px; }
+.controlEnds { color: #b2afa0; font-size: 11px; }
+.controlEnds button { border: 0; padding: 2px 0; background: none; color: #edcf8d; cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.controlEnds button:disabled { color: #b2afa0; text-decoration: none; cursor: default; }
+.controlsNote { grid-column: 1 / -1; color: #b2afa0; font-size: 11px; margin: 8px 0 0; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
 .nav { display: flex; gap: 4px; font: 12px/1.4 Arial, sans-serif; }
 .nav a { color: #bdb6a3; padding: 7px 11px; border: 1px solid transparent; border-radius: 3px; text-decoration: none; }
@@ -59,6 +70,9 @@
   .chart { height: 215px; }
 }
 @media (max-width: 540px) {
+  .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; padding: 12px 14px; }
+  .controlLabel { gap: 6px; font-size: 11px; }
+  .controlsNote { margin: 0; }
   .header { gap: 14px; margin-bottom: 14px; }
   .bars li { grid-template-columns: 95px minmax(20px, 1fr) 32px 43px; gap: 8px; font-size: 11px; }
   .panelHeading h2 { font-size: 18px; }

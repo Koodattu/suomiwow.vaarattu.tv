@@ -31,12 +31,18 @@ test("Forever analytics API scopes the population and coalesces history reads", 
     assert.ok(results.every(result => result.total === 3 && result.active24h === 3));
     assert.deepEqual(results[0].statistics.rulesets, [{ name: "PvP", count: 3 }]);
     assert.equal(results[0].levelsGained24h, 30); assert.equal(results[0].new24h, 0);
+    const timeline = results[0].timeline;
+    assert.ok(timeline.days.length >= 3);
+    assert.equal(timeline.days[0].buckets.reduce((sum, bucket) => sum + bucket[2], 0), 3);
+    assert.ok(timeline.days[0].buckets.every(bucket => bucket[1] === 10), "history never uses today's level for past days");
+    assert.equal(timeline.days[timeline.days.length - 1].buckets.reduce((sum, bucket) => sum + bucket[2], 0), 3);
     assert.equal(characterReads, 1, "concurrent viewers share one history read");
     await foreverAnalytics(); assert.equal(characterReads, 1, "cached viewers do not reread all histories");
     await ForeverGuild.updateOne({ _id: guild._id }, { $set: { hidden: true } });
     const hidden = await foreverAnalytics();
     assert.equal(hidden.total, 2); assert.equal(hidden.active24h, 2); assert.equal(characterReads, 2, "guild hiding changes the cache visibility key immediately");
     assert.equal(hidden.statistics.combinations[0].count, 2); assert.equal(hidden.levelsGained24h, 20);
+    assert.equal(hidden.timeline.days[0].buckets.reduce((sum, bucket) => sum + bucket[2], 0), 2, "hiding also invalidates historical aggregates");
     process.env.BLIZZARD_CLIENT_ID ??= "test-client"; process.env.BLIZZARD_CLIENT_SECRET ??= "test-secret";
     const { foreverRouter } = await import("../src/features/forever/forever.routes");
     const app = express(); app.use("/api/forever", foreverRouter);

@@ -44,6 +44,31 @@ cells use a teal-to-orange scale from the smallest to the largest observed count
 with white count labels. Bar axes start at zero. The population charts reuse the
 Leveling components and this same API response, without an extra request.
 
+The date slider defaults to today and follows live refreshes. Every Helsinki date
+from the earliest valid observation is available; completed days use the final
+observed level before local midnight, carrying the last known level across gaps.
+Characters are absent before their first observation. Characters without valid
+history appear only today. Historical views use **current metadata and current
+visibility**, not archived race/class/ruleset or moderation states; only levels and
+observation times are recorded historically. Days across DST have their actual
+23/24/25-hour boundaries. The minimum-level slider (1–60 inclusive) filters all
+population charts and totals. Activity uses each sampled day's level cutoff, not
+the character's level today, and ends at the selected date.
+
+The response includes sparse daily buckets keyed by level and a shared
+race/class/faction/ruleset dictionary. Each bucket stores count, active/new counts,
+observed gains and history coverage, with no character identities or raw histories.
+A single sweep through sorted histories builds every day; the existing 60-second
+API cache and in-flight coalescing share that work between viewers. Both controls
+fold cached buckets locally without requests or database aggregation per slider
+movement. The browser checks the dataset at most every 30 seconds and schedules
+the next check by its generation time, avoiding an extra minute of client staleness
+on top of the API cache. No 60-fold set of
+precomputed minimum-level variants or permanent snapshot collection is needed.
+The selected view's activity series uses daily samples; the legacy top-level API
+activity remains sampled every six hours. A level cutoff shows the population at
+or above a level, not a measured abandonment rate or the reason someone stopped.
+
 Activity is a rolling 24-hour count of distinct characters first observed or gaining
 at least one level. First observations start an active window without inventing any
 level gains. Repeated/lower levels, malformed and future observations do not extend
@@ -51,8 +76,8 @@ activity. Multiple overlapping windows per character merge so a character counts
 only once. An observation at exactly `sample time - 24h` has expired. Level-one
 characters remain excluded from activity. Newly observed level-60 characters and
 recently capped characters are active for 24 hours, then leave the active count.
-The timeline samples every six hours for up to thirty days, plus the current endpoint;
-the UI offers 7/30-day views and shows the number of cohort members observed by each
+The original API series samples every six hours for up to thirty days, plus the current endpoint;
+the interactive UI uses daily samples, offers 7/30-day views and shows the number of cohort members observed by each
 sample. There is no invented history before the first observation. The summary also
 shows first observations in the last 24 hours (including level one) and the sum of
 actual observed level increases in that window. Duplicate or regressed levels never
@@ -72,12 +97,15 @@ are returned to the browser. The sweep over merged gain intervals avoids scannin
 every character for every timeline point. Tests:
 
 ```powershell
-node --test -r ts-node/register test/forever-analytics.test.ts
+node --test -r ts-node/register test/forever-analytics.test.ts test/forever-analytics-timeline.test.ts
 node --test -r ts-node/register integration/forever-analytics.test.ts
 ```
 
 The integration test uses the same disposable replica-set environment variable as
 the other Forever tests below.
+
+Frontend bucket selection and minimum-level filtering:
+`cd frontend; node --test test/forever-analytics.test.mjs`.
 
 The first version is an unlisted community leaderboard at `/forever/leveling`,
 with a small `/forever` hub and readable `/forever/characters/firstname-surname`
