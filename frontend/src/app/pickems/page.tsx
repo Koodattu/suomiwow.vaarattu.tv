@@ -22,6 +22,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { CSS } from "@dnd-kit/utilities";
 import { PickemStatistics } from "@/components/PickemStatistics";
 import { PickemCcgRewardCard } from "@/components/pickems/PickemCcgRewardCard";
+import { PickemScoringRules, PickemScoreBreakdown } from "@/components/pickems/PickemScoring";
 
 // Guild autocomplete using Headless UI Combobox
 function GuildAutocomplete({
@@ -557,17 +558,6 @@ function PickemSelector({
   );
 }
 
-// Points display with color coding
-function PointsBadge({ points }: { points: number }) {
-  let bgColor = "bg-gray-600";
-  if (points === 10) bgColor = "bg-green-600";
-  else if (points >= 6) bgColor = "bg-yellow-600";
-  else if (points >= 2) bgColor = "bg-orange-600";
-  else if (points === 0) bgColor = "bg-red-600";
-
-  return <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold rounded ${bgColor} text-white`}>{points}</span>;
-}
-
 // Landing page card for a single pickem
 function PickemCard({ pickem, getTimeRemaining, onClick }: { pickem: PickemSummary; getTimeRemaining: (endDate: string) => string; onClick: () => void }) {
   const t = useTranslations("pickemsPage");
@@ -856,7 +846,6 @@ export default function PickemsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [showScoringInfo, setShowScoringInfo] = useState(false);
   const [droppingIndex, setDroppingIndex] = useState<number | null>(null);
   const automaticImportAttemptRef = useRef<string | null>(null);
   const selectedPickemIdRef = useRef<string | null>(null);
@@ -1320,20 +1309,6 @@ export default function PickemsPage() {
     [predictions],
   );
 
-  // Get scoring config from the current pickem (or defaults)
-  const scoringConfig = useMemo(() => {
-    return (
-      pickemDetails?.scoringConfig ?? {
-        exactMatch: 10,
-        offByOne: 8,
-        offByTwo: 6,
-        offByThree: 4,
-        offByFour: 2,
-        offByFiveOrMore: 0,
-      }
-    );
-  }, [pickemDetails]);
-
   // Whether this is an unfinalized RWF pickem (scores should show as pending)
   const isUnfinalizedRwf = pickemDetails?.type === "rwf" && !pickemDetails?.finalized;
   const rankingsPending = pickemDetails?.rankingsPending ?? false;
@@ -1603,58 +1578,7 @@ export default function PickemsPage() {
 
             {/* Column 3 (or 2 for unfinalized RWF): Leaderboard */}
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 self-start">
-              {/* Scoring Info */}
-              <div className="bg-gray-750 rounded-lg overflow-hidden border border-gray-700 mb-3">
-                <button
-                  onClick={() => setShowScoringInfo(!showScoringInfo)}
-                  className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-gray-700 transition-colors"
-                >
-                  <span className="text-sm font-semibold text-gray-300">{t("scoringSystem")}</span>
-                  <svg className={`w-4 h-4 text-gray-400 transition-transform ${showScoringInfo ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {showScoringInfo && (
-                  <div className="px-4 pb-3 text-xs text-gray-400 space-y-1.5 border-t border-gray-700 pt-3">
-                    {scoringConfig.exactMatch > 0 && (
-                      <p>
-                        • <strong className="text-green-400">{scoringConfig.exactMatch} pts:</strong> Exact match
-                      </p>
-                    )}
-                    {scoringConfig.offByOne > 0 && (
-                      <p>
-                        • <strong className="text-yellow-400">{scoringConfig.offByOne} pts:</strong> ±1 position
-                      </p>
-                    )}
-                    {scoringConfig.offByTwo > 0 && (
-                      <p>
-                        • <strong className="text-orange-400">{scoringConfig.offByTwo} pts:</strong> ±2 positions
-                      </p>
-                    )}
-                    {scoringConfig.offByThree > 0 && (
-                      <p>
-                        • <strong className="text-orange-500">{scoringConfig.offByThree} pts:</strong> ±3 positions
-                      </p>
-                    )}
-                    {scoringConfig.offByFour > 0 && (
-                      <p>
-                        • <strong className="text-red-400">{scoringConfig.offByFour} pts:</strong> ±4 positions
-                      </p>
-                    )}
-                    <p>
-                      • <strong className="text-gray-500">{scoringConfig.offByFiveOrMore} pts:</strong> 5+ off or not in top{" "}
-                      {pickemDetails?.finalRankingsCount || pickemDetails?.guildCount || 10}
-                    </p>
-                    {pickemDetails?.type === "rwf" && (pickemDetails?.finalRankingsCount || 0) > pickemDetails.guildCount && (
-                      <p className="mt-2 text-blue-400 text-xs">
-                        {t("rwfScoringRange", { predictions: pickemDetails.guildCount, rankings: pickemDetails.finalRankingsCount })}
-                      </p>
-                    )}
-                    {isUnfinalizedRwf && <p className="mt-2 text-purple-400 font-medium">RWF scores are calculated when the race ends and admin finalizes the results.</p>}
-                    {rankingsPending && <p className="mt-2 text-amber-300 font-medium">{t("scoresPending")}</p>}
-                  </div>
-                )}
-              </div>
+              <PickemScoringRules pickem={pickemDetails} />
               <a href="/pickems-rules" className="block text-xs text-blue-400 hover:text-blue-300 transition-colors mb-3">
                 {t("viewFullRules")} →
               </a>
@@ -1702,15 +1626,7 @@ export default function PickemsPage() {
                                 </div>
                               </div>
                             </summary>
-                            <div className="px-2.5 pb-2.5 pt-1 grid grid-cols-1 gap-0.5 text-xs border-t border-gray-700/50 mt-1.5">
-                              {entry.predictions.map((pred) => (
-                                <div key={`${pred.guildName}-${pred.predictedRank}`} className="flex items-center gap-1 text-gray-300 py-0.5 min-w-0">
-                                  <span className="text-gray-500 shrink-0">#{pred.predictedRank}:</span>
-                                  <span className="truncate flex-1">{pred.guildName}</span>
-                                  {!scoresPending && <PointsBadge points={pred.points} />}
-                                </div>
-                              ))}
-                            </div>
+                            <PickemScoreBreakdown entry={entry} pickem={pickemDetails} scoresPending={scoresPending} />
                           </details>
                         </div>
                       );

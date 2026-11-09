@@ -1600,7 +1600,7 @@ export interface ScoringConfig {
 
 export interface StreakConfig {
   enabled: boolean;
-  minLength: number;
+  minStreak: number;
   bonusPerGuild: number;
 }
 
