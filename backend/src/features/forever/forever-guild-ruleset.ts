@@ -1,5 +1,3 @@
-import type { ForeverMember } from "./forever-armory";
-
 interface Evidence {
   slug: string;
   guild?: { region: string; slug: string } | null;
@@ -10,7 +8,8 @@ interface Evidence {
 }
 
 /** Only direct Armory profiles of current, non-outdated members can confirm a guild. */
-export function confirmedGuildRuleset(guild: { region: string; slug: string }, roster: ForeverMember[], characters: Evidence[]) {
+export function confirmedGuildRuleset(guild: { region: string; slug: string },
+  roster: { slug: string; isOutdated?: boolean | null; faction?: string | null }[], characters: Evidence[]) {
   const members = new Map(roster.filter(member => !member.isOutdated).map(member => [member.slug, member]));
   const evidence = characters.filter(character => members.has(character.slug) && character.sourceUpdatedAt &&
     character.guild?.region === guild.region && character.guild.slug === guild.slug && !character.rulesetInferredFromGuild &&

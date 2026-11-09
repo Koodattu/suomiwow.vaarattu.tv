@@ -5,8 +5,8 @@ import { randomUUID } from "node:crypto";
 import { ArmoryError, ForeverMember, ForeverProfile } from "../src/features/forever/forever-armory";
 import { ForeverCharacter, ForeverGuild, ForeverWorker } from "../src/features/forever/forever.models";
 import { ForeverRunner, initializeForever } from "../src/features/forever/forever.worker";
-import { MINUTE, PROFILE_AUDIT_INTERVAL, ROSTER_COVERAGE, ROSTER_INTERVAL } from "../src/features/forever/forever-policy";
-import { releaseRosterCoverage } from "../src/features/forever/forever-roster-sync";
+import { LOW_LEVEL_RECHECK_INTERVAL, MINUTE, nextProfileAuditAt, PROFILE_AUDIT_INTERVAL, PROFILE_PROBE_INTERVAL, ROSTER_COVERAGE, ROSTER_INTERVAL } from "../src/features/forever/forever-policy";
+import { releaseRosterCoverage, scheduleUncoveredLowLevels } from "../src/features/forever/forever-roster-sync";
 import * as service from "../src/features/forever/forever.service";
 import { seedForeverCharacters } from "../src/features/forever/forever-seed";
 import { invalidateForeverLeaderboard, stopForeverLeaderboard } from "../src/features/forever/forever-leaderboard";
@@ -34,13 +34,13 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
     t.after(() => stopForeverLeaderboard());
     t.afterEach(async () => {
       await ForeverCharacter.deleteMany({}); await ForeverGuild.deleteMany({});
-      await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0), failedJobs: [], consecutiveGuilds: 0 },
+      await ForeverWorker.updateOne({ _id: "armory" }, { $set: { nextRequestAt: new Date(0), failedJobs: [], consecutiveGuilds: 0, consecutiveNewCharacters: 0, consecutiveNewGuilds: 0 },
         $unset: { leaseToken: 1, leaseUntil: 1, errorCode: 1, failureWindowStartedAt: 1 } });
     });
 
     await t.test("one roster updates members in bulk ahead of the individual backlog, retains metadata and unique ranks", async () => {
       await guild();
-      const old = await tracked("first-member", { lastFetchedAt: new Date(Date.now() - 11 * MINUTE) });
+      const old = await tracked("first-member", { lastFetchedAt: new Date(Date.now() - 11 * 60 * MINUTE) });
       const second = await tracked("second-member", { avatarUrl: "portrait", sourceUpdatedAt: new Date(Date.now() - 5 * MINUTE) });
       const failed = await tracked("failed-member", { failures: 3, nextFetchAt: new Date(Date.now() + 86400_000), errorCode: "upstream_error" });
       await tracked("paused-member", { status: "paused" });
@@ -53,7 +53,7 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       assert.equal(b?.ruleset, "Normal"); assert.equal(b?.avatarUrl, "portrait");
       assert.equal(b?.sourceUpdatedAt?.getTime(), second.sourceUpdatedAt?.getTime(), "roster must not invent source timestamps");
       assert.equal(b?.profileFetchedAt?.getTime(), second.lastFetchedAt?.getTime());
-      assert.equal(b?.nextFetchAt?.getTime(), second.lastFetchedAt!.getTime() + PROFILE_AUDIT_INTERVAL);
+      assert.equal(b?.nextFetchAt?.getTime(), nextProfileAuditAt(second, second.lastFetchedAt!).getTime());
       assert.ok(a!.nextFetchAt! <= new Date(), "oldest profile is a rotating audit sample");
       assert.equal(b?.history[1]?.source, "roster"); assert.equal(b?.history[1]?.sourceUpdatedAt, undefined);
       const newMember = await ForeverCharacter.findOne({ slug: "new-member" }).lean();
@@ -151,6 +151,7 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       await guild(); await tracked("first-member");
       await run([member("first-member", 31)]);
       const before = await ForeverCharacter.findOne().lean();
+      await ForeverCharacter.updateOne({ slug: "first-member" }, { $set: { nextFetchAt: new Date(0) } });
       await run([], async () => profile("first-member", 20));
       const after = await ForeverCharacter.findOne().lean();
       assert.equal(after?.level, 31); assert.equal(after?.profileLevel, 20); assert.equal(after?.failures, 0);
@@ -210,18 +211,20 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       assert.ok(outdated!.nextFetchAt! <= new Date());
     });
 
-    await t.test("demonstrably stale rosters trigger guild-wide individual fallback and record endpoint comparisons", async () => {
+    await t.test("a lagging roster member falls back individually without increasing polling for healthy guildmates", async () => {
       await guild(); await tracked("first-member"); await tracked("second-member");
       await run([member("first-member"), member("second-member")]);
+      await ForeverCharacter.updateOne({ slug: "first-member" }, { $set: { nextFetchAt: new Date(0) } });
       await run([], async () => profile("first-member", 22));
       const g = await ForeverGuild.findOne().lean();
-      assert.equal(g?.profileAheadCount, 1); assert.equal(g?.profileComparisons, 1); assert.ok(g!.individualUntil! > new Date());
-      assert.equal((await ForeverCharacter.findOne({ slug: "second-member" }).lean())?.rosterCoverageUntil, undefined);
-      assert.ok((await ForeverCharacter.findOne({ slug: "second-member" }).lean())!.nextFetchAt! <= new Date());
+      assert.equal(g?.profileAheadCount, 1); assert.equal(g?.profileComparisons, 1);
+      assert.equal((await ForeverCharacter.findOne({ slug: "first-member" }).lean())?.rosterCoverageUntil, undefined);
+      assert.ok((await ForeverCharacter.findOne({ slug: "second-member" }).lean())!.rosterCoverageUntil! > new Date());
+      assert.ok((await ForeverCharacter.findOne({ slug: "second-member" }).lean())!.nextFetchAt! > new Date());
       await dueGuild(); await run([member("first-member", 20), member("second-member", 21)]);
       assert.equal((await ForeverCharacter.findOne({ slug: "first-member" }).lean())?.level, 22);
       assert.equal((await ForeverCharacter.findOne({ slug: "second-member" }).lean())?.level, 21);
-      assert.equal((await ForeverCharacter.findOne({ slug: "second-member" }).lean())?.rosterCoverageUntil, undefined);
+      assert.ok((await ForeverCharacter.findOne({ slug: "second-member" }).lean())!.rosterCoverageUntil! > new Date());
       assert.equal((await ForeverGuild.findOne().lean())?.rosterLaggingMembers, 1);
     });
 
@@ -319,9 +322,165 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       assert.deepEqual(calls, ["guild", "guild", "guild", "character"]);
     });
 
+    await t.test("a healthy small guild does not repeatedly probe the same profile, and new members get their first fetch before daily audits", async () => {
+      await guild(); await tracked("known-member");
+      const roster = [member("known-member"), member("new-member")];
+      await run(roster);
+      const first = (await ForeverCharacter.findOne({ slug: "known-member" }).lean())!;
+      assert.ok(first.nextFetchAt!.getTime() > Date.now() + PROFILE_AUDIT_INTERVAL - 11 * MINUTE);
+      assert.ok((await ForeverCharacter.findOne({ slug: "new-member" }).lean())!.nextFetchAt! <= new Date());
+      const calls: string[] = [];
+      await run([], async identity => { calls.push(identity.slug); return profile(identity.slug); });
+      assert.deepEqual(calls, ["new-member"]);
+      const hydrated = (await ForeverCharacter.findOne({ slug: "new-member" }).lean())!;
+      assert.equal(hydrated.nextFetchAt!.getTime(), nextProfileAuditAt(hydrated, hydrated.profileFetchedAt!).getTime());
+      await dueGuild(); await run(roster);
+      assert.equal((await ForeverCharacter.findOne({ slug: "known-member" }).lean())!.nextFetchAt!.getTime(), first.nextFetchAt!.getTime());
+      await ForeverCharacter.updateOne({ slug: "known-member" }, { $set: { profileFetchedAt: new Date(Date.now() - PROFILE_PROBE_INTERVAL - MINUTE) } });
+      await dueGuild(); await run(roster);
+      assert.ok((await ForeverCharacter.findOne({ slug: "known-member" }).lean())!.nextFetchAt! <= new Date());
+    });
+
+    await t.test("sub-10 departures get slow discovery checks, survive restart/backoff, and resume normal tracking at level 10", async () => {
+      await guild(); await run([member("young-member", 5)]);
+      await dueGuild(); await run([]);
+      await scheduleUncoveredLowLevels(new Date());
+      const departed = (await ForeverCharacter.findOne({ slug: "young-member" }).lean())!;
+      assert.equal(departed.lowLevelRecheck, true);
+      assert.ok(departed.nextFetchAt!.getTime() >= Date.now() + 59 * MINUTE);
+      const calls: string[] = [];
+      const runner = new ForeverRunner({ roster: async () => [], character: async identity => {
+        calls.push(identity.slug); throw new ArmoryError("not_found", 404);
+      } });
+      await ready(); await runner.tick(); assert.deepEqual(calls, []);
+      await ForeverCharacter.updateOne({ _id: departed._id }, { $set: { nextFetchAt: new Date(0) } });
+      await ready(); await runner.tick(); assert.deepEqual(calls, ["young-member"]);
+      const failed = (await ForeverCharacter.findById(departed._id).lean())!;
+      assert.ok(failed.nextFetchAt!.getTime() >= Date.now() + LOW_LEVEL_RECHECK_INTERVAL - 1000);
+      await initializeForever(); await scheduleUncoveredLowLevels(new Date());
+      assert.equal((await ForeverCharacter.findById(departed._id).lean())!.nextFetchAt!.getTime(), failed.nextFetchAt!.getTime());
+      await ForeverCharacter.updateOne({ _id: departed._id }, { $set: { nextFetchAt: new Date(0) } });
+      await run([], async identity => ({ ...profile(identity.slug, 10), guild: null }));
+      const leveled = (await ForeverCharacter.findById(departed._id).lean())!;
+      assert.equal(leveled.level, 10); assert.equal(leveled.guild, null); assert.equal(leveled.lowLevelRecheck, undefined);
+      assert.equal(leveled.failures, 0); assert.ok(leveled.nextFetchAt!.getTime() <= Date.now() + 2 * MINUTE);
+    });
+
+    await t.test("fresh roster membership cancels low-level discovery, including outdated entries, and expiry re-enables it", async () => {
+      await guild();
+      await ForeverCharacter.create({ region: "eu", slug: "young-member", source: "admin", status: "tracked", level: 5 });
+      await scheduleUncoveredLowLevels(new Date());
+      assert.equal((await ForeverCharacter.findOne().lean())!.lowLevelRecheck, true);
+      await run([{ ...member("young-member", 5), isOutdated: true }]);
+      const covered = (await ForeverCharacter.findOne().lean())!;
+      assert.equal(covered.lowLevelRecheck, undefined); assert.equal(covered.nextFetchAt, null);
+      assert.ok(covered.rosterCoverageUntil! > new Date());
+      await scheduleUncoveredLowLevels(new Date());
+      assert.equal((await ForeverCharacter.findOne().lean())!.lowLevelRecheck, undefined);
+      await ForeverCharacter.updateOne({ _id: covered._id }, { $set: { rosterCoverageUntil: new Date(1) } });
+      await releaseRosterCoverage({ rosterCoverageUntil: { $lte: new Date(), $ne: null } }, new Date());
+      await scheduleUncoveredLowLevels(new Date());
+      assert.equal((await ForeverCharacter.findOne().lean())!.lowLevelRecheck, true);
+    });
+
+    await t.test("manual and approved-suggestion characters remain individually polled when their guild is hidden", async () => {
+      const g = await guild();
+      await tracked("manual-member", { source: "admin" });
+      await tracked("suggested-member", { source: "proposal", independentlyTracked: true });
+      await tracked("imported-member");
+      await run([member("manual-member"), member("suggested-member"), member("imported-member")]);
+      await service.setGuildVisibility(String(g._id), true);
+      const calls: string[] = [];
+      for (let i = 0; i < 2; i++) await run([], async identity => { calls.push(identity.slug); return profile(identity.slug); });
+      assert.deepEqual(calls.sort(), ["manual-member", "suggested-member"]);
+      for (const slug of calls) {
+        const character = (await ForeverCharacter.findOne({ slug }).lean())!;
+        assert.equal(character.rosterCoverageUntil, undefined);
+        assert.ok(character.nextFetchAt!.getTime() <= Date.now() + 2 * MINUTE);
+      }
+    });
+
+    await t.test("first profiles favor unknown rulesets, serve other newcomers, and reserve every fourth character turn for existing profiles", async () => {
+      await tracked("existing-member");
+      const first = (slug: string, extra = {}) => ForeverCharacter.create({ region: "eu", slug, source: "guild", status: "tracked", level: 20,
+        nextFetchAt: new Date(Date.now() - MINUTE), ...extra });
+      await first("inferred-member", { ruleset: "Normal", rulesetInferredFromGuild: "test-guild", nextFetchAt: new Date(1) });
+      await first("unknown-one"); await first("unknown-two"); await first("unknown-three");
+      const calls: string[] = [];
+      const runner = new ForeverRunner({ roster: async () => [], character: async identity => {
+        calls.push(identity.slug); return { ...profile(identity.slug), guild: null };
+      } });
+      for (let i = 0; i < 4; i++) { await ready(); await runner.tick(); }
+      assert.deepEqual(calls, ["unknown-one", "unknown-two", "inferred-member", "existing-member"]);
+    });
+
+    await t.test("new guild rosters precede old roster refreshes without starving them", async () => {
+      await ForeverGuild.create({ ...guildIdentity, slug: "existing-guild", status: "approved", lastFetchedAt: new Date(1), nextFetchAt: new Date(0) });
+      await ForeverGuild.insertMany(Array.from({ length: 5 }, (_, i) => ({ ...guildIdentity, slug: `new-guild-${i}`, status: "pending", nextFetchAt: new Date(2) })));
+      const calls: string[] = [];
+      const runner = new ForeverRunner({ roster: async identity => { calls.push(identity.slug); return []; }, character: async identity => profile(identity.slug) });
+      for (let i = 0; i < 4; i++) { await ready(); await runner.tick(); }
+      assert.deepEqual(calls, ["new-guild-0", "new-guild-1", "new-guild-2", "existing-guild"]);
+    });
+
+    await t.test("automatic newcomer priority respects low levels, moderation, visibility and retry deadlines", async () => {
+      const future = new Date(Date.now() + ROSTER_INTERVAL);
+      await ForeverGuild.create({ ...guildIdentity, hidden: true, status: "approved", nextFetchAt: new Date(0) });
+      await ForeverCharacter.insertMany([
+        { slug: "low-member", level: 9 }, { slug: "hint-low-member", rosterLevel: 5 },
+        { slug: "hidden-member", level: 20, guild: guildIdentity }, { slug: "paused-member", level: 20, status: "paused" },
+        { slug: "rejected-member", level: 20, status: "rejected" }, { slug: "pending-member", level: 20, status: "pending" },
+        { slug: "failed-member", level: 20, failures: 3, nextFetchAt: future },
+      ].map(row => ({ region: "eu", source: "guild", status: "tracked", nextFetchAt: new Date(0), ...row })));
+      await ForeverGuild.create({ ...guildIdentity, slug: "failed-guild", status: "pending", failures: 2, nextFetchAt: future });
+      await tracked("independent-member", { source: "admin" });
+      const calls: string[] = [];
+      await ready(); await new ForeverRunner({ roster: async () => { throw new Error("hidden/backoff guild must not run"); }, character: async identity => {
+        calls.push(identity.slug); return profile(identity.slug);
+      } }).tick();
+      assert.deepEqual(calls, ["independent-member"]);
+      assert.equal((await ForeverCharacter.findOne({ slug: "failed-member" }).lean())?.nextFetchAt?.getTime(), future.getTime());
+    });
+
+    await t.test("a third direct confirmation schedules a fresh roster and classifies the remaining guild members", async () => {
+      const future = new Date(Date.now() + ROSTER_INTERVAL);
+      const roster = [member("known-member"), member("new-one"), member("new-two"), member("young-member", 5)];
+      await ForeverGuild.create({ ...guildIdentity, status: "approved", roster, lastFetchedAt: new Date(), nextFetchAt: future });
+      await tracked("known-member", { nextFetchAt: future });
+      await ForeverCharacter.insertMany(roster.slice(1).map(row => ({ ...row, guild: guildIdentity, source: "guild", status: "tracked", nextFetchAt: new Date(0) })));
+      const calls: string[] = [];
+      const runner = new ForeverRunner({ roster: async () => { calls.push("roster"); return roster; }, character: async identity => {
+        calls.push(identity.slug); return profile(identity.slug);
+      } });
+      await ready(); await runner.tick();
+      assert.equal((await ForeverGuild.findOne(guildIdentity).lean())?.nextFetchAt?.getTime(), future.getTime(), "two confirmations must not trigger a roster");
+      await ready(); await runner.tick();
+      assert.ok((await ForeverGuild.findOne(guildIdentity).lean())!.nextFetchAt! <= new Date());
+      await ready(); await runner.tick();
+      assert.deepEqual(calls, ["new-one", "new-two", "roster"]);
+      const young = await ForeverCharacter.findOne({ slug: "young-member" }).lean();
+      assert.equal(young?.ruleset, "Normal"); assert.equal(young?.rulesetInferredFromGuild, guildIdentity.slug);
+      assert.equal(young?.nextFetchAt, null); assert.equal(young?.profileFetchedAt, undefined);
+    });
+
+    await t.test("failed first profiles yield to other new characters and retain their backoff", async () => {
+      await ForeverCharacter.insertMany(["failing-new", "healthy-new"].map(slug => ({ region: "eu", slug, status: "tracked", source: "admin", nextFetchAt: new Date(0) })));
+      const calls: string[] = [];
+      const runner = new ForeverRunner({ roster: async () => [], character: async identity => {
+        calls.push(identity.slug);
+        if (identity.slug === "failing-new") throw new ArmoryError("upstream_error");
+        return { ...profile(identity.slug), guild: null };
+      } });
+      await ready(); await runner.tick(); await ready(); await runner.tick();
+      assert.deepEqual(calls, ["failing-new", "healthy-new"]);
+      const failed = await ForeverCharacter.findOne({ slug: "failing-new" }).lean();
+      assert.equal(failed?.failures, 1); assert.ok(failed!.nextFetchAt! > new Date());
+    });
+
     await t.test("a newly queued public refresh arriving during a profile fetch is not postponed by the audit schedule", async () => {
       await guild(); const c = await tracked("first-member");
       await run([member("first-member")]);
+      await ForeverCharacter.updateOne({ _id: c._id }, { $set: { nextFetchAt: new Date(0) } });
       await ready(); await new ForeverRunner({ roster: async () => [], character: async () => {
         await ForeverCharacter.updateOne({ _id: c._id }, { $set: { refreshQueuedAt: new Date() } });
         return profile("first-member");

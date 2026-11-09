@@ -4,8 +4,9 @@ import { createHash } from "node:crypto";
 export const MINUTE = 60_000;
 export const ROSTER_INTERVAL = 15 * MINUTE;
 export const ROSTER_COVERAGE = 45 * MINUTE;
-export const PROFILE_AUDIT_INTERVAL = 6 * 60 * MINUTE;
-export const ROSTER_LAG_FALLBACK = 60 * MINUTE;
+export const PROFILE_AUDIT_INTERVAL = 24 * 60 * MINUTE;
+export const PROFILE_PROBE_INTERVAL = 6 * 60 * MINUTE;
+export const LOW_LEVEL_RECHECK_INTERVAL = 6 * 60 * MINUTE;
 export const MIN_PROFILE_LEVEL = 10;
 // Unknown levels still need an initial lookup; known low levels are roster-only.
 export const profileFetchEligibility = { $or: [{ level: { $gte: MIN_PROFILE_LEVEL } },
@@ -14,10 +15,22 @@ export function mayFetchProfile(level?: number | null, rosterLevel?: number | nu
   const observedLevel = level ?? rosterLevel;
   return observedLevel == null || observedLevel >= MIN_PROFILE_LEVEL;
 }
+export const lowLevelCharacters = { $or: [{ level: { $gte: 1, $lt: MIN_PROFILE_LEVEL } },
+  { level: null, rosterLevel: { $gte: 1, $lt: MIN_PROFILE_LEVEL } }] };
+
+function identityPhase(identity: { region: string; slug: string }, interval: number) {
+  return createHash("sha256").update(`${identity.region}:${identity.slug}`).digest().readUInt32BE(0) % interval;
+}
+export function nextProfileAuditAt(identity: { region: string; slug: string }, fetchedAt: Date): Date {
+  return new Date(fetchedAt.getTime() + PROFILE_AUDIT_INTERVAL + identityPhase(identity, PROFILE_PROBE_INTERVAL));
+}
+export function nextLowLevelRecheckAt(identity: { region: string; slug: string }, now = Date.now()): Date {
+  return new Date(now + 60 * MINUTE + identityPhase(identity, 60 * MINUTE));
+}
 
 // Stable slots avoid a burst every quarter hour and survive process restarts.
 export function nextRosterFetchAt(identity: { region: string; slug: string }, now = Date.now()): Date {
-  const phase = createHash("sha256").update(`${identity.region}:${identity.slug}`).digest().readUInt32BE(0) % ROSTER_INTERVAL;
+  const phase = identityPhase(identity, ROSTER_INTERVAL);
   const slot = Math.floor(now / ROSTER_INTERVAL) * ROSTER_INTERVAL + phase;
   return new Date(slot > now ? slot : slot + ROSTER_INTERVAL);
 }

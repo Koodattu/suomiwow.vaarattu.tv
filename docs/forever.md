@@ -157,12 +157,18 @@ profile values are preserved. A later profile replaces the inference, and roster
 sync removes inferred values when confirmation is lost, membership ends, or the
 member is marked outdated. No profile timestamps or levels are invented.
 
-Known levels 1–9 are roster-only: scheduled, priority, public and admin profile
-refresh paths all exclude them. Startup clears their obsolete profile retries,
-and a roster observation reaching level 10 queues the first profile immediately.
-Unknown-level characters still need an initial lookup. A sub-10 character without
-coverage from a tracked guild cannot advance until a roster observes its new level;
-the worker does not probe an unsupported individual endpoint to guess that change.
+Known levels 1–9 with current roster membership are roster-only; public and admin
+profile refreshes remain blocked. A roster observation reaching level 10 queues
+the first profile immediately. Unknown-level characters still need an initial lookup.
+When roster coverage is absent (departure, guild moderation, expiry, or a guildless
+character), a historical low level may no longer be current. `lowLevelRecheck`
+enables a slow automatic discovery check, initially spread over 1–2 hours by identity.
+Unavailable profiles wait at least six hours before another attempt; longer error
+backoff/Retry-After still applies. This lane uses regular character turns, not new
+character priority. Fresh roster presence cancels it, including outdated low-level
+entries used only as membership hints. A successful level-10+ profile clears the
+flag and resumes normal tracking. These deadlines and failures survive restart;
+no speculative level changes are stored.
 
 Hiding a guild only hides guild-dependent imports. Seeded characters, direct admin
 additions and individually approved characters remain visible and continue polling
@@ -243,10 +249,13 @@ rosters. This establishes that profiles can lag, not a guaranteed refresh cadenc
   precede the individual backlog, but at most three roster turns run before an
   eligible individual turn. Admin instant refresh still goes first. Global
   request spacing, leases and Retry-After protection are unchanged.
-- New members still fetch their profile for ruleset/portrait. For hydrated members
-  with healthy roster coverage, individual audits run every six hours. Each roster
-  also queues one rotating member with the oldest profile check as a freshness
-  probe. Those probes overlap with audits rather than forming a second queue.
+- New eligible members still get a prioritized first profile for ruleset/portrait.
+  A usable roster grants coverage even before that first profile, so a successful
+  fetch can immediately switch to a daily audit. Hydrated members with healthy
+  coverage get identity-staggered audits 24–30 hours after their last profile.
+  Each roster may queue one oldest-profile freshness probe, only if that profile
+  is at least six hours old. Small guilds cannot recheck the same member every
+  fifteen minutes. These probes overlap audits rather than forming a second queue.
 - Characters outside healthy approved roster coverage keep the individual
   schedule. A roster omission ends that member's coverage and queues verification;
   it does not delete the character, clear its guild speculatively or erase history.
@@ -257,7 +266,8 @@ rosters. This establishes that profiles can lag, not a guaranteed refresh cadenc
   operations shortens an individual failure's retry deadline.
 - A roster below an already-observed level, or a sampled profile level saved before
   a roster check but missing from that roster, triggers individual polling for that
-  guild for an hour. Roster checks continue and can still contribute higher levels.
+  member only. Healthy guildmates retain roster coverage and daily audits.
+  Roster checks continue and restore coverage once they catch up.
   A profile saved *after* the roster can legitimately be ahead and does not establish
   lag. No endpoint is assumed universally fresher than the other.
 - Rosters have no source timestamp, so roster history stores `observedAt` and
@@ -272,7 +282,8 @@ and `rosterCoverageUntil` bounds its scheduling authority. `lastFetchedAt` is th
 latest accepted observation from either endpoint; `lastAttemptAt`, errors and
 retry counters continue to describe individual profile requests. Guild admin API
 responses include `profileComparisons`, `profileAheadCount`, `rosterAheadCount`,
-`lastComparedAt`, `rosterLaggingMembers` and `individualUntil` for operational review.
+`lastComparedAt` and `rosterLaggingMembers` for operational review. The former
+guild-wide `individualUntil` fallback is no longer used.
 These are observations, not claims about exact level-up times or upstream cache TTLs.
 
 Initialization spreads legacy successful guild schedules across the next 15 minutes
@@ -350,9 +361,28 @@ immediately, continues as soon as that spacing permits, and checks for new work
 every five seconds when idle. Due rosters get bounded priority over individual
 checks as described above.
 
+First-fetch jobs have bounded priority within each job type. Up to three new
+character profiles run before a due existing-profile refresh. The first two of
+those turns prefer characters still missing a ruleset; the third accepts any new
+profile, including members already classified from their guild. New guild rosters
+similarly get up to three turns before an existing roster refresh. The existing
+three-rosters/one-character fairness rule and admin instant-refresh precedence
+still apply. Counters persist across worker restarts and lease handoffs.
+
+New means no successful direct profile (both `profileFetchedAt` and
+`sourceUpdatedAt` absent), or no successful roster fetch (`lastFetchedAt` absent).
+Roster level updates and inferred rulesets do not remove first-profile priority.
+Automatic priority never bypasses retry deadlines, moderation, visibility, or the
+level-10 profile threshold. Uncovered low-level discovery is a separate slow lane.
+Once a new direct profile completes a guild's
+three-member ruleset confirmation, its healthy approved roster is scheduled now;
+the fresh roster applies the consensus to eligible members. Failed guilds retain
+their backoff. No live character or guild is assumed to have a ruleset without
+the existing evidence checks.
+
 - Individual polling without healthy roster coverage: active leveling every two
   minutes, no observed level change for 24 hours hourly, level 60 every six hours.
-- Hydrated members covered by healthy rosters: six-hour profile audits plus rotating probes.
+- Hydrated members covered by healthy rosters: 24–30-hour profile audits plus rotating probes no more often than six hours per member.
 - Approved guild rosters: stable fifteen-minute slots; unapproved successful previews wait
   for an admin refresh or approval.
 - Failures: exponential backoff with jitter; 404 starts at 15 minutes, other

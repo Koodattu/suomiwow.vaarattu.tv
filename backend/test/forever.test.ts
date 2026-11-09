@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ArmoryError, armoryUrl, parseArmoryInput, parseArmoryUrl, parseAvatarUrl, parseCharacterHtml, parseRosterResponse, retryAfter } from "../src/features/forever/forever-armory";
-import { armoryQueueHealth, failureDelay, mayRequestRefresh, MINUTE, nextRosterFetchAt, profileComparison, refreshDelay, ROSTER_INTERVAL, validateProgress } from "../src/features/forever/forever-policy";
+import { armoryQueueHealth, failureDelay, mayRequestRefresh, MINUTE, nextLowLevelRecheckAt, nextProfileAuditAt, nextRosterFetchAt, PROFILE_AUDIT_INTERVAL, PROFILE_PROBE_INTERVAL, profileComparison, refreshDelay, ROSTER_INTERVAL, validateProgress } from "../src/features/forever/forever-policy";
 
 const identity = { region: "eu" as const, slug: "test-hero" };
 const character = { ...identity, name: "Test", surname: "Hero", level: 12, class: { name: "Paladin" }, race: { name: "Human" },
@@ -89,6 +89,20 @@ test("guild slots spread refreshes across fifteen minutes and remain stable afte
   const first = nextRosterFetchAt(guild, now);
   assert.equal(nextRosterFetchAt(guild, now).getTime(), first.getTime());
   assert.equal(nextRosterFetchAt(guild, first.getTime()).getTime(), first.getTime() + ROSTER_INTERVAL);
+});
+
+test("covered profile audits spread over 24–30 hours and uncovered low-level discovery over 1–2 hours", () => {
+  const now = new Date("2026-11-09T10:00:00Z");
+  const identities = Array.from({ length: 100 }, (_, i) => ({ region: "eu", slug: `member-${i}` }));
+  const audits = identities.map(identity => nextProfileAuditAt(identity, now).getTime() - now.getTime());
+  assert.equal(PROFILE_AUDIT_INTERVAL, 24 * 60 * MINUTE);
+  assert.ok(audits.every(delay => delay >= PROFILE_AUDIT_INTERVAL && delay < PROFILE_AUDIT_INTERVAL + PROFILE_PROBE_INTERVAL));
+  assert.ok(new Set(audits.map(delay => Math.floor(delay / (60 * MINUTE)))).size === 6);
+  assert.equal(nextProfileAuditAt(identity, now).getTime(), nextProfileAuditAt(identity, now).getTime());
+  assert.equal(nextProfileAuditAt(identity, new Date(now.getTime() + MINUTE)).getTime(), nextProfileAuditAt(identity, now).getTime() + MINUTE);
+  const rechecks = identities.map(identity => nextLowLevelRecheckAt(identity, now.getTime()).getTime() - now.getTime());
+  assert.ok(rechecks.every(delay => delay >= 60 * MINUTE && delay < 120 * MINUTE));
+  assert.ok(new Set(rechecks.map(delay => Math.floor(delay / MINUTE))).size > 30);
 });
 
 test("freshness comparisons distinguish delayed rosters from legitimate later level gains", () => {
