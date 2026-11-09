@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useState, type CSSProperties, type ReactNode } from "react";
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useTranslations } from "next-intl";
 import { formatForeverDate, type ForeverAnalytics } from "@/lib/forever-api";
 import { classColor } from "./ForeverShared";
@@ -35,10 +35,15 @@ function PopulationBars({ title, entries, total, colored = false }: {
   </section>;
 }
 
-export default function ForeverAnalyticsCharts({ data }: { data: ForeverAnalytics }) {
+export default function ForeverAnalyticsCharts({ data, distribution = data.levels, minimumLevel = 1, controls }: {
+  data: ForeverAnalytics; distribution?: ForeverAnalytics["levels"]; minimumLevel?: number; controls?: ReactNode;
+}) {
   const t = useTranslations("forever"), [days, setDays] = useState(7);
+  const distributionTotal = distribution.reduce((sum, entry) => sum + entry.count, 0);
   const cutoff = Date.parse(data.generatedAt) - days * 86400_000;
   const activity = data.activity.filter(point => Date.parse(point.at) >= cutoff).map(point => ({ ...point, timestamp: Date.parse(point.at) }));
+  const latestActivity = activity[activity.length - 1];
+  const activeShare = latestActivity?.observed ? Math.round(1000 * latestActivity.active / latestActivity.observed) / 10 : null;
   const cells = new Map(data.combinations.map(entry => [JSON.stringify([entry.race, entry.className]), entry]));
   const raceRows = data.races.flatMap(race => {
     const factions = race.name === "Skyborne"
@@ -73,19 +78,23 @@ export default function ForeverAnalyticsCharts({ data }: { data: ForeverAnalytic
       <div className={styles.panelHeading}><h2 id="forever-levels-title">{t("analytics.levelDistribution")}</h2></div>
       <div className={styles.chart}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <BarChart data={data.levels} margin={{ top: 12, right: 6, left: 0, bottom: 0 }} aria-label={t("analytics.levelDistribution")}>
+          <BarChart data={distribution} margin={{ top: 12, right: 6, left: 0, bottom: 0 }} aria-label={t("analytics.levelDistribution")}>
             <CartesianGrid vertical={false} stroke="#afc2a625" strokeDasharray="3 4" />
             <XAxis dataKey="level" ticks={[1, 10, 20, 30, 40, 50, 60]} interval={0} tick={axis} tickLine={false} stroke="#494f40" />
             <YAxis allowDecimals={false} width={42} tick={axis} axisLine={false} tickLine={false} />
             <Tooltip cursor={{ fill: "#d7b87513" }} content={({ active, payload }) => {
               const point = payload?.[0]?.payload as ForeverAnalytics["levels"][number] | undefined;
-              return active && point ? <div className={styles.tooltip} role="status"><strong>{t("levelValue", { level: point.level })}</strong><span>{t("analytics.characterCount", { count: point.count })} · {percent(point.count, data.total)}</span></div> : null;
+              return active && point ? <div className={styles.tooltip} role="status"><strong>{t("levelValue", { level: point.level })}</strong><span>{t("analytics.characterCount", { count: point.count })} · {percent(point.count, distributionTotal)}</span></div> : null;
             }} />
-            <Bar dataKey="count" fill="#d7b875" isAnimationActive={false} radius={[2, 2, 0, 0]} />
+            <Bar dataKey="count" fill="#d7b875" isAnimationActive={false} radius={[2, 2, 0, 0]}>
+              {distribution.map(entry => <Cell key={entry.level} fill={entry.level < minimumLevel ? "#62685f" : "#d7b875"} />)}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
+      {controls}
     </section>
+    {data.total === 0 ? <p className={`${styles.full} ${styles.note}`}>{t(distributionTotal ? "analytics.noMatches" : "emptyTitle")}</p> : <>
     <PopulationBars title={t("analytics.classes")} entries={data.classes} total={data.total} colored />
     <PopulationBars title={t("analytics.races")} entries={raceBars} total={data.total} />
     <section className={`${styles.panel} ${styles.full}`} aria-labelledby="forever-matrix-title">
@@ -107,7 +116,11 @@ export default function ForeverAnalyticsCharts({ data }: { data: ForeverAnalytic
       </div>
     </section>
     <section className={`${styles.panel} ${styles.full}`} aria-labelledby="forever-activity-title">
-      <div className={styles.panelHeading}><div><h2 id="forever-activity-title">{t("analytics.activity")}</h2><p>{t("analytics.activeDefinition")}</p></div>
+      <div className={`${styles.panelHeading} ${styles.activityHeading}`}><h2 id="forever-activity-title">{t("analytics.activity")}</h2>
+        <dl className={styles.activityFacts}>
+          <div><dt>{t("analytics.activeShort")}</dt><dd title={t("analytics.characterCount", { count: latestActivity?.active || 0 })}>{activeShare === null ? "—" : `${number.format(activeShare)} %`}</dd></div>
+          <div><dt>{t("analytics.inactiveShort")}</dt><dd title={t("analytics.characterCount", { count: latestActivity ? latestActivity.observed - latestActivity.active : 0 })}>{activeShare === null ? "—" : `${number.format(100 - activeShare)} %`}</dd></div>
+        </dl>
         <div className={styles.range} role="group" aria-label={t("analytics.timeRange")}>{[7, 30].map(value => <button key={value} aria-pressed={days === value} onClick={() => setDays(value)}>{t("analytics.days", { count: value })}</button>)}</div>
       </div>
       {activity.length ? <>
@@ -129,5 +142,6 @@ export default function ForeverAnalyticsCharts({ data }: { data: ForeverAnalytic
         </div>
       </> : <p className={styles.note}>{t("analytics.noHistory")}</p>}
     </section>
+    </>}
   </div>;
 }

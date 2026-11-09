@@ -51,8 +51,11 @@ Characters are absent before their first observation. Characters without valid
 history appear only today. Historical views use **current metadata and current
 visibility**, not archived race/class/ruleset or moderation states; only levels and
 observation times are recorded historically. Days across DST have their actual
-23/24/25-hour boundaries. The minimum-level slider (1–60 inclusive) filters all
-population charts and totals. Activity uses each sampled day's level cutoff, not
+23/24/25-hour boundaries. Both sliders sit in a compact strip beneath the level
+distribution. The minimum-level slider (1–60 inclusive) filters population charts
+and totals, while the level histogram keeps the entire selected day's distribution:
+levels below the cutoff are gray, with unchanged heights and full-population tooltip
+percentages. Activity uses each sampled day's level cutoff, not
 the character's level today, and ends at the selected date.
 
 The response includes sparse daily buckets keyed by level and a shared

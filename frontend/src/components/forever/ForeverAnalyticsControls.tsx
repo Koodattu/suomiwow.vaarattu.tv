@@ -22,15 +22,14 @@ export default function ForeverAnalyticsControls({ timeline, index, minimum, onD
         <output htmlFor="analytics-date">{dateLabel}</output></div>
       <input id="analytics-date" type="range" min={0} max={last} step={1} value={index} disabled={last === 0}
         aria-valuetext={dateLabel} onChange={event => { const next = Number(event.target.value); onDate(next === last ? null : timeline.days[next].date); }} />
-      <div className={styles.controlEnds}><span>{analyticsDate(timeline.days[0].date)}</span><button onClick={() => onDate(null)} disabled={current}>{t("today")}</button></div>
+      <button className={styles.controlReset} onClick={() => onDate(null)} disabled={current}>{t("today")}</button>
     </div>
     <div className={styles.control}>
       <div className={styles.controlLabel}><label htmlFor="analytics-minimum">{t("minimumLevel")}</label>
         <output htmlFor="analytics-minimum">{minimum}+</output></div>
       <input id="analytics-minimum" type="range" min={1} max={60} step={1} value={minimum}
         aria-valuetext={t("levelAndAbove", { level: minimum })} onChange={event => onMinimum(Number(event.target.value))} />
-      <div className={styles.controlEnds}><button onClick={() => onMinimum(1)} disabled={minimum === 1}>{t("allLevels")}</button><span>60</span></div>
+      <button className={styles.controlReset} onClick={() => onMinimum(1)} disabled={minimum === 1}>{t("allLevels")}</button>
     </div>
-    <p className={styles.controlsNote}>{t("historyScope")}</p>
   </section>;
 }
