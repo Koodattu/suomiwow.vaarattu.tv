@@ -1,3 +1,4 @@
+import { groupPulls, groupSortedPulls, comparePullDetails, PULL_IDENTITY_PROJECTION, PullIdentity } from "../utils/fight-deduplication";
 import { isCharacterScoringEncounter, characterScoringEncounterFilter, raidLairs } from "../config/raid-encounters";
 import mongoose from "mongoose";
 import { MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } from "../config/character-eligibility";
@@ -5,7 +6,7 @@ import { CURRENT_RAID_IDS } from "../config/guilds";
 import CharacterMechanicsLeaderboard, { CHARACTER_MECHANICS_SCORE_VERSION, IMechanicsBossScore, IProfileBossScore } from "../models/CharacterMechanicsLeaderboard";
 import Character from "../models/Character";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
-import Fight, { IFightCombatant, IPlayerDeath } from "../models/Fight";
+import Fight, { IFightCombatant, IPlayerDeath, PHYSICAL_PULL_INDEX, PHYSICAL_PULL_INDEX_NAME } from "../models/Fight";
 import Ranking from "../models/Ranking";
 import Report from "../models/Report";
 import cacheService from "./cache.service";
@@ -103,13 +104,14 @@ type ParseRow = {
   allStarsPoints?: number;
 };
 
-type MechanicsFight = {
+type MechanicsFight = PullIdentity & {
   reportCode: string;
   fightId: number;
   encounterID: number;
   encounterName: string;
   duration: number;
   isKill: boolean;
+  combatantInfoFetchStatus?: string;
   deaths?: IPlayerDeath[];
   combatants?: IFightCombatant[];
 };
@@ -314,6 +316,7 @@ class CharacterMechanicsService {
         },
         { name: "mechanics_fight_details_lookup" },
       );
+      await Fight.collection.createIndex(PHYSICAL_PULL_INDEX, { name: PHYSICAL_PULL_INDEX_NAME });
       this.fightLookupIndexCreated = true;
     }
   }
@@ -328,10 +331,11 @@ class CharacterMechanicsService {
     const specPullsByCharacter = new Map<string, Map<string, number>>();
     const unknownSpecPullsByCharacter = new Map<string, number>();
     const fightGroups = new Map<string, MechanicsFight[]>();
+    const physicalGroups: MechanicsFight[][] = [];
     const seenReports = new Set<string>();
     let fightCount = 0;
     let appearanceLookupRows = 0;
-    let currentReportCode: string | null = null;
+    let bufferedFights = 0;
     const eligibleFightQuery = {
       zoneId,
       difficulty: MYTHIC_DIFFICULTY,
@@ -339,18 +343,10 @@ class CharacterMechanicsService {
       reportEndTime: { $gt: 0 },
       duration: { $gt: 0 },
     };
-    const eligibleFights = await Fight.countDocuments(eligibleFightQuery);
-
-    const cursor = Fight.find({
-      ...eligibleFightQuery,
-      deathEventsFetchStatus: "fetched",
-      $or: [
-        { combatantInfoRosterComplete: true, combatantInfoFetchStatus: { $in: ["fetched", "partial"] } },
-        { combatantInfoRosterComplete: { $exists: false }, combatantInfoFetchStatus: "fetched", combatants: { $exists: true, $ne: [] } },
-      ],
-    })
-      .select("reportCode fightId encounterID encounterName duration isKill deaths combatants")
-      .sort({ reportCode: 1, fightId: 1 })
+    let eligibleFights = 0;
+    const cursor = Fight.find(eligibleFightQuery)
+      .select(`${PULL_IDENTITY_PROJECTION} encounterName deaths deathEventsFetchStatus combatantInfoFetchStatus`)
+      .sort({ timestamp: 1, reportCode: 1, fightId: 1 })
       .lean()
       .cursor({ batchSize: FIGHT_CURSOR_BATCH_SIZE });
 
@@ -373,26 +369,31 @@ class CharacterMechanicsService {
         specPullsByCharacter,
         unknownSpecPullsByCharacter,
         characters,
+        physicalGroups,
       );
       fightGroups.clear();
+      physicalGroups.length = 0;
+      bufferedFights = 0;
     };
 
-    for await (const fight of cursor as AsyncIterable<MechanicsFight>) {
-      if (!fight.reportCode) continue;
-
-      if (currentReportCode && fight.reportCode !== currentReportCode && fightGroups.size >= REPORT_GROUP_BATCH_SIZE) {
-        await flushFightGroups();
+    for await (const group of groupSortedPulls(cursor as AsyncIterable<MechanicsFight>)) {
+      eligibleFights++;
+      const available = group.filter(fight => fight.deathEventsFetchStatus === "fetched" && (
+        (fight.combatantInfoRosterComplete === true && ["fetched", "partial"].includes(fight.combatantInfoFetchStatus ?? "")) ||
+        (fight.combatantInfoRosterComplete === undefined && fight.combatantInfoFetchStatus === "fetched" && !!fight.combatants?.length)
+      ));
+      if (!available.length) continue;
+      // Flush only between physical pulls, never between their source recordings.
+      if (fightGroups.size >= REPORT_GROUP_BATCH_SIZE || bufferedFights >= FIGHT_CURSOR_BATCH_SIZE) await flushFightGroups();
+      fightCount++;
+      physicalGroups.push(available);
+      for (const fight of available) {
+        encounters.set(fight.encounterID, fight.encounterName);
+        seenReports.add(fight.reportCode);
+        if (!fightGroups.has(fight.reportCode)) fightGroups.set(fight.reportCode, []);
+        fightGroups.get(fight.reportCode)!.push(fight);
+        bufferedFights++;
       }
-
-      currentReportCode = fight.reportCode;
-      fightCount += 1;
-      encounters.set(fight.encounterID, fight.encounterName);
-      seenReports.add(fight.reportCode);
-
-      if (!fightGroups.has(fight.reportCode)) {
-        fightGroups.set(fight.reportCode, []);
-      }
-      fightGroups.get(fight.reportCode)!.push(fight);
     }
 
     await flushFightGroups();
@@ -514,6 +515,7 @@ class CharacterMechanicsService {
     specPullsByCharacter: Map<string, Map<string, number>>,
     unknownSpecPullsByCharacter: Map<string, number>,
     characters: Map<string, AppearanceIdentity> = new Map(),
+    physicalGroups = groupPulls(fights),
   ): void {
     const exactIdentityByReport = new Map<string, Map<string, AppearanceIdentity & { reportCode: string }>>();
     const nameIdentityByReport = new Map<string, Map<string, (AppearanceIdentity & { reportCode: string }) | null>>();
@@ -544,102 +546,110 @@ class CharacterMechanicsService {
       }
     }
 
-    for (const fight of fights) {
-      if (!fight.duration || fight.duration <= 0 || !fight.combatants?.length) continue;
+    for (const group of physicalGroups) {
+      const participantsByCharacter = new Map<string, {
+        appearance: AppearanceIdentity; specName: string | null; role: Role | null;
+        deathRecords: DeathRecord[]; neutralPull: boolean;
+      }>();
+      for (const fight of [...group].sort(comparePullDetails)) {
+        if (!fight.duration || fight.duration <= 0 || !fight.combatants?.length) continue;
 
-      const deathsByCharacter = new Map<string, DeathRecord[]>();
-      const seenDeathEvents = new Set<string>();
-      const deaths = [...(fight.deaths ?? [])]
-        .filter((death) => Number.isFinite(death.deathTime) && death.deathTime >= 0 && death.deathTime <= fight.duration)
-        .sort((left, right) => left.deathTime - right.deathTime)
-        .filter((death) => {
-          const eventKey = `${this.getDeathIdentityKey(death.name, death.server)}|${death.deathTime}`;
-          if (seenDeathEvents.has(eventKey)) return false;
-          seenDeathEvents.add(eventKey);
-          return true;
-        });
-      const exactMap = exactIdentityByReport.get(fight.reportCode) ?? new Map();
-      const nameMap = nameIdentityByReport.get(fight.reportCode) ?? new Map();
-      const reportRegion = reportRegions.get(fight.reportCode) ?? "";
-      const participants = new Map<string, { appearance: AppearanceIdentity; specName: string | null; role: Role | null }>();
-      const raidWideDeathStart = this.detectRaidWideDeathStart(fight, deaths);
-      const neutralPull = this.isLikelyReset(fight, deaths);
+        const deathsByCharacter = new Map<string, DeathRecord[]>();
+        const seenDeathEvents = new Set<string>();
+        const deaths = [...(fight.deaths ?? [])]
+          .filter((death) => Number.isFinite(death.deathTime) && death.deathTime >= 0 && death.deathTime <= fight.duration)
+          .sort((left, right) => left.deathTime - right.deathTime)
+          .filter((death) => {
+            const eventKey = `${this.getDeathIdentityKey(death.name, death.server)}|${death.deathTime}`;
+            if (seenDeathEvents.has(eventKey)) return false;
+            seenDeathEvents.add(eventKey);
+            return true;
+          });
+        const exactMap = exactIdentityByReport.get(fight.reportCode) ?? new Map();
+        const nameMap = nameIdentityByReport.get(fight.reportCode) ?? new Map();
+        const reportRegion = reportRegions.get(fight.reportCode) ?? "";
+        const participants = new Map<string, { appearance: AppearanceIdentity; specName: string | null; role: Role | null }>();
+        const raidWideDeathStart = this.detectRaidWideDeathStart(fight, deaths);
+        const neutralPull = this.isLikelyReset(fight, deaths);
 
-      for (const combatant of fight.combatants) {
-        const appearance =
-          exactMap.get(this.getDeathIdentityKey(combatant.name, combatant.server)) ??
-          nameMap.get(this.normalizeIdentityPart(combatant.name)) ??
-          globalIdentityByRegion.get(this.getRegionalIdentityKey(reportRegion, combatant.name, combatant.server)) ??
-          null;
-        if (!appearance) continue;
+        for (const combatant of fight.combatants) {
+          const appearance =
+            exactMap.get(this.getDeathIdentityKey(combatant.name, combatant.server)) ??
+            nameMap.get(this.normalizeIdentityPart(combatant.name)) ??
+            globalIdentityByRegion.get(this.getRegionalIdentityKey(reportRegion, combatant.name, combatant.server)) ??
+            null;
+          if (!appearance) continue;
 
-        const characterKey = this.getCharacterKey(appearance.characterId);
-        const specName = combatant.specName
-          ? slugifySpecName(combatant.specName)
-          : combatant.specID ? resolveSpecByBlizzardSpecId(combatant.specID)?.specName ?? null : null;
-        const classRoles = new Set(Object.values(ROLE_BY_CLASS_AND_SPEC[appearance.classID] ?? {}));
-        const role = tryResolveRole(appearance.classID, specName) ?? combatant.role
-          ?? (classRoles.size === 1 ? Array.from(classRoles)[0] : null);
-        participants.set(characterKey, { appearance, specName, role });
-      }
-
-      const meaningfulDeaths = deaths.filter((death) => {
-        return raidWideDeathStart === null || death.deathTime < raidWideDeathStart;
-      });
-
-      const firstDeathPlayersByTime = new Map<number, string[]>();
-      const firstDeathTimeByPlayer = new Map<string, number>();
-      for (const death of meaningfulDeaths) {
-        const deathIdentityKey = this.getDeathIdentityKey(death.name, death.server);
-        if (firstDeathTimeByPlayer.has(deathIdentityKey)) continue;
-        firstDeathTimeByPlayer.set(deathIdentityKey, death.deathTime);
-        const players = firstDeathPlayersByTime.get(death.deathTime) ?? [];
-        players.push(deathIdentityKey);
-        firstDeathPlayersByTime.set(death.deathTime, players);
-      }
-
-      const deathOrderByPlayer = new Map<string, number>();
-      let priorUniqueDeaths = 0;
-      for (const [, playerKeys] of [...firstDeathPlayersByTime.entries()].sort((left, right) => left[0] - right[0])) {
-        const sharedOrder = priorUniqueDeaths + 1;
-        for (const playerKey of playerKeys) {
-          deathOrderByPlayer.set(playerKey, sharedOrder);
+          const characterKey = this.getCharacterKey(appearance.characterId);
+          const specName = combatant.specName
+            ? slugifySpecName(combatant.specName)
+            : combatant.specID ? resolveSpecByBlizzardSpecId(combatant.specID)?.specName ?? null : null;
+          const classRoles = new Set(Object.values(ROLE_BY_CLASS_AND_SPEC[appearance.classID] ?? {}));
+          const role = tryResolveRole(appearance.classID, specName) ?? combatant.role
+            ?? (classRoles.size === 1 ? Array.from(classRoles)[0] : null);
+          participants.set(characterKey, { appearance, specName, role });
         }
-        priorUniqueDeaths += playerKeys.length;
-      }
 
-      for (const death of meaningfulDeaths) {
-        const deathTime = death.deathTime;
-        const deathIdentityKey = this.getDeathIdentityKey(death.name, death.server);
-        const appearance =
-          exactMap.get(deathIdentityKey) ??
-          nameMap.get(this.normalizeIdentityPart(death.name)) ??
-          globalIdentityByRegion.get(this.getRegionalIdentityKey(reportRegion, death.name, death.server)) ??
-          null;
-        if (!appearance) continue;
-
-        const characterKey = this.getCharacterKey(appearance.characterId);
-        if (!deathsByCharacter.has(characterKey)) {
-          deathsByCharacter.set(characterKey, []);
-        }
-        deathsByCharacter.get(characterKey)!.push({
-          order: deathOrderByPlayer.get(deathIdentityKey)!,
-          deathPercent: this.clamp(deathTime / fight.duration, 0, 1),
-          deathTime,
+        const meaningfulDeaths = deaths.filter((death) => {
+          return raidWideDeathStart === null || death.deathTime < raidWideDeathStart;
         });
-      }
 
-      for (const { appearance, specName, role } of participants.values()) {
-        const characterKey = this.getCharacterKey(appearance.characterId);
+        const firstDeathPlayersByTime = new Map<number, string[]>();
+        const firstDeathTimeByPlayer = new Map<string, number>();
+        for (const death of meaningfulDeaths) {
+          const deathIdentityKey = this.getDeathIdentityKey(death.name, death.server);
+          if (firstDeathTimeByPlayer.has(deathIdentityKey)) continue;
+          firstDeathTimeByPlayer.set(deathIdentityKey, death.deathTime);
+          const players = firstDeathPlayersByTime.get(death.deathTime) ?? [];
+          players.push(deathIdentityKey);
+          firstDeathPlayersByTime.set(death.deathTime, players);
+        }
+
+        const deathOrderByPlayer = new Map<string, number>();
+        let priorUniqueDeaths = 0;
+        for (const [, playerKeys] of [...firstDeathPlayersByTime.entries()].sort((left, right) => left[0] - right[0])) {
+          const sharedOrder = priorUniqueDeaths + 1;
+          for (const playerKey of playerKeys) {
+            deathOrderByPlayer.set(playerKey, sharedOrder);
+          }
+          priorUniqueDeaths += playerKeys.length;
+        }
+
+        for (const death of meaningfulDeaths) {
+          const deathTime = death.deathTime;
+          const deathIdentityKey = this.getDeathIdentityKey(death.name, death.server);
+          const appearance =
+            exactMap.get(deathIdentityKey) ??
+            nameMap.get(this.normalizeIdentityPart(death.name)) ??
+            globalIdentityByRegion.get(this.getRegionalIdentityKey(reportRegion, death.name, death.server)) ??
+            null;
+          if (!appearance) continue;
+
+          const characterKey = this.getCharacterKey(appearance.characterId);
+          if (!deathsByCharacter.has(characterKey)) {
+            deathsByCharacter.set(characterKey, []);
+          }
+          deathsByCharacter.get(characterKey)!.push({
+            order: deathOrderByPlayer.get(deathIdentityKey)!,
+            deathPercent: this.clamp(deathTime / fight.duration, 0, 1),
+            deathTime,
+          });
+        }
+
+        for (const { appearance, specName, role } of participants.values()) {
+          const characterKey = this.getCharacterKey(appearance.characterId);
+          const existing = participantsByCharacter.get(characterKey);
+          // A duplicate may be the only recording with this player's spec/role.
+          if (!existing || (!existing.specName && specName) || (!existing.role && role)) {
+            participantsByCharacter.set(characterKey, { appearance, specName, role,
+              deathRecords: deathsByCharacter.get(characterKey) ?? [], neutralPull });
+          }
+        }
+      }
+      for (const [characterKey, { appearance, specName, role, deathRecords, neutralPull }] of participantsByCharacter) {
         characters.set(characterKey, appearance);
-        const deathRecords = deathsByCharacter.get(characterKey) ?? [];
-        this.addPullToStats(
-          survivalByCharacterEncounter,
-          this.getCharacterEncounterKey(appearance.characterId, fight.encounterID, role),
-          deathRecords,
-          neutralPull,
-        );
-
+        this.addPullToStats(survivalByCharacterEncounter,
+          this.getCharacterEncounterKey(appearance.characterId, group[0].encounterID, role), deathRecords, neutralPull);
         if (specName) {
           if (!specPullsByCharacter.has(characterKey)) specPullsByCharacter.set(characterKey, new Map());
           const pullsBySpec = specPullsByCharacter.get(characterKey)!;

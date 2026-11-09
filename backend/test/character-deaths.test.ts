@@ -245,3 +245,18 @@ test("lowercase region filters retain canonical identity lookup for uppercase st
     wclCanonicalCharacterId: { $in: [123] }, classID: 11, characterRegion: "eu", hidden: { $ne: true },
   });
 });
+
+test("death analysis counts duplicate uploads once and prefers fetched character evidence", () => {
+  const combatants = Array.from({ length: 20 }, (_, index) => ({ name: index ? `P${index}` : "Player", server: "Azjol'Nerub" }));
+  const a = fight({ encounterID: 3492, zoneId: 53, difficulty: 5, bossPercentage: 50, combatants, deathEventsFetchStatus: "failed" });
+  const b = { ...a, reportCode: "second", timestamp: new Date(+a.timestamp + 2500), duration: a.duration + 125,
+    fightEndTime: a.fightEndTime + 125, deathEventsFetchStatus: "fetched" as const, deaths: [death("Player", 20000)] };
+  const identities = new Map([["second", appearance.get("report")!]]);
+  const result = summarizeCharacterDeaths([a, b], identities);
+  assert.equal(result.summary.pulls, 1);
+  assert.equal(result.summary.evaluatedPulls, 1);
+  assert.equal(result.summary.deaths, 1);
+  assert.equal(result.summary.unconfirmedPulls, 0);
+  assert.equal(result.timeline[0].reportCode, "second");
+  assert.equal(result.events[0].deathTime, 20000);
+});

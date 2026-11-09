@@ -1,3 +1,4 @@
+import { groupPulls } from "../utils/fight-deduplication";
 import mongoose, { PipelineStage } from "mongoose";
 import { activeAvoidableMechanics, AvoidableMechanic, findAvoidableMechanic } from "../config/avoidable-mechanics";
 import { ROLE_BY_CLASS_AND_SPEC } from "../config/specs";
@@ -11,7 +12,7 @@ import Raid, { RegionDates } from "../models/Raid";
 import Report from "../models/Report";
 import ReportOverride from "../models/ReportOverride";
 import ProcessorState from "../models/ProcessorState";
-import { groupMechanicPulls, mechanicClassId, mechanicIdentity, MechanicCollectionPaused } from "../utils/avoidable-damage";
+import { mechanicClassId, mechanicIdentity, MechanicCollectionPaused } from "../utils/avoidable-damage";
 import logger from "../utils/logger";
 import { classifyError, ErrorType } from "../utils/error-classifier";
 import { normalizeRealmSlug } from "../utils/realm";
@@ -131,7 +132,7 @@ class AvoidableDamageService {
     if (!mechanics.length) return;
     const [fights, raids, reports, existing, policies] = await Promise.all([
       Fight.find({ guildId: queue.guildId, difficulty: 5, $or: mechanics.map((entry) => ({ zoneId: entry.zoneId, encounterID: entry.encounterId })) })
-        .select("_id reportCode fightId zoneId encounterID timestamp reportStartTime fightStartTime duration isKill bossPercentage combatants.name combatants.server combatantInfoRosterComplete").sort({ timestamp: 1, reportCode: 1, fightId: 1 }).lean(),
+        .select("_id reportCode fightId guildId zoneId encounterID difficulty timestamp reportStartTime fightStartTime duration isKill bossPercentage combatants.name combatants.server combatantInfoRosterComplete").sort({ timestamp: 1, reportCode: 1, fightId: 1 }).lean(),
       Raid.find({ id: { $in: mechanics.map((entry) => entry.zoneId) } }).select("id starts ends").lean(),
       Report.find({ guildId: queue.guildId, isOngoing: false }).select("code sourceGuildSnapshot.region").lean(),
       AvoidableDamageFight.find({ guildId: queue.guildId, $or: currentVersions(mechanics) }).select("sourceFightId mechanicKey status version").lean(),
@@ -151,7 +152,7 @@ class AvoidableDamageService {
           isWithinMechanicTier(fight.reportStartTime + fight.fightStartTime, report.sourceGuildSnapshot?.region ?? guild.region, raid);
       });
       // Keep one already fetched copy of each confidently matched physical pull.
-      const groups = groupMechanicPulls(candidates);
+      const groups = groupPulls(candidates);
       for (const group of groups) {
         const canonical = group.find((fight) => statusByKey.get(`${fight._id}:${mechanic.key}`) === "fetched") ?? group[0];
         for (const fight of group) {

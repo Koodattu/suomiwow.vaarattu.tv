@@ -24,7 +24,7 @@ export type RaidAffiliation = {
 };
 
 // EU evening raids and uploads after midnight belong to the same raid night.
-function raidNight(date: Date): number {
+export function raidNight(date: Date): number {
   return Math.floor((new Date(date).getTime() - RAID_DAY_START_MS) / DAY_MS);
 }
 

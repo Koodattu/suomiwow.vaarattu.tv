@@ -1,10 +1,11 @@
+import { isSamePull as isSameMechanicPull } from "../src/utils/fight-deduplication";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { activeAvoidableMechanics, findAvoidableMechanic } from "../src/config/avoidable-mechanics";
 import { parseMechanicFilters } from "../src/routes/avoidable-damage";
 import { isWithinMechanicTier } from "../src/services/avoidable-damage.service";
 import wcl from "../src/services/warcraftlogs.service";
-import { addMechanicDamage, emptyDamageTotals, isSameMechanicPull, mechanicClassId, mechanicIdentity, MechanicCollectionPaused, MechanicDamageEvent } from "../src/utils/avoidable-damage";
+import { addMechanicDamage, emptyDamageTotals, mechanicClassId, mechanicIdentity, MechanicCollectionPaused, MechanicDamageEvent } from "../src/utils/avoidable-damage";
 
 const event = (overrides: Partial<MechanicDamageEvent> = {}): MechanicDamageEvent => ({ type: "damage", fight: 7, targetID: 1, abilityGameID: 1287083, amount: 100, hitType: 1, ...overrides });
 const actors = [{ id: 1, name: "Hit", server: "Test Realm", subType: "Mage" }, { id: 2, name: "Dodge", server: "Test Realm", subType: "DeathKnight" }];

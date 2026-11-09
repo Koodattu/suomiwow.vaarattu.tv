@@ -1,3 +1,4 @@
+import { groupSortedPulls, PULL_IDENTITY_PROJECTION } from "../utils/fight-deduplication";
 import mongoose from "mongoose";
 import { CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
 import { TRACKED_RAIDS } from "../config/guilds";
@@ -20,7 +21,6 @@ import { createRealmIdentityKey } from "../utils/realm";
 const MYTHIC_DIFFICULTY = 5;
 const HIGHLIGHT_LIMIT = 6;
 const TOP_PERFORMER_MIN_GUILD_RAID_PULLS = 40;
-const PULL_LOOKUP_REPORT_BATCH_SIZE = 100;
 
 type PullAppearance = Pick<ICharacterReportAppearance, "reportCode" | "reportGuildId" | "characterId" | "characterName" | "characterRealm">;
 type PullFight = Pick<IFight, "reportCode" | "guildId" | "zoneId" | "combatants">;
@@ -519,41 +519,35 @@ class GuildProfileHighlightsService {
     }
   }
 
+  private addGuildRaidPullGroup(fights: PullFight[], appearancesByReport: Map<string, PullAppearance[]>, counts: Map<string, number>): void {
+    const participants = new Map<string, number>();
+    for (const fight of fights) this.addGuildRaidPulls(fight, appearancesByReport.get(fight.reportCode) ?? [], participants);
+    for (const key of participants.keys()) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
   private async loadGuildRaidPulls(characterIds: mongoose.Types.ObjectId[]): Promise<Map<string, number>> {
     const counts = new Map<string, number>();
     if (characterIds.length === 0) return counts;
-
-    const appearancesByReport = new Map<string, PullAppearance[]>();
-    const flushReports = async () => {
-      if (appearancesByReport.size === 0) return;
+    const appearanceQuery = { characterId: { $in: characterIds }, reportZoneId: { $in: TRACKED_RAIDS }, hidden: false };
+    const guildIds = await CharacterReportAppearance.distinct("reportGuildId", appearanceQuery);
+    // Keep each guild's overlapping reports together; report batches split physical pulls.
+    for (const guildId of guildIds) {
+      if (!guildId) continue;
+      const appearances = await CharacterReportAppearance.find({ ...appearanceQuery, reportGuildId: guildId })
+        .select("reportCode reportGuildId characterId characterName characterRealm -_id").lean();
+      const appearancesByReport = new Map<string, PullAppearance[]>();
+      for (const appearance of appearances) {
+        const rows = appearancesByReport.get(appearance.reportCode) ?? [];
+        rows.push(appearance);
+        appearancesByReport.set(appearance.reportCode, rows);
+      }
       const fights = Fight.find({
-        reportCode: { $in: Array.from(appearancesByReport.keys()) },
-        zoneId: { $in: TRACKED_RAIDS },
-        difficulty: MYTHIC_DIFFICULTY,
-        encounterID: { $gt: 0 },
-        duration: { $gt: 0 },
-        "combatants.0": { $exists: true },
-      }).select("reportCode guildId zoneId combatants -_id").lean().cursor({ batchSize: 500 });
-      for await (const fight of fights) {
-        this.addGuildRaidPulls(fight, appearancesByReport.get(fight.reportCode) ?? [], counts);
-      }
-      appearancesByReport.clear();
-    };
-
-    const appearances = CharacterReportAppearance.find({
-      characterId: { $in: characterIds },
-      reportZoneId: { $in: TRACKED_RAIDS },
-      hidden: false,
-    }).select("reportCode reportGuildId characterId characterName characterRealm -_id").sort({ reportCode: 1 }).lean().cursor({ batchSize: 500 });
-    for await (const appearance of appearances) {
-      if (!appearancesByReport.has(appearance.reportCode) && appearancesByReport.size >= PULL_LOOKUP_REPORT_BATCH_SIZE) {
-        await flushReports();
-      }
-      const reportAppearances = appearancesByReport.get(appearance.reportCode) ?? [];
-      reportAppearances.push(appearance);
-      appearancesByReport.set(appearance.reportCode, reportAppearances);
+        guildId, reportCode: { $in: [...appearancesByReport.keys()] },
+        zoneId: { $in: TRACKED_RAIDS }, difficulty: MYTHIC_DIFFICULTY,
+        encounterID: { $gt: 0 }, duration: { $gt: 0 }, "combatants.0": { $exists: true },
+      }).select(PULL_IDENTITY_PROJECTION).sort({ timestamp: 1, reportCode: 1, fightId: 1 }).lean().cursor({ batchSize: 500 });
+      for await (const group of groupSortedPulls(fights)) this.addGuildRaidPullGroup(group, appearancesByReport, counts);
     }
-    await flushReports();
     return counts;
   }
 

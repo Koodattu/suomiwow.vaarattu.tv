@@ -296,7 +296,7 @@ test("guild raid pulls count roster participants once per fight and keep guilds 
   assert.equal(counts.get(`${guildId}:${characterId}:42`), 2);
 });
 
-test("guild raid pull lookup batches whole reports without losing or duplicating participants", async (t) => {
+test("guild raid pull lookup keeps overlapping reports together without losing participants", async (t) => {
   const characterId = new mongoose.Types.ObjectId();
   const secondCharacterId = new mongoose.Types.ObjectId();
   const guildId = new mongoose.Types.ObjectId();
@@ -311,10 +311,11 @@ test("guild raid pull lookup batches whole reports without losing or duplicating
     lean() { return this; },
     async *cursor() { yield* rows; },
   });
+  t.mock.method(CharacterReportAppearance, "distinct", async () => [guildId]);
   t.mock.method(CharacterReportAppearance, "find", (query: any) => {
     assert.equal(query.hidden, false);
     assert.deepEqual(query.characterId.$in, [characterId, secondCharacterId]);
-    return cursorQuery(appearanceRows);
+    return { select() { return this; }, lean: async () => appearanceRows };
   });
   const batches: string[][] = [];
   t.mock.method(Fight, "find", (query: any) => {
@@ -323,8 +324,9 @@ test("guild raid pull lookup batches whole reports without losing or duplicating
     assert.deepEqual(query.duration, { $gt: 0 });
     assert.equal(query.zoneId.$in.includes(44), true);
     batches.push(query.reportCode.$in);
-    return cursorQuery(query.reportCode.$in.map((reportCode: string) => ({
-      reportCode,
+    return cursorQuery(query.reportCode.$in.map((reportCode: string, index: number) => ({
+      reportCode, fightId: 1, encounterID: 1, difficulty: 5, isKill: false,
+      timestamp: new Date(1_000_000 + index * 300_000), duration: 120_000,
       guildId,
       zoneId: 44,
       combatants: [{ name: "First", server: "kazzak" }, { name: "Second", server: "kazzak" }],
@@ -332,8 +334,23 @@ test("guild raid pull lookup batches whole reports without losing or duplicating
   });
 
   const counts = await (guildProfileHighlightsService as any).loadGuildRaidPulls([characterId, secondCharacterId]);
-  assert.deepEqual(batches.map((batch) => batch.length), [100, 1]);
+  assert.deepEqual(batches.map((batch) => batch.length), [101]);
   assert.deepEqual(batches.flat(), reports);
   assert.equal(counts.get(`${guildId}:${characterId}:44`), 101);
   assert.equal(counts.get(`${guildId}:${secondCharacterId}:44`), 101);
+});
+
+test("guild eligibility counts one physical pull while retaining both reports' participant evidence", async t => {
+  const characterId = new mongoose.Types.ObjectId(), guildId = new mongoose.Types.ObjectId();
+  const base = { reportCode: "A", fightId: 1, guildId, zoneId: 44, encounterID: 1, difficulty: 5, isKill: false,
+    timestamp: new Date(1_000_000), duration: 120_000, bossPercentage: 50, combatantInfoRosterComplete: true,
+    combatants: Array.from({ length: 20 }, (_, i) => ({ name: i ? `P${i}` : "First", server: "kazzak" })) };
+  const appearances = ["A", "B"].map(reportCode => ({ reportCode, reportGuildId: guildId, characterId,
+    characterName: "First", characterRealm: "kazzak" }));
+  t.mock.method(CharacterReportAppearance, "distinct", async () => [guildId]);
+  t.mock.method(CharacterReportAppearance, "find", () => ({ select() { return this; }, lean: async () => appearances }) as any);
+  t.mock.method(Fight, "find", () => ({ select() { return this; }, sort() { return this; }, lean() { return this; },
+    async *cursor() { yield base; yield { ...base, reportCode: "B", timestamp: new Date(1_002_500), duration: 120_125 }; } }) as any);
+  const counts = await (guildProfileHighlightsService as any).loadGuildRaidPulls([characterId]);
+  assert.equal(counts.get(`${guildId}:${characterId}:44`), 1);
 });

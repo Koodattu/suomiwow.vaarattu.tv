@@ -1,3 +1,4 @@
+import { groupPulls, PULL_IDENTITY_PROJECTION } from "../utils/fight-deduplication";
 import mongoose from "mongoose";
 import FightVodLink from "../models/FightVodLink";
 import Fight from "../models/Fight";
@@ -370,15 +371,6 @@ class FightVodService {
     return fight.timestamp instanceof Date ? fight.timestamp : new Date(fight.timestamp);
   }
 
-  private getDuplicateKey(fight: any): string {
-    const timestamp = this.getFightDate(fight).getTime();
-    const roundedTimestamp = Math.round(timestamp / 1000);
-    const roundedDuration = Math.round((fight.duration || 0) / 100);
-    const bossPercentage = Number(fight.bossPercentage || 0).toFixed(1);
-    const fightPercentage = Number(fight.isKill ? 0 : fight.fightPercentage || 0).toFixed(1);
-    return `${roundedTimestamp}:${roundedDuration}:${bossPercentage}:${fightPercentage}:${fight.isKill ? 1 : 0}`;
-  }
-
   private async getFirstKillTime(guildId: mongoose.Types.ObjectId, raidProgress: IRaidProgress, boss: IBossProgress): Promise<Date | null> {
     const cachedFirstKillTime = this.toDate(boss.firstKillTime);
     if (cachedFirstKillTime) return cachedFirstKillTime;
@@ -409,7 +401,6 @@ class FightVodService {
       timestampQuery.$lte = firstKillTime;
     }
 
-    const candidateLimit = Math.max(25, Math.min((boss.pullCount || 25) * 2, 250));
     const candidates = await Fight.find({
       guildId,
       zoneId: raidProgress.raidId,
@@ -417,23 +408,13 @@ class FightVodService {
       difficulty: this.getDifficultyId(raidProgress.difficulty),
       timestamp: timestampQuery,
     })
-      .select("reportCode fightId timestamp duration bossPercentage fightPercentage isKill")
+      .select(`${PULL_IDENTITY_PROJECTION} fightPercentage`)
       .sort({ fightPercentage: 1, timestamp: -1 })
-      .limit(candidateLimit)
       .lean();
 
-    const seen = new Set<string>();
-    const bestFights: any[] = [];
-
-    for (const fight of candidates) {
-      const duplicateKey = this.getDuplicateKey(fight);
-      if (seen.has(duplicateKey)) continue;
-      seen.add(duplicateKey);
-      bestFights.push(fight);
-      if (bestFights.length === 5) break;
-    }
-
-    return bestFights;
+    return groupPulls(candidates).map(group => group[0])
+      .sort((a, b) => (a.isKill ? 0 : a.fightPercentage) - (b.isKill ? 0 : b.fightPercentage) || +new Date(b.timestamp) - +new Date(a.timestamp))
+      .slice(0, 5);
   }
 
   private findHistoricalVideoMatch(videos: TwitchVideoData[], fight: any): HistoricalVodMatch | "ambiguous" | null {

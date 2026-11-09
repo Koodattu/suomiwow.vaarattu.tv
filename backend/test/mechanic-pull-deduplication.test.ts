@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { groupMechanicPulls, isSameMechanicPull, PullIdentity } from "../src/utils/avoidable-damage";
+import { groupPulls as groupMechanicPulls, isSamePull as isSameMechanicPull, PullIdentity } from "../src/utils/fight-deduplication";
 
 const roster = Array.from({ length: 20 }, (_, i) => ({ name: `Player${i}`, server: "Test Realm" }));
 const pull = (extra = {}) => ({ reportCode: "A", fightId: 1, encounterID: 3429,
