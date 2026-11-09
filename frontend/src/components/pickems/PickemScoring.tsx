@@ -34,7 +34,9 @@ export function PickemScoringRules({ pickem }: { pickem: PickemScoringRuleset })
         )) : <p>{t("scoring.unavailable")}</p>}
         {streakConfig && <p>• {streakConfig.enabled ? <>
           <strong className="text-emerald-400">{t("scoring.streakPoints", { count: streakConfig.bonusPerGuild })}:</strong>{" "}
-          {t("scoring.streakRule", { count: streakConfig.minStreak })}
+          {streakConfig.rule === "exact-consecutive-v1"
+            ? t("scoring.exactStreakRule", { count: Math.max(2, streakConfig.minStreak) })
+            : t("scoring.streakRule", { count: streakConfig.minStreak })}
         </> : t("scoring.streakDisabled")}</p>}
       </div>
     </details>

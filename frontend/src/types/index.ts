@@ -1599,6 +1599,7 @@ export interface ScoringConfig {
 }
 
 export interface StreakConfig {
+  rule?: "relative-order-v1" | "exact-consecutive-v1";
   enabled: boolean;
   minStreak: number;
   bonusPerGuild: number;

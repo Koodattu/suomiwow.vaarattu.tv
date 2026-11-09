@@ -118,3 +118,36 @@ test("Finnish rules and columns include the same configured values", () => {
   assert.match(render(PickemScoringRules, { pickem }, "fi"), /\+2 p\/kilta: Vähintään 2 killan putki/);
   assert.match(render(PickemScoreBreakdown, { entry, pickem, scoresPending: false }, "fi"), /Pisteet Yht. Putki/);
 });
+
+const exactPickem = { ...pickem, scoreOutOfRangeGuilds: true, streakConfig: { enabled: true, minStreak: 2, bonusPerGuild: 8, rule: "exact-consecutive-v1" } };
+
+test("exact streak columns start at the second correct pick and reset after a miss", () => {
+  const scored = makeEntry([1, 2, 9, 4, 5, null, 7, 8], [10, 10, 0, 10, 10, 0, 10, 10], 84, 24);
+  assert.deepEqual(getPickemScoreRows(scored, exactPickem).map(row => [row.total, row.streakBonus]), [[10, 0], [28, 8], [28, 0], [38, 0], [56, 8], [56, 0], [66, 0], [84, 8]]);
+});
+
+test("exact streaks honor custom thresholds and gaps without awarding the first pick", () => {
+  const scored = makeEntry([1, 2, 3, 4], [10, 10, 10, 10], 50, 10);
+  const rules = { ...exactPickem, streakConfig: { ...exactPickem.streakConfig, minStreak: 3, bonusPerGuild: 5 } };
+  assert.deepEqual(getPickemScoreRows(scored, rules).map(row => row.streakBonus), [0, 0, 5, 5]);
+  const gap = makeEntry([1, 2, 3, 4], [10, 10, 10, 10], 38, 8);
+  gap.predictions.splice(1, 1);
+  assert.deepEqual(getPickemScoreRows(gap, exactPickem).map(row => row.streakBonus), [0, 0, 8]);
+  const pair = makeEntry([1, 2], [10, 10], 28, 8);
+  assert.deepEqual(getPickemScoreRows(pair, { ...exactPickem, streakConfig: { ...exactPickem.streakConfig, minStreak: 1 } }).map(row => row.streakBonus), [0, 8]);
+});
+
+test("finalizing a pickem does not change its exact or legacy row totals", () => {
+  const scored = makeEntry([1, 2, 3, 4, 5, 6, 7, 8, 10, 12], [10, 10, 10, 10, 10, 10, 10, 10, 8, 6], 150, 56);
+  assert.deepEqual(getPickemScoreRows(scored, exactPickem), getPickemScoreRows(scored, { ...exactPickem, finalized: true }));
+  assert.equal(getPickemScoreRows(scored, exactPickem).at(-1).total, 150);
+  const old = { ...scored, totalPoints: 174, streakBonus: 80 };
+  assert.equal(getPickemScoreRows(old, { ...exactPickem, finalized: true, streakConfig: { ...exactPickem.streakConfig, rule: "relative-order-v1" } }).at(-1).total, 174);
+});
+
+test("exact rule wording is specific to that pickem in both languages", () => {
+  const en = render(PickemScoringRules, { pickem: exactPickem });
+  assert.match(en, /From pick 2 in a row of exact picks. Wrong picks reset the streak/);
+  assert.doesNotMatch(en, /relative order/);
+  assert.match(render(PickemScoringRules, { pickem: exactPickem }, "fi"), /putken 2. veikkauksesta alkaen. Väärä sijoitus katkaisee putken/);
+});

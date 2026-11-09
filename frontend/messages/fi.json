@@ -3583,6 +3583,7 @@
       "unavailable": "Pisteytyssäännöt eivät ole saatavilla.",
       "streakPoints": "+{count} p/kilta",
       "streakRule": "Vähintään {count} killan putki oikeassa keskinäisessä järjestyksessä",
+      "exactStreakRule": "Peräkkäisistä oikeista sijoituksista, putken {count}. veikkauksesta alkaen. Väärä sijoitus katkaisee putken.",
       "streakDisabled": "Ei putkibonuksia",
       "pickColumn": "Veikkaus",
       "pointsColumn": "Pisteet",

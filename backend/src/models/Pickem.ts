@@ -12,6 +12,7 @@ export interface IScoringConfig {
 
 // Streak bonus configuration
 export interface IStreakConfig {
+  rule?: "relative-order-v1" | "exact-consecutive-v1"; // Missing means the original rule for historical pickems.
   enabled: boolean; // Whether streak bonuses are enabled
   minStreak: number; // Minimum streak length to award bonus (e.g., 2)
   bonusPerGuild: number; // Bonus points per guild in streak (e.g., 2 extra per guild)
@@ -93,6 +94,7 @@ const ScoringConfigSchema = new Schema<IScoringConfig>(
 
 const StreakConfigSchema = new Schema<IStreakConfig>(
   {
+    rule: { type: String, enum: ["relative-order-v1", "exact-consecutive-v1"], default: "relative-order-v1" },
     enabled: { type: Boolean, required: true, default: true },
     minStreak: { type: Number, required: true, default: 2 },
     bonusPerGuild: { type: Number, required: true, default: 2 },
@@ -185,9 +187,7 @@ export function calculatePickemPoints(predictedRank: number, actualRank: number,
 
 /**
  * Calculate streak bonus for predictions
- * A streak occurs when predicted guilds appear in the same relative order in actual rankings
- * For example: if you predict A, B, C at positions 1, 2, 3 and they finish at 5, 6, 7,
- * you get a streak bonus because A < B < C in both predicted and actual rankings
+ * Use the pickem's persisted rule. Missing versions retain the original relative-order scoring.
  */
 export function calculateStreakBonus(
   predictions: { guildName: string; realm: string; predictedRank: number; actualRank: number | null }[],
@@ -195,6 +195,31 @@ export function calculateStreakBonus(
 ): { totalBonus: number; streaks: { length: number; guilds: string[] }[] } {
   if (!streakConfig.enabled) {
     return { totalBonus: 0, streaks: [] };
+  }
+
+  if (streakConfig.rule === "exact-consecutive-v1") {
+    const sorted = [...predictions].sort((a, b) => a.predictedRank - b.predictedRank);
+    const minimum = Math.max(2, streakConfig.minStreak);
+    const streaks: { length: number; guilds: string[] }[] = [];
+    let run: typeof sorted = [];
+    let totalBonus = 0;
+    const finishRun = () => {
+      if (run.length >= minimum) streaks.push({ length: run.length, guilds: run.map((p) => p.guildName) });
+      run = [];
+    };
+
+    for (const prediction of sorted) {
+      if (prediction.actualRank !== prediction.predictedRank) {
+        finishRun();
+        continue;
+      }
+      if (run.length && prediction.predictedRank !== run[run.length - 1].predictedRank + 1) finishRun();
+      run.push(prediction);
+      // Only this pick earns the bonus once the threshold is reached; never backfill earlier picks.
+      if (run.length >= minimum) totalBonus += streakConfig.bonusPerGuild;
+    }
+    finishRun();
+    return { totalBonus, streaks };
   }
 
   // Sort predictions by predicted rank
@@ -242,7 +267,7 @@ export function calculateStreakBonus(
   }
 
   // Calculate total bonus
-  // Each guild in a streak (beyond the minimum) gets bonus points
+  // The original rule awards every guild in a qualifying run, including its first pick.
   let totalBonus = 0;
   for (const streak of streaks) {
     // Bonus = bonusPerGuild * length of streak

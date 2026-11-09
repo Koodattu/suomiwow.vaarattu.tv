@@ -583,6 +583,10 @@ const startServer = async () => {
     await initializeForever();
     completeStartupTask("Connect to MongoDB");
 
+    setStartupTask("Initialize Pickem streak rules");
+    await pickemService.ensureStreakRules();
+    completeStartupTask("Initialize Pickem streak rules");
+
     setStartupTask("Initialize Pickem CCG rewards");
     await pickemService.ensureCcgRewardDefaults();
     completeStartupTask("Initialize Pickem CCG rewards");

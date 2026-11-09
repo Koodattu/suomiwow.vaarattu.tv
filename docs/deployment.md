@@ -27,6 +27,20 @@ was found on the server's SSH PATH.
 The VM runs the Bash scripts tracked in this repository. Deployment and database
 backups are independent. Normal autodeploy never creates a database backup.
 
+## Pickem streak rule transition
+
+On startup, before serving requests, unversioned pickems receive a persisted
+`streakConfig.rule`. Finalized competitions keep `relative-order-v1`; competitions
+that are not finalized receive `exact-consecutive-v1`. Voting deadlines do not
+determine whether the competition is finished. Existing versioned rules are never
+overwritten by this initialization, including after a pickem is finalized.
+
+New pickems use `exact-consecutive-v1`. Only consecutive exact positions qualify;
+wrong, unranked, or missing picks break the run. Bonuses start at `minStreak`
+(at least the second pick), with no bonus backfilled to earlier picks. The original
+relative-order calculation remains available for historical competitions. The
+frontend explains and displays the persisted rule returned by the backend.
+
 ## VM cron
 
 The root crontab on `suomiwow-server` contains these entries:

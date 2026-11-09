@@ -7,7 +7,21 @@ export function getPickemScoreRows(entry: LeaderboardEntry, pickem: PickemScorin
 
   const rows = [...entry.predictions].sort((a, b) => a.predictedRank - b.predictedRank).map((prediction) => ({ prediction, streakBonus: 0, total: 0 }));
   const config = pickem.streakConfig;
-  if (config.enabled) {
+  if (config.enabled && config.rule === "exact-consecutive-v1") {
+    let length = 0;
+    let previousRank = 0;
+    for (const row of rows) {
+      const { predictedRank, actualRank } = row.prediction;
+      const eligible = actualRank !== null && (pickem.type === "rwf" || pickem.scoreOutOfRangeGuilds || actualRank <= (pickem.guildCount || 10));
+      if (!eligible || actualRank !== predictedRank) {
+        length = 0;
+      } else {
+        length = predictedRank === previousRank + 1 ? length + 1 : 1;
+        if (length >= Math.max(2, config.minStreak)) row.streakBonus = config.bonusPerGuild;
+      }
+      previousRank = predictedRank;
+    }
+  } else if (config.enabled) {
     // Match the backend's relative-order runs; unscored guilds are skipped, not streak breaks.
     const eligible = rows.filter(({ prediction }) => prediction.actualRank !== null &&
       (pickem.type === "rwf" || pickem.scoreOutOfRangeGuilds || prediction.actualRank <= (pickem.guildCount || 10)));

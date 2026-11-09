@@ -3583,6 +3583,7 @@
       "unavailable": "Scoring rules unavailable.",
       "streakPoints": "+{count} pts/guild",
       "streakRule": "Streak of {count}+ guilds in the correct relative order",
+      "exactStreakRule": "From pick {count} in a row of exact picks. Wrong picks reset the streak.",
       "streakDisabled": "Streaks disabled",
       "pickColumn": "Pick",
       "pointsColumn": "Points",
