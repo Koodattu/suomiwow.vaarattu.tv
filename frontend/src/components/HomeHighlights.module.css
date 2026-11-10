@@ -1,0 +1,58 @@
+@font-face {
+  font-family: "Forever Display";
+  src: url("/LifeCraft_Font.ttf") format("truetype");
+  font-display: swap;
+}
+
+.ccg { container-type: inline-size; }
+@media (min-width: 640px) {
+  @container (max-width: 430px) {
+    .ccgArt { transform: scale(.6); transform-origin: bottom right; right: 0; }
+    .ccgCopy { padding-right: 160px; }
+    .ccgCopy img { height: 26px; }
+  }
+}
+
+.forever {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 124px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 16px;
+  overflow: hidden;
+  border: 1px solid #84704b;
+  border-radius: 4px;
+  color: #f2e9d1;
+  background: radial-gradient(ellipse at 100% 0%, #45513780, transparent 70%), linear-gradient(125deg, #292318, #151d17);
+  box-shadow: inset 0 1px #d7b87526;
+  transition: border-color .15s, background-color .15s;
+}
+.forever::after {
+  content: "";
+  position: absolute;
+  right: -40px;
+  top: -65px;
+  width: 180px;
+  height: 180px;
+  border: 1px solid #d7b87520;
+  border-radius: 50%;
+  box-shadow: 0 0 0 12px #d7b87506, 0 0 0 13px #d7b87512;
+  pointer-events: none;
+}
+.forever:hover { border-color: #e0c583; background-color: #303728; }
+.forever:focus-visible { outline: 2px solid #efd58d; outline-offset: 3px; }
+.brand { display: flex; flex-direction: column; align-items: flex-start; color: #e1c280; line-height: 1; }
+.brand small { font-size: 9px; letter-spacing: .2em; text-transform: uppercase; }
+.brand strong { font-family: "Forever Display", Georgia, serif; font-size: 42px; font-weight: 400; text-shadow: 0 2px 6px #0009; }
+.destination { display: flex; align-items: center; gap: 10px; margin-top: 7px; font-size: 14px; font-weight: 650; line-height: 1.25; }
+.destination svg { width: 12px; height: 12px; flex-shrink: 0; color: #e1c280; }
+.caption { margin-top: 4px; font-size: 11px; line-height: 1.4; color: #c2baa7; }
+@media (max-width: 639px) {
+  .forever { padding: 12px; }
+  .brand strong { font-size: 36px; }
+  .destination { font-size: 12px; }
+  .caption { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .forever { transition: none; } }

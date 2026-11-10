@@ -1,5 +1,14 @@
 [
   {
+    "name": "Aarneth Rautakoura",
+    "region": "eu"
+  },
+  {
+    "name": "Abel Copper",
+    "region": "eu",
+    "twitchChannel": "arthori"
+  },
+  {
     "name": "Absolute Halloww",
     "region": "eu"
   },
@@ -9,9 +18,18 @@
     "twitchChannel": "skiprec"
   },
   {
+    "name": "Anna Wa",
+    "region": "eu",
+    "twitchChannel": "kirdez"
+  },
+  {
     "name": "Ari Stoo",
     "region": "eu",
     "twitchChannel": "persecticus"
+  },
+  {
+    "name": "Bomb Kerava",
+    "region": "eu"
   },
   {
     "name": "Bow Crits",
@@ -19,13 +37,28 @@
     "twitchChannel": "ohjaaja_"
   },
   {
+    "name": "Bull Meato",
+    "region": "eu",
+    "twitchChannel": "pelaajainenn"
+  },
+  {
     "name": "Cobra Gaming",
     "region": "eu",
     "twitchChannel": "cobragam1ng"
   },
   {
+    "name": "Dalierin Dawnshield",
+    "region": "eu",
+    "twitchChannel": "dalierin"
+  },
+  {
     "name": "Deacine Lightbound",
     "region": "eu"
+  },
+  {
+    "name": "Delethor Ronso",
+    "region": "eu",
+    "twitchChannel": "apinordic"
   },
   {
     "name": "Depsi Max",
@@ -38,12 +71,31 @@
     "twitchChannel": "xaruth"
   },
   {
+    "name": "Edd Shanks",
+    "region": "eu",
+    "twitchChannel": "eddisdead"
+  },
+  {
     "name": "Edgar Bock",
     "region": "eu"
   },
   {
     "name": "Eios Ascended",
     "region": "eu"
+  },
+  {
+    "name": "Exceed Tk",
+    "region": "eu",
+    "twitchChannel": "exceedtk"
+  },
+  {
+    "name": "Femboy Inhaler",
+    "region": "eu"
+  },
+  {
+    "name": "Flexi Pala",
+    "region": "eu",
+    "twitchChannel": "flex_fi"
   },
   {
     "name": "Flint Oreburgh",
@@ -64,6 +116,10 @@
     "region": "eu"
   },
   {
+    "name": "Galardodric Felrain",
+    "region": "eu"
+  },
+  {
     "name": "Galarizh Niodric",
     "region": "eu"
   },
@@ -76,11 +132,38 @@
     "region": "eu"
   },
   {
+    "name": "Grok Lesnar",
+    "region": "eu",
+    "twitchChannel": "jco89"
+  },
+  {
+    "name": "Haiga Prongs",
+    "region": "eu",
+    "twitchChannel": "malloyri"
+  },
+  {
     "name": "Havu Kalle",
     "region": "eu"
   },
   {
+    "name": "Hiio Hoi",
+    "region": "eu"
+  },
+  {
+    "name": "Hot Ted",
+    "region": "eu"
+  },
+  {
     "name": "Huutokauppa Keisari",
+    "region": "eu"
+  },
+  {
+    "name": "Jakki Makupala",
+    "region": "eu",
+    "twitchChannel": "officialhuuhgis"
+  },
+  {
+    "name": "Jannun Mutsi",
     "region": "eu"
   },
   {
@@ -90,6 +173,10 @@
   },
   {
     "name": "Jepin Pajukko",
+    "region": "eu"
+  },
+  {
+    "name": "Jonio Pyhäshokki",
     "region": "eu"
   },
   {
@@ -103,7 +190,15 @@
     "twitchChannel": "milktrain"
   },
   {
+    "name": "Kaania Kuukkeli",
+    "region": "eu"
+  },
+  {
     "name": "Katti Mau",
+    "region": "eu"
+  },
+  {
+    "name": "Kick Kare",
     "region": "eu"
   },
   {
@@ -131,6 +226,10 @@
     "twitchChannel": "kurppatarppa"
   },
   {
+    "name": "Kuus Yo",
+    "region": "eu"
+  },
+  {
     "name": "La Ku",
     "region": "eu",
     "twitchChannel": "iakubu"
@@ -141,7 +240,30 @@
     "twitchChannel": "yawnywolf"
   },
   {
+    "name": "Laicu Nauta",
+    "region": "eu",
+    "twitchChannel": "tintttuu"
+  },
+  {
+    "name": "Lancer Deadheart",
+    "region": "eu",
+    "twitchChannel": "rpsjesse"
+  },
+  {
+    "name": "Lemmz Lemmz",
+    "region": "eu"
+  },
+  {
     "name": "Loonie Tunes",
+    "region": "eu"
+  },
+  {
+    "name": "Makko Ftw",
+    "region": "eu",
+    "twitchChannel": "makkoftw"
+  },
+  {
+    "name": "Mamseri Suurmestari",
     "region": "eu"
   },
   {
@@ -153,6 +275,16 @@
     "name": "Marpsu Thefirst",
     "region": "eu",
     "twitchChannel": "marpsulii"
+  },
+  {
+    "name": "Masa Ahtisaari",
+    "region": "eu",
+    "twitchChannel": "klamppu"
+  },
+  {
+    "name": "Melekoone Velho",
+    "region": "eu",
+    "twitchChannel": "tluoma"
   },
   {
     "name": "Miquel Sandorial",
@@ -174,13 +306,50 @@
     "twitchChannel": "morbura"
   },
   {
+    "name": "Morini Ikuisesti",
+    "region": "eu"
+  },
+  {
+    "name": "Mr Kojo",
+    "region": "eu",
+    "twitchChannel": "kojootti86"
+  },
+  {
     "name": "Munapoolo Paladin",
     "region": "eu",
     "twitchChannel": "munapoolo"
   },
   {
+    "name": "Mystis Faija",
+    "region": "eu",
+    "twitchChannel": "myst1s"
+  },
+  {
+    "name": "Nasty Sock",
+    "region": "eu"
+  },
+  {
+    "name": "Np Xd",
+    "region": "eu"
+  },
+  {
     "name": "Nyytti Leuka",
     "region": "eu"
+  },
+  {
+    "name": "Ogu Vorna",
+    "region": "eu",
+    "twitchChannel": "ogu44"
+  },
+  {
+    "name": "Óláfr Unknowń",
+    "region": "eu",
+    "twitchChannel": "theunknownvato"
+  },
+  {
+    "name": "Oma Quu",
+    "region": "eu",
+    "twitchChannel": "omaquu"
   },
   {
     "name": "Oon Kalas",
@@ -190,6 +359,15 @@
     "name": "Pau Pauu",
     "region": "eu",
     "twitchChannel": "pauskiiih"
+  },
+  {
+    "name": "Peikonkorvat Nokkavuotaa",
+    "region": "eu"
+  },
+  {
+    "name": "Pena Shamaanimies",
+    "region": "eu",
+    "twitchChannel": "basicpena"
   },
   {
     "name": "Preazy Mortis",
@@ -210,9 +388,27 @@
     "twitchChannel": "salamimeister"
   },
   {
+    "name": "Ragge Gubbe",
+    "region": "eu"
+  },
+  {
+    "name": "Riski Pelle",
+    "region": "eu",
+    "twitchChannel": "realriski"
+  },
+  {
+    "name": "Roo Perro",
+    "region": "eu"
+  },
+  {
     "name": "Rotta Bob",
     "region": "eu",
     "twitchChannel": "doqq_"
+  },
+  {
+    "name": "Routa Lokki",
+    "region": "eu",
+    "twitchChannel": "corottplus"
   },
   {
     "name": "Saint Whiskey",
@@ -224,17 +420,42 @@
     "region": "eu"
   },
   {
+    "name": "Sir Salomaa",
+    "region": "eu"
+  },
+  {
     "name": "Sota Kukko",
     "region": "eu",
     "twitchChannel": "parrupelaa"
+  },
+  {
+    "name": "Spagetti Harri",
+    "region": "eu"
+  },
+  {
+    "name": "Starrk Coyotes",
+    "region": "eu"
+  },
+  {
+    "name": "Strong One",
+    "region": "eu"
   },
   {
     "name": "Super Arde",
     "region": "eu"
   },
   {
+    "name": "Synergos Vaelthorn",
+    "region": "eu"
+  },
+  {
     "name": "Sysi Simsalabim",
     "region": "eu"
+  },
+  {
+    "name": "Tashi Washi",
+    "region": "eu",
+    "twitchChannel": "sekasingaming"
   },
   {
     "name": "Tasse Kettu",
@@ -243,6 +464,10 @@
   },
   {
     "name": "Tepa Stiano",
+    "region": "eu"
+  },
+  {
+    "name": "Thaekor Stormcaller",
     "region": "eu"
   },
   {
@@ -259,9 +484,22 @@
     "region": "eu"
   },
   {
+    "name": "Toveri Kissa",
+    "region": "eu"
+  },
+  {
     "name": "Tuhnu Tuire",
     "region": "eu",
     "twitchChannel": "tuhnutuire"
+  },
+  {
+    "name": "Työterveys Hoitaja",
+    "region": "eu"
+  },
+  {
+    "name": "Vaarattu Tv",
+    "region": "eu",
+    "twitchChannel": "vaarattu"
   },
   {
     "name": "Vaivaava Noita",
@@ -286,6 +524,10 @@
     "region": "eu"
   },
   {
+    "name": "Wi Bank",
+    "region": "eu"
+  },
+  {
     "name": "Wiba Wiba",
     "region": "eu",
     "twitchChannel": "wiba"
@@ -299,6 +541,20 @@
     "name": "Womber Moonfang",
     "region": "eu",
     "twitchChannel": "womberor"
+  },
+  {
+    "name": "Xipa Soulcinder",
+    "region": "eu",
+    "twitchChannel": "xiralin"
+  },
+  {
+    "name": "Xvixiiv Ttv",
+    "region": "eu",
+    "twitchChannel": "xvixiiv"
+  },
+  {
+    "name": "Yara Walking",
+    "region": "eu"
   },
   {
     "name": "Yks Tykki",
@@ -316,6 +572,10 @@
     "name": "Zaikow Reborn",
     "region": "eu",
     "twitchChannel": "zaikki"
+  },
+  {
+    "name": "Zen Illusion",
+    "region": "eu"
   },
   {
     "name": "Zeta Cygni",

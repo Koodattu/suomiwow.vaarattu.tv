@@ -141,6 +141,11 @@ const FightSchema: Schema = new Schema(
   },
 );
 
+// Chronological physical-pull scans must stream without sorting an entire raid in memory.
+export const PHYSICAL_PULL_INDEX = { zoneId: 1, difficulty: 1, timestamp: 1, reportCode: 1, fightId: 1 } as const;
+export const PHYSICAL_PULL_INDEX_NAME = "physical_pull_chronology";
+FightSchema.index(PHYSICAL_PULL_INDEX, { name: PHYSICAL_PULL_INDEX_NAME });
+
 // Compound indexes for efficient queries
 FightSchema.index({ guildId: 1, zoneId: 1, difficulty: 1 });
 FightSchema.index({ reportCode: 1, fightId: 1 }, { unique: true });

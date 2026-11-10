@@ -1,10 +1,25 @@
 export interface ForeverCharacter {
   _id: string; region: string; slug: string; status?: string; source?: string;
-  name?: string; level?: number; className?: string; race?: string; faction?: string; ruleset?: string; avatarUrl?: string | null;
+  rank?: number; name?: string; level?: number; className?: string; race?: string; faction?: string; ruleset?: string; avatarUrl?: string | null;
   twitchChannel?: string; twitchIsLive?: boolean; twitchCheckedAt?: string;
   guild?: { name: string; slug: string; region: string } | null;
-  lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string;
-  history?: { level: number; observedAt: string; sourceUpdatedAt: string }[]; armoryUrl?: string;
+  refreshRequestedAt?: string; lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string; failures?: number;
+  history?: { level: number; observedAt: string; sourceUpdatedAt?: string }[]; armoryUrl?: string;
+}
+export function foreverRace(race?: string): string {
+  return race === "Windshaper Skyborne" || race === "High Order Skyborne" ? "Skyborne" : race || "—";
+}
+export function foreverCharacterPath(character: Pick<ForeverCharacter, "slug" | "region" | "_id">): string {
+  return `/forever/characters/${encodeURIComponent(character.region === "eu" ? character.slug : character._id)}`;
+}
+export function foreverRouteIdentity(segment: string): string {
+  // Next's dynamic route segment may retain percent escapes; API callers use plain identities.
+  try { return decodeURIComponent(segment); } catch { return segment; }
+}
+export function foreverHistory(history: ForeverCharacter["history"]) {
+  return (history || []).map((entry) => ({ level: entry.level, timestamp: Date.parse(entry.observedAt) }))
+    .filter((point) => Number.isFinite(point.timestamp) && Number.isInteger(point.level) && point.level >= 1 && point.level <= 60)
+    .sort((a, b) => a.timestamp - b.timestamp);
 }
 export function isForeverStreamLive(character: Pick<ForeverCharacter, "twitchIsLive" | "twitchCheckedAt">, now: number): boolean {
   const checkedAt = Date.parse(character.twitchCheckedAt || "");
@@ -29,24 +44,51 @@ export function foreverUpdateAge(value: string | null | undefined, now: number):
   return { unit: "days", count: Math.floor(minutes / 1440) };
 }
 export interface ForeverGuild {
-  _id: string; name: string; region: string; slug: string; status: string;
-  lastFetchedAt?: string; nextFetchAt?: string; errorCode?: string;
-  roster?: { region: string; slug: string; name: string; level: number; className: string }[];
+  _id: string; name: string; region: string; slug: string; status: string; hidden?: boolean;
+  lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; errorCode?: string; failures?: number; rosterCount?: number;
+  roster?: { region: string; slug: string; name: string; level: number; className: string; trackingStatus?: string }[];
 }
 export interface ForeverWorker { lastTickAt?: string; lastSuccessAt?: string; nextRequestAt?: string; errorCode?: string }
+export interface ForeverStatistics {
+  factions: { name: string | null; count: number }[];
+  rulesets: { name: string | null; count: number }[];
+  combinations: { faction: string | null; ruleset: string | null; count: number }[];
+  averageLevel: number | null;
+  atMaxLevel: number;
+}
 export interface ForeverBoard {
-  characters: ForeverCharacter[]; total: number; pending: number;
-  filterOptions: Record<"race" | "className" | "faction" | "ruleset", string[]>;
+  generatedAt?: string;
+  characters: ForeverCharacter[]; total: number; totalRanked: number; pending: number;
+  statistics: ForeverStatistics;
+  filterOptions: Record<"race" | "className" | "faction" | "ruleset" | "guild", string[]>;
   page: number; pageSize: number; worker: ForeverWorker | null; enabled: boolean;
+}
+export interface ForeverAnalytics {
+  timeline?: ForeverAnalyticsTimeline;
+  generatedAt: string; total: number; historyCharacters: number; averageLevel: number | null; medianLevel: number | null;
+  atMaxLevel: number; active24h: number; coverageStart: string | null;
+  new24h: number; levelsGained24h: number; statistics: ForeverStatistics;
+  levels: { level: number; count: number }[];
+  classes: { name: string | null; count: number }[];
+  races: { name: string | null; count: number; factions: { alliance: number; horde: number; unknown: number } }[];
+  combinations: { race: string | null; className: string | null; count: number; factions: { alliance: number; horde: number; unknown: number } }[];
+  activity: { at: string; active: number; observed: number; partial: boolean }[];
+}
+export interface ForeverAnalyticsTimeline {
+  startedAt: string;
+  facets: { race: string | null; className: string | null; faction: string | null; ruleset: string | null }[];
+  days: { date: string; at: string;
+    buckets: [facet: number, level: number, count: number, active: number, added: number, gains: number, observed: number][] }[];
 }
 export interface ForeverAdminData {
   characters: ForeverCharacter[]; guilds: ForeverGuild[]; worker: ForeverWorker | null;
   totalCharacters: number; totalGuilds: number; enabled: boolean;
+  characterCounts: Record<string, number>; guildCounts: Record<string, number>;
 }
 export class ForeverApiError extends Error { constructor(public code: string) { super(code); } }
-export async function foreverApi<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+export async function foreverApi<T>(path: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/${path}`, {
-    method, credentials: "include", headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    method, signal, credentials: "include", headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {

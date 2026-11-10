@@ -25,9 +25,14 @@ function parse(encounterId: number, specName: string, rankPercent: number, overr
   };
 }
 
+let fixtureTime = 1_000_000;
 function fights(encounterID: number, specName: string | null, count: number, wipe = false) {
+  const start = fixtureTime;
+  fixtureTime += Math.max(count, 1) * 300_000;
   return Array.from({ length: count }, (_, index) => ({
     reportCode: `report-${encounterID}-${specName}`, fightId: index + 1, encounterID,
+    timestamp: new Date(start + index * 300_000), guildId: "guild", zoneId: 53, difficulty: 5,
+    combatantInfoRosterComplete: true, combatantInfoFetchStatus: "fetched", deathEventsFetchStatus: "fetched",
     encounterName: `Boss ${encounterID}`, duration: 120_000, isKill: !wipe,
     combatants: [{ name: character.name, server: character.realm, specName }],
     deaths: wipe ? [{ name: character.name, server: character.realm, timestamp: 10_000, deathTime: 10_000 }] : [],
@@ -303,23 +308,20 @@ test("stored role and Blizzard spec ID classify fights when a spec name is missi
 
 test("fight loading includes bosses without any global kill parses and preserves coverage checks", async (t) => {
   const input = fights(3420, "demonology", 2, true);
-  let eligibleQuery: any;
   let fightQuery: any;
-  t.mock.method(Fight, "countDocuments", async (query: any) => { eligibleQuery = query; return 3; });
+  const unavailable = { ...input[0], fightId: 3, timestamp: new Date(+input[1].timestamp + 300_000), deathEventsFetchStatus: "failed" };
   t.mock.method(Fight, "find", (query: any) => {
     fightQuery = query;
-    const chain: any = { select: () => chain, sort: () => chain, lean: () => chain, cursor: async function* () { yield* input; } };
+    const chain: any = { select: () => chain, sort: () => chain, lean: () => chain, cursor: async function* () { yield* [...input, unavailable]; } };
     return chain;
   });
   t.mock.method(mechanics, "findReportRegions", async () => new Map([[input[0].reportCode, "EU"]]));
   t.mock.method(mechanics, "findReportAppearances", async () => []);
   t.mock.method(mechanics, "findCharacterAliases", async () => [character]);
   const result = await mechanics.buildSurvivalStatsFromFetchedFights(53);
-  assert.deepEqual(eligibleQuery.encounterID, { $in: [3470, 3445, 3455, 3497, 3420, 3421, 3429, 3492, 3379] });
-  assert.deepEqual(fightQuery.encounterID, eligibleQuery.encounterID);
-  assert.equal(eligibleQuery.difficulty, 5);
-  assert.equal(fightQuery.deathEventsFetchStatus, "fetched");
-  assert.equal(fightQuery.$or[0].combatantInfoRosterComplete, true);
+  assert.deepEqual(fightQuery.encounterID, { $in: [3470, 3445, 3455, 3497, 3420, 3421, 3429, 3492, 3379] });
+  assert.equal(fightQuery.difficulty, 5);
+  assert.equal(fightQuery.deathEventsFetchStatus, undefined, "coverage includes unavailable physical pulls");
   assert.equal(result.fights, 2);
   assert.equal(result.eligibleFights, 3);
   assert.equal(result.coverage, 2 / 3);
@@ -337,7 +339,7 @@ test("the published mechanics build counts Nymrissa once and keeps Kith'ix out o
   t.mock.method(Fight, "countDocuments", async (query: any) => selectFights(query).length);
   t.mock.method(Fight, "find", (query: any) => {
     const chain: any = { select: () => chain, sort: () => chain, lean: () => chain,
-      cursor: async function* () { yield* selectFights(query); } };
+      cursor: async function* () { yield* selectFights(query).sort((a, b) => +a.timestamp - +b.timestamp); } };
     return chain;
   });
   t.mock.method(mechanics, "findReportRegions", async () => new Map(input.map(fight => [fight.reportCode, "EU"])));
@@ -388,6 +390,10 @@ test("an overall spec filter preserves all role mechanics and combined queries r
     ...fights(1, "destruction", 20), ...fights(2, "demonology", 40, true),
   ], [parse(1, "destruction", 70)]);
   let query: any;
+  t.mock.method(CharacterRaidParticipation, "distinct", async (_field: string, filter: any) => {
+    assert.deepEqual(filter.affiliationQualifiedAt, { $type: "date" });
+    return [characterId];
+  });
   t.mock.method(CharacterMechanicsLeaderboard, "countDocuments", async () => 1);
   t.mock.method(CharacterMechanicsLeaderboard, "find", (filter: any) => {
     query = filter;
@@ -396,6 +402,7 @@ test("an overall spec filter preserves all role mechanics and combined queries r
   });
   const result = await service.getMechanicsRankings({ zoneId: 53, specName: "demonology", scoreType: "combined" });
   assert.equal(query.specName, "demonology");
+  assert.deepEqual(query.characterId, { $in: [characterId] });
   assert.deepEqual(query.score, { $ne: null });
   assert.equal(result.data[0].stats.mechanics.pulls, 60);
   assert.equal(result.data[0].stats.mechanics.parseScore, 70);
@@ -404,4 +411,41 @@ test("an overall spec filter preserves all role mechanics and combined queries r
   assert.equal(result.data[0].score.value, overall.score);
   await service.getMechanicsRankings({ zoneId: 53, scoreType: "survival" });
   assert.equal(query.score, undefined);
+});
+
+test("survival groups survive cursor and lookup batches, counting coverage and each character once", async t => {
+  const combatants = Array.from({ length: 20 }, (_, i) => ({ name: i ? `P${i}` : character.name, server: character.realm, specName: "windwalker" }));
+  const rows = Array.from({ length: 501 }, (_, i) => {
+    const a = { reportCode: "A", fightId: i + 1, guildId: "guild", zoneId: 53, difficulty: 5, encounterID: 3492, encounterName: "Ula'tek",
+      timestamp: new Date(1_000_000 + i * 300_000), duration: 120_000, isKill: true, bossPercentage: 0,
+      combatants, combatantInfoRosterComplete: true, combatantInfoFetchStatus: "fetched", deathEventsFetchStatus: "fetched", deaths: [] };
+    return [a, { ...a, reportCode: "B", timestamp: new Date(+a.timestamp + 2500), duration: 120_125 }];
+  }).flat();
+  rows.push({ ...rows[rows.length - 1], fightId: 999, timestamp: new Date(+rows[rows.length - 1].timestamp + 300_000), deathEventsFetchStatus: "failed" });
+  t.mock.method(Fight, "find", () => {
+    const chain: any = { select: () => chain, sort: () => chain, lean: () => chain, cursor: async function* () { yield* rows; } };
+    return chain;
+  });
+  t.mock.method(mechanics, "findReportRegions", async () => new Map([["A", "EU"], ["B", "EU"]]));
+  // Identity evidence exists only in the second recording. Discarding it loses the player.
+  t.mock.method(mechanics, "findReportAppearances", async () => [{ ...character, reportCode: "B" }]);
+  t.mock.method(mechanics, "findCharacterAliases", async () => []);
+  const result = await mechanics.buildSurvivalStatsFromFetchedFights(53);
+  assert.equal(result.fights, 501);
+  assert.equal(result.eligibleFights, 502);
+  assert.equal(result.coverage, 501 / 502);
+  assert.equal(result.stats.get(`${characterId}|3492|dps`).pulls, 501);
+  assert.equal(result.specPullsByCharacter.get(String(characterId)).get("windwalker"), 501);
+});
+
+test("duplicate recordings retain a known spec instead of counting the earlier unknown role", () => {
+  const a = fights(3492, null, 1)[0];
+  const b = { ...a, reportCode: "known-spec-copy", timestamp: new Date(+a.timestamp + 500),
+    combatants: [{ ...a.combatants[0], specName: "windwalker" }] };
+  const stats = new Map(), specs = new Map(), unknown = new Map();
+  mechanics.addSurvivalStats([a, b], [], [character], new Map([[a.reportCode, "EU"], [b.reportCode, "EU"]]), stats, specs, unknown);
+  assert.equal(stats.size, 1);
+  assert.equal(stats.get(`${characterId}|3492|dps`).pulls, 1);
+  assert.equal(specs.get(String(characterId)).get("windwalker"), 1);
+  assert.equal(unknown.size, 0);
 });

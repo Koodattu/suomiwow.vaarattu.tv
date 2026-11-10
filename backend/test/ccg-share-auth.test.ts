@@ -7,6 +7,8 @@ import express from "express";
 import session from "express-session";
 
 test("CCG share creation requires an authenticated user", async () => {
+  process.env.BLIZZARD_CLIENT_ID ??= "test-client";
+  process.env.BLIZZARD_CLIENT_SECRET ??= "test-secret";
   const { default: ccgRouter } = await import("../src/routes/ccg");
   const app = express();
   app.use(express.json());

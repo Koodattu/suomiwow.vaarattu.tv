@@ -1,3 +1,4 @@
+import { endpointReport } from "../services/endpoint-analytics.service";
 import reportOverrideService from "../services/report-override.service";
 import reportOverridePolicy, { normalizeReportCode, ReportOverrideError } from "../services/report-override-policy.service";
 import { Router, Request, Response } from "express";
@@ -2282,34 +2283,7 @@ router.get("/analytics/daily", async (req: Request, res: Response) => {
 // Get endpoint statistics
 router.get("/analytics/endpoints", async (req: Request, res: Response) => {
   try {
-    const days = parseInt(req.query.days as string) || 7;
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    startDate.setHours(0, 0, 0, 0);
-
-    const endpointStats = await RequestLog.aggregate([
-      { $match: { timestamp: { $gte: startDate } } },
-      {
-        $group: {
-          _id: "$endpoint",
-          count: { $sum: 1 },
-          totalResponseTime: { $sum: "$responseTime" },
-          avgResponseTime: { $avg: "$responseTime" },
-          errorCount: { $sum: { $cond: [{ $gte: ["$statusCode", 400] }, 1, 0] } },
-        },
-      },
-      { $sort: { count: -1 } },
-      { $limit: 50 },
-    ]);
-
-    const formatted = endpointStats.map((stat) => ({
-      endpoint: stat._id,
-      count: stat.count,
-      avgResponseTime: Math.round(stat.avgResponseTime),
-      errorCount: stat.errorCount,
-    }));
-
-    res.json(formatted);
+    res.json(await endpointReport(req.query));
   } catch (error) {
     logger.error("Error fetching endpoint analytics:", error);
     res.status(500).json({ error: "Failed to fetch endpoint analytics" });

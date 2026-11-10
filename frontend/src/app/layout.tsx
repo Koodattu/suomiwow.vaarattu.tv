@@ -2,6 +2,7 @@
 
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import SiteActivityTracker from "@/components/SiteActivityTracker";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { usePathname } from "next/navigation";
@@ -59,7 +60,10 @@ export default function RootLayout({
       ? "noindex, nofollow"
       : "index, follow";
   const [locale, setLocale] = useState<Locale>("en");
-  const [messages, setMessages] = useState<AbstractIntlMessages | null>(null);
+  // Render the public leaderboard with its server data before locale hydration.
+  const [messages, setMessages] = useState<AbstractIntlMessages | null>(
+    pathname === "/forever/leveling" ? englishMessages : null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -214,7 +218,8 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased ${isCcgOverlayPage ? "ccg-overlay-body" : ""}`}>
         <QueryProvider>
           <AuthProvider>
-            <NextIntlClientProvider locale={locale} messages={messages}>
+            <SiteActivityTracker />
+            <NextIntlClientProvider locale={locale} messages={messages} timeZone={pathname === "/forever/leveling" ? "Europe/Helsinki" : undefined}>
               {!isCcgPage && !isCollectibleOpening && <Navigation />}
               {children}
               {!isLivestreamsPage && !isNetworkAnalyticsPage && !isCcgPage && !isCollectibleOpening && <Footer />}

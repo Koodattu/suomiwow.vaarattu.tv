@@ -7,6 +7,7 @@ import { FaArrowRight, FaChartSimple, FaCoins, FaNetworkWired, FaRankingStar, Fa
 import { usePickems } from "@/lib/queries";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
+import styles from "./HomeHighlights.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 import type { CcgCard, CcgSet, PickemSummary } from "@/types";
 
@@ -241,10 +242,10 @@ export default function HomeHighlights() {
 
   return (
     <section className="mb-3">
-      <div className="grid gap-2 sm:gap-2.5 xl:grid-cols-[minmax(12rem,1.43fr)_minmax(0,1fr)_minmax(0,0.86fr)_minmax(0,0.86fr)] xl:grid-rows-2">
+      <div className="grid grid-cols-2 gap-2 sm:gap-2.5 md:grid-cols-[1.4fr_1fr_1fr] xl:grid-cols-[1.5fr_1fr_1fr_1.8fr]">
         <Link
           href="/ccg"
-          className="group relative z-0 flex min-h-[102px] rounded border border-blue-400/35 bg-slate-950 shadow-[0_8px_30px_rgba(15,23,42,0.35)] transition-[border-color,box-shadow,transform] duration-150 hover:z-10 hover:border-blue-300/60 hover:shadow-[0_10px_36px_rgba(37,99,235,0.22)] focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none sm:min-h-[124px] xl:row-span-2 xl:min-h-0"
+          className={`${styles.ccg} group relative z-0 col-span-2 flex min-h-[102px] md:col-span-1 rounded border border-blue-400/35 bg-slate-950 shadow-[0_8px_30px_rgba(15,23,42,0.35)] transition-[border-color,box-shadow,transform] duration-150 hover:z-10 hover:border-blue-300/60 hover:shadow-[0_10px_36px_rgba(37,99,235,0.22)] focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none sm:min-h-[124px] xl:min-h-0`}
         >
           <span className="absolute inset-0 overflow-hidden rounded-[inherit]" aria-hidden="true">
             <Image
@@ -257,7 +258,7 @@ export default function HomeHighlights() {
             <span className="absolute inset-0 bg-gradient-to-br from-slate-950/85 via-slate-950/45 to-blue-950/10" />
           </span>
 
-          <span className="pointer-events-none absolute -top-4 right-6 z-20 h-[calc(100%+1.5rem)] w-36 sm:-right-3 sm:w-[17rem] xl:right-2" aria-hidden="true">
+          <span className={`${styles.ccgArt} pointer-events-none absolute -top-4 right-6 z-20 h-[calc(100%+1.5rem)] w-36 sm:-right-3 sm:w-[17rem] xl:right-2`} aria-hidden="true">
             <span className="absolute bottom-3 left-0 z-10 h-[7.4rem] w-[4.9rem] -rotate-[9deg] drop-shadow-[0_9px_9px_rgba(0,0,0,0.55)] transition-transform duration-300 ease-out group-hover:-translate-y-1 group-hover:-rotate-[12deg] motion-reduce:transform-none motion-reduce:transition-none sm:bottom-2 sm:-left-2">
               <span className="absolute bottom-0 left-0 w-[300px] origin-bottom-left scale-[0.225] sm:scale-[0.316]">
                 <span className={packStyles.packButton} style={getPackTheme(CCG_PROMO_SET)}>
@@ -285,7 +286,7 @@ export default function HomeHighlights() {
             </span>
           </span>
 
-          <span className="relative z-10 flex w-full flex-col justify-between p-2.5 pr-36 sm:p-3.5 sm:pr-[7.25rem]">
+          <span className={`${styles.ccgCopy} relative z-10 flex w-full flex-col justify-between p-2.5 pr-36 sm:p-3.5 sm:pr-[7.25rem]`}>
             <span className="flex items-center gap-2">
               <Image src="/logo.png" alt="" width={1187} height={536} className="h-8 w-auto sm:h-10" />
               <Image src="/ccg/ccg_logo.png" alt="" width={491} height={351} className="h-8 w-auto sm:h-10" />
@@ -304,7 +305,13 @@ export default function HomeHighlights() {
           </span>
         </Link>
 
-        <div className="min-w-0 xl:row-span-2">
+        <Link href="/forever/leveling" className={styles.forever}>
+          <span className={styles.brand}><small>SuomiWoW</small><strong>Forever</strong></span>
+          <span className={styles.destination}><span>{t("features.forever.title")}</span><FaArrowRight aria-hidden="true" /></span>
+          <span className={styles.caption}>{t("features.forever.description")}</span>
+        </Link>
+
+        <div className="min-w-0">
           {isLoading || hasOpenPickems ? (
             <div className="grid grid-cols-2 gap-1.5 sm:gap-2 xl:h-full xl:grid-cols-1 xl:grid-rows-2">
               {isLoading ? (
@@ -321,7 +328,7 @@ export default function HomeHighlights() {
           )}
         </div>
 
-        <div className="min-w-0 xl:col-span-2 xl:row-span-2">
+        <div className="col-span-2 min-w-0 md:col-span-3 xl:col-span-1">
           <div className="grid grid-cols-2 gap-1.5 sm:gap-2 xl:h-full xl:grid-rows-2">
             {FEATURE_HIGHLIGHTS.map(({ id, href, Icon, iconClassName }) => (
               <Link

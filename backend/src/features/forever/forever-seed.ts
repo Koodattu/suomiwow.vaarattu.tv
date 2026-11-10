@@ -19,5 +19,9 @@ export async function seedForeverCharacters() {
     // Re-running never resumes a pause/rejection, resets progress, or overrides an admin's channel.
     update: { $setOnInsert: { ...entry, status: "tracked", source: "seed", nextFetchAt: now, createdAt: now, updatedAt: now } }, upsert: true, timestamps: false,
   } })));
+  // A listed Finnish character may already exist as a guild import. Confirm its
+  // provenance too, without overriding status, channels, progress or timestamps.
+  await ForeverCharacter.updateMany({ region: "eu", slug: { $in: records.map(record => record.slug) }, independentlyTracked: { $ne: true } },
+    { $set: { independentlyTracked: true } }, { timestamps: false });
   return { total: records.length, inserted: result.upsertedCount, existing: records.length - result.upsertedCount };
 }

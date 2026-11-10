@@ -1,3 +1,4 @@
+import { raidNight } from "../utils/character-raid-affiliation";
 import { RAID_ENCOUNTERS, mainRaidBosses, raidLairs, competitiveWorldRank } from "../config/raid-encounters";
 import ingestionLeases from "./ingestion-lease.service";
 import { acquireGuildIngestionLease, isGuildLeaseActive } from "./guild-ingestion-lease.service";
@@ -44,7 +45,7 @@ import fightVodService from "./fight-vod.service";
 import guildProfileHighlightsService from "./guild-profile-highlights.service";
 import guildLogSourceService, { getGuildLogSourceSnapshot } from "./guild-log-source.service";
 import { yieldToEventLoop } from "../utils/yield";
-import { findDuplicateFight } from "../utils/fight-deduplication";
+import { groupPulls, PULL_IDENTITY_PROJECTION } from "../utils/fight-deduplication";
 import { getBestPullBossHealth, resolveFightProgress } from "../utils/fight-progress";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
@@ -119,6 +120,8 @@ interface StatisticsFight {
   fightEndTime: number;
   duration: number;
   timestamp: Date;
+  combatantInfoRosterComplete?: boolean;
+  combatants?: { name: string; server: string }[];
   lastPhaseId?: number;
   lastPhaseName?: string;
   progressDisplay?: string;
@@ -144,6 +147,9 @@ const STATISTICS_FIGHT_PROJECTION = [
   "lastPhaseId",
   "lastPhaseName",
   "progressDisplay",
+  "combatantInfoRosterComplete",
+  "combatants.name",
+  "combatants.server",
 ].join(" ");
 
 interface GuildProgressUpdateResult {
@@ -3963,6 +3969,19 @@ class GuildService {
         guildLog.info(`Report ${reportCode}: ${day} ${formatHour(startHour)}-${formatHour(endHour)} (${actualStartTime.toISOString()} to ${actualEndTime.toISOString()})`);
       }
 
+      // Multiple uploads or split reports from one night get one vote.
+      const nights = new Map<number, RaidSession>();
+      for (const session of [...raidSessions].sort((a, b) => +a.startTime - +b.startTime)) {
+        const night = raidNight(session.startTime);
+        const existing = nights.get(night);
+        if (!existing) nights.set(night, { ...session });
+        else if (session.endTime > existing.endTime) {
+          existing.endTime = session.endTime;
+          existing.endHour = roundToNearestHalfHour(session.endTime);
+        }
+      }
+      raidSessions.splice(0, raidSessions.length, ...nights.values());
+
       // Analyze raiding patterns - find most common day/time combinations
       interface DayTimeSlot {
         day: string;
@@ -4300,22 +4319,11 @@ class GuildService {
     const killOrderTracker: Array<{ encounterId: number; killTime: Date }> = [];
     const vodCandidateFightsByBoss = new Map<number, StatisticsFight[]>();
 
-    // FIRST PASS: Filter out duplicate fights
-    // Create a map to track seen fight characteristics
-    const seenFights = new Map<string, any>();
-    const uniqueFights: StatisticsFight[] = [];
-    let duplicateCount = 0;
-
-    for (const fight of filteredFights) {
-      const duplicateFight = findDuplicateFight(fight, seenFights);
-
-      if (duplicateFight) {
-        duplicateCount++;
-        continue;
-      }
-
-      uniqueFights.push(fight);
-    }
+    // Retain every recording for raid-time chains, but count one physical pull.
+    const pullGroups = groupPulls(filteredFights);
+    const uniqueFights = pullGroups.map(group => group[0]);
+    const copiesByFight = new Map(pullGroups.map(group => [group[0], group]));
+    const duplicateCount = filteredFights.length - uniqueFights.length;
 
     if (filteredFights !== fights) filteredFights.length = 0;
     fights.length = 0;
@@ -4381,7 +4389,7 @@ class GuildService {
       const shouldCountPull = !firstKillTime || fight.timestamp <= firstKillTime;
 
       if (shouldCountPull) {
-        progressionFights.push(fight);
+        progressionFights.push(...copiesByFight.get(fight)!);
         bossData.pulls++;
         bossData.totalTime += duration;
 
@@ -4492,9 +4500,10 @@ class GuildService {
 
     const progressRaidTimeSpent = await this.calculateRaidTimeSpentFromFightChains(guild._id as mongoose.Types.ObjectId, progressionFights);
     progressionFights.length = 0;
-    const totalRaidTimeSpent = await this.calculateRaidTimeSpentFromFightChains(guild._id as mongoose.Types.ObjectId, uniqueFights);
+    const totalRaidTimeSpent = await this.calculateRaidTimeSpentFromFightChains(guild._id as mongoose.Types.ObjectId, pullGroups.flat());
     uniqueFights.length = 0;
-    seenFights.clear();
+    copiesByFight.clear();
+    pullGroups.length = 0;
 
     // Sort kill order by time and assign order numbers
     killOrderTracker.sort((a, b) => a.killTime.getTime() - b.killTime.getTime());
@@ -4575,6 +4584,10 @@ class GuildService {
         pullHistory: bossInfo.pullHistory,
         lastUpdated: new Date(),
       };
+
+      if (!lairEncounterId && bossData.kills > 0) {
+        await this.reconcileKillEvent(guild, raidProgress, bossData);
+      }
 
       if (bossProgress) {
         // Check if we should create events
@@ -4795,6 +4808,20 @@ class GuildService {
     return new Date();
   }
 
+  private async reconcileKillEvent(guild: IGuild, raid: IRaidProgress, boss: IBossProgress): Promise<void> {
+    if (!boss.firstKillTime) return;
+    const result = await ingestionLeases.write(async () => Event.updateMany({
+      type: "boss_kill", guildId: guild._id, raidId: raid.raidId,
+      bossId: boss.bossId, difficulty: raid.difficulty,
+      $or: [
+        { "data.pullCount": { $ne: boss.pullCount } },
+        { "data.timeSpent": { $ne: boss.timeSpent } },
+        { timestamp: { $ne: boss.firstKillTime } },
+      ],
+    }, { $set: { "data.pullCount": boss.pullCount, "data.timeSpent": boss.timeSpent, timestamp: boss.firstKillTime } }));
+    if (result.modifiedCount) await cacheService.invalidateEventCaches();
+  }
+
   private async checkAndCreateEvents(guild: IGuild, raidProgress: IRaidProgress, oldBoss: IBossProgress, newBoss: IBossProgress): Promise<void> {
     let eventCreated = false;
 
@@ -4931,27 +4958,21 @@ class GuildService {
       try {
         const difficultyNumber = raidProgress.difficulty === "mythic" ? DIFFICULTIES.MYTHIC : DIFFICULTIES.HEROIC;
 
-        // Find the two most recent kills to count pulls between them
-        const recentKills = await Fight.find({
+        // Two recordings of one kill must not define the re-kill window.
+        const recordedFights = await Fight.find({
           guildId: guild._id,
+          zoneId: raidProgress.raidId,
           encounterID: newBoss.bossId,
           difficulty: difficultyNumber,
-          isKill: true,
-        })
-          .sort({ timestamp: -1 })
-          .limit(2);
+        }).select(PULL_IDENTITY_PROJECTION).sort({ timestamp: 1 }).lean();
+        const pulls = groupPulls(recordedFights).map(group => group[0]);
+        const killIndices = pulls.flatMap((fight, index) => fight.isKill ? [index] : []);
 
-        if (recentKills.length >= 2) {
-          const latestKill = recentKills[0];
-          const previousKill = recentKills[1];
-
-          // Count all pulls (kills + wipes) between the two kills
-          const pullsBetweenKills = await Fight.countDocuments({
-            guildId: guild._id,
-            encounterID: newBoss.bossId,
-            difficulty: difficultyNumber,
-            timestamp: { $gt: previousKill.timestamp, $lte: latestKill.timestamp },
-          });
+        if (killIndices.length >= 2) {
+          const latestIndex = killIndices[killIndices.length - 1];
+          const previousIndex = killIndices[killIndices.length - 2];
+          const latestKill = pulls[latestIndex];
+          const pullsBetweenKills = latestIndex - previousIndex;
 
           guildLog.info(`Re-kill of ${newBoss.bossName}: ${pullsBetweenKills} pulls between previous and latest kill`);
 
@@ -5816,7 +5837,7 @@ class GuildService {
       name: { $regex: new RegExp(`^${escapedName}$`, "i") }, // Case-insensitive exact match
       realm: { $regex: new RegExp(`^${escapedRealm}$`, "i") }, // Case-insensitive exact match
     })
-      .select("_id progress lairProgress officialProgress")
+      .select("_id region progress lairProgress officialProgress")
       .lean();
 
     if (!guild) {
@@ -5838,17 +5859,6 @@ class GuildService {
     }
 
     const difficultyId = difficulty === "mythic" ? DIFFICULTIES.MYTHIC : DIFFICULTIES.HEROIC;
-    const firstKill = await Fight.findOne({
-      guildId: guild._id,
-      zoneId: raidId,
-      encounterID: bossId,
-      difficulty: difficultyId,
-      isKill: true,
-    })
-      .select("timestamp")
-      .sort({ timestamp: 1 })
-      .lean();
-
     const fightQuery: any = {
       guildId: guild._id,
       zoneId: raidId,
@@ -5856,9 +5866,11 @@ class GuildService {
       difficulty: difficultyId,
     };
 
-    if (firstKill?.timestamp) {
-      fightQuery.timestamp = { $lte: firstKill.timestamp };
-    }
+    const raid = await Raid.findOne({ id: raidId }).select("starts ends").lean();
+    const region = guild.region.toLowerCase() as keyof NonNullable<IRaid["starts"]>;
+    const startDate = raid?.starts?.[region];
+    const endDate = raid?.ends?.[region];
+    if (startDate || endDate) fightQuery.timestamp = { ...(startDate ? { $gte: startDate } : {}), ...(endDate ? { $lte: endDate } : {}) };
 
     let pullHistory = (boss.pullHistory || []).map((pull: any) => {
       const progress = resolveFightProgress(pull);
@@ -5869,22 +5881,15 @@ class GuildService {
       };
     });
     const historyFights = await Fight.find(fightQuery)
-      .select("reportCode fightId encounterID difficulty timestamp duration bossPercentage fightPercentage isKill lastPhaseId lastPhaseName progressDisplay")
+      .select(`${PULL_IDENTITY_PROJECTION} fightPercentage lastPhaseId lastPhaseName progressDisplay`)
       .sort({ timestamp: 1 })
       .lean();
 
-    const uniqueHistoryFights: any[] = [];
+    // Group before the first-kill cutoff so all copies of that kill are available.
+    const historyGroups = groupPulls(historyFights);
+    const firstKillIndex = historyGroups.findIndex(group => group[0].isKill);
+    const uniqueHistoryFights = (firstKillIndex < 0 ? historyGroups : historyGroups.slice(0, firstKillIndex + 1)).map(group => group[0]);
     if (historyFights.length > 0) {
-      const seenHistoryFights = new Map<string, any>();
-
-      for (const fight of historyFights) {
-        const duplicateFight = findDuplicateFight(fight, seenHistoryFights);
-        if (duplicateFight) {
-          continue;
-        }
-        uniqueHistoryFights.push(fight);
-      }
-
       pullHistory = uniqueHistoryFights.map((fight, index) => {
         const progress = resolveFightProgress(fight);
         return {

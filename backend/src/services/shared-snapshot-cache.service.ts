@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import Cache from "../models/Cache";
-import CacheRefreshLease from "../models/CacheRefreshLease";
+import type Cache from "../models/Cache";
+import type CacheRefreshLease from "../models/CacheRefreshLease";
 import logger from "../utils/logger";
 
 const LEASE_MS = 2 * 60 * 1000;
@@ -10,14 +10,18 @@ const REFRESH_TIMEOUT_MS = 5 * 60 * 1000;
 /** Shared snapshots bypass L1 so API processes see worker refreshes immediately. */
 export class SharedSnapshotCacheService {
   private pending = new Map<string, Promise<unknown>>();
+  private readonly storage: { cache: typeof Cache; leases: typeof CacheRefreshLease };
 
   constructor(
     private readonly logLabel: string,
     private readonly staleWindowMs: (key: string) => number = () => 60 * 60 * 1000,
-  ) {}
+    storage?: { cache: typeof Cache; leases: typeof CacheRefreshLease },
+  ) {
+    this.storage = storage || { cache: require("../models/Cache").default, leases: require("../models/CacheRefreshLease").default };
+  }
 
   async get<T>(key: string, build: () => Promise<T>, ttl: number, warm = false): Promise<T> {
-    const entry = await Cache.findOne({ key }).lean();
+    const entry = await this.storage.cache.findOne({ key }).lean();
     const now = Date.now();
     const usable = entry && entry.staleExpiresAt && new Date(entry.staleExpiresAt).getTime() > now;
     // Scheduled warming refreshes ahead of expiry and skips snapshots still fresh enough.
@@ -45,11 +49,11 @@ export class SharedSnapshotCacheService {
     const deadline = Date.now() + REFRESH_TIMEOUT_MS;
     while (Date.now() < deadline) {
       // Another process may have published between our initial read and lease acquisition.
-      const latest = await Cache.findOne({ key, cachedAt: { $gt: new Date(previousCachedAt) }, expiresAt: { $gt: new Date() } }).lean();
+      const latest = await this.storage.cache.findOne({ key, cachedAt: { $gt: new Date(previousCachedAt) }, expiresAt: { $gt: new Date() } }).lean();
       if (latest) return latest.data as T;
       let acquired = false;
       try {
-        acquired = !!await CacheRefreshLease.findOneAndUpdate(
+        acquired = !!await this.storage.leases.findOneAndUpdate(
           { _id: key, expiresAt: { $lte: new Date() } },
           { $set: { owner, expiresAt: new Date(Date.now() + LEASE_MS) } },
           { upsert: true, returnDocument: "after" },
@@ -65,7 +69,7 @@ export class SharedSnapshotCacheService {
       const startedAt = Date.now();
       let leaseLost = false;
       const heartbeat = setInterval(() => {
-        void CacheRefreshLease.updateOne({ _id: key, owner }, { $set: { expiresAt: new Date(Date.now() + LEASE_MS) } })
+        void this.storage.leases.updateOne({ _id: key, owner }, { $set: { expiresAt: new Date(Date.now() + LEASE_MS) } })
           .then((result) => { if (!result.matchedCount) leaseLost = true; })
           .catch((error) => {
             leaseLost = true;
@@ -75,23 +79,23 @@ export class SharedSnapshotCacheService {
       heartbeat.unref();
       logger.info(`[${this.logLabel}] Building ${key}`);
       try {
-        const published = await Cache.findOne({ key, cachedAt: { $gt: new Date(previousCachedAt) }, expiresAt: { $gt: new Date() } }).lean();
+        const published = await this.storage.cache.findOne({ key, cachedAt: { $gt: new Date(previousCachedAt) }, expiresAt: { $gt: new Date() } }).lean();
         if (published) return published.data as T;
         const data = await build();
-        if (leaseLost || !await CacheRefreshLease.exists({ _id: key, owner, expiresAt: { $gt: new Date() } })) {
+        if (leaseLost || !await this.storage.leases.exists({ _id: key, owner, expiresAt: { $gt: new Date() } })) {
           throw new Error(`Cache refresh lease lost for ${key}`);
         }
         const now = new Date();
         const expiresAt = new Date(now.getTime() + ttl);
         // Preserve a last-good result through short worker outages and slow refreshes.
-        await Cache.findOneAndUpdate({ key }, {
+        await this.storage.cache.findOneAndUpdate({ key }, {
           $set: { data, cachedAt: now, expiresAt, staleExpiresAt: new Date(expiresAt.getTime() + this.staleWindowMs(key)), ttlMs: ttl, endpoint: key.split(":").slice(0, 2).join(":") },
         }, { upsert: true });
         logger.info(`[${this.logLabel}] Published ${key} in ${Date.now() - startedAt}ms`);
         return data;
       } finally {
         clearInterval(heartbeat);
-        await CacheRefreshLease.deleteOne({ _id: key, owner }).catch((error) => logger.error(`[${this.logLabel}] Lease release failed for ${key}:`, error));
+        await this.storage.leases.deleteOne({ _id: key, owner }).catch((error) => logger.error(`[${this.logLabel}] Lease release failed for ${key}:`, error));
       }
     }
     throw new Error(`Timed out waiting for cache refresh: ${key}`);
@@ -99,6 +103,6 @@ export class SharedSnapshotCacheService {
 
   async markStale(key: string, minAgeMs = 0): Promise<void> {
     // Retain the snapshot; the next scheduled refresh or reader replaces it in place.
-    await Cache.updateOne({ key, cachedAt: { $lte: new Date(Date.now() - minAgeMs) } }, { $set: { expiresAt: new Date() } });
+    await this.storage.cache.updateOne({ key, cachedAt: { $lte: new Date(Date.now() - minAgeMs) } }, { $set: { expiresAt: new Date() } });
   }
 }

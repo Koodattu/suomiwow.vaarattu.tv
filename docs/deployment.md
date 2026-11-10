@@ -27,6 +27,20 @@ was found on the server's SSH PATH.
 The VM runs the Bash scripts tracked in this repository. Deployment and database
 backups are independent. Normal autodeploy never creates a database backup.
 
+## Pickem streak rule transition
+
+On startup, before serving requests, unversioned pickems receive a persisted
+`streakConfig.rule`. Finalized competitions keep `relative-order-v1`; competitions
+that are not finalized receive `exact-consecutive-v1`. Voting deadlines do not
+determine whether the competition is finished. Existing versioned rules are never
+overwritten by this initialization, including after a pickem is finalized.
+
+New pickems use `exact-consecutive-v1`. Only consecutive exact positions qualify;
+wrong, unranked, or missing picks break the run. Bonuses start at `minStreak`
+(at least the second pick), with no bonus backfilled to earlier picks. The original
+relative-order calculation remains available for historical competitions. The
+frontend explains and displays the persisted rule returned by the backend.
+
 ## VM cron
 
 The root crontab on `suomiwow-server` contains these entries:
@@ -74,6 +88,41 @@ restore. MongoDB operations such as collection renames or `$out` during the dump
 can cause an oplog backup to fail; inspect `backup.log` before relying on a backup.
 
 ## Verification
+
+### Raid affiliation and character rankings
+
+Character rankings now require a qualified, tier-specific raid affiliation. The
+participation rebuild derives `raidNightCount`, `mythicNightCount`, and
+`affiliationQualifiedAt` before atomically replacing the participation collection.
+Multiple uploads between 06:00 UTC and the following 06:00 UTC count as one night.
+Only Heroic/Mythic fights in the tier's character-scoring encounter pool qualify.
+Where appearance fight IDs are available, the actor must appear in a qualifying
+fight; report-only appearances retain the existing report-level fallback.
+
+Two nights with a matching character-guild snapshot qualify. Without that
+corroboration, qualification requires at least three nights spanning seven days
+and participation in at least half of the last six observed guild nights since
+the character first appeared. Qualification earned earlier in a tier is retained;
+later inactivity does not erase history. Among qualified guilds, total raid nights
+take precedence over Mythic nights, then existing report-count and recency ties.
+This is evidence of raid affiliation, not a replacement for actual guild membership.
+
+For rollout, complete the database backup described above and coordinate with
+scheduled workers so an old worker cannot overwrite the new participation fields.
+Using the new build, run
+`characterService.rebuildCharacterRaidParticipations({ reconcileIdentities: false })`
+before directing traffic to the new API. Rows without the new qualification field
+are intentionally excluded, including historical tiers. Then run
+`characterService.buildCharacterLeaderboards()` and rebuild generated character
+tier lists for the tracked raids. The ranking API filters old stored rows before
+counting and pagination; historical WCL leaderboard rebuilds are not required for
+that exclusion. Individual ranking backfills also remove ineligible stored rows.
+No report, character, actual-guild history, or raw ranking needs deletion.
+
+Run the focused database integration test against a disposable MongoDB on
+`127.0.0.1:27138` with
+`node --test -r ts-node/register integration/character-raid-affiliation.test.ts`
+from `backend`. It creates and removes only its process-specific test database.
 
 On Linux, run the isolated operations tests with:
 

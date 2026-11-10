@@ -26,19 +26,25 @@ test("nightly refresh recovers active report imports, honors cooldowns, and stay
     { name: "Hidden", wclProfileHidden: true, nextEligibleRefreshAt: due },
     { name: "Historical", lastMythicSeenAt: new Date(now), nextEligibleRefreshAt: due },
     { name: "HeroicOnly", lastMythicSeenAt: new Date(now), nextEligibleRefreshAt: due },
+    { name: "Guest", lastMythicSeenAt: new Date(now), nextEligibleRefreshAt: due },
     { name: "OtherRaid", lastMythicSeenAt: new Date(now), nextEligibleRefreshAt: due },
   ].map((row, index) => ({ _id: new mongoose.Types.ObjectId(), classID: 8, realm: "tarren-mill", region: "eu", wclCanonicalCharacterId: index + 1, ...row }));
   const participation = characters.map((c) => ({
     characterId: c._id,
     zoneId: c.name === "OtherRaid" ? 46 : 53,
     mythicReportCount: c.name === "HeroicOnly" ? 0 : 3,
+    affiliationQualifiedAt: c.name === "Guest" ? null : new Date(now),
     lastSeenAt: c.name === "Historical" ? new Date(0) : new Date(now),
   }));
   const requestedNames: string[] = [];
   let batches = 0;
   // sift is Mongoose's existing MongoDB-query evaluator; evaluate the actual service
   // filters against fixtures rather than returning characters regardless of eligibility.
-  t.mock.method(CharacterRaidParticipation, "distinct", async (_field: string, filter: any) => participation.filter(sift(filter)).map((p) => p.characterId));
+  t.mock.method(CharacterRaidParticipation, "distinct", async (_field: string, filter: any) => {
+    assert.deepEqual(filter.affiliationQualifiedAt, { $type: "date" });
+    // sift uses the Date constructor for MongoDB's "date" alias.
+    return participation.filter(sift({ ...filter, affiliationQualifiedAt: { $type: Date } })).map((p) => p.characterId);
+  });
   t.mock.method(Raid, "findOne", () => ({ select: () => ({ lean: async () => ({ partitions: [{ id: 1 }] }) }) }) as any);
   t.mock.method(Character, "countDocuments", async (filter: any) => characters.filter(sift(filter)).length);
   t.mock.method(Character, "aggregate", (async (pipeline: any[]) => {
@@ -157,6 +163,7 @@ test("nightly ranking refresh queries all specs for every partition and only rec
     assert.equal((participationFilter as any)?.zoneId, 53);
     assert.deepEqual((participationFilter as any)?.mythicReportCount, { $gt: 0 });
     assert.ok((participationFilter as any)?.lastSeenAt?.$gte instanceof Date);
+    assert.deepEqual((participationFilter as any)?.affiliationQualifiedAt, { $type: "date" });
     assert.match(capturedQuery, /assassinationRankingsPartition1: zoneRankings\([^\n]+partition: 1, specName: "Assassination"\)/);
     assert.match(capturedQuery, /assassinationRankingsPartition2: zoneRankings\([^\n]+partition: 2, specName: "Assassination"\)/);
     assert.match(capturedQuery, /outlawRankingsPartition1: zoneRankings\([^\n]+partition: 1, specName: "Outlaw"\)/);

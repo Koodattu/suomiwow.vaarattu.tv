@@ -556,7 +556,7 @@ function AdminPageContent() {
     } as ScoringConfig,
     streakConfig: {
       enabled: true,
-      minLength: 2,
+      minStreak: 2,
       bonusPerGuild: 3,
     } as StreakConfig,
     prizeConfig: {
@@ -4997,7 +4997,7 @@ function AdminPageContent() {
                     },
                     streakConfig: {
                       enabled: true,
-                      minLength: 2,
+                      minStreak: 2,
                       bonusPerGuild: 3,
                     },
                     prizeConfig: {
@@ -5310,11 +5310,11 @@ function AdminPageContent() {
                           <label className="block text-xs text-gray-400 mb-1">{t("pickems.form.streakMinLength")}</label>
                           <input
                             type="number"
-                            value={pickemForm.streakConfig.minLength}
+                            value={pickemForm.streakConfig.minStreak}
                             onChange={(e) =>
                               setPickemForm({
                                 ...pickemForm,
-                                streakConfig: { ...pickemForm.streakConfig, minLength: parseInt(e.target.value) || 2 },
+                                streakConfig: { ...pickemForm.streakConfig, minStreak: parseInt(e.target.value) || 2 },
                               })
                             }
                             className="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm"

@@ -170,6 +170,8 @@ test("alternative art unlock lookup keeps identical characters scoped to their r
     assert.deepEqual(filter, {
       ownerType: "user",
       ownerId,
+      setId: { $type: "objectId" },
+      characterId: { $type: "objectId" },
       $or: [
         { setId: unlockedSetId, characterId },
         { setId: lockedSetId, characterId },
@@ -265,8 +267,8 @@ test("finish grants update one series entitlement and one shared series finish",
     assert.deepEqual(ownershipOperations[0].updateOne.filter, {
       ownerType: "user",
       ownerId,
-      setId,
-      characterId,
+      setId: { $eq: setId, $type: "objectId" },
+      characterId: { $eq: characterId, $type: "objectId" },
       finish: "foil",
     });
     assert.equal(ownershipOperations[0].updateOne.filter.cardId, undefined);

@@ -83,6 +83,19 @@ class PickemService {
     return Pickem.findOne({ pickemId }).lean();
   }
 
+  /** Pin each existing competition's rule once; closing it later must not change its scoring. */
+  async ensureStreakRules(): Promise<void> {
+    // Use raw collection writes so schema defaults cannot hide unversioned stored configs.
+    await Pickem.collection.updateMany(
+      { "streakConfig.rule": { $exists: false }, finalized: true },
+      { $set: { "streakConfig.rule": "relative-order-v1" } },
+    );
+    await Pickem.collection.updateMany(
+      { "streakConfig.rule": { $exists: false }, finalized: { $ne: true } },
+      { $set: { "streakConfig.rule": "exact-consecutive-v1" } },
+    );
+  }
+
   async ensureCcgRewardDefaults(now = new Date()): Promise<{ rewarded: number; disabled: number }> {
     const missingReward = {
       $or: [
@@ -153,7 +166,7 @@ class PickemService {
       ccgRewardPacks: data.ccgRewardPacks ?? DEFAULT_PICKEM_CCG_REWARD_PACKS,
       active: data.active ?? true,
       scoringConfig: { ...DEFAULT_SCORING_CONFIG, ...data.scoringConfig },
-      streakConfig: { ...DEFAULT_STREAK_CONFIG, ...data.streakConfig },
+      streakConfig: { ...DEFAULT_STREAK_CONFIG, ...data.streakConfig, rule: "exact-consecutive-v1" },
       prizeConfig: { ...DEFAULT_PRIZE_CONFIG, ...data.prizeConfig },
     });
 
@@ -224,6 +237,7 @@ class PickemService {
       pickem.streakConfig = {
         ...pickem.streakConfig,
         ...data.streakConfig,
+        rule: pickem.streakConfig.rule ?? "relative-order-v1",
       };
     }
 

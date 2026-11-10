@@ -20,6 +20,7 @@ const rows: CharacterRaidGuildParticipation[] = [
     reportGuildRealm: "Realm A",
     reportCount: 5,
     mythicReportCount: 1,
+    affiliationQualifiedAt: new Date("2026-01-01T00:00:00Z"),
     lastSeenAt: new Date("2026-06-01T00:00:00.000Z"),
   },
   {
@@ -30,6 +31,7 @@ const rows: CharacterRaidGuildParticipation[] = [
     reportGuildRealm: "Realm B",
     reportCount: 2,
     mythicReportCount: 2,
+    affiliationQualifiedAt: new Date("2026-01-01T00:00:00Z"),
     lastSeenAt: new Date("2026-07-01T00:00:00.000Z"),
   },
   {
@@ -40,9 +42,22 @@ const rows: CharacterRaidGuildParticipation[] = [
     reportGuildRealm: "Realm B",
     reportCount: 9,
     mythicReportCount: 4,
+    affiliationQualifiedAt: new Date("2026-01-01T00:00:00Z"),
     lastSeenAt: new Date("2026-07-01T00:00:00.000Z"),
   },
 ];
+
+test("unqualified guests have no raid guild, including one visit to each of two guilds", () => {
+  const guests = rows.map((row) => ({ ...row, reportCount: 1, mythicReportCount: 1, affiliationQualifiedAt: null }));
+  assert.equal(selectPrimaryCharacterRaidGuilds(guests, 46).size, 0);
+});
+
+test("sustained Heroic attendance wins over a shorter Mythic affiliation", () => {
+  const eligible = rows.filter((row) => row.zoneId === 46).map((row, index) => ({
+    ...row, raidNightCount: index === 0 ? 20 : 3, mythicNightCount: index === 0 ? 0 : 3,
+  }));
+  assert.equal(selectPrimaryCharacterRaidGuilds(eligible, 46).get(CHARACTER_ID)?.name, "Old Guild");
+});
 
 test("selects the guild with the most Mythic reports in the selected raid", () => {
   assert.deepEqual(selectPrimaryCharacterRaidGuilds(rows, 46).get(CHARACTER_ID), {
@@ -68,6 +83,7 @@ test("uses the most recently seen guild to break equal report-count ties", () =>
       reportGuildRealm: "Realm A",
       reportCount: 3,
       mythicReportCount: 3,
+      affiliationQualifiedAt: new Date("2026-01-01T00:00:00Z"),
       lastSeenAt: new Date("2026-06-01T00:00:00.000Z"),
     },
     {
@@ -78,6 +94,7 @@ test("uses the most recently seen guild to break equal report-count ties", () =>
       reportGuildRealm: "Realm B",
       reportCount: 3,
       mythicReportCount: 3,
+      affiliationQualifiedAt: new Date("2026-01-01T00:00:00Z"),
       lastSeenAt: new Date("2026-07-01T00:00:00.000Z"),
     },
   ];
@@ -99,6 +116,7 @@ test("uses total qualifying reports before recency when Mythic counts tie", () =
       reportGuildRealm: "Realm A",
       reportCount: 6,
       mythicReportCount: 2,
+      affiliationQualifiedAt: new Date("2026-01-01T00:00:00Z"),
       lastSeenAt: new Date("2026-06-01T00:00:00.000Z"),
     },
     {
@@ -109,6 +127,7 @@ test("uses total qualifying reports before recency when Mythic counts tie", () =
       reportGuildRealm: "Realm B",
       reportCount: 4,
       mythicReportCount: 2,
+      affiliationQualifiedAt: new Date("2026-01-01T00:00:00Z"),
       lastSeenAt: new Date("2026-07-01T00:00:00.000Z"),
     },
   ];

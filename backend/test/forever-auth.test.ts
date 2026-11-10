@@ -19,11 +19,11 @@ test("Forever mutation routes require Discord login and admin routes reject ordi
   const server = app.listen(0); await new Promise<void>((resolve) => server.once("listening", resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   try {
-    for (const path of ["/proposals", "/characters/507f1f77bcf86cd799439011/refresh"]) {
+    for (const path of ["/proposals", "/guild-proposals", "/characters/507f1f77bcf86cd799439011/refresh"]) {
       const response = await fetch(`${base}/api/forever${path}`, { method: "POST" }); assert.equal(response.status, 401);
     }
-    const adminRoutes = [["GET", ""], ["POST", "/characters"], ["PATCH", "/characters/507f1f77bcf86cd799439011"], ["PATCH", "/characters/507f1f77bcf86cd799439011/twitch"],
-      ["POST", "/characters/507f1f77bcf86cd799439011/refresh"], ["GET", "/guilds/507f1f77bcf86cd799439011"],
+    const adminRoutes = [["POST", "/guilds"], ["PATCH", "/guilds/507f1f77bcf86cd799439011/visibility"], ["GET", ""], ["POST", "/characters"], ["POST", "/characters/bulk"], ["PATCH", "/characters/507f1f77bcf86cd799439011"], ["PATCH", "/characters/507f1f77bcf86cd799439011/twitch"],
+      ["POST", "/characters/507f1f77bcf86cd799439011/refresh"], ["POST", "/characters/507f1f77bcf86cd799439011/refresh-now"], ["GET", "/guilds/507f1f77bcf86cd799439011"],
       ["PATCH", "/guilds/507f1f77bcf86cd799439011"], ["POST", "/guilds/507f1f77bcf86cd799439011/refresh"]];
     for (const [method, path] of adminRoutes) {
       assert.equal((await fetch(`${base}/api/admin/forever${path}`, { method })).status, 401);

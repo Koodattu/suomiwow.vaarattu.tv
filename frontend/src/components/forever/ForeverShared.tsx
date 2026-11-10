@@ -72,7 +72,7 @@ export function ForeverUpdated({ value }: { value?: string | null }) {
 export function ForeverErrorMessage({ error }: { error: unknown }) {
   const t = useTranslations("forever");
   const code = error instanceof ForeverApiError ? error.code : "unavailable";
-  const key = ["invalid_url", "invalid_twitch", "rate_limited", "login_required", "not_found"].includes(code) ? code : "unavailable";
+  const key = ["invalid_url", "invalid_twitch", "rate_limited", "login_required", "not_found", "below_armory_level"].includes(code) ? code : "unavailable";
   return <p role="alert" className="rounded-lg border border-red-800 bg-red-950/40 p-3 text-sm text-red-200">{t(`errors.${key}`)}</p>;
 }
 export function WorkerStatus({ worker, enabled }: { worker: ForeverWorker | null; enabled: boolean }) {
@@ -82,37 +82,34 @@ export function WorkerStatus({ worker, enabled }: { worker: ForeverWorker | null
     {worker?.errorCode && <span className="text-amber-200">{t("retryNotice")} <ForeverDate value={worker.nextRequestAt} /></span>}
   </div>;
 }
-export function UpdateStatus({ worker, enabled }: { worker: ForeverWorker | null; enabled: boolean }) {
-  const t = useTranslations("forever");
-  const now = useNow({ updateInterval: 60_000 });
-  const stale = !worker?.lastTickAt || now.getTime() - Date.parse(worker.lastTickAt) > 120_000;
-  const paused = !enabled || !!worker?.errorCode || stale;
-  return <span className={`${styles.live} ${paused ? styles.paused : ""}`}>
-    {t(!enabled ? "updatesPaused" : worker?.errorCode ? "updatesDelayed" : stale ? "updatesWaiting" : "updatesAutomatic")}
-  </span>;
-}
-
 export function CharacterForm({ admin = false, compact = false, onAdded }: { admin?: boolean; compact?: boolean; onAdded?: () => void }) {
   const t = useTranslations("forever"), { user, login, isLoading } = useAuth();
   const [url, setUrl] = useState(""), [busy, setBusy] = useState(false), [success, setSuccess] = useState(false), [error, setError] = useState<unknown>(null);
   const [twitchChannel, setTwitchChannel] = useState("");
+  const [kind, setKind] = useState<"character" | "guild">("character");
+  const title = admin ? "addTracking" : kind === "guild" ? "proposeGuildTitle" : "proposeTitle";
   const content = <div className={styles.formContents}>
+    <div className={styles.suggestionHeading}>
+      <label htmlFor={admin ? "forever-add-url" : "forever-propose-url"}>{t(title)}</label>
+      <div className={styles.suggestionKinds} role="group" aria-label={t("suggestionType")}>
+        {(["character", "guild"] as const).map((value) => <button key={value} type="button" aria-pressed={kind === value} disabled={busy} onClick={() => { setKind(value); setUrl(""); setSuccess(false); setError(null); }}>{t(value)}</button>)}
+      </div>
+    </div>
     {!user ? <button className={buttonClass} disabled={isLoading} onClick={() => void login("/forever/leveling").catch(setError)}>{t("login")}</button> :
       <form onSubmit={async (event) => {
         event.preventDefault(); setBusy(true); setError(null); setSuccess(false);
-        try { await foreverApi(admin ? "admin/forever/characters" : "forever/proposals", "POST", { url, ...(admin && twitchChannel.trim() ? { twitchChannel } : {}) }); setSuccess(true); setUrl(""); setTwitchChannel(""); onAdded?.(); }
+        try { await foreverApi(admin ? `admin/forever/${kind === "guild" ? "guilds" : "characters"}` : kind === "guild" ? "forever/guild-proposals" : "forever/proposals", "POST", { url, ...(admin && kind === "character" && twitchChannel.trim() ? { twitchChannel } : {}) }); setSuccess(true); setUrl(""); setTwitchChannel(""); onAdded?.(); }
         catch (caught) { setError(caught); } finally { setBusy(false); }
       }}>
-        <label className={compact ? "sr-only" : undefined} htmlFor={admin ? "forever-add-url" : "forever-propose-url"}>{t("armoryUrl")}</label>
         <div className={styles.formFields}>
-          <input id={admin ? "forever-add-url" : "forever-propose-url"} type="url" required maxLength={500} value={url} onChange={(event) => { setUrl(event.target.value); setSuccess(false); }} className={styles.input} placeholder={compact ? t("armoryUrl") : "https://worldofwarcraft.blizzard.com/…"} />
+          <input id={admin ? "forever-add-url" : "forever-propose-url"} type="text" required maxLength={500} value={url} onChange={(event) => { setUrl(event.target.value); setSuccess(false); }} className={styles.input} placeholder={t(kind === "guild" ? "guildInput" : "characterInput")} />
           <button disabled={busy} className={buttonClass}>{t(busy ? "sending" : admin ? "add" : compact ? "send" : "propose")}</button>
         </div>
-        {admin && <div className={styles.optionalTwitch}><label htmlFor="forever-add-twitch">{t("twitchChannel")}</label><input id="forever-add-twitch" className={styles.input} value={twitchChannel} maxLength={100} onChange={(event) => setTwitchChannel(event.target.value)} placeholder="twitch.tv/…" /></div>}
+        {admin && kind === "character" && <div className={styles.optionalTwitch}><label htmlFor="forever-add-twitch">{t("twitchChannel")}</label><input id="forever-add-twitch" className={styles.input} value={twitchChannel} maxLength={100} onChange={(event) => setTwitchChannel(event.target.value)} placeholder="twitch.tv/…" /></div>}
       </form>}
-    {success && <p role="status" className={styles.formSuccess}>{t(admin ? "added" : "proposed")}</p>}
+    {success && <p role="status" className={styles.formSuccess}>{t(admin ? kind === "guild" ? "guildAdded" : "added" : "proposed")}</p>}
     {error != null && <div className="mt-3"><ForeverErrorMessage error={error} /></div>}
     </div>;
-  if (compact) return <section className={styles.compactForm} aria-label={t("proposeTitle")}><h2>{t("proposeTitle")}</h2>{content}</section>;
-  return <details className={styles.form} open><summary>{t(admin ? "addTitle" : "proposeTitle")}</summary>{content}</details>;
+  if (compact) return <section className={styles.compactForm} aria-label={t("proposeTitle")}>{content}</section>;
+  return <details className={styles.form} open={!admin}><summary>{t(admin ? "addTracking" : "proposeTitle")}</summary>{content}</details>;
 }

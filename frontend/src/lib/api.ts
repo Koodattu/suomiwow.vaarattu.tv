@@ -31,7 +31,8 @@ import {
   AnalyticsOverview,
   AnalyticsHourly,
   AnalyticsDaily,
-  AnalyticsEndpoint,
+  AnalyticsEndpointReport,
+  AnalyticsAudience,
   AnalyticsStatusCode,
   AnalyticsRecent,
   AnalyticsRealtime,
@@ -1278,8 +1279,15 @@ export const api = {
     return response.json();
   },
 
-  async getAnalyticsEndpoints(days: number = 7): Promise<AnalyticsEndpoint[]> {
-    const response = await fetch(`${API_URL}/api/analytics/endpoints?days=${days}`, {
+  async getAnalyticsAudience(days: number): Promise<AnalyticsAudience> {
+    const response = await fetch(`${API_URL}/api/analytics/audience?days=${days}`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw new Error("Failed to fetch audience analytics");
+    return response.json();
+  },
+
+  async getAnalyticsEndpoints(days = 7, options: { search?: string; sort?: string; order?: string; page?: number } = {}): Promise<AnalyticsEndpointReport> {
+    const query = new URLSearchParams({ days: String(days), ...Object.fromEntries(Object.entries(options).map(([key, value]) => [key, String(value)])) });
+    const response = await fetch(`${API_URL}/api/analytics/endpoints?${query}`, {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to fetch endpoint analytics");
@@ -1773,7 +1781,7 @@ export const api = {
     return response.json();
   },
 
-  async getAdminAnalyticsEndpoints(days: number = 7): Promise<AnalyticsEndpoint[]> {
+  async getAdminAnalyticsEndpoints(days: number = 7): Promise<AnalyticsEndpointReport> {
     const response = await fetch(`${API_URL}/api/admin/analytics/endpoints?days=${days}`, {
       credentials: "include",
     });

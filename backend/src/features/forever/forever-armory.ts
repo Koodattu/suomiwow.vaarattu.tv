@@ -8,7 +8,10 @@ export interface ForeverProfile extends ForeverIdentity {
   avatarUrl?: string | null;
   ruleset: string; sourceUpdatedAt: Date; guild: (ForeverIdentity & { name: string }) | null;
 }
-export interface ForeverMember extends ForeverIdentity { name: string; level: number; className: string }
+export interface ForeverMember extends ForeverIdentity {
+  name: string; level: number; className: string;
+  race?: string; faction?: string; isOutdated?: boolean;
+}
 export class ArmoryError extends Error {
   constructor(public code: string, public status = 0, public retryAfterMs = 0) { super(code); }
 }
@@ -22,14 +25,22 @@ export function normalizeSlug(value: unknown): string {
   return slug;
 }
 
-export function parseArmoryUrl(value: unknown): ForeverIdentity {
+export function parseArmoryUrl(value: unknown, kind: "character" | "guild" = "character"): ForeverIdentity {
   if (typeof value !== "string" || value.length > 500) throw new ArmoryError("invalid_url", 400);
   try {
     const url = new URL(value.trim());
-    const match = url.pathname.match(/^\/[a-z]{2}-[a-z]{2}\/forever\/(eu|us)\/armory\/character\/([^/]+)\/?$/i);
+    const match = url.pathname.match(new RegExp(`^/[a-z]{2}-[a-z]{2}/forever/(eu|us)/armory/${kind}/([^/]+)/?$`, "i"));
     if (url.origin !== ARMORY_ORIGIN || url.username || url.password || !match) throw new Error();
     return { region: match[1].toLowerCase() as ForeverRegion, slug: normalizeSlug(decodeURIComponent(match[2])) };
   } catch { throw new ArmoryError("invalid_url", 400); }
+}
+
+export function parseArmoryInput(value: unknown, kind: "character" | "guild" = "character"): ForeverIdentity {
+  if (typeof value !== "string" || !value.trim() || value.length > 500) throw new ArmoryError("invalid_url", 400);
+  const input = value.trim().normalize("NFC");
+  if (/^https?:/i.test(input)) return parseArmoryUrl(input, kind);
+  if (kind === "character" && input.split(/\s+/).length < 2) throw new ArmoryError("invalid_url", 400);
+  return { region: "eu", slug: normalizeSlug(input.replace(/\s+/g, "-")) };
 }
 
 export function armoryUrl(identity: ForeverIdentity, kind: "character" | "guild" = "character"): string {
@@ -68,8 +79,12 @@ export function parseCharacterHtml(html: string, expected: ForeverIdentity): For
   try { state = record(JSON.parse(script.slice(script.indexOf("{")).replace(/;\s*$/, ""))); }
   catch { throw new ArmoryError("invalid_data"); }
   const character = record(state.character);
+  // Blizzard percent-encodes accented names in this path, but not in its slug.
+  let characterPath: string;
+  try { characterPath = decodeURIComponent(label(character.url)); }
+  catch { throw new ArmoryError("identity_mismatch"); }
   if (character.region !== expected.region || normalizeSlug(character.slug) !== expected.slug ||
-      character.url !== `/forever/${expected.region}/armory/character/${expected.slug}/`) throw new ArmoryError("identity_mismatch");
+      characterPath !== `/forever/${expected.region}/armory/character/${expected.slug}/`) throw new ArmoryError("identity_mismatch");
   const timestamp = character.lastUpdatedTimestamp?.epoch;
   if (!Number.isSafeInteger(timestamp) || timestamp <= 0 || timestamp > Date.now() + 300_000 || character.isOutdated === true) {
     throw new ArmoryError("stale_data");
@@ -88,7 +103,11 @@ export function parseCharacterHtml(html: string, expected: ForeverIdentity): For
 
 export function parseRosterResponse(value: unknown, expected: ForeverIdentity): ForeverMember[] {
   const response = record(value);
-  if (response.errors?.length) throw new ArmoryError("invalid_data");
+  if (response.errors?.length) {
+    // The website can return HTTP 200 with a failed guild resolver during launch.
+    const internalError = Array.isArray(response.errors) && response.errors.some((error: any) => error?.extensions?.code === "INTERNAL_SERVER_ERROR");
+    throw new ArmoryError(internalError ? "upstream_error" : "invalid_data", internalError ? 500 : 0);
+  }
   const data = record(response.data);
   // Without the Forever Referer Blizzard returns retail data, even for this same query.
   if (data.GameConstants?.maxLevel !== 60 || data.Guild?._id !== `${expected.region}-none-${expected.slug}` ||
@@ -100,7 +119,9 @@ export function parseRosterResponse(value: unknown, expected: ForeverIdentity): 
     const name = label(character.name), surname = label(character.surname);
     const slug = normalizeSlug(`${name}-${surname}`);
     if (character._id !== `${expected.region}-${slug}`) throw new ArmoryError("identity_mismatch");
-    members.set(slug, { region: expected.region, slug, name: `${name} ${surname}`, level: level(character.level), className: label(character.class?.name) });
+    members.set(slug, { region: expected.region, slug, name: `${name} ${surname}`, level: level(character.level),
+      className: label(character.class?.name), race: label(character.race?.name), faction: label(character.faction?.name),
+      isOutdated: character.isOutdated === true });
   }
   return [...members.values()];
 }

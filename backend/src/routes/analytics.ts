@@ -2,6 +2,8 @@ import { Router, Request, Response } from "express";
 import { RequestLog, HourlyStats, DailyStats } from "../models/Analytics";
 import { requireAdmin } from "../middleware/admin.middleware";
 import logger from "../utils/logger";
+import { audienceReport } from "../services/site-analytics.service";
+import { endpointReport } from "../services/endpoint-analytics.service";
 
 const router = Router();
 const DAILY_STATS_BATCH_SIZE = 10;
@@ -374,82 +376,20 @@ router.get("/daily", async (req: Request, res: Response) => {
   }
 });
 
-// Get top endpoints
-router.get("/endpoints", async (req: Request, res: Response) => {
+// Audience visits are independent of API polling and operational traffic.
+router.get("/audience", async (req, res) => {
   try {
-    const days = parseInt(req.query.days as string) || 7;
-    const limit = parseInt(req.query.limit as string) || 100; // Default to 100, allow fetching all
-    const startDate = getStartDate(days);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(await audienceReport(Math.max(1, Math.min(90, Number.parseInt(String(req.query.days), 10) || 7))));
+  } catch (error) {
+    logger.error("Error fetching audience analytics:", error);
+    res.status(500).json({ error: "Failed to fetch audience analytics" });
+  }
+});
 
-    const dailyEndpointStats = await aggregateEndpointsFromDailyStats(startDate, limit);
-
-    if (days > 30 && dailyEndpointStats.length > 0) {
-      const formatted = dailyEndpointStats.map((stat) => ({
-        endpoint: stat.endpoint,
-        count: stat.count,
-        avgResponseTime: stat.count > 0 ? Math.round(stat.totalResponseTime / stat.count) : 0,
-        totalSize: stat.totalSize,
-        formattedSize: formatBytes(stat.totalSize),
-        successRate: stat.count > 0 ? Math.round(((stat.count - stat.errorCount) / stat.count) * 100) : 0,
-        errorCount: stat.errorCount,
-        methods: Array.from(stat.methods),
-        lastCalled: stat.lastCalled,
-      }));
-
-      return res.json(formatted);
-    }
-
-    const endpointStats = await RequestLog.aggregate([
-      { $match: { timestamp: { $gte: startDate } } },
-      {
-        $group: {
-          _id: "$endpoint",
-          count: { $sum: 1 },
-          avgResponseTime: { $avg: "$responseTime" },
-          totalSize: { $sum: "$responseSize" },
-          successCount: {
-            $sum: { $cond: [{ $lt: ["$statusCode", 400] }, 1, 0] },
-          },
-          errorCount: {
-            $sum: { $cond: [{ $gte: ["$statusCode", 400] }, 1, 0] },
-          },
-          methods: { $addToSet: "$method" },
-          lastCalled: { $max: "$timestamp" },
-        },
-      },
-      { $sort: { count: -1 } },
-      { $limit: limit },
-    ]);
-
-    const formatted = endpointStats.map((stat) => ({
-      endpoint: stat._id,
-      count: stat.count,
-      avgResponseTime: Math.round(stat.avgResponseTime),
-      totalSize: stat.totalSize,
-      formattedSize: formatBytes(stat.totalSize),
-      successRate: stat.count > 0 ? Math.round((stat.successCount / stat.count) * 100) : 0,
-      errorCount: stat.errorCount,
-      methods: stat.methods,
-      lastCalled: stat.lastCalled,
-    }));
-
-    if (formatted.length === 0 && dailyEndpointStats.length > 0) {
-      return res.json(
-        dailyEndpointStats.map((stat) => ({
-          endpoint: stat.endpoint,
-          count: stat.count,
-          avgResponseTime: stat.count > 0 ? Math.round(stat.totalResponseTime / stat.count) : 0,
-          totalSize: stat.totalSize,
-          formattedSize: formatBytes(stat.totalSize),
-          successRate: stat.count > 0 ? Math.round(((stat.count - stat.errorCount) / stat.count) * 100) : 0,
-          errorCount: stat.errorCount,
-          methods: Array.from(stat.methods),
-          lastCalled: stat.lastCalled,
-        })),
-      );
-    }
-
-    res.json(formatted);
+router.get("/endpoints", async (req, res) => {
+  try {
+    res.json(await endpointReport(req.query));
   } catch (error) {
     logger.error("Error fetching endpoint analytics:", error);
     res.status(500).json({ error: "Failed to fetch endpoint analytics" });

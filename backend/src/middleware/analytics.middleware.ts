@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { RequestLog, HourlyStats, DailyStats, DailyUniqueVisitor } from "../models/Analytics";
 import logger from "../utils/logger";
+import { isAutomatedAgent } from "../services/site-analytics.service";
 
 // In-memory buffer to batch writes (reduces database load)
 interface LogEntry {
@@ -14,6 +15,8 @@ interface LogEntry {
   userAgent?: string;
   referer?: string;
   timestamp: Date;
+  endpointVersion: number;
+  automated: boolean;
 }
 
 const logBuffer: LogEntry[] = [];
@@ -38,7 +41,7 @@ const sanitizeMapKey = (key: string): string => key.replace(/[.$]/g, "_");
 
 // Normalize endpoint paths to group dynamic parameters
 // e.g., /api/guilds/draenor/some-guild -> /api/guilds/:realm/:name
-const normalizeEndpoint = (path: string): string => {
+export const normalizeEndpoint = (path: string): string => {
   // Remove query strings
   const pathWithoutQuery = path.split("?")[0];
 
@@ -198,6 +201,7 @@ const flushBufferedBatch = async () => {
             totalResponseTime: number;
             totalSize: number;
             errorCount: number;
+            canonicalCount: number;
             methods: Set<string>;
             statusCodes: Map<string, number>;
             lastCalled: Date;
@@ -244,6 +248,7 @@ const flushBufferedBatch = async () => {
           totalResponseTime: 0,
           totalSize: 0,
           errorCount: 0,
+          canonicalCount: 0,
           methods: new Set(),
           statusCodes: new Map(),
           lastCalled: log.timestamp,
@@ -252,6 +257,7 @@ const flushBufferedBatch = async () => {
 
       const endpointData = dayData.endpoints.get(endpointKey)!;
       endpointData.count++;
+      if (log.endpointVersion === 2) endpointData.canonicalCount++;
       endpointData.totalResponseTime += log.responseTime;
       endpointData.totalSize += log.responseSize;
       endpointData.methods.add(log.method);
@@ -322,6 +328,7 @@ const flushBufferedBatch = async () => {
         increment[`${path}.totalResponseTime`] = stats.totalResponseTime;
         increment[`${path}.totalSize`] = stats.totalSize;
         increment[`${path}.errorCount`] = stats.errorCount;
+        increment[`${path}.canonicalCount`] = stats.canonicalCount;
         setFields[`${path}.endpoint`] = stats.endpoint;
         setFields[`${path}.lastCalled`] = stats.lastCalled;
 
@@ -362,15 +369,18 @@ const flushBuffer = (): Promise<void> => {
 };
 
 // Start periodic flush
-setInterval(flushBuffer, FLUSH_INTERVAL);
+setInterval(flushBuffer, FLUSH_INTERVAL).unref();
 
 // Middleware function
 export const analyticsMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const originalPath = req.originalUrl.split("?")[0];
   // Skip tracking for analytics endpoints to avoid recursion
   if (
-    req.path.startsWith("/api/analytics") ||
-    req.path.startsWith("/api/admin/analytics") ||
-    req.path.startsWith("/api/twitch/ccg-overlay")
+    originalPath.startsWith("/api/analytics") ||
+    originalPath.startsWith("/api/admin/analytics") ||
+    originalPath.startsWith("/api/telemetry/") ||
+    originalPath.startsWith("/api/twitch/ccg-overlay") ||
+    originalPath === "/health" || req.method === "OPTIONS"
   ) {
     return next();
   }
@@ -379,27 +389,22 @@ export const analyticsMiddleware = (req: Request, res: Response, next: NextFunct
 
   // Track response size
   let responseSize = 0;
-  const originalSend = res.send;
-  const originalJson = res.json;
-
-  res.send = function (body) {
-    if (body) {
-      responseSize = Buffer.isBuffer(body) ? body.length : Buffer.byteLength(String(body));
-    }
-    return originalSend.call(this, body);
+  const countChunk = (chunk: unknown, encoding?: unknown) => {
+    if (typeof chunk === "string") responseSize += Buffer.byteLength(chunk, typeof encoding === "string" ? encoding as BufferEncoding : "utf8");
+    else if (Buffer.isBuffer(chunk) || chunk instanceof Uint8Array) responseSize += chunk.byteLength;
   };
-
-  res.json = function (body) {
-    if (body) {
-      responseSize = Buffer.byteLength(JSON.stringify(body));
-    }
-    return originalJson.call(this, body);
-  };
+  const originalWrite = res.write, originalEnd = res.end;
+  res.write = function (this: Response, ...args: unknown[]) { countChunk(args[0], args[1]); return Reflect.apply(originalWrite, this, args); };
+  res.end = function (this: Response, ...args: unknown[]) { countChunk(args[0], args[1]); return Reflect.apply(originalEnd, this, args); };
 
   // On response finish, log the request
   res.on("finish", () => {
     const responseTime = Date.now() - startTime;
-    const endpoint = normalizeEndpoint(req.path);
+    // req.path is router-relative here. Keep the mount prefix and use the
+    // registered route template so IDs/names do not create separate buckets.
+    const routePath = typeof req.route?.path === "string" ? req.route.path : null;
+    const endpoint = routePath ? `${req.baseUrl}${routePath}`.replace(/\/$/, "") || "/" :
+      originalPath.startsWith("/icons/") ? "/icons/:file" : res.statusCode === 404 ? "/unmatched" : normalizeEndpoint(originalPath);
 
     const logEntry: LogEntry = {
       endpoint,
@@ -411,6 +416,8 @@ export const analyticsMiddleware = (req: Request, res: Response, next: NextFunct
       userAgent: req.get("user-agent"),
       referer: req.get("referer"),
       timestamp: new Date(),
+      endpointVersion: 2,
+      automated: isAutomatedAgent(req.get("user-agent") || ""),
     };
 
     logBuffer.push(logEntry);

@@ -886,12 +886,32 @@ export interface AnalyticsDaily {
   uniqueVisitors: number;
 }
 
+export interface AnalyticsAudience {
+  since: string;
+  startedAt: string | null;
+  retentionDays: number;
+  pageViews: number;
+  visitors: number;
+  sessions: number;
+  signedInUsers: number;
+  excludedAutomatedViews: number;
+  pages: Array<{ path: string; views: number; visitors: number }>;
+}
+
+export interface AnalyticsEndpointReport {
+  items: AnalyticsEndpoint[];
+  total: number;
+  page: number;
+  pageSize: number;
+  startedAt: string | null;
+}
+
 export interface AnalyticsEndpoint {
+  legacyCount?: number;
   endpoint: string;
   count: number;
   avgResponseTime: number;
   totalSize: number;
-  formattedSize: string;
   successRate: number;
   errorCount: number;
   methods?: string[];
@@ -1579,8 +1599,9 @@ export interface ScoringConfig {
 }
 
 export interface StreakConfig {
+  rule?: "relative-order-v1" | "exact-consecutive-v1";
   enabled: boolean;
-  minLength: number;
+  minStreak: number;
   bonusPerGuild: number;
 }
 

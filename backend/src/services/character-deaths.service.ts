@@ -1,9 +1,10 @@
+import { groupPulls, comparePullDetails, PULL_IDENTITY_PROJECTION, PullIdentity } from "../utils/fight-deduplication";
 import Fight, { IFight } from "../models/Fight";
 import characterService from "./character.service";
 import { createRealmIdentityKey } from "../utils/realm";
 
 type Identity = { characterName: string; characterRealm: string; rankingFightIds: number[] };
-type DeathFight = Pick<IFight, "reportCode" | "fightId" | "duration" | "fightStartTime" | "fightEndTime" | "timestamp" | "isKill" | "deaths" | "combatants" | "deathEventsFetchStatus" | "phaseTransitions" | "combatantInfoRosterComplete" | "combatantInfoFetchStatus">;
+type DeathFight = PullIdentity & Pick<IFight, "reportCode" | "fightId" | "duration" | "fightStartTime" | "fightEndTime" | "timestamp" | "isKill" | "deaths" | "combatants" | "deathEventsFetchStatus" | "phaseTransitions" | "combatantInfoRosterComplete" | "combatantInfoFetchStatus">;
 const actorKey = (name: string, realm: string) => `${name.trim().toLocaleLowerCase("en-US")}:${createRealmIdentityKey(realm)}`;
 
 const SORT_FIELDS = ["date", "isKill", "deathTime", "deathPercent", "duration", "order", "phase"] as const;
@@ -44,11 +45,17 @@ export function summarizeCharacterDeaths(fights: DeathFight[], appearances: Map<
     otherDeathTimes: number[];
     phases: Array<{ time: number; name: string }>;
   }> = [];
-  const seen = new Set<string>();
-  for (const fight of fights) {
-    const fightKey = `${fight.reportCode}:${fight.fightId}`;
-    if (seen.has(fightKey)) continue;
-    seen.add(fightKey);
+  for (const group of groupPulls(fights)) {
+    const valid = group.filter(fight => Number.isFinite(fight.fightEndTime - fight.fightStartTime) && fight.fightEndTime > fight.fightStartTime);
+    if (!valid.length) continue;
+    const fight = valid.sort(comparePullDetails).find(copy => {
+      const identities = appearances.get(copy.reportCode) ?? [];
+      const keys = new Set(identities.map(identity => actorKey(identity.characterName, identity.characterRealm)));
+      const matches = (actor: { name: string; server: string }) => keys.has(actorKey(actor.name, actor.server));
+      return copy.combatants?.some(matches) || copy.deaths?.some(death => matches(death) && Number.isFinite(death.deathTime) && death.deathTime >= 0 && death.deathTime <= copy.fightEndTime - copy.fightStartTime) ||
+        identities.some(identity => identity.rankingFightIds.includes(copy.fightId));
+    });
+    if (!fight) { unconfirmedPulls++; continue; }
     const identities = appearances.get(fight.reportCode) ?? [];
     const keys = new Set(identities.map((identity) => actorKey(identity.characterName, identity.characterRealm)));
     const matches = (actor: { name: string; server: string }) => keys.has(actorKey(actor.name, actor.server));
@@ -56,11 +63,6 @@ export function summarizeCharacterDeaths(fights: DeathFight[], appearances: Map<
     if (duration <= 0 || !Number.isFinite(duration)) continue;
     const deaths = (fight.deaths ?? []).filter((death) => Number.isFinite(death.deathTime) && death.deathTime >= 0 && death.deathTime <= duration).sort((a, b) => a.deathTime - b.deathTime);
     const characterDeaths = deaths.filter(matches);
-    // A report appearance alone does not prove participation in every pull.
-    if (!(fight.combatants ?? []).some(matches) && !characterDeaths.length && !identities.some((identity) => identity.rankingFightIds.includes(fight.fightId))) {
-      unconfirmedPulls++;
-      continue;
-    }
     pulls++;
     const rosterComplete = fight.combatantInfoRosterComplete === true || (fight.combatantInfoRosterComplete === undefined && fight.combatantInfoFetchStatus === "fetched" && !!fight.combatants?.length);
     const roster = new Set((fight.combatants ?? []).map((actor) => actorKey(actor.name, actor.server)));
@@ -152,7 +154,7 @@ export async function getCharacterDeaths(input: { realm: string; name: string; c
       reportCode: { $in: reportCodes.slice(offset, offset + 200) },
       zoneId: input.zoneId, encounterID: input.encounterId, difficulty: input.difficulty,
       ...(input.outcome === "all" ? {} : { isKill: input.outcome === "kills" }),
-    }).select("reportCode fightId duration fightStartTime fightEndTime timestamp isKill deaths combatants deathEventsFetchStatus phaseTransitions combatantInfoRosterComplete combatantInfoFetchStatus").lean();
+    }).select(`${PULL_IDENTITY_PROJECTION} fightEndTime deaths deathEventsFetchStatus phaseTransitions combatantInfoFetchStatus`).lean();
     fights.push(...batch);
   }
   return summarizeCharacterDeaths(fights, appearances, input.page, input.eventOptions);

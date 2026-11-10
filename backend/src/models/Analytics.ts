@@ -10,6 +10,8 @@ export interface IRequestLog extends Document {
   visitorHash?: string;
   userAgent?: string;
   referer?: string;
+  endpointVersion?: number;
+  automated?: boolean;
   timestamp: Date;
 }
 
@@ -24,6 +26,8 @@ const RequestLogSchema: Schema = new Schema(
     userAgent: { type: String },
     referer: { type: String },
     timestamp: { type: Date, required: true, default: Date.now },
+    endpointVersion: Number,
+    automated: Boolean,
   },
   {
     timestamps: false,
@@ -61,6 +65,7 @@ interface EndpointStats {
   totalResponseTime: number;
   totalSize: number;
   errorCount: number;
+  canonicalCount: number;
   methods: string[];
   lastCalled?: Date;
   lastErrorAt?: Date;
@@ -74,6 +79,7 @@ const EndpointStatsSchema = new Schema(
     totalResponseTime: { type: Number, default: 0 },
     totalSize: { type: Number, default: 0 },
     errorCount: { type: Number, default: 0 },
+    canonicalCount: { type: Number, default: 0 },
     methods: [{ type: String }],
     lastCalled: { type: Date },
     lastErrorAt: { type: Date },

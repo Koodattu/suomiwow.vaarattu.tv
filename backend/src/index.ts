@@ -22,6 +22,7 @@ import eventsRouter from "./routes/events";
 import raidsRouter from "./routes/raids";
 import tierlistsRouter from "./routes/tierlists";
 import analyticsRouter from "./routes/analytics";
+import { frontendApiRouter } from "./routes/frontend-api";
 import raidAnalyticsRouter from "./routes/raid-analytics";
 import avoidableDamageRouter from "./routes/avoidable-damage";
 import adminAvoidableDamageRouter from "./routes/admin-avoidable-damage";
@@ -49,6 +50,8 @@ import backgroundGuildProcessor from "./services/background-guild-processor.serv
 import fullHistoryRefreshService from "./services/full-history-refresh.service";
 import taskTracker from "./services/task-tracker.service";
 import { analyticsMiddleware, flushAnalytics } from "./middleware/analytics.middleware";
+import telemetryRouter from "./routes/telemetry";
+import { initializeSiteAnalytics } from "./services/site-analytics.service";
 import cacheService from "./services/cache.service";
 import cacheWarmerService from "./services/cache-warmer.service";
 import avoidableDamageService from "./services/avoidable-damage.service";
@@ -68,6 +71,7 @@ import reporterScheduler from "./features/reporter/reporter-scheduler.service";
 import { foreverRouter, foreverAdminRouter } from "./features/forever/forever.routes";
 import foreverWorker, { initializeForever } from "./features/forever/forever.worker";
 import foreverTwitchWorker from "./features/forever/forever-twitch";
+import { startForeverLeaderboard, stopForeverLeaderboard } from "./features/forever/forever-leaderboard";
 
 // ============================================================================
 // WORKER MODE CONFIGURATION
@@ -205,6 +209,7 @@ app.use("/icons", express.static(bundledIconsDir));
 // ============================================================================
 // ROUTES
 // ============================================================================
+app.use("/api", frontendApiRouter());
 app.use("/api/guilds", guildsRouter);
 app.use("/api/forever", foreverRouter);
 app.use("/api/admin/forever", foreverAdminRouter);
@@ -214,6 +219,7 @@ app.use("/api/events", eventsRouter);
 app.use("/api/raids", raidsRouter);
 app.use("/api/tierlists", tierlistsRouter);
 app.use("/api/analytics", analyticsRouter);
+app.use("/api/telemetry", telemetryRouter);
 app.use("/api/raid-analytics", raidAnalyticsRouter);
 app.use("/api/avoidable-damage", avoidableDamageRouter);
 app.use("/api/admin/avoidable-damage", adminAvoidableDamageRouter);
@@ -573,8 +579,13 @@ const startServer = async () => {
     // Connect to MongoDB - required by all modes
     setStartupTask("Connect to MongoDB");
     await connectDB();
+    await initializeSiteAnalytics();
     await initializeForever();
     completeStartupTask("Connect to MongoDB");
+
+    setStartupTask("Initialize Pickem streak rules");
+    await pickemService.ensureStreakRules();
+    completeStartupTask("Initialize Pickem streak rules");
 
     setStartupTask("Initialize Pickem CCG rewards");
     await pickemService.ensureCcgRewardDefaults();
@@ -623,6 +634,7 @@ const startServer = async () => {
     }
 
     if (isApiProcess) {
+      startForeverLeaderboard();
       httpServers.push(app.listen(PORT, () => {
         logger.info(`[Startup] Server running on port ${PORT}`);
         logger.info(`[Startup] API available at http://localhost:${PORT}/api`);
@@ -705,6 +717,7 @@ async function shutdown(): Promise<void> {
   shuttingDown = true;
   ingestionLeases.beginShutdown();
   for (const server of httpServers) server.close();
+  await stopForeverLeaderboard();
   logger.info("Shutting down; draining active ingestion...");
   if (isWorkerProcess) {
     await Promise.all([foreverWorker.stop(), foreverTwitchWorker.stop()]);
