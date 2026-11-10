@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { createCommunityPreview, communityPreviewReducer as reduce, PREVIEW_GIFTS, PREVIEW_FIGURES, previewRankings } from "../src/lib/figurine-community-preview.ts";
+import { registerHooks } from "node:module";
+registerHooks({ resolve(specifier, context, next) {
+  return next(specifier.startsWith("@/") ? new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href : specifier, context);
+} });
+const { createCommunityPreview, communityPreviewReducer: reduce, PREVIEW_GIFTS, PREVIEW_FIGURES, PREVIEW_ROSTER, PREVIEW_FEED, PREVIEW_HONOURS, PREVIEW_COLLECTORS, PREVIEW_ANGLERS, previewRankings } = await import("../src/lib/figurine-community-preview.ts");
 
 test("sample gifts claim once, validate recipients, and cannot send an exhausted figure", () => {
   let state = createCommunityPreview();
@@ -30,11 +34,23 @@ test("reactions toggle and each ranking sorts by the selected metric", () => {
   assert.equal(previewRankings("unique")[0].name, "Lumi");
   assert.equal(previewRankings("galaxy")[0].name, "Naava");
 });
+test("the sample town is big enough to scroll: twenty finds, thirty honours, and standings past a hundred", () => {
+  assert.equal(PREVIEW_FEED.length, 20);
+  assert.ok(PREVIEW_FEED.every((find, index) => find.item.quality !== "standard" && (index === 0 || find.minutes > PREVIEW_FEED[index - 1].minutes)), "only golden and galaxy finds, newest first");
+  assert.equal(PREVIEW_HONOURS.length, 30);
+  assert.equal(new Set(PREVIEW_HONOURS.map(honour => honour.id)).size, 30);
+  assert.ok(PREVIEW_HONOURS.some(honour => !honour.collector) && PREVIEW_HONOURS.every(honour => !!honour.collector === !!honour.date));
+  assert.ok(PREVIEW_COLLECTORS.length > 100);
+  assert.equal(new Set(PREVIEW_COLLECTORS.map(collector => collector.name)).size, PREVIEW_COLLECTORS.length, "names tell collectors apart");
+  assert.ok(PREVIEW_ANGLERS.every((angler, index) => angler.catches.length === 10 && angler.score === angler.catches.reduce((sum, entry) => sum + entry.score, 0) && (index === 0 || PREVIEW_ANGLERS[index - 1].score >= angler.score)));
+});
 test("all sample portraits exist and English and Finnish overlay messages have matching keys", async () => {
   const catalogs = await Promise.all(["community-001", "community-002"].map(async id => JSON.parse(await readFile(new URL(`../src/data/figurines/${id}.json`, import.meta.url)))));
   const keys = catalogs.flatMap(catalog => catalog.characters.map(character => `${catalog.id}:${character.id}`));
   for (const item of PREVIEW_FIGURES) assert.ok(keys.includes(item.key), item.key);
+  assert.deepEqual([...PREVIEW_ROSTER].sort(), [...keys].sort(), "the roster is every released figure");
   const messages = await Promise.all(["en", "fi"].map(async locale => JSON.parse(await readFile(new URL(`../messages/${locale}.json`, import.meta.url)))));
   const flatten = (object, path = "") => Object.entries(object).flatMap(([key, value]) => typeof value === "string" ? [path + key] : flatten(value, `${path}${key}.`)).sort();
   assert.deepEqual(flatten(messages[0].figurineLab.world.overlays), flatten(messages[1].figurineLab.world.overlays));
+  for (const honour of PREVIEW_HONOURS) assert.ok(messages[0].figurineLab.world.overlays.fame.items[honour.id], `${honour.id} has a title`);
 });

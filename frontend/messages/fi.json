@@ -67,6 +67,65 @@
     "history": "Tasohistoria",
     "historyNote": "Havaitut tasot, eivät tarkat saavutusajat.",
     "adminTitle": "Forever-seuranta",
+<<<<<<< Updated upstream
+=======
+    "admin": {
+      "hidden": "Piilotettu",
+      "hideGuild": "Piilota kilta",
+      "restoreGuild": "Palauta kilta",
+      "guildVisibilityNote": "Piilottaa killan kautta lisätyt jäsenet ja keskeyttää niiden päivitykset. Erikseen vahvistetut hahmot pysyvät näkyvissä ja seurannassa. Historia säilyy.",
+      "guildHiddenNote": "Killan kautta lisätyt hahmot on piilotettu. Erikseen vahvistettujen hahmojen seuranta jatkuu. Palautus jatkaa killan päivityksiä.",
+      "sections": "Forever-hallinta",
+      "reload": "Lataa tiedot uudelleen",
+      "searchCharacters": "Hae hahmoja",
+      "searchHint": "Nimi, kilta tai Twitch-kanava",
+      "searchGuilds": "Hae kiltaa",
+      "searchRoster": "Hae jäsentä",
+      "fetchStatus": "Armoryn tila",
+      "health": {
+        "all": "Kaikki päivitykset",
+        "errors": "Hakuvirheet",
+        "unfetched": "Ei vielä haettu"
+      },
+      "bulkActions": "Valittujen hahmojen toiminnot",
+      "selected": "{count} valittu",
+      "selectPage": "Valitse tämän sivun hahmot",
+      "selectCharacter": "Valitse {name}",
+      "clearSelection": "Tyhjennä valinta",
+      "retrySelected": "Yritä valittuja uudelleen",
+      "refreshing": "Päivitetään…",
+      "refreshPending": "Päivitystä odotetaan",
+      "refreshNow": "Päivitä heti",
+      "refreshStates": {
+        "refreshed": "Hahmo päivitetty.",
+        "failed": "Haku Blizzardilta epäonnistui. Hahmon seuranta jatkuu.",
+        "prioritized": "Jonon kärjessä. Odotetaan nykyisen haun valmistumista tai Blizzardin odotusajan päättymistä."
+      },
+      "retryNow": "Uusi yritys jonoon",
+      "retryIn": "Uusi yritys {count} min kuluttua",
+      "retryAvailable": "Uusi yritys mahdollinen {date}",
+      "retryHelp": "Manuaalinen uusintayritys on mahdollinen viisi minuuttia edellisen yrityksen jälkeen. Blizzardin pyyntörajoituksia noudatetaan silti.",
+      "result": "Päivitetty tai jonossa: {count}. Ennallaan tai ei käsiteltävissä: {skipped}.",
+      "saved": "Tallennettu.",
+      "results": "{count} tulosta",
+      "attempts": "{count} epäonnistunutta yritystä",
+      "members": "Jäseniä",
+      "rosterNotLoaded": "Jäsenlistaa ei ole haettu",
+      "lastAttempt": "Viimeisin yritys",
+      "untracked": "Ei seurannassa",
+      "noGuildMatches": "Tässä näkymässä ei ole kiltoja.",
+      "noRosterMatches": "Ei hakua vastaavia jäseniä.",
+      "rosterUnavailable": "Jäsenlistaa ei voitu hakea. Tältä listalta ei ole tuotu jäseniä seurantaan.",
+      "fetchErrors": {
+        "upstream_error": "Blizzard palautti virheen",
+        "not_found": "Armoryprofiilia ei löytynyt",
+        "unavailable": "Armoryyn ei saatu yhteyttä",
+        "invalid_data": "Armoryn vastausta ei voitu lukea",
+        "identity_mismatch": "Armoryn tunnistetiedot eivät täsmänneet",
+        "stale_data": "Armoryn tiedot ovat vanhentuneet"
+      }
+    },
+>>>>>>> Stashed changes
     "viewLeaderboard": "Avaa tasoseuranta",
     "characters": "Hahmot ja ehdotukset",
     "status": "Tila",
@@ -283,17 +342,11 @@
       "collection": {
         "owned": "{got}/{total} kerätty",
         "locked": "Ei vielä kerätty",
-        "acquired": "Saatu {date}",
         "inspect": "Katso jalustalla",
-        "upcoming": "Sarja {number} · tulossa",
         "secret": "Salainen sarja",
         "search": "Hae hahmojasi",
-        "ownedOnly": "Vain omat",
         "favorites": "Suosikit",
         "onDisplay": "{count}/{total} esillä",
-        "favoritesHint": "Merkitse hahmo tähdellä suosikiksi. 16 ensimmäistä suosikkia seisovat vitriinissä ja ympäri maailmaa.",
-        "dragHint": "Raahaa järjestykseen: järjestys on vitriinin, 1–16.",
-        "notOnDisplay": "16:n jälkeiset suosikit odottavat vitriinin ulkopuolella",
         "star": "Lisää {name} suosikkeihin",
         "unstar": "Poista {name} suosikeista",
         "displayed": "Esillä · #{number}",
@@ -302,7 +355,12 @@
         "moveEarlier": "← Aiemmaksi",
         "moveLater": "Myöhemmäksi →",
         "finish": "Näytetään",
-        "spares": "{count, plural, one {# ylimääräinen kappale} other {# ylimääräistä kappaletta}} kierrättimelle tai ahjolle"
+        "filters": {
+          "all": "Kaikki",
+          "owned": "Omistetut",
+          "missing": "Puuttuvat"
+        },
+        "upcomingCount": "{count, plural, one {# sarja lisää tulossa} other {# sarjaa lisää tulossa}}"
       },
       "picker": {
         "recycler": "Valitse kolme ylimääräistä",
@@ -324,8 +382,8 @@
         "reward": "+{count, plural, one {# kolikko} other {# kolikkoa}}",
         "collect": "Kerää",
         "dismissReward": "Kerää napauttamalla ruutua",
-        "dailyBonus": "Mukana päivän +1 lisäkolikko.",
-        "weeklyBonus": "Mukana päivän +1 lisäkolikko ja seitsemän päivän +5 kolikon bonus.",
+        "dailyBonus": "Päiväputki +1",
+        "weeklyBonus": "7. päivän putki +6",
         "claimed": "Täyttyy",
         "comeBack": "Valmis {hours} t {minutes} min kuluttua",
         "controls": "Aarrearkun toiminnot",
@@ -415,7 +473,6 @@
       "overlays": {
         "preview": "Esimerkkiyhteisö · Kokeile tässä. Nollautuu sivun päivityksessä.",
         "all": "Kaikki viimeistelyt",
-        "cancel": "Peruuta",
         "wheel": {
           "used": "Pyöräytetty tänään"
         },
@@ -427,7 +484,6 @@
           "to": "Vastaanottaja: {name}",
           "claim": "Avaa lahja",
           "claimed": "Avattu",
-          "claimedNotice": "Lahja lisättiin esimerkkikokoelmaasi.",
           "recipientPlaceholder": "Keräilijän nimi",
           "sendAction": "Lähetä esimerkkilahja",
           "sentNotice": "Esimerkkilahja valmisteltiin vastaanottajalle {name}. Oikeaa viestiä ei lähetetty.",
@@ -437,35 +493,75 @@
           }
         },
         "feed": {
-          "all": "Yhteisö",
+          "all": "Kylän uusimmat",
           "mine": "Omat löydöt",
           "minutes": "{count} min sitten",
-          "cheer": "Kannusta"
+          "cheer": "Kannusta",
+          "hours": "{count} h sitten"
         },
         "fame": {
-          "waiting": "Paikka odottaa"
+          "waiting": "Vapaana",
+          "groups": {
+            "collecting": "Keräily",
+            "fishing": "Kalastus",
+            "crafting": "Valmistus",
+            "trading": "Kauppa ja lahjat",
+            "daily": "Päivittäiset"
+          },
+          "items": {
+            "firstGolden": "Ensimmäinen kultainen figuuri",
+            "galaxy": "Ensimmäinen galaksifiguuri",
+            "complete": "Ensimmäinen täysi sarja",
+            "goldenSeries": "Ensimmäinen täysin kultainen sarja",
+            "galaxySeries": "Ensimmäinen täysi galaksisarja",
+            "secret": "Ensimmäinen sarjan 000 löytäjä",
+            "allSeries": "Ensimmäinen, jolla on kaikki sarjat",
+            "hundred": "Ensimmäisenä 100 figuuria",
+            "thousandBoxes": "Ensimmäisenä 1 000 avattua laatikkoa",
+            "tripleGalaxy": "Ensimmäiset kolme galaksikappaletta samasta figuurista",
+            "firstEpic": "Ensimmäinen eeppinen kala",
+            "goldenFish": "Ensimmäinen kultainen kala",
+            "galaxyFish": "Ensimmäinen galaksikala",
+            "fullLog": "Ensimmäinen täysi kalakirja",
+            "heaviest": "Kaikkien aikojen painavin kala",
+            "goldenBoot": "Ensimmäinen kultainen saapas",
+            "angler1000": "Ensimmäisenä 1 000 kalastuspistettä",
+            "firstForge": "Ensimmäinen takomossa jalostettu",
+            "forgeGalaxy": "Ensimmäinen taottu galaksi",
+            "recycle100": "Ensimmäisenä 100 kierrätystä",
+            "forge50": "Ensimmäisenä 50 taontaa",
+            "firstTrade": "Ensimmäinen pelaajien välinen vaihto",
+            "trades100": "Ensimmäisenä 100 vaihtoa",
+            "firstGift": "Ensimmäinen lähetetty lahja",
+            "gifts50": "Ensimmäisenä 50 lähetettyä lahjaa",
+            "streak7": "Ensimmäinen seitsemän päivän putki",
+            "streak30": "Ensimmäinen kolmenkymmenen päivän putki",
+            "wheelGalaxy": "Ensimmäinen galaksitehoste onnenpyörästä",
+            "quests100": "Ensimmäisenä 100 lunastettua tehtävää",
+            "cheers100": "Ensimmäisenä 100 kellonsoittoa"
+          }
         },
         "ranks": {
-          "you": "Sinä"
+          "you": "Sinä",
+          "of": "/ {total}"
         },
         "market": {
           "history": "Tehdyt kaupat",
           "refresh": "Vaihda tarjoukset",
-          "refreshed": "Kolme uutta tarjousta on valmiina.",
-          "all": "Kaikki tarjoukset",
-          "buy": "Osta hahmoja",
-          "sell": "Myy hahmoja",
+          "all": "Kaikki",
+          "buy": "Osta",
+          "sell": "Myy",
           "receive": "Saat",
           "give": "Annat",
           "completed": "Tehty",
-          "confirmAction": "Vahvista kauppa",
-          "success": "Kauppa tehty. Kolikkosi ja kokoelmasi on päivitetty.",
-          "unavailable": "Tarjous ei ole enää saatavilla tai sinulla ei enää ole tarvittavia kolikoita tai hahmoa.",
-          "review": "Tarkista kauppa",
+          "confirmAction": "Hyväksy",
           "missingCoins": "Ei tarpeeksi kolikoita",
           "missingFigure": "Et omista hahmoa",
           "empty": "Täällä ei ole vielä tarjouksia.",
-          "pick": "Valitse vaihdettava tarjous"
+          "pick": "Valitse tarjous",
+          "swap": "Vaihda",
+          "trade": "Tee kauppa",
+          "cancel": "Hylkää"
         },
         "workshop": {
           "remove": "Poista {name}",
@@ -519,17 +615,16 @@
         "rankings": "Tulokset",
         "board": "Kalastajien taulu",
         "closeBoard": "Sulje kalastajien taulu",
-        "boardIntro": "Jokainen kala tuo pisteitä. Kymmenen parasta saalistasi muodostavat pisteesi.",
         "standings": "Sijoitukset",
         "you": "Sinä",
-        "standingsSoon": "Killan tulostaulut tulevat Discord-kirjautumisen myötä.",
         "bestTen": "Parhaat saaliisi · {count}/{total}",
         "boardEmpty": "Taulu on vielä tyhjä. Nappaa kala saadaksesi pisteitä.",
         "points": "{points} p",
         "gain": "+{points} p",
-        "scoring": "Pisteytys",
         "scoringSize": "× koko lajissaan, 1–2",
-        "scoringFinish": "× kulta {golden}, galaksi {galaxy}"
+        "scoringFinish": "× kulta {golden}, galaksi {galaxy}",
+        "of": "/ {total}",
+        "bestOf": "Parhaat saaliit: {name}"
       },
       "rewards": {
         "boost": "{quality}-tehostus",
@@ -550,7 +645,8 @@
         "deals": "{count, plural, =0 {Loppuunmyyty} one {# tarjous jäljellä} other {# tarjousta jäljellä}}",
         "finds": "{count, plural, =0 {Ei vielä omia löytöjä} one {# oma löytö} other {# omaa löytöä}}",
         "firsts": "{done}/{total} saavutettu",
-        "figures": "{count, plural, one {Sinulla # hahmo} other {Sinulla # hahmoa}}"
+        "figures": "{count, plural, one {Sinulla # hahmo} other {Sinulla # hahmoa}}",
+        "open": "Avaa"
       }
     },
     "tradedUp": "Paranneltu!",

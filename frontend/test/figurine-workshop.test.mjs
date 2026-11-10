@@ -15,7 +15,7 @@ test("a machine run locks both control surfaces until its animation completes", 
     const state = vm.createContext({ MACHINE_SLOTS, spare, collection, slots, outcomes: { [kind]: outcome },
       machineLocks: { current: new Set() }, running: { [kind]: false }, machineRuns: { [kind]: { run: 0 } }, changes: [],
       unlockFigurineAudio() {}, recordPull() {}, recordRecycle() {}, grantReward(reward) { state.coins = (state.coins ?? 0) + reward.coins; },
-      dismissRecycledCoin() { state.dismissed = true; }, setRecycledCoin() {},
+      presentCoins() { state.presented = true; }, holdCoins(coins) { state.held = (state.held ?? 0) + coins; }, releaseCoins(coins) { state.held -= coins; }, t: (key) => key,
       machineChanges, changeCollection(changes) { state.changes.push(changes); return true; },
       loadSlots(machine, next) { slots[machine] = next; },
       setRunningMachines(update) { state.running = update(state.running); },
@@ -34,8 +34,9 @@ test("a machine run locks both control surfaces until its animation completes", 
     state.operateMachine(kind, { kind: "slot", index: 0 });
     assert.equal(state.changes.length, 1, "rapid clicks cannot consume a second recipe");
     assert.equal(slots[kind].length, 0, "running machines cannot be reloaded");
-    state.machineDone(kind);
-    assert.equal(state.dismissed, kind === "recycler" ? true : undefined, "a coin earned while away still reaches the wallet");
+    state.machineDone(kind, null);
+    assert.equal(state.presented, undefined, "a coin earned while away is already in the wallet, with nothing to show");
+    assert.equal(state.held, kind === "recycler" ? 0 : undefined, "and the wallet stops holding it back");
     assert.equal(state.running[kind], false);
     assert.equal(state.machineLocks.current.size, 0);
     state.pickCard(kind, item);

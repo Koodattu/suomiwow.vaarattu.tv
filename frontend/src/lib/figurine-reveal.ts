@@ -10,7 +10,10 @@ const pulse = (time: number, at: number, length: number) => time < at || time >=
 
 export type FigurineCue = "tap" | "peel" | "stick" | "ready" | "rattle" | "rip" | "music" | "knock" | "riser" | "hum"
   | "burst" | "hit" | "boom" | "whoosh" | "choir" | "rise" | "sparkle" | "land" | "signature" | "fanfare" | "quip" | "drop"
-  | "chestOpen" | "chestLift" | "chestReward" | "bell";
+  | "chestOpen" | "chestLift" | "chestReward" | "bell"
+  // The world outside a box opening: coins, the wheel, the pond, the workshop and the panels.
+  | "coin" | "coins" | "coinsFew" | "swish" | "clack" | "winSmall" | "winBig" | "winBoost" | "splash" | "splashBig" | "nibble" | "bite" | "reel" | "cast" | "escape" | "flop"
+  | "questDone" | "stamp" | "open" | "close" | "trade" | "gift" | "paper" | "anvil" | "furnace" | "crunch" | "star" | "unstar" | "place" | "pick" | "deny" | "blip" | "fill";
 export type TimedCue = { at: number; cue: FigurineCue };
 // Cues whose time falls in (previous, current]; start each clock at -1 so cues at zero fire.
 export const cuesBetween = (cues: readonly TimedCue[], previous: number, current: number) => cues.filter(({ at }) => at > previous && at <= current);

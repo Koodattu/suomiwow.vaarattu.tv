@@ -1,0 +1,39 @@
+/* The workbench: the recipe on top, the tray of figures under it, in one column beside the machine. */
+.workshop { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+.bench { flex: none; display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), #05090f80; }
+.recipe { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 24px minmax(0, 1.18fr); align-items: center; gap: 8px; }
+.slot { position: relative; min-width: 0; aspect-ratio: 7 / 9; padding: 3px; display: grid; place-items: center; border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 12px; background: #05090fb3; box-shadow: inset 0 2px 8px #000a; color: color-mix(in srgb, var(--accent) 55%, transparent); cursor: pointer; }
+.slot > svg { width: 22px; height: 22px; }
+.slot[data-filled="true"] { border-style: solid; border-color: var(--accent); animation: seat .22s cubic-bezier(.3, 1.6, .5, 1); }
+.slot[data-quality="golden"] { border-color: #e6c67c; }
+.slot[data-quality="galaxy"] { border-color: #ad8ce4; }
+@keyframes seat { from { scale: 1.14; } }
+.arrow { width: 24px; height: 24px; color: var(--accent); }
+.result { display: grid; place-items: center; min-width: 0; aspect-ratio: 7 / 9; padding: 3px; border: 2px solid var(--accent); border-radius: 14px; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent), #05090fb3 72%); color: var(--accent); }
+.result > svg { width: 38px; height: 38px; opacity: .5; }
+.result[data-quality="golden"] { border-color: #ffd77a; }
+.result[data-quality="galaxy"] { border-color: #b79cff; }
+.bench[data-ready] .result { animation: ready 1.1s ease-in-out infinite alternate; }
+@keyframes ready { from { box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); } to { box-shadow: 0 0 34px color-mix(in srgb, var(--accent) 75%, transparent); } }
+.detail { display: flex; flex-direction: column; gap: 3px; text-align: center; }
+.detail b { font: 400 18px/1.25 Georgia, serif; color: #fff0d0; }
+.detail small { font-size: 12px; line-height: 1.4; color: #b4b8b2; }
+.actions { display: grid; grid-template-columns: minmax(0, 1fr) 54px; gap: 8px; }
+.actions > button { min-height: 54px; }
+.actions > button:first-child { font-size: 18px; }
+.actions > button:last-child { padding: 0; }
+.bench[data-ready] .actions > button:first-child { box-shadow: 0 0 26px #ffcf7a80, inset 0 1px 0 #fff8; }
+
+.tray { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.trayGrid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); align-content: start; gap: 8px; padding: 2px 4px 2px 2px; }
+.trayFigure { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 6px 5px 7px; border: 1px solid #ffffff1f; border-radius: 12px; background: linear-gradient(180deg, #ffffff0f, #ffffff04); color: #f3e4c7; cursor: pointer; transition: translate .12s, border-color .12s; }
+.trayFigure b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 13px Georgia, serif; }
+.trayFigure:disabled { opacity: .38; }
+.trayFigure:not(:disabled):hover { translate: 0 -2px; border-color: var(--accent); }
+.trayFigure:not(:disabled):active { translate: 0 1px; }
+.trayFigure[data-quality="golden"] { border-color: #c9a35e; }
+.trayFigure[data-quality="galaxy"] { border-color: #7d5ad8; }
+
+@media (max-height: 760px) and (min-width: 701px) { .bench { padding: 10px; gap: 8px; } .recipe { padding: 0 34px; } .detail small { display: none; } .actions > button { min-height: 46px; } }
+@media (max-width: 700px) { .recipe { padding: 0 6px; } .trayGrid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { .slot[data-filled="true"], .bench[data-ready] .result { animation: none; } .trayFigure { transition: none; } }

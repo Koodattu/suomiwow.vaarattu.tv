@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { ANGLER_TOP, FISH, FINISH_TIMES, RARITY_POINTS, anglerScore, fishOf, fishRarity, type FigurineRecords, type FigurineQuality } from "@/lib/figurine-collection";
 import { findFigure } from "@/lib/figurine-series";
+import { PREVIEW_ANGLERS, type PreviewCatch } from "@/lib/figurine-community-preview";
+import { playFigurineCue } from "@/lib/figurine-audio";
 import type { LinePhase, PanelResult } from "./WorldPanels";
 import Portrait from "./Portrait";
 import { OverviewBack } from "./OverviewHud";
@@ -96,7 +98,7 @@ function FishPicture({ id, unknown = false }: { id: string; unknown?: boolean })
 // A sheet over the world: a dialog that takes focus, and closes on its button or a tap outside.
 function Sheet({ title, intro, closeLabel, onClose, children, wide = false }: { title: string; intro: ReactNode; closeLabel: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   const close = useRef<HTMLButtonElement>(null);
-  useEffect(() => { close.current?.focus(); }, []);
+  useEffect(() => { close.current?.focus(); playFigurineCue("open"); return () => { playFigurineCue("close"); }; }, []);
   return <div className={styles.logBackdrop} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className={styles.log} data-wide={wide} role="dialog" aria-modal="true" aria-labelledby="pond-sheet-title">
       <header>
@@ -137,32 +139,37 @@ function FishLog({ records, onClose }: { records: FigurineRecords; onClose: () =
   </Sheet>;
 }
 
-// The anglers' board: where the player stands (the guild's standings come with sign-in), their
-// best catches by score, and how a catch scores.
+// The anglers' board: every angler ranked by the score of their ten best catches, the player among
+// them at their true place. Picking a name shows that angler's ten; the bar under the list always
+// says where the player stands, and a tap on it finds their row.
 function AnglersBoard({ records, onClose }: { records: FigurineRecords; onClose: () => void }) {
   const t = useTranslations("figurineLab.world.pond");
   const quality = useTranslations("figurineLab.quality");
   const score = anglerScore(records);
-  return <Sheet title={t("board")} intro={t("boardIntro")} closeLabel={t("closeBoard")} onClose={onClose}>
+  const rows = useMemo(() => {
+    const mine = { name: t("you"), score, catches: records.angler as readonly PreviewCatch[], you: true };
+    const place = PREVIEW_ANGLERS.filter((angler) => angler.score >= score).length;
+    return [...PREVIEW_ANGLERS.slice(0, place).map((angler) => ({ ...angler, you: false })), mine, ...PREVIEW_ANGLERS.slice(place).map((angler) => ({ ...angler, you: false }))];
+  }, [records.angler, score, t]);
+  const rank = rows.findIndex((row) => row.you) + 1;
+  const [picked, setPicked] = useState(rank - 1), shown = rows[picked] ?? rows[rank - 1];
+  const you = useRef<HTMLLIElement>(null);
+  const pick = (index: number) => { playFigurineCue("pick"); setPicked(index); };
+  const findMe = () => { pick(rank - 1); you.current?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
+  return <Sheet title={t("board")} intro={<>{(["common", "uncommon", "rare", "epic"] as const).map((rarity) => <span key={rarity} className={styles.points} data-rarity={rarity}>{t(`rarity.${rarity}`)} <b>{RARITY_POINTS[rarity]}</b></span>)}<span className={styles.points}>{t("scoringSize")}</span><span className={styles.points}>{t("scoringFinish", { golden: FINISH_TIMES.golden, galaxy: FINISH_TIMES.galaxy })}</span></>} closeLabel={t("closeBoard")} onClose={onClose} wide>
     <div className={styles.boardBody}>
       <section className={styles.standings} aria-labelledby="pond-standings">
         <h3 id="pond-standings">{t("standings")}</h3>
-        <ol>
-          <li data-you="true"><span className={styles.place}>{score > 0 ? 1 : "–"}</span><b>{t("you")}</b><em>{t("points", { points: score })}</em></li>
-        </ol>
-        <p className={styles.soon}>{t("standingsSoon")}</p>
-        <h3>{t("scoring")}</h3>
-        <ul className={styles.scoring}>
-          {(["common", "uncommon", "rare", "epic"] as const).map((rarity) => <li key={rarity} data-rarity={rarity}><span>{t(`rarity.${rarity}`)}</span><b>{RARITY_POINTS[rarity]}</b></li>)}
-        </ul>
-        <p className={styles.soon}>{t("scoringSize")}</p>
-        <p className={styles.soon}>{t("scoringFinish", { golden: FINISH_TIMES.golden, galaxy: FINISH_TIMES.galaxy })}</p>
+        <ol>{rows.map((row, index) => <li key={row.you ? "you" : row.name} ref={row.you ? you : undefined}>
+          <button type="button" data-you={row.you || undefined} aria-pressed={picked === index} onClick={() => pick(index)}><span className={styles.place}>{index + 1}</span><b>{row.name}</b><em>{t("points", { points: row.score })}</em></button>
+        </li>)}</ol>
+        <button type="button" className={styles.youBar} onClick={findMe}><span className={styles.place}>{rank}</span><b>{t("you")}</b><small>{t("of", { total: rows.length })}</small><em>{t("points", { points: score })}</em></button>
       </section>
       <section className={styles.best} aria-labelledby="pond-best">
-        <h3 id="pond-best">{t("bestTen", { count: records.angler.length, total: ANGLER_TOP })}</h3>
-        {records.angler.length ? <ol className={styles.catches}>{records.angler.map((entry, index) => {
+        <h3 id="pond-best">{shown.you ? t("bestTen", { count: shown.catches.length, total: ANGLER_TOP }) : t("bestOf", { name: shown.name })}</h3>
+        {shown.catches.length ? <ol className={styles.catches} key={picked}>{shown.catches.map((entry, index) => {
           const kind = fishOf(entry.fish)!;
-          return <li key={`${entry.at}-${index}`} data-quality={entry.quality} data-rarity={fishRarity(kind)}>
+          return <li key={index} data-quality={entry.quality} data-rarity={fishRarity(kind)}>
             <span className={styles.place}>{index + 1}</span>
             <span className={styles.catchFish}><FishPicture id={entry.fish} /></span>
             <span className={styles.catchName}><b>{kind.name}</b><small>{t("weight", { weight: entry.weight })}{entry.quality !== "standard" && ` · ${quality(entry.quality)}`}</small></span>

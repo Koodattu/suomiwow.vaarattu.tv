@@ -71,23 +71,33 @@ export const STATIONS = Object.fromEntries(Object.entries(STATION_SPECS).map(([n
   const [fx, fz] = spec.face ?? [0, 0];
   return [name, { position: new THREE.Vector3(spec.at[0], 0, spec.at[1]), rotation: Math.atan2(fx - spec.at[0], fz - spec.at[1]) }];
 })) as Record<Station, { position: THREE.Vector3; rotation: number }>;
-// Each district's shot: from the square on a wide screen, the whole group side by side. A phone is
-// too narrow for that, so it looks down from high along the row, stacking them up the screen.
-export const DISTRICT_SHOTS: Record<District, Record<"wide" | "tall", { position: [number, number, number]; target: [number, number, number] }>> = {
-  fair: { wide: { position: [2.8, 6.2, -2.6], target: [2.8, 0.9, -13.4] }, tall: { position: [-10.8, 21.5, -6.8], target: [2.7, 0.2, -13.1] } },
-  yard: { wide: { position: [-3.6, 5.6, 3.8], target: [-7, 1, 13.4] }, tall: { position: [-15, 14.4, 5.2], target: [-6.8, -0.6, 13.4] } },
-  market: { wide: { position: [-3.6, 6.2, 1.4], target: [-14.2, 0.9, 1.5] }, tall: { position: [-6.7, 19.2, 17.5], target: [-14.1, 0.2, 1.5] } },
-  honours: { wide: { position: [4.2, 6.2, 2.6], target: [14.8, 0.9, 4.4] }, tall: { position: [4.8, 19.9, 16.2], target: [14.7, 0.2, 4.4] } },
+// Each district's shot from the square, on a wide screen: the whole group side by side. A screen
+// taller than it is wide has no room for that, so there a district shows one station at a time,
+// each in its own close-up (see `closeUp`).
+export const DISTRICT_SHOTS: Record<District, { position: [number, number, number]; target: [number, number, number] }> = {
+  fair: { position: [2.8, 6.2, -2.6], target: [2.8, 0.9, -13.4] },
+  yard: { position: [-3.6, 5.6, 3.8], target: [-7, 1, 13.4] },
+  market: { position: [-3.6, 6.2, 1.4], target: [-14.2, 0.9, 1.5] },
+  honours: { position: [4.2, 6.2, 2.6], target: [14.8, 0.9, 4.4] },
 };
 // How far a station's view leans from its district's shot: the share of the way the aim turns to
 // it, and the share of the distance the camera drifts in.
 const LEAN = { turn: 0.3, drift: 0.07 };
 function districtPose(district: District, aspect: number) {
-  const { wide, tall } = DISTRICT_SHOTS[district], shot = aspect < 1 ? tall : wide;
-  const target = new THREE.Vector3(...shot.target), position = new THREE.Vector3(...shot.position);
+  const shot = DISTRICT_SHOTS[district], target = new THREE.Vector3(...shot.target), position = new THREE.Vector3(...shot.position);
   // A screen narrower than the shot was composed for backs off along it to keep the whole group.
-  return { target, position: position.sub(target).multiplyScalar(aspect < 1 ? 1 : Math.max(1, 1.6 / aspect)).add(target) };
+  return { target, position: position.sub(target).multiplyScalar(Math.max(1, 1.6 / aspect)).add(target) };
 }
+// One station alone, from in front of it: far enough to fit its width, a little above, and aimed
+// low so it stands in the upper part of a tall screen, clear of the controls along the bottom.
+export function closeUp(station: Station, aspect: number) {
+  const { position, rotation } = STATIONS[station], { width } = STATION_SPECS[station];
+  const distance = THREE.MathUtils.clamp((width / 2 + 0.9) / (Math.tan(THREE.MathUtils.degToRad(18)) * aspect), 7.5, 17);
+  const target = position.clone().setY(0.7);
+  return { target, position: new THREE.Vector3(0, distance * 0.3, distance).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation).add(target) };
+}
+// Whether a screen of this shape shows a district one station at a time.
+export const singleFile = (aspect: number) => aspect < 1;
 // The worn paths off the square, as points along their middles.
 export const PATHS: [number, number][][] = [
   [[-4.6, -9.2], [-4.9, -12.2], [-4.4, -17], [-1.4, -21], [0.3, -24], [2.4, -30], [3.6, -40]],
@@ -407,14 +417,15 @@ export function placeStation(scene: THREE.Scene, station: Station) {
 // steps aside.
 // Fixed world distances keep every viewport's orbit inside the clearing.
 export const OVERVIEW_DISTANCE = { min: 13, initial: 17, max: 19 } as const;
-export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, aspect = 16 / 9) {
-  if (isDistrict(view)) return districtPose(view, aspect);
+export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, aspect = 16 / 9, focus: Station | null = null) {
+  if (isDistrict(view)) return singleFile(aspect) ? closeUp(focus && (DISTRICTS[view] as readonly Station[]).includes(focus) ? focus : DISTRICTS[view][0], aspect) : districtPose(view, aspect);
   if (view === "overview") {
     return { target: home.target.clone(), position: home.offset.clone().setLength(OVERVIEW_DISTANCE.initial).add(home.target) };
   }
   if (!isStation(view)) return { target: home.target.clone(), position: home.offset.clone().multiplyScalar(framing).add(home.target) };
   const { position, rotation } = STATIONS[view], { shot } = STATION_SPECS[view], district = districtOf(view);
   if (district) {
+    if (singleFile(aspect)) return closeUp(view, aspect);
     const pose = districtPose(district, aspect), focus = position.clone().setY(pose.target.y);
     return { target: pose.target.clone().lerp(focus, LEAN.turn), position: pose.position.clone().lerp(focus, LEAN.drift) };
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import coinImage from "../../../public/figurines/world/coin.webp";
@@ -19,7 +19,7 @@ export function Coin({ size = 18 }: { size?: number }) {
 export function Coins({ count, size }: { count: number; size?: number }) {
   return <span className={styles.coins}><Coin size={size} /><b>{count}</b></span>;
 }
-export function Action({ children, onClick, disabled = false, secondary = false, type = "button" }: { children: ReactNode; onClick?: () => void; disabled?: boolean; secondary?: boolean; type?: "button" | "submit" }) {
+export function Action({ children, onClick, disabled = false, secondary = false, type = "button" }: { children: ReactNode; onClick?: (event: MouseEvent<HTMLButtonElement>) => void; disabled?: boolean; secondary?: boolean; type?: "button" | "submit" }) {
   return <button type={type} className={secondary ? styles.secondary : styles.primary} disabled={disabled} onClick={onClick}>{children}</button>;
 }
 // One choice of a few, always the same size, so picking one moves nothing around it.

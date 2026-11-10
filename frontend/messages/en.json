@@ -67,6 +67,65 @@
     "history": "Level history",
     "historyNote": "Observed levels, not exact level-up times.",
     "adminTitle": "Forever tracking",
+<<<<<<< Updated upstream
+=======
+    "admin": {
+      "hidden": "Hidden",
+      "hideGuild": "Hide guild",
+      "restoreGuild": "Restore guild",
+      "guildVisibilityNote": "Hides members imported through this guild and pauses their updates. Individually confirmed characters stay visible and tracked. History is kept.",
+      "guildHiddenNote": "Guild imports are hidden. Individually confirmed characters remain tracked. Restore to resume guild updates.",
+      "sections": "Forever administration",
+      "reload": "Reload data",
+      "searchCharacters": "Find characters",
+      "searchHint": "Name, guild or Twitch channel",
+      "searchGuilds": "Find a guild",
+      "searchRoster": "Find a member",
+      "fetchStatus": "Armory status",
+      "health": {
+        "all": "All updates",
+        "errors": "Fetch errors",
+        "unfetched": "Never fetched"
+      },
+      "bulkActions": "Selected character actions",
+      "selected": "{count} selected",
+      "selectPage": "Select characters on this page",
+      "selectCharacter": "Select {name}",
+      "clearSelection": "Clear selection",
+      "retrySelected": "Retry selected",
+      "refreshing": "Refreshing…",
+      "refreshPending": "Refresh pending",
+      "refreshNow": "Refresh now",
+      "refreshStates": {
+        "refreshed": "Character refreshed.",
+        "failed": "Blizzard fetch failed. The character remains tracked.",
+        "prioritized": "First in line. Waiting for the current fetch or Blizzard cooldown."
+      },
+      "retryNow": "Queue retry",
+      "retryIn": "Retry in {count} min",
+      "retryAvailable": "Manual retry available at {date}",
+      "retryHelp": "Manual retries require five minutes since the last attempt. Blizzard rate limits still apply.",
+      "result": "Updated or queued: {count}. Unchanged or ineligible: {skipped}.",
+      "saved": "Saved.",
+      "results": "{count} results",
+      "attempts": "{count} failed attempts",
+      "members": "Roster members",
+      "rosterNotLoaded": "Roster not loaded",
+      "lastAttempt": "Last attempt",
+      "untracked": "Not tracked",
+      "noGuildMatches": "No guilds in this view.",
+      "noRosterMatches": "No matching roster members.",
+      "rosterUnavailable": "The roster could not be fetched. No members have been imported from this roster.",
+      "fetchErrors": {
+        "upstream_error": "Blizzard returned an error",
+        "not_found": "Armory profile not found",
+        "unavailable": "Armory could not be reached",
+        "invalid_data": "Armory response could not be read",
+        "identity_mismatch": "Armory identity did not match",
+        "stale_data": "Armory snapshot is outdated"
+      }
+    },
+>>>>>>> Stashed changes
     "viewLeaderboard": "Open leveling page",
     "characters": "Characters & suggestions",
     "status": "Status",
@@ -283,17 +342,11 @@
       "collection": {
         "owned": "{got}/{total} collected",
         "locked": "Not collected yet",
-        "acquired": "Acquired {date}",
         "inspect": "View on the pedestal",
-        "upcoming": "Series {number} · coming soon",
         "secret": "Secret series",
         "search": "Search your figures",
-        "ownedOnly": "Owned only",
         "favorites": "Favourites",
         "onDisplay": "{count}/{total} on display",
-        "favoritesHint": "Star a figure to make it a favourite. Your first 16 favourites stand in the display cabinet and around the world.",
-        "dragHint": "Drag to reorder: the order is the display's, 1 to 16.",
-        "notOnDisplay": "Favourites past 16 wait off display",
         "star": "Add {name} to favourites",
         "unstar": "Remove {name} from favourites",
         "displayed": "On display · #{number}",
@@ -302,7 +355,12 @@
         "moveEarlier": "← Earlier",
         "moveLater": "Later →",
         "finish": "Shown as",
-        "spares": "{count, plural, one {# spare copy} other {# spare copies}} for the recycler or the forge"
+        "filters": {
+          "all": "All",
+          "owned": "Owned",
+          "missing": "Missing"
+        },
+        "upcomingCount": "{count, plural, one {# more series on the way} other {# more series on the way}}"
       },
       "picker": {
         "recycler": "Pick three spare copies",
@@ -324,8 +382,8 @@
         "reward": "+{count, plural, one {# coin} other {# coins}}",
         "collect": "Collect",
         "dismissReward": "Tap anywhere to collect",
-        "dailyBonus": "Includes your +1 daily streak coin.",
-        "weeklyBonus": "Includes your +1 daily streak coin and +5 seven-day bonus.",
+        "dailyBonus": "Daily streak +1",
+        "weeklyBonus": "Day 7 streak +6",
         "claimed": "Restocking",
         "comeBack": "Ready in {hours}h {minutes}m",
         "controls": "Treasure chest controls",
@@ -415,7 +473,6 @@
       "overlays": {
         "preview": "Sample community · Try it here. Resets on reload.",
         "all": "All finishes",
-        "cancel": "Cancel",
         "wheel": {
           "used": "Spun today"
         },
@@ -427,7 +484,6 @@
           "to": "To {name}",
           "claim": "Unwrap gift",
           "claimed": "Unwrapped",
-          "claimedNotice": "Gift added to your sample inventory.",
           "recipientPlaceholder": "A collector’s name",
           "sendAction": "Send sample gift",
           "sentNotice": "Sample gift prepared for {name}. No real message was sent.",
@@ -437,35 +493,75 @@
           }
         },
         "feed": {
-          "all": "Community",
+          "all": "Latest in town",
           "mine": "Your finds",
           "minutes": "{count}m ago",
-          "cheer": "Cheer"
+          "cheer": "Cheer",
+          "hours": "{count}h ago"
         },
         "fame": {
-          "waiting": "A place awaits"
+          "waiting": "Unclaimed",
+          "groups": {
+            "collecting": "Collecting",
+            "fishing": "Fishing",
+            "crafting": "Crafting",
+            "trading": "Trading and gifts",
+            "daily": "Daily"
+          },
+          "items": {
+            "firstGolden": "First golden figure",
+            "galaxy": "First galaxy figure",
+            "complete": "First complete series",
+            "goldenSeries": "First all-golden series",
+            "galaxySeries": "First all-galaxy series",
+            "secret": "First to find Series 000",
+            "allSeries": "First to complete every series",
+            "hundred": "First to 100 figures",
+            "thousandBoxes": "First to open 1,000 boxes",
+            "tripleGalaxy": "First three galaxy copies of one figure",
+            "firstEpic": "First epic fish",
+            "goldenFish": "First golden fish",
+            "galaxyFish": "First galaxy fish",
+            "fullLog": "First full fish log",
+            "heaviest": "Heaviest fish ever landed",
+            "goldenBoot": "First golden boot",
+            "angler1000": "First to 1,000 angler points",
+            "firstForge": "First trade-up at the forge",
+            "forgeGalaxy": "First galaxy forged",
+            "recycle100": "First to recycle 100 times",
+            "forge50": "First to forge 50 times",
+            "firstTrade": "First trade between players",
+            "trades100": "First to 100 trades",
+            "firstGift": "First gift sent",
+            "gifts50": "First to send 50 gifts",
+            "streak7": "First seven-day streak",
+            "streak30": "First thirty-day streak",
+            "wheelGalaxy": "First galaxy boost from the wheel",
+            "quests100": "First to claim 100 quests",
+            "cheers100": "First to ring the bell 100 times"
+          }
         },
         "ranks": {
-          "you": "You"
+          "you": "You",
+          "of": "of {total}"
         },
         "market": {
           "history": "Completed",
           "refresh": "Refresh",
-          "refreshed": "Three fresh deals are ready.",
-          "all": "All offers",
-          "buy": "Buy figures",
-          "sell": "Sell figures",
-          "receive": "You receive",
+          "all": "All",
+          "buy": "Buy",
+          "sell": "Sell",
+          "receive": "You get",
           "give": "You give",
-          "completed": "Completed",
-          "confirmAction": "Confirm trade",
-          "success": "Trade complete. Your coins and collection are updated.",
-          "unavailable": "This offer is no longer available, or you no longer have the required coins or figure.",
-          "review": "Review trade",
+          "completed": "Done",
+          "confirmAction": "Accept",
           "missingCoins": "Not enough coins",
           "missingFigure": "Figure not owned",
           "empty": "No offers here yet.",
-          "pick": "Pick an offer to trade"
+          "pick": "Pick an offer",
+          "swap": "Swap",
+          "trade": "Trade",
+          "cancel": "Decline"
         },
         "workshop": {
           "remove": "Remove {name}",
@@ -519,17 +615,16 @@
         "rankings": "Rankings",
         "board": "Anglers' board",
         "closeBoard": "Close the anglers' board",
-        "boardIntro": "Every fish scores. Your ten best catches make your score.",
         "standings": "Standings",
         "you": "You",
-        "standingsSoon": "Guild standings arrive with Discord sign-in.",
         "bestTen": "Your best catches · {count} of {total}",
         "boardEmpty": "Nothing on the board yet. Land a fish to score.",
         "points": "{points, plural, one {# pt} other {# pts}}",
         "gain": "+{points, plural, one {# pt} other {# pts}}",
-        "scoring": "Scoring",
         "scoringSize": "× its size for its kind, 1 to 2",
-        "scoringFinish": "× golden {golden}, galaxy {galaxy}"
+        "scoringFinish": "× golden {golden}, galaxy {galaxy}",
+        "of": "of {total}",
+        "bestOf": "{name}'s best catches"
       },
       "rewards": {
         "boost": "{quality} boost",
@@ -549,8 +644,9 @@
         "gifts": "{count, plural, =0 {Nothing waiting} one {# gift waiting} other {# gifts waiting}}",
         "deals": "{count, plural, =0 {Sold out} one {# deal left} other {# deals left}}",
         "finds": "{count, plural, =0 {No finds of yours yet} one {# of your finds} other {# of your finds}}",
-        "firsts": "{done} of {total} taken",
-        "figures": "{count, plural, one {You: # figure} other {You: # figures}}"
+        "firsts": "{done} of {total} claimed",
+        "figures": "{count, plural, one {You: # figure} other {You: # figures}}",
+        "open": "Open"
       }
     },
     "tradedUp": "Traded up!",

@@ -1,37 +1,34 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
-import { LuFerrisWheel, LuSparkles } from "react-icons/lu";
-import { findFigure } from "@/lib/figurine-series";
-import type { PanelResult } from "./WorldPanels";
+import { LuFerrisWheel } from "react-icons/lu";
+import { WHEEL } from "@/lib/figurine-collection";
 import { Coin } from "./FacilityParts";
 import { OverviewBack } from "./OverviewHud";
-import Portrait from "./Portrait";
 import controls from "./pond-hud.module.css";
 import styles from "./chest-hud.module.css";
 
-const PRIZES = ["coin1", "coin2", "coin3", "golden", "galaxy", "figure"] as const;
+// The wheel's eight segments in order, as the reel under it shows them.
+export const WHEEL_PRIZES = WHEEL.map(({ prize }) => "boost" in prize ? prize.boost : "figure" in prize ? "figure" as const : `coin${prize.coins}` as const);
 
-// The wheel stays in full view: what it can land on, and one big button, over the world.
-export default function WheelHud({ ready, busy, turn, now, result, onSpin, onDismiss, onBack }: {
-  ready: boolean; busy: boolean; turn: Date; now: Date; result: Extract<PanelResult, { station: "wheel" }> | null;
-  onSpin: () => void; onDismiss: () => void; onBack: () => void;
+// The wheel stays in full view. Under it runs a reel of its eight segments that follows the real
+// wheel peg by peg: whichever is under the pointer is lit, and the one it stops on stays lit.
+export default function WheelHud({ ready, busy, turn, now, at, onSpin, onBack }: {
+  ready: boolean; busy: boolean; turn: Date; now: Date; at: number | null; onSpin: () => void; onBack: () => void;
 }) {
-  const t = useTranslations("figurineLab.world.wheel"), p = useTranslations("figurineLab.world.overlays"), common = useTranslations("figurineLab"), format = useFormatter();
-  const won = result && (result.reward.coins ? common("world.rewards.coins", { count: result.reward.coins }) : result.figure ? findFigure(result.figure.key)?.character.name : result.reward.boost ? common("world.rewards.boost", { quality: common(`quality.${result.reward.boost}`) }) : "");
+  const t = useTranslations("figurineLab.world.wheel"), common = useTranslations("figurineLab"), format = useFormatter();
   return <>
     <div className={styles.title}><h1>{common("world.stations.wheel")}</h1></div>
-    {result ? <>
-      <button type="button" className={controls.catchDismiss} onClick={onDismiss} aria-label={common("world.crate.dismissReward")} />
-      <div className={`${controls.banner} ${styles.wheelBanner}`} data-quality={result.figure?.quality} role="status">
-        {result.figure && <span className={controls.bannerPortrait}><Portrait figureKey={result.figure.key} quality={result.figure.quality} /></span>}
-        <div><small>{t("wonLabel")}</small><b>{won}</b><span>{common("world.crate.dismissReward")}</span></div>
-      </div>
-    </> : <div className={styles.reward}>{ready || busy ? <ul className={styles.prizes}>{PRIZES.map(prize => <li key={prize} data-prize={prize}>{prize.startsWith("coin") ? <Coin size={18} /> : <LuSparkles aria-hidden="true" />}{t(`prizes.${prize}`)}</li>)}</ul>
-      : <small>{t("next", { time: format.relativeTime(turn, now) })}</small>}</div>}
+    <div className={styles.reward}>
+      <ol className={styles.reel} data-spinning={busy || undefined} data-spent={!ready && !busy && at === null || undefined}>{WHEEL_PRIZES.map((prize, index) =>
+        <li key={index} data-prize={prize} data-at={at === index || undefined} data-won={at === index && !busy || undefined} title={t(`prizes.${prize}`)}>
+          {prize === "figure" ? "?" : prize === "golden" ? "★" : prize === "galaxy" ? "✦" : <><Coin size={16} />{prize.slice(4)}</>}
+        </li>)}</ol>
+      <p className={styles.reelName} aria-live="polite">{at !== null ? t(`prizes.${WHEEL_PRIZES[at]}`) : !ready && !busy ? t("next", { time: format.relativeTime(turn, now) }) : " "}</p>
+    </div>
     <nav className={controls.bar} aria-label={common("world.stations.wheel")}>
       <div className={controls.left}><OverviewBack inline onBack={onBack} /></div>
-      <button type="button" className={`${controls.action} ${styles.action}`} disabled={busy || !ready} onClick={onSpin}><LuFerrisWheel className={controls.glyph} aria-hidden="true" />{busy ? t("spinning") : ready ? t("spin") : p("wheel.used")}</button>
+      <button type="button" className={`${controls.action} ${styles.action}`} data-ready={ready && !busy || undefined} disabled={busy || !ready} onClick={onSpin}><LuFerrisWheel className={controls.glyph} aria-hidden="true" />{busy ? t("spinning") : ready ? t("spin") : common("world.overlays.wheel.used")}</button>
       <div className={controls.right} />
     </nav>
   </>;

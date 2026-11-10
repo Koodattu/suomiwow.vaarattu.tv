@@ -306,6 +306,14 @@ transient and loudness-matched; the music build-ups are reversed so they swell
 into the burst. Sources and prompts are logged under the playground's
 `output/figurine-box-v1` to `output/figurine-box-v4`.
 
+The world's own sounds (coins, the wheel, the pond, quests, the workshop, trading, the post and
+the panels) come from the same generator: the playground's `figurine_world_sounds.json` lists
+each cue's prompt, length and takes, `generate_figurine_world_set.py` writes them under
+`output/figurine-world-v1`, and `node scripts/master-game-sounds.mjs <that folder>` trims each
+take to its sound, levels it and writes the cue files. The five smallest interface tones (a
+progress tick, a fill, a pick, a refusal, an unstar) are synthesised by
+`node scripts/make-game-sounds.mjs`, since they need exact pitch more than texture.
+
 Latest verification: all 16 box-2 GLBs plus repaired Abiw passed decoded glTF
 validation with zero errors/warnings; all 17 served hashes match their catalogs.
 18 frontend tests, 30 exporter tests, and TypeScript passed. Box-2 frontend tests
@@ -397,24 +405,39 @@ The existing camera limits, fog and station framing remain unchanged. Each facil
 
 The overview's bar holds the shop, the pond, the collection, the opening box and the four districts
 (`DISTRICTS` in `figurine-world.ts`: Daily, Crafting, Trading, Accomplishments), with a dot on a
-district that has something to collect. A district is a stop of its own, as the pond is: the camera
-frames the whole group (`DISTRICT_SHOTS`: from the square on a wide screen, from high along the row
-on a phone) and `DistrictHud.tsx` lays a card for each station along the bottom, saying how it stands
-right now. A tap on a station in the world follows the same order, into its district and then to the
+district that has something to collect. A district is a stop of its own, as the pond is: on a wide screen the
+camera frames the whole group from the square (`DISTRICT_SHOTS`), and `DistrictHud.tsx` lays a card
+for each station along the bottom, saying how it stands right now. A screen taller than it is wide
+has no room for the group, so there a district shows one station at a time, each in its own close-up
+(`closeUp`): a tap on another card turns the camera to it, a tap on the card in view opens it, and
+opening it does not move the camera again. A tap on a station in the world follows the same order, into its district and then to the
 station (`tapDestination`). Back steps a station to its district and a district to the square.
 Hovering a district, on its tile or in the world, lights all of its stations. Choosing a station does
 not fly anywhere: the camera stays on the district's shot and leans a little toward it (`LEAN`), with
 no sound, so the place stays the same and only the panel opens. Only the shop, the collection and the
 pond have shots of their own.
 
-The facilities share one frame (`FacilityOverlay.tsx`), the same fixed size for all of them, docked
-right when the screen has room beside it, centred when not, and filling the
-screen under the top bar on a phone. Nothing inside it may change its size: a facility shows its
+The facilities share one frame (`FacilityOverlay.tsx`), and each gives it its own material, size
+and place (the top of `facility-overlay.module.css`): oak and parchment notes for quests, green baize
+for trading, blue paper for the post, night stone for accomplishments, all in the middle of a dimmed
+world; soot or verdigris for the workbench, which docks to the side with its machine framed in the
+room left (the stage treats it as it does the collection's catalogue). On a phone every frame fills
+the screen under the top bar. Nothing inside a frame may change its size: a facility shows its
 parts side by side instead of behind tabs, scrolls in its own columns, and keeps confirmations and
 messages in space it already has. Words are kept to what the player needs to act; the board's
 numbers, slots and stamps say the rest. The chest, the wheel and the pond have no frame: their
 controls lie over the world, with one big button in the middle. Tap empty ground, the close button
-or Esc to come back. Keyboard: S shop, C collection, M recycler, U trade-up forge, Q quests, W lucky
+or Esc to come back.
+
+Every coin arrives the same way (`RewardLayer.tsx`). A reward that plays out in the world (the
+chest, the wheel, a prize catch, the recycler) bursts its coins out of the place it came from, as
+many as were won, to hang in the middle of the screen under a count; a tap sends them one by one
+into the wallet, each landing with a clink a little higher than the last. Coins earned inside a
+panel (a quest claim, a sale) skip the hang and fly straight from where they were earned. The coins
+are granted before any of this plays; the wallet only holds its count back until each lands
+(`holdCoins` for a reward still to be shown). The wheel's other prizes use the same layer with a
+card in place of the count. The wheel's controls carry a reel of its eight segments that follows the
+real wheel peg by peg, from the same cue that sounds each clack. Keyboard: S shop, C collection, M recycler, U trade-up forge, Q quests, W lucky
 wheel, F fishing pond (Space casts and strikes there, L opens the fish log), D daily crate, 1-3
 pick a station in a district, 1-9 pick a series (in the shop), Enter opens the sealed box.
 `test/figurine-layout.test.mjs` checks facility reach and grouping, the figures' inner/outer
@@ -534,12 +557,14 @@ fill four steps.
 The collection is a tall glass-fronted display cabinet at the back of the square: four by four lit
 cubbies, each with a round stand and a brass number plate. Its panel is a catalogue, docked wide
 on desktop (`CollectionCatalogue.tsx`) with the cabinet framed beside it, and full screen on a
-phone. Favourites come first, then every series in full (a found secret series first, then the
-released ones, then the announced ones as a line each), owned figures as portraits finished like
-their best quality, missing ones as silhouettes. A search box and an "owned only" switch filter
-the series. Each owned figure has a star: starred, it joins the end of the favourites. The
-favourites are in the player's order; drag one to reorder (the whole card with a mouse, its grip
-on touch), or move it a step from the inspector. Picking a figure shows it in the inspector
+phone. It has three parts, each in a place of its own so that nothing pushes anything else about:
+the display rail (the cabinet's sixteen numbered places, always all there), the series (a found
+secret series first, then the released ones, each folding away under a header that stays in view;
+owned figures as portraits finished like their best quality, missing ones as silhouettes), and the
+inspector. A search box and chips (all, owned, missing, golden, galaxy) filter the series. Each
+owned figure has a star: starred, it takes the next place on the rail and the list does not move.
+The favourites are in the player's order; drag one along the rail with a mouse, or move it a step
+from the inspector. Picking a figure shows it in the inspector
 beside the list (over it, on a phone): a large portrait, its realm, race and class, its place on
 display, which of its owned finishes it shows there, its copies per quality with the date each
 was first acquired, its spare copies, and a button that views it in 3D on the pedestal.

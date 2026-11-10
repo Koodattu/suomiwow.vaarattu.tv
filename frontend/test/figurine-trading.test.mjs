@@ -3,7 +3,11 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import ts from "typescript";
-import { dailyDeals, PLAYER_OFFERS, canAffordTrade } from "../src/lib/figurine-trading.ts";
+import { registerHooks } from "node:module";
+registerHooks({ resolve(specifier, context, next) {
+  return next(specifier.startsWith("@/") ? new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href : specifier, context);
+} });
+const { dailyDeals, PLAYER_OFFERS, canAffordTrade, tradeKind } = await import("../src/lib/figurine-trading.ts");
 import { dayKey, exchangeTrade, spendCoin, grantReward, readRecords, readCollection, addToCollection } from "../src/lib/figurine-collection.ts";
 
 const store = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
@@ -12,7 +16,9 @@ const figure = { kind: "figure", key: "community-001:roidy", quality: "standard"
 
 test("daily merchant stock is stable, rotates each day and refresh, and favours the player", () => {
   const deals = dailyDeals("2026-11-04");
-  assert.equal(deals.length, 3);
+  assert.equal(deals.length, 4);
+  assert.deepEqual(deals.map(tradeKind), ["buy", "sell", "buy", "swap"], "coins for a figure, a figure for coins, and a figure for a figure");
+  for (let refresh = 0; refresh < 40; refresh++) { const swap = dailyDeals("2026-11-04", refresh)[3]; assert.notEqual(swap.give.key, swap.receive.key, "a swap never offers the same figure back"); }
   assert.deepEqual(dailyDeals("2026-11-04"), deals);
   for (const next of [dailyDeals("2026-11-05"), dailyDeals("2026-11-04", 1)]) {
     assert.ok(next.every(item => !deals.some(old => old.id === item.id)));
@@ -27,6 +33,8 @@ test("player listings include many unique buy and sell offers with real catalogu
   assert.equal(new Set(PLAYER_OFFERS.map(item => item.id)).size, PLAYER_OFFERS.length);
   assert.ok(PLAYER_OFFERS.some(item => item.give.kind === "coins"));
   assert.ok(PLAYER_OFFERS.some(item => item.receive.kind === "coins"));
+  assert.ok(PLAYER_OFFERS.some(item => tradeKind(item) === "swap"));
+  for (const item of PLAYER_OFFERS) if (tradeKind(item) === "swap") assert.notEqual(item.give.key, item.receive.key);
   const catalogs = await Promise.all(["community-001", "community-002"].map(async id => JSON.parse(await readFile(new URL(`../src/data/figurines/${id}.json`, import.meta.url)))));
   const keys = catalogs.flatMap(c => c.characters.map(item => `${c.id}:${item.id}`));
   for (const offer of [...PLAYER_OFFERS, ...dailyDeals("2026-11-04")]) for (const asset of [offer.give, offer.receive]) if (asset.kind === "figure") assert.ok(keys.includes(asset.key));

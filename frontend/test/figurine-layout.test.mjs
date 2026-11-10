@@ -21,7 +21,7 @@ const PLAZA = PLAZA_RADIUS;
 const stations = Object.entries(STATIONS);
 test("a district's stations lean from its shot, while the fishing camera is unchanged", () => {
   const home = { offset: new THREE.Vector3(0, 2, 9), target: new THREE.Vector3(0, 1.5, 0) };
-  for (const [district, names] of Object.entries(DISTRICTS)) for (const aspect of [16 / 9, 9 / 19.5]) for (const name of names) {
+  for (const [district, names] of Object.entries(DISTRICTS)) for (const aspect of [16 / 9, 4 / 3]) for (const name of names) {
     const whole = viewPose(district, 1, home, aspect), lean = viewPose(name, 1, home, aspect);
     const aim = (pose) => pose.target.clone().sub(pose.position).normalize();
     const turn = aim(whole).angleTo(aim(lean)), moved = lean.position.distanceTo(whole.position);
@@ -232,9 +232,9 @@ test("each district's dressing stays off the stations, the paths and the pond's 
   }
 });
 
-test("a district's shot keeps every one of its stations on screen, wide or on a phone", () => {
+test("a district's shot keeps every one of its stations on screen", () => {
   const home = { offset: new THREE.Vector3(0.6, 2.1, 9.6), target: new THREE.Vector3(0, 1.5, 0) };
-  for (const [district, names] of Object.entries(DISTRICTS)) for (const aspect of [16 / 9, 4 / 3, 9 / 19.5]) {
+  for (const [district, names] of Object.entries(DISTRICTS)) for (const aspect of [16 / 9, 4 / 3]) {
     const { position, target } = viewPose(district, 1, home, aspect);
     const camera = new THREE.PerspectiveCamera(36, aspect, 0.4, 240);
     camera.position.copy(position); camera.lookAt(target); camera.updateMatrixWorld(); camera.updateProjectionMatrix();
@@ -244,6 +244,23 @@ test("a district's shot keeps every one of its stations on screen, wide or on a 
     }
   }
   assert.deepEqual(Object.keys(DISTRICT_SHOTS).sort(), Object.keys(DISTRICTS).sort());
+});
+
+test("a tall screen frames a district one station at a time, whole and above the controls", () => {
+  const home = { offset: new THREE.Vector3(0.6, 2.1, 9.6), target: new THREE.Vector3(0, 1.5, 0) };
+  for (const [district, names] of Object.entries(DISTRICTS)) for (const aspect of [9 / 19.5, 3 / 4]) {
+    assert.deepEqual(viewPose(district, 1, home, aspect), viewPose(district, 1, home, aspect, names[0]), "the first station shows until another is picked");
+    for (const name of names) {
+      const pose = viewPose(district, 1, home, aspect, name);
+      assert.deepEqual(viewPose(name, 1, home, aspect), pose, `opening ${name} does not move the camera`);
+      const camera = new THREE.PerspectiveCamera(36, aspect, 0.4, 240);
+      camera.position.copy(pose.position); camera.lookAt(pose.target); camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+      const { position, rotation } = STATIONS[name], half = new THREE.Vector3(STATION_SPECS[name].width / 2, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
+      const centre = position.clone().project(camera);
+      assert.ok(Math.abs(centre.x) < 0.05 && centre.y > -0.3 && centre.y < 0.4, `${name} stands in the middle (${centre.x.toFixed(2)}, ${centre.y.toFixed(2)})`);
+      for (const side of [-1, 1]) assert.ok(Math.abs(position.clone().addScaledVector(half, side).project(camera).x) < 1, `${name} fits across a screen of ${aspect.toFixed(2)}`);
+    }
+  }
 });
 
 test("a tap on a station enters its district first, then the station", () => {

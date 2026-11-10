@@ -38,6 +38,44 @@ export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; vo
   chestReward: { files: ["chest-reward"], volume: 0.65 },
   // The town bell, synthesised by scripts/make-bell-sound.mjs (the one cue not from ElevenLabs).
   bell: { files: ["bell-a", "bell-b"], volume: 0.42, jitter: 0.02 },
+  // Coins sound the same wherever they come from: a spill as they burst out, a swish as they leave, a clink each as they land.
+  coin: { files: ["coin-a","coin-b","coin-c","coin-d"], volume: 0.5, jitter: 0.03 },
+  coins: { files: ["coins-a","coins-b","coins-c"], volume: 0.6, jitter: 0.03 },
+  coinsFew: { files: ["coins-few-a","coins-few-b"], volume: 0.55, jitter: 0.03 },
+  swish: { files: ["swish-a","swish-b"], volume: 0.4, jitter: 0.05 },
+  // The wheel: its flapper on each peg, then a jingle sized to the prize.
+  clack: { files: ["clack-a","clack-b","clack-c","clack-d"], volume: 0.5, jitter: 0.04 },
+  winSmall: { files: ["win-small-a","win-small-b"], volume: 0.5 },
+  winBig: { files: ["win-big-a","win-big-b"], volume: 0.6 },
+  winBoost: { files: ["win-boost-a","win-boost-b"], volume: 0.6 },
+  // The pond.
+  cast: { files: ["cast-a","cast-b"], volume: 0.5, jitter: 0.05 },
+  splash: { files: ["splash-a","splash-b","splash-c"], volume: 0.5, jitter: 0.06 },
+  splashBig: { files: ["splash-big-a","splash-big-b","splash-big-c"], volume: 0.7, jitter: 0.04 },
+  nibble: { files: ["nibble-a","nibble-b","nibble-c"], volume: 0.35, jitter: 0.08 },
+  bite: { files: ["bite-a","bite-b"], volume: 0.75, jitter: 0.03 },
+  reel: { files: ["reel-a","reel-b"], volume: 0.45, jitter: 0.04 },
+  escape: { files: ["escape-a","escape-b"], volume: 0.45, jitter: 0.04 },
+  flop: { files: ["flop-a","flop-b"], volume: 0.5, jitter: 0.06 },
+  // Quests, the workshop, trading and the post.
+  questDone: { files: ["quest-done-a","quest-done-b"], volume: 0.5 },
+  stamp: { files: ["stamp-a","stamp-b"], volume: 0.6, jitter: 0.04 },
+  anvil: { files: ["anvil-a","anvil-b","anvil-c"], volume: 0.6, jitter: 0.04 },
+  furnace: { files: ["furnace-a","furnace-b"], volume: 0.5, jitter: 0.03 },
+  crunch: { files: ["crunch-a","crunch-b"], volume: 0.5, jitter: 0.04 },
+  trade: { files: ["trade-a","trade-b"], volume: 0.6, jitter: 0.02 },
+  gift: { files: ["gift-a","gift-b"], volume: 0.55 },
+  paper: { files: ["paper-a","paper-b"], volume: 0.4, jitter: 0.05 },
+  // The panels themselves. The last five are synthesised by scripts/make-game-sounds.mjs.
+  open: { files: ["open-a","open-b"], volume: 0.3, jitter: 0.05 },
+  close: { files: ["close-a","close-b"], volume: 0.3, jitter: 0.05 },
+  place: { files: ["place-a","place-b","place-c"], volume: 0.45, jitter: 0.06 },
+  star: { files: ["star-a","star-b"], volume: 0.4, jitter: 0.03 },
+  unstar: { files: ["unstar"], volume: 0.4 },
+  pick: { files: ["pick"], volume: 0.4, jitter: 0.04 },
+  deny: { files: ["deny"], volume: 0.5 },
+  blip: { files: ["blip"], volume: 0.35 },
+  fill: { files: ["fill"], volume: 0.3 },
 };
 // Cue files live in /figurines/audio; quips are full paths into the CCG's quip folder.
 const sourceFor = (file: string) => file.startsWith("/") ? file : `/figurines/audio/${file}.mp3`;
@@ -141,7 +179,7 @@ export function preloadFigurineSignature(classKey: string, quipFile?: string): v
   if (quip) void load(quip);
 }
 
-export function playFigurineCue(cue: FigurineCue, { loop = false, intensity = 1, signature, quip }: { loop?: boolean; intensity?: number; signature?: string; quip?: { file: string; gain: number } } = {}): () => void {
+export function playFigurineCue(cue: FigurineCue, { loop = false, intensity = 1, rate = 1, signature, quip }: { loop?: boolean; intensity?: number; rate?: number; signature?: string; quip?: { file: string; gain: number } } = {}): () => void {
   let stopped = false;
   let stop = () => { stopped = true; };
   if (!context || !master || !quipBus) return () => stop();
@@ -162,7 +200,7 @@ export function playFigurineCue(cue: FigurineCue, { loop = false, intensity = 1,
     playback.loop = loop;
     // MP3 pads both ends with silence; looping between inner points keeps loops seamless.
     if (loop) { playback.loopStart = LOOP_TRIM; playback.loopEnd = buffer.duration - LOOP_TRIM; }
-    playback.playbackRate.value = 1 + (Math.random() * 2 - 1) * (sound.jitter ?? 0);
+    playback.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * (sound.jitter ?? 0));
     const level = sound.volume * intensity;
     if (loop) { gain.gain.setValueAtTime(0, audio.currentTime); gain.gain.setTargetAtTime(level, audio.currentTime, 0.12); }
     else gain.gain.value = level;

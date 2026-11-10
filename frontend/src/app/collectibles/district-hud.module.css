@@ -17,6 +17,7 @@
 .option[data-ready] { border-color: #f1d9a4; box-shadow: 0 10px 30px #d6aa5a3d, inset 0 1px #fff2; }
 .option[data-ready] .medal { background: radial-gradient(circle at 35% 30%, #fbe7b4, #c9a35e 72%); color: #33250e; box-shadow: 0 0 14px #ffd77a80; }
 .option[data-ready] .text small { color: #ffd77a; font-weight: 600; }
+.enter { display: none; }
 @keyframes titleIn { from { opacity: 0; translate: 0 -8px; } to { opacity: 1; translate: 0 0; } }
 @keyframes cardIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 @media (max-width: 1000px) { .option { width: 196px; } .text b { font-size: 17px; } .medal { width: 48px; height: 48px; } .medal svg { width: 23px; height: 23px; } }
@@ -28,5 +29,11 @@
   .text { align-items: center; }
   .text b { font-size: 15px; }
   .text small { font-size: 11px; }
+  /* One station is in view at a time: its card stands out and says it opens; the others step back. */
+  .option[data-single] { min-height: 112px; opacity: .78; }
+  .option[data-focused] { opacity: 1; transform: translateY(-6px); border-color: #ffe4aa; box-shadow: 0 0 0 1px #ffe4aa, 0 0 26px #ffd77a66, 0 10px 28px #0007; }
+  .option[data-focused] .text small { display: none; }
+  .enter { display: inline-flex; align-items: center; gap: 2px; padding: 4px 6px 4px 12px; border-radius: 999px; background: linear-gradient(180deg, #f1d9a4, #c9a35e); color: #1b1408; font: 700 13px Georgia, serif; }
+  .enter svg { width: 15px; height: 15px; }
 }
 @media (prefers-reduced-motion: reduce) { .title, .option { animation: none; transition: none; } }

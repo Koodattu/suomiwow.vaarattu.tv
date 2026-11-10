@@ -1,0 +1,135 @@
+/* Trading: the merchant's deals, the players' exchange, and the gifting post. Everything here is
+   built from the same piece: two sides of a trade, what you give and what you get. */
+.asset { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+.assetPicture { display: grid; place-items: center; width: var(--thumb, 64px); aspect-ratio: 7 / 9; border: 1px solid #ffffff1f; border-radius: 9px; background: radial-gradient(circle at 50% 35%, #ffffff1c, #05090fb3 75%); overflow: hidden; box-shadow: inset 0 2px 8px #0008; }
+.assetPicture > span { width: 100%; }
+.asset b { max-width: 100%; font: 400 14px/1.2 Georgia, serif; color: #fff0d0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asset small { font: 600 10.5px system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #aeb7ba; }
+.asset[data-kind="coins"] b { color: var(--gold); }
+.asset[data-quality="golden"] .assetPicture { border-color: #c9a35e; box-shadow: inset 0 0 18px #ffc85a40; }
+.asset[data-quality="golden"] small { color: #ffd77a; }
+.asset[data-quality="galaxy"] .assetPicture { border-color: #7d5ad8; box-shadow: inset 0 0 18px #8c64ff59; }
+.asset[data-quality="galaxy"] small { color: #c9b2ff; }
+.asset[data-lacking] .assetPicture { border-color: #c96a55; filter: saturate(.45) brightness(.8); }
+.side { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px 10px; border: 1px solid #00000059; border-radius: 12px; background: #06100dbf; box-shadow: inset 0 2px 10px #000a; }
+.side > small { font: 700 10px system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #9fb3aa; }
+.side[data-get] { border-color: #e9c87759; background: linear-gradient(180deg, #e9c8771f, #06100dbf); }
+.side[data-get] > small { color: var(--accent); }
+.arrow { flex: none; width: 20px; height: 20px; color: var(--accent); }
+
+/* The merchant's table: four deals across. */
+.deals { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-content: center; }
+.deal { --tag: #7fb6e0; position: relative; display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 40px 12px 12px; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(180deg, #ffffff12, #ffffff05); box-shadow: 0 8px 22px #0006; transition: translate .15s, box-shadow .15s, border-color .15s; }
+.deal[data-kind="sell"] { --tag: #e9c877; }
+.deal[data-kind="swap"] { --tag: #c9a6ff; }
+.kind { position: absolute; left: 12px; top: 11px; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--tag) 22%, transparent); color: var(--tag); font: 700 11px system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.sides { --thumb: 76px; display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); align-items: center; gap: 6px; }
+.dealActions { display: flex; gap: 6px; align-items: center; justify-content: center; min-height: 46px; }
+.dealActions > button:first-child { flex: 1; min-width: 0; padding-inline: 8px; }
+.dealActions > button + button { width: 46px; padding: 0; }
+.deal[data-armed] { translate: 0 -4px; border-color: #ffe4aa; box-shadow: 0 0 0 1px #ffe4aa, 0 0 28px #e9c87759, 0 12px 26px #0008; }
+.deal[data-sold] .sides { opacity: .4; filter: saturate(.4); }
+
+/* The players' exchange: the board beside the trade window. */
+.market { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; }
+.marketBoard { min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.offerGrid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); align-content: start; gap: 8px; padding: 2px 4px 2px 2px; }
+.offer { --tag: #7fb6e0; --thumb: 50px; position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 9px 10px 10px; border: 1px solid var(--line); border-radius: 13px; background: linear-gradient(145deg, #ffffff0f, #ffffff03); color: #f3e4c7; text-align: center; cursor: pointer; transition: translate .14s, border-color .14s, box-shadow .14s; }
+.offer[data-kind="sell"] { --tag: #e9c877; }
+.offer[data-kind="swap"] { --tag: #c9a6ff; }
+.offer:hover { translate: 0 -2px; border-color: #e4c384; }
+.offer[aria-pressed="true"] { border-color: #ffe4aa; background: #e9c8771f; box-shadow: 0 0 0 1px #ffe4aa, 0 0 18px #d6aa5a40; }
+.offer[aria-disabled="true"] { opacity: .55; cursor: default; }
+.offer[aria-disabled="true"]:hover { translate: none; border-color: var(--line); }
+.offerSeller { display: flex; align-items: center; gap: 7px; font-size: 13px; color: #d7d0bf; }
+.offerSeller i, .window h3 i { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border: 1px solid #e9c87766; border-radius: 50%; background: #e9c87726; color: #f0d79b; font: 14px Georgia, serif; font-style: normal; }
+.offerSeller em { margin-left: auto; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--tag) 20%, transparent); color: var(--tag); font: 700 10px system-ui, sans-serif; font-style: normal; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.offer[aria-disabled="true"] .offerSeller em { background: #c96a5526; color: #e2a492; }
+.offerSides { display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); align-items: center; gap: 4px; }
+.offerSides > svg { width: 16px; color: #a9a599; }
+.offerSides .asset b { font-size: 12.5px; }
+
+.tradeWindow { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.window { flex: none; display: flex; flex-direction: column; gap: 12px; height: 348px; padding: 14px; border: 1px solid var(--edge); border-radius: 16px; background: linear-gradient(180deg, #e9c8771a, #06100d99); box-shadow: inset 0 0 0 3px #06100d99, 0 10px 26px #0007; }
+.tradeWindow[data-open="true"] .window { animation: deal .28s cubic-bezier(.2, 1.1, .4, 1) both; }
+@keyframes deal { from { opacity: .4; scale: .96; } }
+.window h3 { display: flex; align-items: center; justify-content: center; gap: 8px; font: 400 20px Georgia, serif; color: #fff0d0; }
+.windowSides { --thumb: 88px; flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); align-items: center; gap: 6px; }
+.windowSides .side { height: 100%; justify-content: center; }
+.windowActions { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 8px; }
+.windowEmpty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; color: #9fb3aa; }
+.windowEmpty svg { width: 40px; height: 40px; color: var(--accent); opacity: .7; }
+.windowEmpty p { font-size: 13px; }
+.ledger { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.ledger h3 { font: 700 11px system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.ledger ul { list-style: none; flex: 1; min-height: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ledger li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: #ffffff0a; font-size: 13px; }
+.ledger li svg { width: 15px; color: #b6d9b3; }
+.ledger li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ledger li small { color: #9fb3aa; }
+
+/* The gifting post: parcels on the left, the writing desk on the right. */
+.post { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; }
+.post h3 { font: 700 11px system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+.inbox { min-height: 0; display: flex; flex-direction: column; gap: 12px; padding-right: 4px; }
+.parcels { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.parcel { display: flex; gap: 12px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(145deg, #a8d0e81a, #ffffff05); }
+.parcel[data-quality="golden"] { border-color: #c9a35e; }
+.parcel[data-quality="galaxy"] { border-color: #7d5ad8; }
+.parcelPicture { flex: none; width: 82px; aspect-ratio: 7 / 9; display: grid; place-items: center; border-radius: 10px; background: #05090f99; overflow: hidden; }
+.parcelPicture > span:not(.wrapped) { width: 100%; animation: unwrap .5s cubic-bezier(.2, 1.4, .4, 1) both; }
+.wrapped { display: grid; place-items: center; width: 100%; height: 100%; background: repeating-linear-gradient(135deg, #c2412e, #c2412e 10px, #a8301f 10px, #a8301f 20px); color: #ffe9bd; box-shadow: inset 0 0 0 3px #ffe9bd40; animation: wiggle 3s ease-in-out infinite; }
+.wrapped svg { width: 34px; height: 34px; }
+@keyframes wiggle { 0%, 82%, 100% { rotate: 0deg; } 86% { rotate: -5deg; } 90% { rotate: 5deg; } 94% { rotate: -3deg; } }
+@keyframes unwrap { from { opacity: 0; scale: .5; rotate: -12deg; } }
+.parcelText { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: 6px; }
+.parcelText small { font-size: 12px; color: #a9bccb; }
+.parcelText p { font: italic 400 14px/1.4 Georgia, serif; color: #e7e2d4; }
+.parcelText b { font: 400 18px Georgia, serif; color: #fff0d0; }
+.parcelText em { font-style: normal; font-size: 13px; color: #ffd77a; }
+.sentList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sentList li { display: grid; grid-template-columns: 34px minmax(0, 1fr) 18px; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.sentList li > span { width: 34px; }
+.sentList li div { min-width: 0; display: flex; flex-direction: column; }
+.sentList b { font: 400 15px Georgia, serif; }
+.sentList small { font-size: 12px; color: #a9bccb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sentList svg { width: 16px; color: #b6d9b3; }
+.desk { min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(180deg, #f6ecd41a, #f6ecd408); }
+.giftPicker { flex: none; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.giftPicker button { position: relative; min-width: 0; padding: 3px; border: 1px solid #ffffff26; border-radius: 9px; background: #05090f99; cursor: pointer; }
+.giftPicker button[aria-checked="true"] { border-color: #ffe4aa; box-shadow: 0 0 0 1px #ffe4aa, 0 0 14px #a8d0e866; }
+.giftPicker button:disabled { opacity: .35; }
+.giftPicker [data-quality="golden"] { border-color: #c9a35e; }
+.giftPicker [data-quality="galaxy"] { border-color: #7d5ad8; }
+.desk label { display: flex; flex-direction: column; gap: 5px; font: 600 12px system-ui, sans-serif; color: #a9bccb; }
+.desk :is(input, textarea) { width: 100%; padding: 10px 12px; border: 1px solid #b9a77a; border-radius: 8px; background: #f3e8cd; color: #2c2414; font: 400 16px/1.4 Georgia, serif; resize: none; }
+.desk :is(input, textarea)::placeholder { color: #8d7f62; }
+.letter { flex: 1; min-height: 90px; }
+.letter textarea { flex: 1; min-height: 0; }
+
+@media (max-width: 1000px) {
+  .deals { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  .market { grid-template-columns: minmax(0, 1fr) 280px; }
+}
+@media (max-width: 760px) {
+  .deals { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  /* A deal lies down: its two sides on the left, its button on the right. */
+  .deal { display: grid; grid-template-columns: minmax(0, 1fr) 118px; align-items: center; gap: 10px; padding: 34px 10px 10px; }
+  .sides { --thumb: 58px; }
+  .dealActions { flex-direction: column; min-height: 0; }
+  .dealActions > button:first-child { width: 100%; flex: none; }
+  .dealActions > button + button { width: 100%; min-height: 36px; }
+  /* The trade window rises over the board when an offer is picked. */
+  .market { display: flex; flex-direction: column; position: relative; }
+  .marketBoard { flex: 1; }
+  .offerGrid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .tradeWindow { position: absolute; z-index: 3; left: -10px; right: -10px; bottom: calc(-1 * max(10px, env(safe-area-inset-bottom))); padding: 10px 10px max(10px, env(safe-area-inset-bottom)); background: #0b1814f7; border-top: 1px solid var(--edge); border-radius: 16px 16px 0 0; box-shadow: 0 -14px 34px #000a; translate: 0 110%; transition: translate .22s ease-out; }
+  .tradeWindow[data-open="true"] { translate: 0 0; }
+  .window { height: auto; }
+  .windowSides { --thumb: 72px; }
+  .ledger { display: none; }
+  .post { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overscroll-behavior: contain; }
+  .inbox { flex: none; overflow: visible; padding: 0; }
+  .desk { flex: none; }
+}
+@media (prefers-reduced-motion: reduce) { .wrapped, .parcelPicture > span, .tradeWindow[data-open="true"] .window { animation: none; } .deal, .offer, .tradeWindow { transition: none; } }

@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { useTranslations } from "next-intl";
+import { playFigurineCue } from "@/lib/figurine-audio";
 import { type Catch, type FigurineCollection, type FigurineRecords, type MachineItem, type MachineOutcome, type Reward } from "@/lib/figurine-collection";
 import type { MachineSource } from "@/lib/figurine-machine";
 import type { Station } from "@/lib/figurine-world";
@@ -19,7 +21,7 @@ export type LinePhase = "cast" | "wait" | "nibble" | "bite";
 // The daily stations' actions, and whether one is playing now.
 export type PanelActions = {
   busy: boolean; result: PanelResult | null; now: Date;
-  onSpin: () => void; onClaim: (id: string) => void;
+  onSpin: () => void; onClaim: (id: string, from?: { x: number; y: number } | null) => void;
 };
 type Props = CatalogueActions & {
   view: Station; collection: FigurineCollection; records: FigurineRecords; series: PanelSeries[];
@@ -28,6 +30,7 @@ type Props = CatalogueActions & {
 export default function WorldPanel(props: Props) {
   const t = useTranslations("figurineLab.world");
   const { view, onClose } = props;
+  useEffect(() => { if (view !== "gallery") return; playFigurineCue("open"); return () => { playFigurineCue("close"); }; }, [view]);
   if (view !== "gallery") return null;
   const title = t("stations.gallery");
   return <aside className={styles.panel} data-wide="catalogue" aria-label={title}>

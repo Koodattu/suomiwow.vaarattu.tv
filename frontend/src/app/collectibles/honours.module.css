@@ -1,0 +1,113 @@
+/* Accomplishments: the latest pulls, the hall of fame and the leaderboards. */
+.feed h3, .hall h3 { flex: none; font: 700 11px system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+
+/* Latest pulls: the town's finds in two columns of rows, the player's own in a shelf beside them. */
+.feed { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; }
+.town, .mine { min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.mine { padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(180deg, #f1cf7e14, #f1cf7e05); }
+.finds, .own { list-style: none; flex: 1; min-height: 0; margin: 0; padding: 2px 4px 2px 2px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 8px; }
+.own { grid-template-columns: minmax(0, 1fr); }
+.find { --glow: #e8c165; position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; height: 62px; padding: 5px 8px 5px 5px; border: 1px solid color-mix(in srgb, var(--glow) 45%, transparent); border-radius: 12px; background: linear-gradient(90deg, color-mix(in srgb, var(--glow) 16%, transparent), #0a101a66 60%); overflow: hidden; }
+.find[data-quality="galaxy"] { --glow: #9a7bff; }
+.thumb { flex: none; width: 40px; border-radius: 7px; overflow: hidden; background: #05090f99; }
+.findText { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.findText b { font: 400 16px/1.15 Georgia, serif; color: #fff0d0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find[data-quality="golden"] .findText b { color: #ffd77a; }
+.find[data-quality="galaxy"] .findText b { color: #d9c8ff; }
+.findText small { font-size: 12px; color: #b9b3c4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.findText em { font-style: normal; color: #ece4d2; }
+.cheer { flex: none; display: inline-flex; align-items: center; gap: 5px; min-width: 58px; height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: #0a101a99; color: #cfc6b2; font: 600 13px system-ui, sans-serif; font-variant-numeric: tabular-nums; cursor: pointer; }
+.cheer svg { width: 16px; height: 16px; }
+.cheer[aria-pressed="true"] { border-color: #ffd77a; background: #ffd77a26; color: #ffe2a0; }
+.cheer[aria-pressed="true"] svg { animation: ring .5s ease-out; transform-origin: 50% 10%; }
+@keyframes ring { 20% { rotate: 22deg; } 45% { rotate: -18deg; } 70% { rotate: 10deg; } 100% { rotate: 0deg; } }
+
+/* The hall of fame: plaques on a wall, in groups. */
+.tally { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--accent); font: 400 16px Georgia, serif; font-variant-numeric: tabular-nums; }
+.tally svg { width: 16px; height: 16px; }
+.hall { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 18px; padding: 2px 6px 6px 2px; }
+.hall section { display: flex; flex-direction: column; gap: 10px; }
+.hall h3 { display: flex; align-items: center; gap: 12px; }
+.hall h3::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+.wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); gap: 10px; }
+.plaque { --glow: #f1cf7e; display: flex; align-items: center; gap: 12px; min-width: 0; height: 92px; padding: 8px 12px 8px 8px; border: 1px solid color-mix(in srgb, var(--glow) 50%, transparent); border-radius: 12px; background: linear-gradient(135deg, color-mix(in srgb, var(--glow) 18%, transparent), #0a0a1699 55%); box-shadow: inset 0 1px 0 #ffffff14; }
+.plaque[data-quality="galaxy"] { --glow: #9a7bff; }
+.plaque[data-quality="standard"] { --glow: #b9c3d6; }
+/* A fixed window for the picture: a figure keeps its own shape, a fish lies across it. */
+.plaquePicture { flex: none; display: grid; place-items: center; width: 58px; height: 74px; border-radius: 9px; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--glow) 30%, transparent), #05060dcc 75%); overflow: hidden; }
+.plaquePicture > span { width: 56px; }
+.plaquePicture img { width: 56px; height: auto; object-fit: contain; filter: drop-shadow(0 3px 4px #000a); }
+.plaquePicture svg { width: 22px; height: 22px; color: #77748c; }
+.plaque > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.plaque h4 { font: 400 14px/1.2 Georgia, serif; color: #d6cfe4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.plaque b { font: 700 17px/1.15 Georgia, serif; color: #ffe2a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plaque small { font-size: 11.5px; color: #a8a4bc; }
+.plaque[data-vacant] { --glow: #6d6a85; border-style: dashed; background: #0a0a1666; box-shadow: none; }
+.plaque[data-vacant] h4 { color: #a8a4bc; }
+
+/* Leaderboards: measures and podium on the left, the standings on the right. */
+.ranks { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 14px 18px; }
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.metrics button { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; height: 66px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 13px; background: #0a0a1680; color: #cfc8dc; text-align: left; cursor: pointer; }
+.metrics small { font-size: 12px; }
+.metrics b { font: 400 24px/1 Georgia, serif; color: #fff0d0; font-variant-numeric: tabular-nums; }
+.metrics button[aria-pressed="true"] { border-color: var(--accent); background: linear-gradient(135deg, #f1cf7e33, #f1cf7e0d); box-shadow: 0 0 18px #f1cf7e33; color: #ffe2a0; }
+.metrics [data-metric="galaxy"] b { color: #d9c8ff; }
+.metrics [data-metric="golden"] b { color: #ffd77a; }
+.podium { min-height: 0; display: grid; grid-template-columns: 1fr 1.14fr 1fr; align-items: end; gap: 8px; padding: 0 8px; }
+.podium article { min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; animation: rise .45s cubic-bezier(.2, 1, .3, 1.15) both; }
+.podium article[data-place="2"] { animation-delay: .08s; }
+.podium article[data-place="3"] { animation-delay: .16s; }
+@keyframes rise { from { opacity: 0; translate: 0 30px; } }
+.podiumFace { flex: 0 1 auto; min-height: 0; width: min(100%, 150px); aspect-ratio: 280 / 360; }
+.podium article[data-place="1"] .podiumFace { width: min(100%, 190px); }
+.podium article > b { max-width: 100%; font: 400 17px Georgia, serif; color: #fff0d0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.podium article[data-you] > b { color: #8fe0ff; }
+.step { flex: none; width: 100%; height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid #b9c3d680; border-bottom: 0; border-radius: 12px 12px 0 0; background: linear-gradient(180deg, #b9c3d640, #b9c3d60d); color: #dfe6f2; }
+.step span, .step svg { font: 700 22px Georgia, serif; width: 24px; height: 24px; text-align: center; line-height: 24px; }
+.step strong { font: 400 18px Georgia, serif; font-variant-numeric: tabular-nums; }
+.podium [data-place="1"] .step { height: 112px; border-color: #f1cf7e; background: linear-gradient(180deg, #f1cf7e66, #f1cf7e14); color: #ffe2a0; box-shadow: 0 0 30px #f1cf7e40; }
+.podium [data-place="3"] .step { height: 56px; border-color: #c98a5a99; background: linear-gradient(180deg, #c98a5a4d, #c98a5a0d); color: #f0c8a4; }
+.standings { grid-column: 2; grid-row: 1 / span 2; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 16px; background: #0a0a1680; overflow: hidden; }
+.rankList { list-style: none; flex: 1; min-height: 0; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.rankList li, .youBar { flex: none; display: grid; grid-template-columns: 44px 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; height: 46px; padding: 0 14px 0 6px; border-radius: 10px; color: #e6dfee; }
+.rankList li:nth-child(odd) { background: #ffffff08; }
+.rank { text-align: center; font: 400 15px Georgia, serif; color: #a8a4bc; font-variant-numeric: tabular-nums; }
+.rankFace { width: 30px; height: 38px; border-radius: 5px; overflow: hidden; }
+.noFace { display: block; width: 100%; aspect-ratio: 280 / 360; border-radius: 6px; background: radial-gradient(circle at 50% 35%, #8fe0ff66, #8fe0ff14 70%); }
+.rankList b, .youBar b { font: 400 16px Georgia, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.rankList strong, .youBar strong { font: 400 17px Georgia, serif; color: #fff0d0; font-variant-numeric: tabular-nums; }
+.rankList li[data-you] { background: linear-gradient(90deg, #8fe0ff33, #8fe0ff0d); box-shadow: inset 0 0 0 1px #8fe0ff99; }
+.rankList li[data-you] b, .youBar b { color: #8fe0ff; }
+/* Where the player stands, always in view; a tap finds their row. */
+.youBar { grid-template-columns: 44px 30px auto minmax(0, 1fr) auto 18px; width: 100%; height: 54px; border: 0; border-top: 1px solid #8fe0ff66; border-radius: 0; background: linear-gradient(180deg, #16324a, #0e2032); cursor: pointer; font: inherit; }
+.youBar .rank { color: #8fe0ff; font-size: 17px; font-weight: 700; }
+.youBar small { font-size: 12px; color: #9fb6c6; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.youBar svg { width: 18px; height: 18px; color: #8fe0ff; }
+.youBar:disabled { cursor: default; }
+
+@media (max-width: 860px) {
+  .feed { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overscroll-behavior: contain; }
+  /* The player's own finds lead, as a strip that scrolls sideways. */
+  .mine { order: -1; flex: none; padding: 10px; }
+  .own { flex: none; display: flex; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; }
+  .own .find { flex: none; width: 230px; }
+  .town { flex: none; min-height: auto; }
+  .finds { flex: none; overflow: visible; grid-template-columns: minmax(0, 1fr); }
+  .wall { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .ranks { display: flex; flex-direction: column; gap: 10px; }
+  .metrics { flex: none; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .metrics button { height: 58px; padding: 6px 8px; align-items: center; text-align: center; }
+  .metrics small { font-size: 10.5px; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .metrics b { font-size: 19px; }
+  .podium { flex: none; height: 176px; }
+  .podiumFace, .podium article[data-place="1"] .podiumFace { width: 54px; }
+  .podium article[data-place="1"] .podiumFace { width: 64px; }
+  .podium article > b { font-size: 14px; }
+  .step { height: 46px; flex-direction: row; gap: 8px; }
+  .podium [data-place="1"] .step { height: 62px; }
+  .podium [data-place="3"] .step { height: 36px; }
+  .standings { flex: 1; }
+}
+@media (max-width: 460px) { .plaque { height: 84px; } .wall { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .podium article, .cheer[aria-pressed="true"] svg { animation: none; } }
