@@ -24,7 +24,8 @@ const ICONS = { merchant: LuBadgePercent, recycler: LuRecycle, forge: LuHammer, 
 // What these show is invented for now, and says so.
 const SAMPLE = ["trading", "mail", "feed", "fame", "leaderboard"];
 
-// One frame holds every facility: each has its own material, size and place (see the stylesheet),
+// One frame holds every facility, in the middle of the dimmed world: each has its own material and
+// size (see the stylesheet),
 // and none resizes while it is open. What is inside lays out to the frame and scrolls in its own
 // columns.
 export default function FacilityOverlay(props: Props) {
@@ -34,7 +35,7 @@ export default function FacilityOverlay(props: Props) {
   useEffect(() => { title.current?.focus({ preventScroll: true }); playFigurineCue("open"); return () => { playFigurineCue("close"); }; }, [view]);
   const Icon = ICONS[view], workshop = view === "recycler" || view === "forge";
   const complete = props.series.some(entry => entry.released && entry.keys.length && entry.keys.every(key => props.collection[key]));
-  return <div className={styles.layer} data-facility={view} data-place={workshop ? "side" : "centre"} data-away={props.away || undefined} inert={props.away}>
+  return <div className={styles.layer} data-facility={view} data-away={props.away || undefined} inert={props.away}>
     <aside className={styles.panel} aria-labelledby="facility-title" key={view}>
       <header className={styles.header}>
         <span className={styles.emblem}><Icon aria-hidden="true" /></span>

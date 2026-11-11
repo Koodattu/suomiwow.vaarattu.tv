@@ -33,6 +33,7 @@
 .place button:focus-visible { outline: 2px solid #f5ddb4; outline-offset: -2px; border-radius: 9px; }
 .place[data-selected="true"] { border-color: #ffe4aa; box-shadow: 0 0 0 1px #ffe4aa inset, 0 0 14px rgba(255, 200, 90, .35); }
 .place[data-dragging] { opacity: .4; border-style: dashed; }
+.place[data-landing] { border-color: #8fe0ff; box-shadow: 0 0 0 1px #8fe0ff inset, 0 0 14px rgba(143, 224, 255, .5); }
 .number { position: absolute; top: 3px; left: 3px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; background: rgba(10, 16, 26, .8); color: #8a7f68; font: 700 11px/18px Georgia, serif; text-align: center; pointer-events: none; }
 .place[data-filled="true"] .number { background: linear-gradient(#e2bd6a, #9c7430); color: #2c1d08; }
 .ghost { position: fixed; z-index: 10; width: 64px; margin: -44px 0 0 -32px; pointer-events: none; filter: drop-shadow(0 8px 16px rgba(0, 0, 0, .55)); transform: rotate(-4deg) scale(1.05); }

@@ -139,9 +139,9 @@ function FishLog({ records, onClose }: { records: FigurineRecords; onClose: () =
   </Sheet>;
 }
 
-// The anglers' board: every angler ranked by the score of their ten best catches, the player among
-// them at their true place. Picking a name shows that angler's ten; the bar under the list always
-// says where the player stands, and a tap on it finds their row.
+// The anglers' board: every angler on a row of their own, ranked by the score of their ten best
+// catches, with those ten laid out along the row and the score at its end. The player is a row like
+// any other, at their true place; the bar under the list repeats it, and a tap on it finds it.
 function AnglersBoard({ records, onClose }: { records: FigurineRecords; onClose: () => void }) {
   const t = useTranslations("figurineLab.world.pond");
   const quality = useTranslations("figurineLab.quality");
@@ -152,31 +152,19 @@ function AnglersBoard({ records, onClose }: { records: FigurineRecords; onClose:
     return [...PREVIEW_ANGLERS.slice(0, place).map((angler) => ({ ...angler, you: false })), mine, ...PREVIEW_ANGLERS.slice(place).map((angler) => ({ ...angler, you: false }))];
   }, [records.angler, score, t]);
   const rank = rows.findIndex((row) => row.you) + 1;
-  const [picked, setPicked] = useState(rank - 1), shown = rows[picked] ?? rows[rank - 1];
   const you = useRef<HTMLLIElement>(null);
-  const pick = (index: number) => { playFigurineCue("pick"); setPicked(index); };
-  const findMe = () => { pick(rank - 1); you.current?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
+  const findMe = () => { playFigurineCue("pick"); you.current?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
+  const haul = (catches: readonly PreviewCatch[]) => <span className={styles.haul}>{Array.from({ length: ANGLER_TOP }, (_, index) => {
+    const entry = catches[index], kind = entry && fishOf(entry.fish);
+    return entry && kind ? <span key={index} className={styles.haulFish} data-quality={entry.quality} data-rarity={fishRarity(kind)} title={`${kind.name} · ${t("weight", { weight: entry.weight })}${entry.quality !== "standard" ? ` · ${quality(entry.quality)}` : ""} · ${t("points", { points: entry.score })}`}><FishPicture id={entry.fish} /><small>{entry.score}</small></span>
+      : <span key={index} className={styles.haulFish} data-empty="true" />;
+  })}</span>;
   return <Sheet title={t("board")} intro={<>{(["common", "uncommon", "rare", "epic"] as const).map((rarity) => <span key={rarity} className={styles.points} data-rarity={rarity}>{t(`rarity.${rarity}`)} <b>{RARITY_POINTS[rarity]}</b></span>)}<span className={styles.points}>{t("scoringSize")}</span><span className={styles.points}>{t("scoringFinish", { golden: FINISH_TIMES.golden, galaxy: FINISH_TIMES.galaxy })}</span></>} closeLabel={t("closeBoard")} onClose={onClose} wide>
     <div className={styles.boardBody}>
-      <section className={styles.standings} aria-labelledby="pond-standings">
-        <h3 id="pond-standings">{t("standings")}</h3>
-        <ol>{rows.map((row, index) => <li key={row.you ? "you" : row.name} ref={row.you ? you : undefined}>
-          <button type="button" data-you={row.you || undefined} aria-pressed={picked === index} onClick={() => pick(index)}><span className={styles.place}>{index + 1}</span><b>{row.name}</b><em>{t("points", { points: row.score })}</em></button>
-        </li>)}</ol>
-        <button type="button" className={styles.youBar} onClick={findMe}><span className={styles.place}>{rank}</span><b>{t("you")}</b><small>{t("of", { total: rows.length })}</small><em>{t("points", { points: score })}</em></button>
-      </section>
-      <section className={styles.best} aria-labelledby="pond-best">
-        <h3 id="pond-best">{shown.you ? t("bestTen", { count: shown.catches.length, total: ANGLER_TOP }) : t("bestOf", { name: shown.name })}</h3>
-        {shown.catches.length ? <ol className={styles.catches} key={picked}>{shown.catches.map((entry, index) => {
-          const kind = fishOf(entry.fish)!;
-          return <li key={index} data-quality={entry.quality} data-rarity={fishRarity(kind)}>
-            <span className={styles.place}>{index + 1}</span>
-            <span className={styles.catchFish}><FishPicture id={entry.fish} /></span>
-            <span className={styles.catchName}><b>{kind.name}</b><small>{t("weight", { weight: entry.weight })}{entry.quality !== "standard" && ` · ${quality(entry.quality)}`}</small></span>
-            <em>{t("points", { points: entry.score })}</em>
-          </li>;
-        })}</ol> : <p className={styles.empty}>{t("boardEmpty")}</p>}
-      </section>
+      <ol className={styles.anglers}>{rows.map((row, index) => <li key={row.you ? "you" : row.name} ref={row.you ? you : undefined} className={styles.angler} data-you={row.you || undefined}>
+        <span className={styles.place}>{index + 1}</span><b>{row.name}</b>{haul(row.catches)}<em>{t("points", { points: row.score })}</em>
+      </li>)}</ol>
+      <button type="button" className={`${styles.angler} ${styles.youBar}`} data-you="true" onClick={findMe}><span className={styles.place}>{rank}</span><b>{t("you")}</b>{haul(records.angler)}<em>{t("points", { points: score })}</em></button>
     </div>
   </Sheet>;
 }

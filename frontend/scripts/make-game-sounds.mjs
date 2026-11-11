@@ -1,5 +1,6 @@
 // Synthesises the interface's smallest tones, which need exact pitch and length more than they need
-// texture: a progress tick, a rising fill, a pick, a refusal. Everything with a body (coins, water,
+// texture: a progress tick, a pick, a refusal, a panel opening and closing. They are heard hundreds
+// of times, so every one is low, soft-edged and short: nothing bright, nothing that clicks. Everything with a body (coins, water,
 // wood) is generated and mastered by scripts/master-game-sounds.mjs instead.
 // Run from frontend with ffmpeg on the path: node scripts/make-game-sounds.mjs
 import { execFileSync } from "node:child_process";
@@ -26,13 +27,31 @@ const seq = (...parts) => {
   return fade(out);
 };
 
+// A soft thump: low noise through a closing filter over a falling sine, with no click at its start.
+function thump(from, to, seconds, seed) {
+  const out = wave(seconds); let state = seed, low = 0;
+  for (let i = 0; i < out.length; i++) {
+    const t = i / rate, k = t / seconds;
+    state = (state * 16807) % 2147483647;
+    low += ((state / 1073741823.5 - 1) - low) * (0.05 - 0.035 * k);
+    out[i] = low * 2.2 * Math.sin(Math.PI * Math.min(1, t / 0.012) / 2) * Math.exp(-t / (seconds * 0.3));
+  }
+  const body = tone(from, to, seconds, seconds * 0.35, 0.012);
+  for (let i = 0; i < out.length; i++) out[i] += body[i] * 0.8;
+  return fade(out, seconds * 0.4);
+}
 // name: [wave, peak (0..1)]
 const SOUNDS = {
-  blip: [seq([tone(880, 900, 0.07, 0.03), 0, 1], [tone(1760, 1780, 0.05, 0.015), 0, 0.25]), 0.4],
-  fill: [fade(tone(420, 1260, 0.5, 0.6, 0.02), 0.04), 0.35],
-  pick: [seq([tone(1500, 1250, 0.05, 0.012), 0, 1], [tone(3000, 2500, 0.03, 0.006), 0, 0.3]), 0.45],
-  deny: [seq([tone(150, 132, 0.09, 0.05), 0, 1], [tone(300, 264, 0.09, 0.05), 0, 0.3], [tone(132, 110, 0.14, 0.07), 0.11, 1], [tone(264, 220, 0.14, 0.07), 0.11, 0.3]), 0.5],
-  unstar: [fade(tone(1400, 900, 0.1, 0.035)), 0.35],
+  // A quest bar's tick and the wheel's passing notes: a round, mallet-like note.
+  blip: [seq([tone(520, 510, 0.12, 0.045, 0.006), 0, 1], [tone(1040, 1020, 0.06, 0.02, 0.006), 0, 0.12]), 0.4],
+  fill: [fade(tone(260, 620, 0.5, 0.6, 0.03), 0.06), 0.3],
+  // Picking a tab, a chip or a card: a soft wooden tap.
+  pick: [seq([tone(330, 250, 0.08, 0.022, 0.006), 0, 1], [tone(660, 500, 0.04, 0.01, 0.006), 0, 0.15]), 0.35],
+  deny: [seq([tone(150, 132, 0.1, 0.05, 0.008), 0, 1], [tone(132, 110, 0.15, 0.07, 0.008), 0.12, 1]), 0.4],
+  unstar: [fade(tone(420, 300, 0.12, 0.04, 0.008)), 0.3],
+  // A panel arriving and leaving: a breath and a low thump, rising to open and falling to close.
+  open: [thump(110, 150, 0.22, 4711), 0.4],
+  close: [thump(140, 90, 0.2, 9103), 0.35],
 };
 
 function wav(samples, peakTarget) {

@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, createFigurineDrawQueue, initialBox } from "@/lib/figurine-box";
 import { createFigurineFileCache } from "@/lib/figurine-cache";
 import { playFigurineCue, prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
-import { MACHINE_SLOTS, addToCollection, boostedQuality, canSpin, claimQuest, COIN_INTERVAL_MS, crateState, dailyCatchesLeft, dayKey, fishOf, fishRarity, grantReward, landCatch, moveFavorite, openCrate, questBoard, rollCatch, setFavoriteQuality, showcaseOf, spendBoost, initializeCoins, spendCoin, spinWheel, startQuestPeriods, toggleFavorite, type CatchRoll, type PullSource, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
+import { MACHINE_SLOTS, addToCollection, boostedQuality, canSpin, claimQuest, COIN_INTERVAL_MS, crateState, dailyCatchesLeft, dayKey, fishOf, fishRarity, grantReward, landCatch, moveFavorite, swapFavorites, openCrate, questBoard, rollCatch, setFavoriteQuality, showcaseOf, spendBoost, initializeCoins, spendCoin, spinWheel, startQuestPeriods, toggleFavorite, type CatchRoll, type PullSource, bestQuality, changeCollection, collectionShelves, copiesOf, emptyCollection, emptyRecords, machineChanges, machineOutcome, readCollection, readRecords, recordPull, recordRecycle, rollQuality, spare, subscribeCollection, trayGroups, type FigurineMachine, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, RELEASED_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
 import type { StageMachine, StagePoke, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
 import type { MachinePick, MachineSource } from "@/lib/figurine-machine";
@@ -16,7 +16,7 @@ import { DISTRICTS, districtOf, isDistrict, isStation, type District, type Stati
 import WorldPanel, { type LinePhase, type PanelResult, type PanelSeries } from "./WorldPanels";
 import PondHud, { type PondPart, type PondSheet } from "./PondHud";
 import ChestHud from "./ChestHud";
-import RewardLayer, { BoostPrize, FigurePrize, Wallet, flyCoins, holdCoins, presentCoins, presentPrize, releaseCoins, type RewardPoint } from "./RewardLayer";
+import RewardLayer, { BoostPrize, FigurePrize, Wallet, coinLanded, flyCoins, holdCoins, presentCoins, presentPrize, releaseCoins, type RewardPoint } from "./RewardLayer";
 import DistrictHud, { type DistrictOption } from "./DistrictHud";
 import OverviewHud, { OverviewBack } from "./OverviewHud";
 import WheelHud, { WHEEL_PRIZES } from "./WheelHud";
@@ -63,6 +63,11 @@ export default function FigurineWorld() {
   const [state, dispatch] = useReducer(boxReducer, initialBox);
   const paidOpening = useRef(false);
   const coinIcon = useRef<HTMLImageElement>(null);
+  // Where the wallet's coin is on screen, for the world's coins to fly to.
+  const coinTarget = useCallback(() => {
+    const rect = coinIcon.current?.getBoundingClientRect();
+    return rect ? { x: 2 * (rect.left + rect.width / 2) / window.innerWidth - 1, y: 1 - 2 * (rect.top + rect.height / 2) / window.innerHeight, width: 2 * rect.width / window.innerWidth } : null;
+  }, []);
   useEffect(() => {
     if (state.phase === "error" && paidOpening.current) { paidOpening.current = false; grantReward({ coins: 1 }); }
   }, [state.phase]);
@@ -88,8 +93,7 @@ export default function FigurineWorld() {
   // On a screen taller than wide a district shows one station at a time: this one.
   const [focus, setFocus] = useState<Station | null>(null);
   useEffect(() => { const measure = () => { setViewport(window.innerWidth); setPortrait(window.innerHeight > window.innerWidth); }; measure(); window.addEventListener("resize", measure); return () => window.removeEventListener("resize", measure); }, []);
-  // The collection's catalogue and the workbench dock beside their stations.
-  const panelWidth = view === "recycler" || view === "forge" ? 544 : catalogueWidth(viewport);
+  const panelWidth = catalogueWidth(viewport);
   // Refresh daily rewards each minute and the chest at its exact cooldown boundary.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -220,6 +224,8 @@ export default function FigurineWorld() {
   const machineLocks = useRef(new Set<FigurineMachine>());
   const [runningMachines, setRunningMachines] = useState({ recycler: false, forge: false });
   const [machineRuns, setMachineRuns] = useState<Record<FigurineMachine, MachineRun>>({ recycler: { run: 0, cards: [], sources: [], output: null, outcome: null }, forge: { run: 0, cards: [], sources: [], output: null, outcome: null } });
+  // The recycler's coin, hanging before the camera until it is collected: its panel stays away.
+  const [recycledCoin, setRecycledCoin] = useState(false);
   const outcomes = useMemo(() => ({ recycler: machineOutcome("recycler", slots.recycler, collection), forge: machineOutcome("forge", slots.forge, collection) }), [slots, collection]);
 
   // The daily stations. Each action plays in the world first (the crate bursts, the wheel spins, the
@@ -257,7 +263,9 @@ export default function FigurineWorld() {
     const run = (facilityAction?.run ?? 0) + 1;
     setFacilityAction({ run, station, action: next }); setPending({ run, result: outcome, source, ...extra }); setResult(null);
   };
-  function actionDone(run: number, cast: CastResult | undefined, from: RewardPoint | null) {
+  // Sends the coins a station is holding before the camera on to the wallet.
+  const collectFrom = (station: "crate" | "wheel" | "recycler") => setPoke((current) => ({ n: (current?.n ?? 0) + 1, station, kind: "dismiss" }));
+  function actionDone(run: number, cast?: CastResult) {
     if (!pending || pending.run !== run) return;
     if (pending.result?.station === "crate") chestClaiming.current = false;
     let outcome = pending.result;
@@ -278,15 +286,15 @@ export default function FigurineWorld() {
     if (figure && pending.source) { addToCollection(figure.key, figure.quality); recordPull(figure, pending.source); }
     const figureName = figure ? findFigure(figure.key)?.character.name ?? "" : "", finish = (quality: FigurineQuality) => t(`quality.${quality}`);
     // Coins always pay out the same way; anything else is shown where it was won.
-    if (outcome.station === "crate") presentCoins(reward?.coins ?? 0, { origin: from, held: true, title: t("world.crate.title"), note: (reward?.coins ?? 0) > 1 ? t(outcome.day === 7 ? "world.crate.weeklyBonus" : "world.crate.dailyBonus") : undefined });
+    if (outcome.station === "crate") presentCoins(reward?.coins ?? 0, { held: true, onCollect: () => collectFrom("crate"), title: t("world.crate.title"), note: (reward?.coins ?? 0) > 1 ? t(outcome.day === 7 ? "world.crate.weeklyBonus" : "world.crate.dailyBonus") : undefined });
     else if (outcome.station === "wheel") {
       const title = t("world.stations.wheel");
-      if (reward?.coins) presentCoins(reward.coins, { origin: from, title, cue: "winSmall" });
+      if (reward?.coins) presentCoins(reward.coins, { title, cue: "winSmall", onCollect: () => collectFrom("wheel") });
       else if (figure) presentPrize(<FigurePrize figure={figure} name={figureName} detail={`${figure.quality !== "standard" ? `${finish(figure.quality)} · ` : ""}${t("world.pond.banner.joins")}`} />, { title, cue: "winBig" });
       else if (reward?.boost) presentPrize(<BoostPrize quality={reward.boost} name={t("world.rewards.boost", { quality: finish(reward.boost) })} detail={t("world.rewards.boostNext", { quality: finish(reward.boost) })} />, { title, cue: "winBoost" });
     } else if ("caught" in outcome) {
       const caught = outcome.caught;
-      if (caught.kind === "daily" && !figure) { presentCoins(caught.reward.coins ?? 1, { origin: { x: window.innerWidth / 2, y: window.innerHeight / 2 }, title: t("world.pond.banner.treasure") }); return; }
+      if (caught.kind === "daily" && !figure) { presentCoins(caught.reward.coins ?? 1, { title: t("world.pond.banner.treasure"), onCollect: dismissCatch }); return; }
       // A fish slaps down; a rare one, a shiny one or a first of its kind earns a jingle on top.
       if (caught.kind === "fish") {
         const rarity = fishRarity(fishOf(caught.fish)!);
@@ -300,6 +308,8 @@ export default function FigurineWorld() {
   }
   // The line's progress, from the pond's own cues.
   function actionCue(run: number, cue: ActionCue, detail?: number) {
+    // One of the world's coins has reached the wallet.
+    if (cue === "coinCollected") { coinLanded(); return; }
     // The wheel: its reel follows the pointer, and once it slows each segment sounds its own note.
     if (cue === "tick" && detail !== undefined && pending?.run === run) {
       const now = performance.now(), prize = WHEEL_PRIZES[detail];
@@ -369,7 +379,7 @@ export default function FigurineWorld() {
     setNow(claimedAt);
     // The coins are the player's from this tap, but the wallet waits for them to come out of the chest.
     holdCoins(opened.reward.coins ?? 0);
-    act("crate", { kind: "open" }, { station: "crate", ...opened });
+    act("crate", { kind: "open", coins: opened.reward.coins ?? 1 }, { station: "crate", ...opened });
   };
   const streak = useMemo(() => ({ opened: crate.bonusReady ? crate.day - 1 : crate.day, today: crate.bonusReady ? crate.day : null }), [crate.bonusReady, crate.day]);
   const completeSeries = FIGURINE_SERIES.some((entry) => entry.characters.every((character) => collection[figureKey(entry.id, character.id)]));
@@ -377,7 +387,7 @@ export default function FigurineWorld() {
     busy, result, now,
     onSpin: () => {
       const spun = spinWheel(Math.random(), now);
-      if (spun) act("wheel", { kind: "spin", segment: spun.segment }, { station: "wheel", reward: spun.reward, figure: spun.reward.figure ? prizeFigure() : undefined }, "wheel");
+      if (spun) act("wheel", { kind: "spin", segment: spun.segment, coins: spun.reward.coins }, { station: "wheel", reward: spun.reward, figure: spun.reward.figure ? prizeFigure() : undefined }, "wheel");
     },
     // The stamp comes down, and the quest's coins fly from where it was claimed.
     onClaim: (id: string, from: RewardPoint | null = null) => { unlockFigurineAudio(); const coins = claimQuest(id, completeSeries, now); if (coins) { playFigurineCue("stamp"); flyCoins(coins, from); } },
@@ -409,13 +419,13 @@ export default function FigurineWorld() {
       load([]);
     }
   }
-  function machineDone(kind: FigurineMachine, from: RewardPoint | null) {
+  function machineDone(kind: FigurineMachine) {
     machineLocks.current.delete(kind);
     setRunningMachines(current => ({ ...current, [kind]: false }));
     const made = machineRuns[kind].outcome;
     // A coin nobody is there to see is simply in the wallet.
-    if (viewRef.current !== kind || !made) { if (made?.kind === "coin") releaseCoins(1); return; }
-    if (made.kind === "coin") presentCoins(1, { origin: from, held: true, title: t("stationRecycler") });
+    if (viewRef.current !== kind || !made) { if (made?.kind === "coin") { collectFrom("recycler"); releaseCoins(1); } return; }
+    if (made.kind === "coin") { setRecycledCoin(true); presentCoins(1, { held: true, title: t("stationRecycler"), onCollect: () => collectFrom("recycler"), onDone: () => setRecycledCoin(false) }); }
     else if (made.kind === "upgrade") { inspect(made.key, made.quality); setUpgraded({ key: made.key, quality: made.quality }); }
   }
   const qualityName = (finish: FigurineQuality) => t(`quality.${finish}`);
@@ -475,7 +485,7 @@ export default function FigurineWorld() {
     .map(({ id, number, released, hidden, keys }) => ({ id, number, released, hidden, keys })), [world.series, collection]);
   const trading = useTradingPost(now);
   const machineKind = isMachine(view) ? view : null;
-  const away = !!machineKind && runningMachines[machineKind];
+  const away = !!machineKind && (runningMachines[machineKind] || recycledCoin);
   const machinePanel = machineKind ? {
     kind: machineKind, slots: slots[machineKind],
     groups: trayGroups(collection, CATALOG_ORDER, machineKind).map((group) => ({ key: group.key, quality: group.quality, spare: machineKind === "forge" ? group.count : spare(collection, slots[machineKind], group) })),
@@ -530,7 +540,7 @@ export default function FigurineWorld() {
       interactive={revealedWorld && (view === "overview" || view === "opening") && state.phase === "sealed" && !webglUnavailable} locked={!series || records.boons.coins < 1} round={state.round} onBoxTap={open} rotate={view === "overview" || view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={seriesId} world={world} figureKey={drawn && series ? figureKey(series.id, drawn.id) : undefined} quality={quality}
       machines={machineRuns} workshopBusy={away} onMachineDone={machineDone} onIntroDone={() => setIntroDone(true)} onHoverStation={setPointed} action={facilityAction} onActionDone={actionDone} onActionCue={actionCue} poke={poke} panelWidth={panelWidth} focus={focused}
-      onFacilityPart={(station, part) => { if (station === "pond") pondPart(part); else if (station === "crate" && part === "chest") openDailyChest(); }} onHoverPart={(part) => setHoverPart(part === "water" ? "rod" : part as PondPart | null)} highlightedPart={view === "pond" && !pondSheet ? buttonPart : null}
+      onFacilityPart={(station, part) => { if (station === "pond") pondPart(part); else if (station === "crate" && part === "chest") openDailyChest(); }} onHoverPart={(part) => setHoverPart(part === "water" ? "rod" : part as PondPart | null)} highlightedPart={view === "pond" && !pondSheet ? buttonPart : null} coinTarget={coinTarget}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={(key) => inspect(key)} onHoverFigure={setHovered}
       highlightedStation={view === "overview" || isDistrict(view) ? navHover : null}
       onStatus={(status) => {
@@ -555,7 +565,7 @@ export default function FigurineWorld() {
     {revealedWorld && isOverlayStation(view) && view !== "wheel" && <FacilityOverlay away={away} machine={machinePanel} trading={trading} view={view} collection={collection} records={records} series={panelSeries} actions={panelActions} preview={communityPreview} dispatch={communityAction} onClose={back} />}
     {isStation(view) && !isOverlayStation(view) && view !== "shop" && view !== "pond" && view !== "crate" && <WorldPanel view={view} collection={collection} records={records} series={panelSeries} onClose={back}
       onInspect={(key, finish) => inspect(key, finish)}
-      onFavorite={(item) => { unlockFigurineAudio(); toggleFavorite(item); }} onMoveFavorite={(key, to) => moveFavorite(key, to)} onFavoriteQuality={(key, finish) => setFavoriteQuality(key, finish)} />}
+      onFavorite={(item) => { unlockFigurineAudio(); toggleFavorite(item); }} onMoveFavorite={(key, to) => moveFavorite(key, to)} onSwapFavorites={(a, b) => swapFavorites(a, b)} onFavoriteQuality={(key, finish) => setFavoriteQuality(key, finish)} />}
     <div className={styles.worldLoader} data-done={revealedWorld} role="status" aria-hidden={revealedWorld}>
       <span>{t("worldPreparing")}</span>
       <div className={styles.worldLoaderBar}><i style={{ width: `${progress}%` }} /></div>

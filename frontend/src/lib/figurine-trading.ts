@@ -22,17 +22,17 @@ const value = (index: number) => [2, 2, 2, 5, 5, 12][index % figures.length];
 export const canAffordTrade = (asset: TradeAsset, balance: number, collection: FigurineCollection) => asset.kind === "coins"
   ? balance >= asset.amount : (collection[asset.key]?.[asset.quality] ?? 0) > 0;
 
-// The merchant's four deals: one of each kind, and a golden figure under the market's price.
+// The merchant's three deals, one of each kind: a figure for coins (golden every other day, under
+// the market's price), coins for a figure, and one figure for another.
 // Stable for a local calendar day; refreshing advances the selection without touching a server.
 export function dailyDeals(day: string, refresh = 0): TradeOffer[] {
   const seed = [...day].reduce((sum, char) => sum + char.charCodeAt(0), 0) + refresh;
-  const standard = seed % 3, premium = 3 + seed % 2;
+  const standard = seed % 3, premium = 3 + Math.floor(seed / 2) % 2, golden = seed % 2 === 1;
   // The swap asks for any standard figure of the roster and gives another back.
   const wanted = PREVIEW_ROSTER[seed * 7 % PREVIEW_ROSTER.length], offered = PREVIEW_ROSTER[(seed * 7 + 5 + seed % 11) % PREVIEW_ROSTER.length];
   return [
-    { id: `${day}:${refresh}:buy`, collector: "", give: coins(1), receive: figure(standard), bargain: true },
+    { id: `${day}:${refresh}:buy`, collector: "", give: coins(golden ? 4 : 1), receive: figure(golden ? premium : standard), bargain: true },
     { id: `${day}:${refresh}:sell`, collector: "", give: figure((standard + 1) % 3), receive: coins(3), bargain: true },
-    { id: `${day}:${refresh}:premium`, collector: "", give: coins(4), receive: figure(premium), bargain: true },
     { id: `${day}:${refresh}:swap`, collector: "", give: { kind: "figure", key: wanted, quality: "standard" }, receive: { kind: "figure", key: offered, quality: "standard" }, bargain: true },
   ];
 }

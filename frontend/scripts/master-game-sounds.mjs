@@ -12,7 +12,7 @@ const CUES = {
   coin: [true, 0.6], coins: [false, 1.4], "coins-few": [false, 0.9], swish: [false, 0.7], clack: [true, 0.25],
   "win-small": [false, 1.6], "win-big": [false, 2.6], "win-boost": [false, 2], splash: [false, 1], "splash-big": [false, 1.8],
   nibble: [true, 0.4], bite: [false, 1.1], reel: [false, 1], cast: [false, 0.8], escape: [false, 1.1], flop: [true, 0.6],
-  "quest-done": [false, 1.4], stamp: [true, 0.6], open: [false, 0.7], close: [true, 0.5], trade: [false, 1.3], gift: [false, 1.5],
+  "quest-done": [false, 1.4], stamp: [true, 0.6], trade: [false, 1.3], gift: [false, 1.5],
   paper: [false, 0.8], anvil: [true, 1], furnace: [false, 1.4], crunch: [false, 1.2], star: [true, 0.7], place: [true, 0.35],
 };
 const ffmpeg = (args) => spawnSync("ffmpeg", ["-hide_banner", "-y", ...args], { encoding: "utf8" }).stderr;

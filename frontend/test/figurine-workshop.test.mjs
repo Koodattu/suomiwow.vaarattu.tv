@@ -15,7 +15,8 @@ test("a machine run locks both control surfaces until its animation completes", 
     const state = vm.createContext({ MACHINE_SLOTS, spare, collection, slots, outcomes: { [kind]: outcome },
       machineLocks: { current: new Set() }, running: { [kind]: false }, machineRuns: { [kind]: { run: 0 } }, changes: [],
       unlockFigurineAudio() {}, recordPull() {}, recordRecycle() {}, grantReward(reward) { state.coins = (state.coins ?? 0) + reward.coins; },
-      presentCoins() { state.presented = true; }, holdCoins(coins) { state.held = (state.held ?? 0) + coins; }, releaseCoins(coins) { state.held -= coins; }, t: (key) => key,
+      collectFrom(station) { state.collected = station; }, setRecycledCoin() {}, presentCoins() { state.presented = true; }, t: (key) => key,
+      holdCoins(coins) { state.held = (state.held ?? 0) + coins; }, releaseCoins(coins) { state.held -= coins; },
       machineChanges, changeCollection(changes) { state.changes.push(changes); return true; },
       loadSlots(machine, next) { slots[machine] = next; },
       setRunningMachines(update) { state.running = update(state.running); },
@@ -34,8 +35,9 @@ test("a machine run locks both control surfaces until its animation completes", 
     state.operateMachine(kind, { kind: "slot", index: 0 });
     assert.equal(state.changes.length, 1, "rapid clicks cannot consume a second recipe");
     assert.equal(slots[kind].length, 0, "running machines cannot be reloaded");
-    state.machineDone(kind, null);
-    assert.equal(state.presented, undefined, "a coin earned while away is already in the wallet, with nothing to show");
+    state.machineDone(kind);
+    assert.equal(state.collected, kind === "recycler" ? "recycler" : undefined, "a coin earned while away still flies to the wallet");
+    assert.equal(state.presented, undefined, "with nothing to tap");
     assert.equal(state.held, kind === "recycler" ? 0 : undefined, "and the wallet stops holding it back");
     assert.equal(state.running[kind], false);
     assert.equal(state.machineLocks.current.size, 0);

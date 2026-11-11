@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { chestRewardPresentation, placeRewardCoin } from "@/lib/figurine-chest";
 import { applyFinish, releaseFinishes } from "@/lib/figurine-finish";
 import { disposeFigurineObject } from "@/lib/figurine-cache";
 import { figurineBodyBounds, figurineScale, restoreFigurineMaterials } from "@/lib/figurine-materials";
@@ -19,9 +20,9 @@ export type MachineSource = { x: number; y: number; width: number };
 export type MachineOutput = { kind: "coin" } | { kind: "figure"; model: string; quality: FigurineQuality };
 // What the panel asks of a machine: take a card back out, or run.
 export type MachinePick = { kind: "slot"; index: number } | { kind: "trigger" };
-export type MachineCue = "feed" | "burn" | "clank" | "charge" | "strike" | "coin" | "sparkle";
+export type MachineCue = "feed" | "burn" | "clank" | "charge" | "strike" | "coin" | "sparkle" | "collected";
 export type MachineRun = { cards: MachineCard[]; sources: MachineSource[]; output: MachineOutput; cue: (cue: MachineCue) => void; done: () => void };
-export type Machine = { ready: Promise<THREE.Mesh[]>; running: boolean; run: (run: MachineRun) => void; present: (camera: THREE.PerspectiveCamera | null) => void; rewardFrom: THREE.Vector3 | null; update: (delta: number, time: number) => void; dispose: () => void };
+export type Machine = { ready: Promise<THREE.Mesh[]>; running: boolean; run: (run: MachineRun) => void; present: (camera: THREE.PerspectiveCamera | null, reducedMotion: boolean, coinTarget: { x: number; y: number; width?: number } | null) => void; dismiss: () => void; update: (delta: number, time: number) => void; dispose: () => void };
 type Options = { envMap: THREE.Texture; placeProp: PlaceProp; loadFigure?: (url: string) => Promise<THREE.Group> };
 
 const CARD_W = 0.4, CARD_H = 0.53, PORTRAIT_H = 0.42, PORTRAIT_W = PORTRAIT_H * SILHOUETTE.w / SILHOUETTE.h, CARD_DEPTH = 3;
@@ -147,7 +148,12 @@ export function buildRecycler(parent: THREE.Group, { placeProp }: Options): Mach
   const embers = particles(furnace, glows, 36, THREE.AdditiveBlending);
   const emberColors = [0xffb24a, 0xff7a2a, 0xffe08a, 0xf2c75c];
   const mouth = new THREE.Vector3(0, FURNACE_H + 0.05, 0), doorway = new THREE.Vector3(0, DOOR_Y, DOOR_Z), into = new THREE.Vector3(0, DOOR_Y, FURNACE_Z + DOOR_Z - 0.2);
+  // The coin that comes out: the same one, and the same show, as the chest's and the pond's.
+  const coin = placeRewardCoin(parent, placeProp);
+  loads.push(coin.ready);
   const burst = (at: THREE.Vector3) => { for (let i = 0; i < 20; i++) { const angle = Math.random() * Math.PI * 2, speed = 0.8 + Math.random() * 1.8; embers.emit(furnace.worldToLocal(parent.localToWorld(at.clone())), new THREE.Vector3(Math.cos(angle) * speed, 1.6 + Math.random() * 2.4, Math.sin(angle) * speed), { life: 0.9, size: 0.09, gravity: 6, color: 0xffd27a }); } };
+  let collected: (() => void) | null = null;
+  const reward = chestRewardPresentation(parent, coin.group, puffMap, burst, () => collected?.(), new THREE.Vector3(0, DOOR_Y, FURNACE_Z + DOOR_Z + 0.2));
   let camera: THREE.PerspectiveCamera | null = null;
   let run: { t: number; job: MachineRun; flight: ReturnType<typeof cardFlight>; burnFrom: number; clanks: number; out: boolean } | null = null;
   let pump = 0, heat = 0, smokeClock = 0, emberClock = 0;
@@ -156,12 +162,13 @@ export function buildRecycler(parent: THREE.Group, { placeProp }: Options): Mach
     get running() { return !!run; },
     run(job) {
       if (run) return;
+      reward.reset();
       run = { t: 0, job, flight: cardFlight(parent, camera, job, into, 0.25), burnFrom: cardFlightSeconds(job.cards.length), clanks: 0, out: false };
+      collected = () => job.cue("collected");
       job.cue("feed");
     },
-    present(next) { camera = next; },
-    // The coin leaves by the furnace door.
-    rewardFrom: new THREE.Vector3(0, DOOR_Y, FURNACE_Z + DOOR_Z + 0.2),
+    present(next, reducedMotion, target) { camera = next; reward.present(next, reducedMotion, target); },
+    dismiss() { reward.dismiss(); },
     update(delta, time) {
       let shake = 0, burning = false;
       if (run) {
@@ -181,13 +188,15 @@ export function buildRecycler(parent: THREE.Group, { placeProp }: Options): Mach
             embers.emit(from, new THREE.Vector3((Math.random() - 0.5) * 1.4, 1.6 + Math.random() * 1.4, (Math.random() - 0.2) * 1), { life: 0.9, size: 0.07, gravity: 4, color: emberColors[Math.floor(Math.random() * emberColors.length)] });
           }
         }
-        // The fire dies back and the coin comes out of the door: the run is over.
+        // The coin leaps out of the door; the run ends once it hangs before the camera.
         if (!run.out && burned >= BURN_SECONDS) {
-          run.out = true; run.flight.dispose(); burst(new THREE.Vector3(0, DOOR_Y, FURNACE_Z + DOOR_Z + 0.2)); run.job.cue("coin");
-          const finished = run.job; run = null; finished.done();
+          run.out = true; run.flight.dispose(); run.job.cue("coin");
+          const finished = run.job;
+          reward.begin(() => { run = null; finished.done(); });
         }
       }
       if (!burning) pump = THREE.MathUtils.damp(pump, 0, 8, delta);
+      reward.update(delta);
       // The fire idles low and roars through a run.
       heat = THREE.MathUtils.damp(heat, burning ? 1 : 0.2, 4, delta);
       const flicker = 0.85 + 0.15 * Math.sin(time * 11) * Math.sin(time * 7.3);
@@ -274,7 +283,7 @@ export function buildForge(parent: THREE.Group, { envMap, placeProp, loadFigure 
       job.cue("feed"); job.cue("charge");
     },
     present(next) { camera = next; },
-    rewardFrom: null,
+    dismiss() {},
     update(delta, time) {
       let glow = 0, pillarGlow = 0, lift = 0, angle = RAISED, formScale = 1;
       if (run) {

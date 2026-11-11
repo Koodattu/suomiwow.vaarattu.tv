@@ -61,51 +61,39 @@
 .stats em[data-quality="golden"] { color: #ffd77a; }
 .stats em[data-quality="galaxy"] { color: #c9b2ff; }
 /* The anglers' board: where you stand and how scoring works beside your best catches. */
-.boardBody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(240px, 340px) minmax(0, 1fr); gap: 20px; padding: 16px 20px 20px; }
+.boardBody { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px 16px 16px; }
 .boardBody h3 { margin: 0 0 8px; font: 700 11px system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #ffd77a; }
-.standings, .best { min-height: 0; display: flex; flex-direction: column; }
-.standings ol, .catches { list-style: none; margin: 0; padding: 0; }
-.standings ol { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; padding-right: 4px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(214, 187, 134, .4) transparent; }
-.standings li button, .youBar { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 4px 12px 4px 6px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #e9dfc9; font: inherit; text-align: left; cursor: pointer; }
-.standings li:nth-child(odd) button { background: rgba(255, 255, 255, .035); }
-.standings li button:hover { border-color: rgba(214, 187, 134, .4); }
-.standings li button[aria-pressed="true"] { border-color: #d6bb86; background: rgba(214, 187, 134, .16); }
-.standings li button[data-you] b, .youBar b { color: #8fe0ff; }
-.standings li:nth-child(1) .place { background: #c9a227; color: #1b1408; }
-.standings li:nth-child(2) .place { background: #9ea3ab; color: #1b1408; }
-.standings li:nth-child(3) .place { background: #a8693a; color: #1b1408; }
-.standings b, .youBar b { font: 400 16px Georgia, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.youBar { flex: none; grid-template-columns: 30px auto minmax(0, 1fr) auto; margin-top: 8px; min-height: 48px; border-color: rgba(143, 224, 255, .5); background: linear-gradient(180deg, #16324a, #0e2032); }
+/* One row per angler: place, name, their ten best catches, and the score they add up to. */
+.anglers { list-style: none; flex: 1; min-height: 0; margin: 0; padding: 0 4px 0 0; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(214, 187, 134, .4) transparent; }
+.angler { flex: none; display: grid; grid-template-columns: 34px minmax(70px, 150px) minmax(0, 1fr) minmax(74px, auto); align-items: center; gap: 12px; min-height: 58px; padding: 4px 14px 4px 8px; border: 1px solid #3a3426; border-radius: 10px; background: rgba(255, 255, 255, .03); color: #e9dfc9; }
+.angler > b { font: 400 17px Georgia, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.angler > em { font: 700 16px system-ui, sans-serif; font-style: normal; color: #ffd77a; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.angler:nth-child(1) .place { background: #c9a227; color: #1b1408; }
+.angler:nth-child(2) .place { background: #9ea3ab; color: #1b1408; }
+.angler:nth-child(3) .place { background: #a8693a; color: #1b1408; }
+.angler[data-you] { border-color: rgba(143, 224, 255, .7); background: linear-gradient(90deg, rgba(143, 224, 255, .16), rgba(143, 224, 255, .04)); }
+.angler[data-you] > b { color: #8fe0ff; }
+.haul { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; min-width: 0; }
+.haulFish { --rarity: #8f9aa7; position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; height: 46px; padding: 1px 2px 11px; border: 1px solid color-mix(in srgb, var(--rarity) 45%, transparent); border-radius: 7px; background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--rarity) 16%, transparent), rgba(0, 0, 0, .28)); }
+.haulFish[data-rarity="common"] { --rarity: #e8e8e8; }
+.haulFish[data-rarity="uncommon"] { --rarity: #1eff00; }
+.haulFish[data-rarity="rare"] { --rarity: #3e9bff; }
+.haulFish[data-rarity="epic"] { --rarity: #c473ff; }
+.haulFish[data-quality="golden"] { border-color: #ffd77a; box-shadow: inset 0 0 10px rgba(255, 200, 90, .45); }
+.haulFish[data-quality="golden"] img { filter: sepia(1) saturate(2.6) hue-rotate(-12deg) brightness(1.1) drop-shadow(0 2px 3px rgba(0, 0, 0, .5)); }
+.haulFish[data-quality="galaxy"] { border-color: #a98bff; box-shadow: inset 0 0 12px rgba(140, 100, 255, .6); }
+.haulFish[data-quality="galaxy"] img { filter: hue-rotate(230deg) saturate(1.8) brightness(1.15) drop-shadow(0 0 5px rgba(150, 110, 255, .8)); }
+.haulFish[data-empty] { border-style: dashed; border-color: rgba(255, 255, 255, .1); background: none; }
+.haulFish small { position: absolute; left: 0; right: 0; bottom: 1px; text-align: center; font: 600 9.5px system-ui, sans-serif; color: #cfc6b2; font-variant-numeric: tabular-nums; }
+.youBar { margin-top: 8px; width: 100%; font: inherit; cursor: pointer; border-color: rgba(143, 224, 255, .8); background: linear-gradient(180deg, #16324a, #0e2032); box-shadow: 0 -6px 16px rgba(0, 0, 0, .35); }
 .youBar .place { background: #8fe0ff; color: #0e2032; }
-.youBar small { font-size: 12px; color: #9fb6c6; }
-.youBar em { font-style: normal; font-weight: 700; color: #ffd77a; white-space: nowrap; }
-.best .catches { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-width: thin; scrollbar-color: rgba(214, 187, 134, .4) transparent; animation: fade .2s ease-out both; }
 .points { display: inline-block; margin: 0 10px 2px 0; white-space: nowrap; }
 .points b { color: #f3e4c7; }
 .points[data-rarity="common"] { color: #e8e8e8; }
 .points[data-rarity="uncommon"] { color: #1eff00; }
 .points[data-rarity="rare"] { color: #3e9bff; }
 .points[data-rarity="epic"] { color: #c473ff; }
-.standings li em, .catches em { font-style: normal; font-weight: 700; color: #ffd77a; white-space: nowrap; }
 .place { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(255, 255, 255, .06); font: 700 13px system-ui, sans-serif; color: #e9dfc9; }
-.catches { display: flex; flex-direction: column; gap: 6px; }
-.catches li { display: grid; grid-template-columns: 28px 72px 1fr auto; align-items: center; gap: 10px; padding: 6px 12px 6px 8px; border: 1px solid #3a3426; border-radius: 10px; background: rgba(255, 255, 255, .025); }
-.catches li:nth-child(1) .place { background: #c9a227; color: #1b1408; }
-.catches li:nth-child(2) .place { background: #9ea3ab; color: #1b1408; }
-.catches li:nth-child(3) .place { background: #a8693a; color: #1b1408; }
-.catchFish .fishPicture { width: 72px; }
-.catchName { display: flex; flex-direction: column; min-width: 0; }
-.catchName b { font: 400 15px/1.2 Georgia, serif; }
-.catchName small { font-size: 12px; color: #b9ad94; }
-.catches li[data-quality="golden"] { border-color: #c9a35e; }
-.catches li[data-quality="golden"] .catchName small { color: #ffd77a; }
-.catches li[data-quality="galaxy"] { border-color: #7d5ad8; }
-.catches li[data-quality="galaxy"] .catchName small { color: #c9b2ff; }
-.empty { margin: 0; padding: 26px 12px; border: 1px dashed #4d4230; border-radius: 10px; text-align: center; color: #b9ad94; font-size: 14px; }
-.catches li[data-rarity="common"] .catchName b, .scoring li[data-rarity="common"] span { color: #e8e8e8; }
-.catches li[data-rarity="uncommon"] .catchName b, .scoring li[data-rarity="uncommon"] span { color: #1eff00; }
-.catches li[data-rarity="rare"] .catchName b, .scoring li[data-rarity="rare"] span { color: #3e9bff; }
-.catches li[data-rarity="epic"] .catchName b, .scoring li[data-rarity="epic"] span { color: #c473ff; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes logIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
 
@@ -121,9 +109,13 @@
   .log { max-height: none; border-radius: 0; }
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 8px; }
   .log { height: 100%; }
-  .boardBody { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1.1fr); padding: 12px; gap: 14px; }
-  .catches li { grid-template-columns: 26px 56px 1fr auto; gap: 8px; }
-  .catchFish .fishPicture { width: 56px; }
+  .boardBody { padding: 10px; }
+  /* On a phone the catches run under the name. */
+  .angler { grid-template-columns: 30px minmax(0, 1fr) auto; gap: 4px 8px; padding: 6px 10px 6px 6px; }
+  .angler .haul { grid-column: 1 / -1; grid-row: 2; gap: 2px; }
+  .angler > em { grid-column: 3; grid-row: 1; }
+  .haulFish { height: 34px; padding: 1px 1px 9px; border-radius: 5px; }
+  .haulFish small { font-size: 8px; }
 }
 @media (max-width: 560px) { .side span, .side em { display: none; } .side { padding: 0 9px; } .bar { gap: 8px 6px; } .left { gap: 4px; } }
 @media (prefers-reduced-motion: reduce) { .banner, .action, .logBackdrop, .log { animation: none; } .side, .action { transition: none; } }

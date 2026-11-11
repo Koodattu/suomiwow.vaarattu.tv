@@ -1,6 +1,6 @@
-/* The workbench: the recipe on top, the tray of figures under it, in one column beside the machine. */
-.workshop { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
-.bench { flex: none; display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), #05090f80; }
+/* The workbench: the recipe on the left, the tray of figures to load on the right. */
+.workshop { flex: 1; min-height: 0; display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 16px; }
+.bench { min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), #05090f80; }
 .recipe { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 24px minmax(0, 1.18fr); align-items: center; gap: 8px; }
 .slot { position: relative; min-width: 0; aspect-ratio: 7 / 9; padding: 3px; display: grid; place-items: center; border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 12px; background: #05090fb3; box-shadow: inset 0 2px 8px #000a; color: color-mix(in srgb, var(--accent) 55%, transparent); cursor: pointer; }
 .slot > svg { width: 22px; height: 22px; }
@@ -34,6 +34,6 @@
 .trayFigure[data-quality="golden"] { border-color: #c9a35e; }
 .trayFigure[data-quality="galaxy"] { border-color: #7d5ad8; }
 
-@media (max-height: 760px) and (min-width: 701px) { .bench { padding: 10px; gap: 8px; } .recipe { padding: 0 34px; } .detail small { display: none; } .actions > button { min-height: 46px; } }
+@media (max-width: 860px) { .workshop { display: flex; flex-direction: column; gap: 12px; } .bench { flex: none; padding: 12px; gap: 10px; } }
 @media (max-width: 700px) { .recipe { padding: 0 6px; } .trayGrid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .slot[data-filled="true"], .bench[data-ready] .result { animation: none; } .trayFigure { transition: none; } }

@@ -11,7 +11,8 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier.startsWith("@/") ? new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href : specifier, context);
 } });
 const { buildFacility } = await import("../src/lib/figurine-facilities.ts");
-const { dailyChestAnimation } = await import("../src/lib/figurine-chest.ts");
+const { dailyChestAnimation, chestRewardPresentation, rewardCoinLayout, CHEST_REWARD_SECONDS, CHEST_COLLECT_SECONDS, COIN_STAGGER } = await import("../src/lib/figurine-chest.ts");
+const { coinCollectionFlight } = await import("../src/lib/figurine-coin-flight.ts");
 const { pickFacilityPart } = await import("../src/lib/figurine-picking.ts");
 
 // Exercise the deployed geometry, skeleton and clips without a browser image decoder.
@@ -83,7 +84,120 @@ test("disposal cancels pending callbacks and missing clips allow a fallback", ()
   assert.equal(dailyChestAnimation(new THREE.Group()), null);
 });
 
-test("chest taps target the model, and each opening hands its reward over once as the lid lifts", async t => {
+function rewardScene(aspect = 16 / 9, reduced = false) {
+  const root = new THREE.Group(); root.position.set(-3.7, 0, -11.2); root.rotation.y = 0.4;
+  const coin = new THREE.Group(), camera = new THREE.PerspectiveCamera(36, aspect, 0.1, 100);
+  camera.position.set(-1, 2, -5); camera.lookAt(-3.7, 0.55, -11.2);
+  const bursts = [], arrivals = [], target = { x: 0.85, y: 0.8, width: 0.075 };
+  const presentation = chestRewardPresentation(root, coin, new THREE.Texture(), position => bursts.push(position), () => arrivals.push(true));
+  const reward = root.getObjectByName("chest-reward"), spin = coin.parent;
+  const frame = delta => { presentation.update(delta); presentation.present(camera, reduced, target); root.updateMatrixWorld(true); };
+  frame(0);
+  return { root, coin, camera, target, presentation, reward, spin, bursts, arrivals, frame };
+}
+
+test("the coin flips out promptly, arrives at screen centre, spins once and waits for dismissal", () => {
+  const { presentation, reward, spin, frame, camera, root } = rewardScene();
+  let finishes = 0;
+  assert.equal(reward.visible, false);
+  presentation.begin(() => finishes++);
+  const start = reward.position.clone();
+  assert.ok(start.y < 0.5);
+  frame(CHEST_REWARD_SECONDS / 2);
+  assert.ok(reward.position.distanceTo(start) > 0.5);
+  assert.ok(spin.quaternion.angleTo(new THREE.Quaternion()) > 3, "the flight includes a flip");
+  assert.equal(finishes, 0);
+  frame(CHEST_REWARD_SECONDS / 2);
+  assert.equal(finishes, 1);
+  const screen = reward.getWorldPosition(new THREE.Vector3()).project(camera);
+  assert.ok(Math.abs(screen.x) < 1e-6 && Math.abs(screen.y) < 0.05);
+  frame(0.5); assert.ok(spin.quaternion.angleTo(new THREE.Quaternion()) > 0.5);
+  frame(1); assert.ok(spin.quaternion.angleTo(new THREE.Quaternion()) < 1e-6, "the spin finishes face-forward");
+  frame(30); assert.equal(reward.visible, true); assert.equal(finishes, 1);
+  const shade = root.getObjectByName("chest-reward-backdrop");
+  assert.ok(shade.visible && shade.material.opacity > 0 && shade.material.opacity < 1);
+  presentation.present(null, false, null); assert.equal(reward.parent.visible, false);
+});
+
+test("dismissal continues from the current spin to the exact HUD position, including portrait view", () => {
+  for (const aspect of [16 / 9, 9 / 16]) {
+    const { presentation, reward, spin, frame, camera, target, bursts, arrivals, root } = rewardScene(aspect);
+    let finishes = 0;
+    presentation.begin(() => finishes++); frame(CHEST_REWARD_SECONDS); frame(0.4);
+    camera.position.x += 0.5; camera.lookAt(-3.7, 0.55, -11.2); frame(0);
+    const position = reward.position.clone(), rotation = spin.quaternion.clone(), scale = reward.scale.x;
+    presentation.dismiss(); frame(0);
+    assert.ok(reward.position.equals(position) && spin.quaternion.angleTo(rotation) < 1e-6 && reward.scale.x === scale);
+    frame(0.2); const midway = reward.position.clone(); presentation.dismiss(); frame(0);
+    assert.equal(arrivals.length, 0, "the counter pulse waits until the coin arrives");
+    assert.ok(reward.position.equals(midway), "repeated taps do not restart collection");
+    frame(CHEST_COLLECT_SECONDS - 0.2);
+    const screen = reward.getWorldPosition(new THREE.Vector3()).project(camera);
+    assert.ok(Math.abs(screen.x - target.x) < 1e-6 && Math.abs(screen.y - target.y) < 1e-6);
+    assert.equal(reward.visible, false); assert.equal(root.getObjectByName("chest-reward-backdrop").visible, false);
+    assert.equal(finishes, 1); assert.equal(bursts.length, 2);
+    frame(20); assert.equal(finishes, 1); assert.equal(arrivals.length, 1);
+  }
+});
+
+test("collection flights vary their curve and spin while preserving both endpoint poses", () => {
+  const facing = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.2, 0.6, 0));
+  const starts = new THREE.Vector3(1, 2, 3), mids = [];
+  for (const value of [0.1, 0.9]) {
+    const flight = coinCollectionFlight(facing, () => value);
+    for (const progress of [0, 1]) {
+      const position = starts.clone(), rotation = facing.clone(); flight(position, rotation, progress);
+      assert.ok(position.equals(starts) && rotation.angleTo(facing) < 1e-6);
+    }
+    const position = starts.clone(), rotation = facing.clone(); flight(position, rotation, 0.5);
+    assert.ok(position.distanceTo(starts) > 0.2 && rotation.angleTo(facing) > 3);
+    mids.push(position);
+  }
+  assert.ok(mids[0].distanceTo(mids[1]) > 0.4, "each chosen flight has a distinct bend");
+});
+
+test("reduced motion keeps the destination and collection while removing the flip and spin; reset cancels pending rewards", () => {
+  const { presentation, reward, spin, frame } = rewardScene(16 / 9, true);
+  presentation.begin(() => assert.fail("reset reward")); frame(0.1); presentation.reset(); frame(2);
+  let finishes = 0; presentation.begin(() => finishes++);
+  frame(CHEST_REWARD_SECONDS / 2); assert.equal(spin.rotation.x, 0);
+  frame(CHEST_REWARD_SECONDS / 2); frame(0.5); assert.equal(spin.rotation.y, 0);
+  assert.equal(finishes, 1); presentation.dismiss(); frame(CHEST_COLLECT_SECONDS);
+  assert.equal(reward.visible, false);
+});
+
+test("several coins leave in turn, hang together on screen, and land in the wallet one by one", () => {
+  for (const coins of [2, 3, 7]) {
+    const { root, camera, target, presentation, frame, arrivals } = rewardScene();
+    let shown = 0;
+    presentation.begin(() => shown++, coins);
+    frame(0.01);
+    const rewards = () => { const found = []; root.traverse(object => { if (object.name === "chest-reward") found.push(object); }); return found; };
+    assert.equal(rewards().length, coins, "one coin each");
+    assert.equal(rewards().filter(reward => reward.visible).length, 1, "the first leaves alone");
+    frame(CHEST_REWARD_SECONDS + (coins - 1) * COIN_STAGGER);
+    assert.equal(shown, 1);
+    const seen = rewards().map(reward => reward.getWorldPosition(new THREE.Vector3()).project(camera));
+    assert.ok(seen.every(point => Math.abs(point.x) < 0.9 && Math.abs(point.y) < 0.9), "all on screen");
+    assert.ok(Math.abs(seen.reduce((sum, point) => sum + point.x, 0) / coins) < 1e-6, "centred as a group");
+    for (let a = 0; a < coins; a++) for (let b = a + 1; b < coins; b++) assert.ok(seen[a].distanceTo(seen[b]) > 0.05, "no two coins overlap");
+    presentation.dismiss();
+    let last = null;
+    for (let step = 0; step < 200 && arrivals.length < coins; step++) {
+      frame(0.01);
+      const flying = rewards().filter(reward => reward.visible);
+      if (flying.length) last = flying.at(-1).getWorldPosition(new THREE.Vector3()).project(camera);
+      assert.ok(arrivals.length <= Math.floor(step * 0.01 / COIN_STAGGER) + 1, "they do not land all at once");
+    }
+    assert.equal(arrivals.length, coins, "each coin reports its own landing");
+    assert.ok(Math.abs(last.x - target.x) < 0.08 && Math.abs(last.y - target.y) < 0.08, "the last is at the wallet as it lands");
+    assert.equal(rewards().filter(reward => reward.visible).length, 0);
+  }
+  assert.equal(rewardCoinLayout(1).slots.length, 1);
+  assert.deepEqual(rewardCoinLayout(1).slots[0], { x: 0, y: 0 }, "a single coin is exactly where it always was");
+});
+
+test("chest taps target the model and the reward follows its lid with ordered, single cues", async t => {
   const previous = globalThis.document;
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
   const paint = new Proxy({}, { get: (_, key) => key === "createLinearGradient" || key === "createRadialGradient" ? () => ({ addColorStop() {} }) : () => {}, set: () => true });
@@ -112,16 +226,22 @@ test("chest taps target the model, and each opening hands its reward over once a
   facility.update(0.2, 0.2);
   assert.deepEqual(cues, ["chestOpen"]); assert.equal(finishes, 0);
   for (let frame = 0; frame < 40; frame++) facility.update(0.05, 1 + frame * 0.05);
-  assert.deepEqual(cues, ["chestOpen", "chestLift"]);
+  assert.deepEqual(cues, ["chestOpen", "chestLift", "chestReward"]);
   assert.equal(finishes, 1);
-  assert.equal(root.getObjectByName("chest-reward"), undefined, "the coins are the page's to show");
+  assert.ok(root.getObjectByName("chest-reward").visible);
   facility.update(20, 23); assert.equal(finishes, 1);
+  facility.setStreak(1, null);
+  assert.equal(root.getObjectByName("chest-reward").visible, true, "claiming the daily bonus leaves the reward visible");
+  facility.setStreak(1, 2);
+  assert.equal(root.getObjectByName("chest-reward").visible, true, "midnight cannot reset the chest during its cooldown");
+  facility.setStreak(1, null);
   facility.setChestReady(true);
+  assert.equal(root.getObjectByName("chest-reward").visible, false, "restocking resets the chest even after today's bonus was claimed");
   facility.act({ kind: "open" }, cue => cues.push(cue), () => finishes++);
   facility.setChestReady(false);
   await new Promise(setImmediate);
   for (let frame = 0; frame < 40; frame++) facility.update(0.05, 24 + frame * 0.05);
   assert.equal(finishes, 2, "another opening on the same day completes once");
-  assert.deepEqual(cues.slice(2), ["chestOpen", "chestLift"]);
+  assert.deepEqual(cues.slice(3), ["chestOpen", "chestLift", "chestReward"]);
   facility.dispose();
 });

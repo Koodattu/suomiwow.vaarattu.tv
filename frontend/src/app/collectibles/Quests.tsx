@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { LuCheck } from "react-icons/lu";
 import { questBoard, questState, readRecords, type FigurineRecords } from "@/lib/figurine-collection";
@@ -67,8 +67,8 @@ export default function Quests({ records, complete, actions }: { records: Figuri
   const pending = useRef<number[]>([]);
   useEffect(() => () => pending.current.forEach(window.clearTimeout), []);
   const claimAll = () => ready.forEach((quest, index) => pending.current.push(window.setTimeout(() => claim(quest.id), index * 170)));
-  // Ready notes rise to the top of their column, claimed ones sink.
-  const columns = useMemo(() => (["daily", "weekly", "monthly"] as const).map(period => ({ period, quests: board.filter(quest => quest.period === period).sort((a, b) => Number(a.claimed) - Number(b.claimed)) })), [board]);
+  // Every note keeps its place on the board, whatever its state.
+  const columns = (["daily", "weekly", "monthly"] as const).map(period => ({ period, quests: board.filter(quest => quest.period === period) }));
   return <>
     {ready.length > 1 && <HeaderExtra><Action onClick={claimAll}>{t("claimAll")}<Coins count={ready.reduce((sum, quest) => sum + quest.reward, 0)} size={18} /></Action></HeaderExtra>}
     <div className={styles.board}>{columns.map(({ period, quests }) => <section key={period} className={styles.column}>
@@ -78,7 +78,7 @@ export default function Quests({ records, complete, actions }: { records: Figuri
         return <li key={quest.id} ref={element => { if (element) notes.current.set(quest.id, element); else notes.current.delete(quest.id); }} className={styles.note} data-state={quest.claimed ? "claimed" : full ? "ready" : undefined} data-fresh={fresh.includes(quest.id) || undefined}>
           <div className={styles.top}><b>{t(`items.${quest.id}`)}</b><span className={styles.reward}><Coins count={quest.reward} size={24} /></span></div>
           <div className={styles.foot}>{quest.claimed ? <span className={styles.seal}><LuCheck aria-hidden="true" />{t("claimed")}</span>
-            : full && quest.done ? <Action onClick={() => claim(quest.id)}>{t("claim")}</Action>
+            : full && quest.done ? <button type="button" className={styles.claim} onClick={() => claim(quest.id)}><LuCheck aria-hidden="true" />{t("claim")}<Coins count={quest.reward} size={20} /></button>
               : <><div className={styles.progress} role="progressbar" aria-label={t(`items.${quest.id}`)} aria-valuenow={value} aria-valuemin={0} aria-valuemax={quest.goal}><i style={{ width: `${value / quest.goal * 100}%` }} /></div><span className={styles.count}>{value}/{quest.goal}</span></>}</div>
         </li>;
       })}</ul>

@@ -195,6 +195,7 @@ test("actual fish bodies stay level and dorsal fins stay upright through a compl
   const fish = ["smallfish", "mudsnapper", "catfish", "blackmouth", "firefin", "deviate", "yellowtail", "eel", "salmon", "mightfish", "boot"];
   const cases = [
     ...fish.map(id => ({ visual: { kind: "fish", fish: id, length: 0.6, quality: id === "firefin" ? "golden" : "standard" }, up: [0, 1, 0] })),
+    { visual: { kind: "coin" }, up: [-0.809016994, 0, -0.587785252] },
   ];
   for (const { visual, up } of cases) {
     phase = result = null; pond.present(camera);
@@ -240,28 +241,34 @@ test("actual fish bodies stay level and dorsal fins stay upright through a compl
 });
 
 
-test("a caught coin faces the camera as it comes up, then is handed to the page the moment it lands", async t => {
+test("a caught coin faces the camera and flies into the HUD icon at the correct screen position", async t => {
   const { root, pond, placed } = await pondScene(t);
   const camera = new THREE.PerspectiveCamera(36, 9 / 16, 0.1, 100);
   camera.position.set(8, 6, 26); camera.lookAt(6.9, 0, 16.9);
+  const target = { x: 0.72, y: 0.86, width: 0.12 };
   let cue, result, time = 0; const cues = [];
-  const frame = delta => { time += delta; pond.update(delta, time); pond.present(camera, false); };
+  const frame = delta => { time += delta; pond.update(delta, time); pond.present(camera, false, target); };
   pond.act({ kind: "cast", catch: { kind: "coin" } }, value => { cue = value; cues.push(value); }, value => { result = value; });
   await placed.at(-1).ready;
   for (let i = 0; i < 80 && cue !== "bite"; i++) frame(0.1);
-  const coin = placed.at(-1).group, show = coin.parent.parent;
-  pond.poke("hook"); for (let i = 0; i < 60; i++) frame(0.01);
-  assert.equal(result, undefined); assert.equal(show.visible, true, "the coin rises from the water on the line");
-  root.updateMatrixWorld(true);
-  assert.deepEqual(cues.slice(0, 2), ["cast", "splash"]); assert.equal(cues.at(-1), "hook");
-  for (let i = 0; i < 120 && !result; i++) frame(0.01);
+  pond.poke("hook"); for (let i = 0; i < 120 && !result; i++) frame(0.01);
   assert.equal(result, "caught");
-  assert.equal(show.visible, false, "the page's coins take over from here");
-  assert.equal(coin.parent, null, "the model is released");
-  // Nothing is left to dismiss, and the next cast is free to go.
-  pond.poke("dismiss"); frame(1);
-  pond.act({ kind: "cast", catch: { kind: "coin" } }, value => cues.push(value), () => {});
-  assert.equal(cues.at(-1), "cast");
+  const coin = placed.at(-1).group, show = coin.parent.parent;
+  assert.equal(cues.includes("coinCollected"), false);
+  const descendants = new Set(); coin.traverse(object => descendants.add(object));
+  coin.traverse(object => {
+    if (object.isSkinnedMesh) assert.ok(object.skeleton.bones.every(bone => descendants.has(bone)), "even without animation clips, the coin must use its own posed skeleton");
+  });
+  root.updateMatrixWorld(true);
+  const face = new THREE.Vector3(0, 1, 0).transformDirection(coin.matrixWorld).applyQuaternion(camera.quaternion.clone().invert());
+  assert.ok(face.distanceTo(new THREE.Vector3(0, 0, 1)) < 1e-6, "the coin's face points toward the camera, not edge-on");
+  frame(4); assert.equal(show.visible, true, "the coin waits for player dismissal");
+  pond.poke("dismiss"); for (let i = 0; i < 7; i++) frame(0.1);
+  root.updateMatrixWorld(true);
+  const destination = show.getWorldPosition(new THREE.Vector3()).project(camera);
+  assert.ok(Math.abs(destination.x - target.x) < 1e-6 && Math.abs(destination.y - target.y) < 1e-6, `HUD destination ${destination.toArray()}`);
+  assert.equal(show.visible, false);
+  frame(2); assert.equal(cues.filter(cue => cue === "coinCollected").length, 1, "pulse the counter once, on arrival");
 });
 
 test("figure catches display the awarded character model and release it on dismissal", async t => {

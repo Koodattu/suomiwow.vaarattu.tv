@@ -310,9 +310,10 @@ The world's own sounds (coins, the wheel, the pond, quests, the workshop, tradin
 the panels) come from the same generator: the playground's `figurine_world_sounds.json` lists
 each cue's prompt, length and takes, `generate_figurine_world_set.py` writes them under
 `output/figurine-world-v1`, and `node scripts/master-game-sounds.mjs <that folder>` trims each
-take to its sound, levels it and writes the cue files. The five smallest interface tones (a
-progress tick, a fill, a pick, a refusal, an unstar) are synthesised by
-`node scripts/make-game-sounds.mjs`, since they need exact pitch more than texture.
+take to its sound, levels it and writes the cue files. The interface's own tones (a progress tick, a pick, a
+refusal, a panel opening and closing) are synthesised by `node scripts/make-game-sounds.mjs`: they
+are heard on every tap, so each is low, soft-edged and short. Cues whose top end tires the ear when
+heard often (water, wood, the camera's whoosh) carry a `soft` low-pass in `figurine-audio.ts`.
 
 Latest verification: all 16 box-2 GLBs plus repaired Abiw passed decoded glTF
 validation with zero errors/warnings; all 17 served hashes match their catalogs.
@@ -419,24 +420,27 @@ pond have shots of their own.
 
 The facilities share one frame (`FacilityOverlay.tsx`), and each gives it its own material, size
 and place (the top of `facility-overlay.module.css`): oak and parchment notes for quests, green baize
-for trading, blue paper for the post, night stone for accomplishments, all in the middle of a dimmed
-world; soot or verdigris for the workbench, which docks to the side with its machine framed in the
-room left (the stage treats it as it does the collection's catalogue). On a phone every frame fills
-the screen under the top bar. Nothing inside a frame may change its size: a facility shows its
+for trading, blue paper for the post, night stone for accomplishments, soot or verdigris for the workbench. All of them sit in the
+middle of a dimmed world and are a little see-through, so the place behind stays in mind; a run at
+the workbench takes its frame away so the machine is seen working. On a phone every frame fills the
+screen under the top bar. Nothing inside a frame may change its size: a facility shows its
 parts side by side instead of behind tabs, scrolls in its own columns, and keeps confirmations and
 messages in space it already has. Words are kept to what the player needs to act; the board's
 numbers, slots and stamps say the rest. The chest, the wheel and the pond have no frame: their
 controls lie over the world, with one big button in the middle. Tap empty ground, the close button
 or Esc to come back.
 
-Every coin arrives the same way (`RewardLayer.tsx`). A reward that plays out in the world (the
-chest, the wheel, a prize catch, the recycler) bursts its coins out of the place it came from, as
-many as were won, to hang in the middle of the screen under a count; a tap sends them one by one
-into the wallet, each landing with a clink a little higher than the last. Coins earned inside a
-panel (a quest claim, a sale) skip the hang and fly straight from where they were earned. The coins
-are granted before any of this plays; the wallet only holds its count back until each lands
-(`holdCoins` for a reward still to be shown). The wheel's other prizes use the same layer with a
-card in place of the count. The wheel's controls carry a reel of its eight segments that follows the
+Every coin ends the same way: it flies into the wallet, which counts it as it lands. A reward that
+plays out in the world (the chest, the wheel, a prize catch, the recycler) is shown by the world
+itself: its coins are the game's coin model, as many as were won, flying out of where they came from
+to hang large before the camera, and on a tap flying on to the wallet one after another, each on its
+own curve (`chestRewardPresentation` in `figurine-chest.ts`, shared by the chest, the wheel and the
+recycler; the pond's own catch display does the same for its coin). `RewardLayer.tsx` only adds the
+count under them, takes the tap, and moves the wallet as each coin reports its landing. Coins earned
+inside a panel (a quest claim, a sale) are the layer's own: they pop out where they were earned and
+fly to the wallet on one smooth curve, turning as they go. The coins are granted before any of this
+plays; the wallet only holds its count back until each lands (`holdCoins` for a reward still to be
+shown). The wheel's other prizes use the layer with a card in place of the count. The wheel's controls carry a reel of its eight segments that follows the
 real wheel peg by peg, from the same cue that sounds each clack. Keyboard: S shop, C collection, M recycler, U trade-up forge, Q quests, W lucky
 wheel, F fishing pond (Space casts and strikes there, L opens the fish log), D daily crate, 1-3
 pick a station in a district, 1-9 pick a series (in the shop), Enter opens the sealed box.
@@ -559,12 +563,12 @@ cubbies, each with a round stand and a brass number plate. Its panel is a catalo
 on desktop (`CollectionCatalogue.tsx`) with the cabinet framed beside it, and full screen on a
 phone. It has three parts, each in a place of its own so that nothing pushes anything else about:
 the display rail (the cabinet's sixteen numbered places, always all there), the series (a found
-secret series first, then the released ones, each folding away under a header that stays in view;
+secret series first, then the released ones, each folded away under a header until opened;
 owned figures as portraits finished like their best quality, missing ones as silhouettes), and the
 inspector. A search box and chips (all, owned, missing, golden, galaxy) filter the series. Each
 owned figure has a star: starred, it takes the next place on the rail and the list does not move.
-The favourites are in the player's order; drag one along the rail with a mouse, or move it a step
-from the inspector. Picking a figure shows it in the inspector
+The favourites are in the player's order, and reordering trades places: drag one onto another along
+the rail with a mouse, or swap it with its neighbour from the inspector. Picking a figure shows it in the inspector
 beside the list (over it, on a phone): a large portrait, its realm, race and class, its place on
 display, which of its owned finishes it shows there, its copies per quality with the date each
 was first acquired, its spare copies, and a button that views it in 3D on the pedestal.

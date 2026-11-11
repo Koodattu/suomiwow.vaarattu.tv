@@ -4,8 +4,10 @@ import type { FigurineCue } from "@/lib/figurine-reveal";
 // transient, loudness-matched); volumes here only balance the mix. Every play picks a random
 // variant and nudges its speed by up to `jitter`, so repeats never sound identical. The music
 // bed, riser and hum stay at pitch so they keep resolving into the hit.
-export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; volume: number; jitter?: number }> = {
-  tap: { files: ["tap-a", "tap-b"], volume: 0.45, jitter: 0.06 },
+// `soft` is a low-pass cutoff in hertz: it rounds off a cue whose top end tires the ear when it is
+// heard often (water, the camera's whoosh, wood on wood).
+export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; volume: number; jitter?: number; soft?: number }> = {
+  tap: { files: ["tap-a", "tap-b"], volume: 0.4, jitter: 0.06, soft: 3000 },
   // A bagged vinyl figure bumping thin cardboard: dull, low thumps, low-passed so nothing clicks.
   rattle: { files: ["rattle-a", "rattle-b", "rattle-c", "rattle-d", "rattle-e"], volume: 0.8, jitter: 0.06 },
   rip: { files: ["rip-a", "rip-b"], volume: 0.85, jitter: 0.04 },
@@ -19,7 +21,8 @@ export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; vo
   burst: { files: ["burst-a", "burst-b"], volume: 0.75, jitter: 0.03 },
   hit: { files: ["hit-a", "hit-b"], volume: 0.85, jitter: 0.03 },
   boom: { files: ["boom-a", "boom-b", "boom-c"], volume: 0.8, jitter: 0.04 },
-  whoosh: { files: ["whoosh-a", "whoosh-b"], volume: 0.45, jitter: 0.05 },
+  // The camera's move between places: heard constantly, so it is little more than moving air.
+  whoosh: { files: ["whoosh-a", "whoosh-b"], volume: 0.16, jitter: 0.05, soft: 900 },
   choir: { files: ["choir-a", "choir-b"], volume: 0.5, jitter: 0.02 },
   rise: { files: ["rise-a", "rise-b"], volume: 0.25, jitter: 0.03 },
   sparkle: { files: ["sparkle-a", "sparkle-b"], volume: 0.45, jitter: 0.04 },
@@ -39,42 +42,43 @@ export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; vo
   // The town bell, synthesised by scripts/make-bell-sound.mjs (the one cue not from ElevenLabs).
   bell: { files: ["bell-a", "bell-b"], volume: 0.42, jitter: 0.02 },
   // Coins sound the same wherever they come from: a spill as they burst out, a swish as they leave, a clink each as they land.
-  coin: { files: ["coin-a","coin-b","coin-c","coin-d"], volume: 0.5, jitter: 0.03 },
-  coins: { files: ["coins-a","coins-b","coins-c"], volume: 0.6, jitter: 0.03 },
-  coinsFew: { files: ["coins-few-a","coins-few-b"], volume: 0.55, jitter: 0.03 },
-  swish: { files: ["swish-a","swish-b"], volume: 0.4, jitter: 0.05 },
+  coin: { files: ["coin-a","coin-b","coin-c","coin-d"], volume: 0.4, jitter: 0.03, soft: 6500 },
+  coins: { files: ["coins-a","coins-b","coins-c"], volume: 0.5, jitter: 0.03, soft: 6500 },
+  coinsFew: { files: ["coins-few-a","coins-few-b"], volume: 0.45, jitter: 0.03, soft: 6500 },
+  swish: { files: ["swish-a","swish-b"], volume: 0.3, jitter: 0.05, soft: 2200 },
   // The wheel: its flapper on each peg, then a jingle sized to the prize.
-  clack: { files: ["clack-a","clack-b","clack-c","clack-d"], volume: 0.5, jitter: 0.04 },
+  clack: { files: ["clack-a","clack-b","clack-c","clack-d"], volume: 0.4, jitter: 0.04, soft: 2600 },
   winSmall: { files: ["win-small-a","win-small-b"], volume: 0.5 },
   winBig: { files: ["win-big-a","win-big-b"], volume: 0.6 },
   winBoost: { files: ["win-boost-a","win-boost-b"], volume: 0.6 },
   // The pond.
-  cast: { files: ["cast-a","cast-b"], volume: 0.5, jitter: 0.05 },
-  splash: { files: ["splash-a","splash-b","splash-c"], volume: 0.5, jitter: 0.06 },
-  splashBig: { files: ["splash-big-a","splash-big-b","splash-big-c"], volume: 0.7, jitter: 0.04 },
-  nibble: { files: ["nibble-a","nibble-b","nibble-c"], volume: 0.35, jitter: 0.08 },
-  bite: { files: ["bite-a","bite-b"], volume: 0.75, jitter: 0.03 },
-  reel: { files: ["reel-a","reel-b"], volume: 0.45, jitter: 0.04 },
-  escape: { files: ["escape-a","escape-b"], volume: 0.45, jitter: 0.04 },
-  flop: { files: ["flop-a","flop-b"], volume: 0.5, jitter: 0.06 },
+  cast: { files: ["cast-a","cast-b"], volume: 0.35, jitter: 0.05, soft: 2400 },
+  splash: { files: ["splash-a","splash-b","splash-c"], volume: 0.5, jitter: 0.06, soft: 1800 },
+  splashBig: { files: ["splash-big-a","splash-big-b","splash-big-c"], volume: 0.65, jitter: 0.04, soft: 2000 },
+  nibble: { files: ["nibble-a","nibble-b","nibble-c"], volume: 0.35, jitter: 0.08, soft: 1800 },
+  bite: { files: ["bite-a","bite-b"], volume: 0.65, jitter: 0.03, soft: 2200 },
+  reel: { files: ["reel-a","reel-b"], volume: 0.25, jitter: 0.04, soft: 2400 },
+  escape: { files: ["escape-a","escape-b"], volume: 0.45, jitter: 0.04, soft: 2000 },
+  flop: { files: ["flop-a","flop-b"], volume: 0.45, jitter: 0.06, soft: 2400 },
   // Quests, the workshop, trading and the post.
   questDone: { files: ["quest-done-a","quest-done-b"], volume: 0.5 },
-  stamp: { files: ["stamp-a","stamp-b"], volume: 0.6, jitter: 0.04 },
+  stamp: { files: ["stamp-a","stamp-b"], volume: 0.55, jitter: 0.04, soft: 2800 },
   anvil: { files: ["anvil-a","anvil-b","anvil-c"], volume: 0.6, jitter: 0.04 },
   furnace: { files: ["furnace-a","furnace-b"], volume: 0.5, jitter: 0.03 },
   crunch: { files: ["crunch-a","crunch-b"], volume: 0.5, jitter: 0.04 },
   trade: { files: ["trade-a","trade-b"], volume: 0.6, jitter: 0.02 },
   gift: { files: ["gift-a","gift-b"], volume: 0.55 },
-  paper: { files: ["paper-a","paper-b"], volume: 0.4, jitter: 0.05 },
-  // The panels themselves. The last five are synthesised by scripts/make-game-sounds.mjs.
-  open: { files: ["open-a","open-b"], volume: 0.3, jitter: 0.05 },
-  close: { files: ["close-a","close-b"], volume: 0.3, jitter: 0.05 },
-  place: { files: ["place-a","place-b","place-c"], volume: 0.45, jitter: 0.06 },
-  star: { files: ["star-a","star-b"], volume: 0.4, jitter: 0.03 },
-  unstar: { files: ["unstar"], volume: 0.4 },
+  paper: { files: ["paper-a","paper-b"], volume: 0.3, jitter: 0.05, soft: 3000 },
+  // The panels themselves. All but `place` and `star` are synthesised by scripts/make-game-sounds.mjs:
+  // low and soft, since they are heard on every tap.
+  open: { files: ["open"], volume: 0.4, jitter: 0.04 },
+  close: { files: ["close"], volume: 0.35, jitter: 0.04 },
+  place: { files: ["place-a","place-b","place-c"], volume: 0.35, jitter: 0.06, soft: 2200 },
+  star: { files: ["star-a","star-b"], volume: 0.3, jitter: 0.03, soft: 5000 },
+  unstar: { files: ["unstar"], volume: 0.35 },
   pick: { files: ["pick"], volume: 0.4, jitter: 0.04 },
-  deny: { files: ["deny"], volume: 0.5 },
-  blip: { files: ["blip"], volume: 0.35 },
+  deny: { files: ["deny"], volume: 0.4 },
+  blip: { files: ["blip"], volume: 0.4 },
   fill: { files: ["fill"], volume: 0.3 },
 };
 // Cue files live in /figurines/audio; quips are full paths into the CCG's quip folder.
@@ -204,8 +208,11 @@ export function playFigurineCue(cue: FigurineCue, { loop = false, intensity = 1,
     const level = sound.volume * intensity;
     if (loop) { gain.gain.setValueAtTime(0, audio.currentTime); gain.gain.setTargetAtTime(level, audio.currentTime, 0.12); }
     else gain.gain.value = level;
-    playback.connect(gain).connect(output);
-    playback.addEventListener("ended", () => { playback.disconnect(); gain.disconnect(); }, { once: true });
+    // A softened cue passes through its own low-pass on the way out.
+    const softener = sound.soft ? audio.createBiquadFilter() : null;
+    if (softener) { softener.type = "lowpass"; softener.frequency.value = sound.soft!; softener.Q.value = 0.5; playback.connect(softener).connect(gain).connect(output); }
+    else playback.connect(gain).connect(output);
+    playback.addEventListener("ended", () => { playback.disconnect(); softener?.disconnect(); gain.disconnect(); }, { once: true });
     playback.start();
     stop = () => {
       stopped = true;

@@ -16,17 +16,18 @@ const figure = { kind: "figure", key: "community-001:roidy", quality: "standard"
 
 test("daily merchant stock is stable, rotates each day and refresh, and favours the player", () => {
   const deals = dailyDeals("2026-11-04");
-  assert.equal(deals.length, 4);
-  assert.deepEqual(deals.map(tradeKind), ["buy", "sell", "buy", "swap"], "coins for a figure, a figure for coins, and a figure for a figure");
-  for (let refresh = 0; refresh < 40; refresh++) { const swap = dailyDeals("2026-11-04", refresh)[3]; assert.notEqual(swap.give.key, swap.receive.key, "a swap never offers the same figure back"); }
+  assert.equal(deals.length, 3);
+  assert.deepEqual(deals.map(tradeKind), ["buy", "sell", "swap"], "coins for a figure, a figure for coins, and a figure for a figure");
+  for (let refresh = 0; refresh < 40; refresh++) { const swap = dailyDeals("2026-11-04", refresh)[2]; assert.notEqual(swap.give.key, swap.receive.key, "a swap never offers the same figure back"); }
   assert.deepEqual(dailyDeals("2026-11-04"), deals);
   for (const next of [dailyDeals("2026-11-05"), dailyDeals("2026-11-04", 1)]) {
     assert.ok(next.every(item => !deals.some(old => old.id === item.id)));
     assert.notDeepEqual(next.map(item => item.receive), deals.map(item => item.receive));
   }
-  assert.equal(deals[0].give.amount, 1, "standard figures are cheaper than the market's two-coin baseline");
+  const buys = Array.from({ length: 6 }, (_, refresh) => dailyDeals("2026-11-04", refresh)[0]);
+  for (const buy of buys) assert.equal(buy.give.amount, buy.receive.quality === "golden" ? 4 : 1, "standard figures cost one coin and golden four, both under the market's price");
+  assert.ok(buys.some(buy => buy.receive.quality === "golden") && buys.some(buy => buy.receive.quality === "standard"));
   assert.equal(deals[1].receive.amount, 3, "the merchant pays more for a standard figure");
-  assert.equal(deals[2].give.amount, 4, "golden figures cost less than the market's five-coin baseline");
 });
 test("player listings include many unique buy and sell offers with real catalogue keys", async () => {
   assert.ok(PLAYER_OFFERS.length >= 20);

@@ -1,26 +1,26 @@
 /* The frame every facility's interface sits in, and the small parts they share. Each facility sets
-   its own material (the --bg, --accent and --line below), its size, and where it sits: most take the
-   middle of a dimmed world; the workshop docks to the side so its machine stays in view. A frame
-   never changes size while it is open. On phones every frame is a sheet under the top row. */
-.layer { position: absolute; z-index: 3; inset: 0; display: flex; align-items: center; justify-content: center; padding: 84px 24px 24px; pointer-events: none; background: rgba(6, 10, 18, .58); animation: dim .25s ease-out both; }
-.layer[data-place="side"] { justify-content: flex-end; background: linear-gradient(270deg, rgba(6, 10, 18, .5), transparent 62%); }
+   its own material (the --bg, --accent and --line below) and its size; all of them take the middle
+   of a dimmed world, a little see-through so the place behind stays in mind. A frame never changes
+   size while it is open. On phones every frame is a sheet under the top row. */
+.layer { position: absolute; z-index: 3; inset: 0; display: flex; align-items: center; justify-content: center; padding: 84px 24px 24px; pointer-events: none; background: rgba(6, 10, 18, .5); animation: dim .25s ease-out both; }
 .layer[data-away] { background: none; }
 .layer[data-away] .panel { pointer-events: none; animation: leave .18s ease-in both; }
-.panel { --accent: #dfc28b; --line: #d6bb8630; --gold: #ffd77a; --bg: linear-gradient(145deg, #202c32f7, #0d151ff5 55%); --edge: #ccb17c80;
+.panel { --accent: #dfc28b; --line: #d6bb8630; --gold: #ffd77a; --bg: linear-gradient(145deg, #202c32e6, #0d151fe0 55%); --edge: #ccb17c80;
   position: relative; width: min(var(--wide, 1040px), 100%); height: min(var(--tall, 700px), 100%); display: flex; flex-direction: column; overflow: hidden; pointer-events: auto;
-  border: 1px solid var(--edge); border-radius: 22px; background: var(--bg); box-shadow: 0 24px 80px #000a, inset 0 0 0 3px #0a101a99, inset 0 0 0 4px #ccb17c26; color: #f3e4c7; animation: arrive .3s cubic-bezier(.2, 1.1, .4, 1) both; }
+  border: 1px solid var(--edge); border-radius: 22px; background: var(--bg); backdrop-filter: blur(9px) saturate(1.1); box-shadow: 0 24px 80px #000a, inset 0 0 0 3px #0a101a99, inset 0 0 0 4px #ccb17c26; color: #f3e4c7; animation: arrive .3s cubic-bezier(.2, 1.1, .4, 1) both; }
 /* Quests: a board of dark oak. */
-.layer[data-facility="quests"] .panel { --bg: linear-gradient(160deg, #3b2a1cfa, #1d140dfa 70%); --accent: #f0cf8a; --edge: #8a6a3e; --line: #c9a05a38; --wide: 1080px; --tall: 680px; }
-/* The workshop: soot and embers for the forge, verdigris for the recycler. */
-.layer[data-facility="forge"] .panel { --bg: linear-gradient(170deg, #2e2622f7, #151110f7 60%); --accent: #ffab6b; --edge: #a8643a; --line: #e2905a30; --wide: 520px; --tall: 100%; }
-.layer[data-facility="recycler"] .panel { --bg: linear-gradient(170deg, #1f2c2af7, #0e1716f7 60%); --accent: #9fd6b0; --edge: #5f8f76; --line: #9fd6b02e; --wide: 520px; --tall: 100%; }
+.layer[data-facility="quests"] .panel { --bg: linear-gradient(160deg, #3b2a1ceb, #1d140de6 70%); --accent: #f0cf8a; --edge: #8a6a3e; --line: #c9a05a38; --wide: 1080px; --tall: 680px; }
+/* The workshop: soot and embers for the forge, verdigris for the recycler. A run takes the frame
+   away, so the machine is seen working. */
+.layer[data-facility="forge"] .panel { --bg: linear-gradient(170deg, #2e2622e8, #151110e2 60%); --accent: #ffab6b; --edge: #a8643a; --line: #e2905a30; --wide: 980px; --tall: 640px; }
+.layer[data-facility="recycler"] .panel { --bg: linear-gradient(170deg, #1f2c2ae8, #0e1716e2 60%); --accent: #9fd6b0; --edge: #5f8f76; --line: #9fd6b02e; --wide: 980px; --tall: 640px; }
 /* Trading: the green baize of a dealing table. */
-.layer[data-facility="trading"] .panel, .layer[data-facility="merchant"] .panel { --bg: linear-gradient(160deg, #173229fa, #0b1814fa 65%); --accent: #e9c877; --edge: #b89a57; --line: #e9c87730; --wide: 1100px; --tall: 720px; }
-.layer[data-facility="merchant"] .panel { --wide: 1060px; --tall: 600px; }
+.layer[data-facility="trading"] .panel, .layer[data-facility="merchant"] .panel { --bg: linear-gradient(160deg, #173229eb, #0b1814e6 65%); --accent: #e9c877; --edge: #b89a57; --line: #e9c87730; --wide: 1100px; --tall: 720px; }
+.layer[data-facility="merchant"] .panel { --wide: 1000px; --tall: 560px; }
 /* The post: blue paper and string. */
-.layer[data-facility="mail"] .panel { --bg: linear-gradient(160deg, #1d2c40fa, #0e1622fa 65%); --accent: #a8d0e8; --edge: #7f9db8; --line: #a8d0e82e; --wide: 1000px; --tall: 660px; }
+.layer[data-facility="mail"] .panel { --bg: linear-gradient(160deg, #1d2c40eb, #0e1622e6 65%); --accent: #a8d0e8; --edge: #7f9db8; --line: #a8d0e82e; --wide: 1000px; --tall: 660px; }
 /* Accomplishments: night-blue stone and gold. */
-.layer[data-facility="feed"] .panel, .layer[data-facility="fame"] .panel, .layer[data-facility="leaderboard"] .panel { --bg: linear-gradient(165deg, #221d38fa, #0d0c1cfa 62%); --accent: #f1cf7e; --edge: #b89a57; --line: #f1cf7e2b; --wide: 1140px; --tall: 740px; }
+.layer[data-facility="feed"] .panel, .layer[data-facility="fame"] .panel, .layer[data-facility="leaderboard"] .panel { --bg: linear-gradient(165deg, #221d38eb, #0d0c1ce6 62%); --accent: #f1cf7e; --edge: #b89a57; --line: #f1cf7e2b; --wide: 1140px; --tall: 740px; }
 
 .header { position: relative; display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 10px 14px 10px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #ffffff12, transparent); flex: none; }
 .header h2 { min-width: 0; margin: 0; font: 400 clamp(22px, 2.3vw, 28px)/1.12 Georgia, serif; color: #fff0d0; outline: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -71,7 +71,7 @@
 @keyframes toast { 0% { opacity: 0; translate: 0 8px; } 8%, 85% { opacity: 1; translate: 0 0; } 100% { opacity: 0; } }
 
 @media (max-width: 700px) {
-  .layer, .layer[data-place="side"] { padding: calc(max(16px, env(safe-area-inset-top)) + 58px) 0 0; align-items: stretch; background: rgba(6, 10, 18, .7); }
+  .layer { padding: calc(max(16px, env(safe-area-inset-top)) + 58px) 0 0; align-items: stretch; background: rgba(6, 10, 18, .7); }
   .panel { width: 100%; height: 100%; border-radius: 18px 18px 0 0; border-width: 1px 0 0; box-shadow: 0 -12px 40px #0009; }
   .header { min-height: 56px; padding: 8px 10px 8px 12px; gap: 9px; }
   .header h2 { font-size: 21px; }

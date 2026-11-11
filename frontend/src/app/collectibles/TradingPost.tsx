@@ -57,8 +57,9 @@ export default function TradingPost({ npc, ...props }: TradeProps & { npc: boole
   return npc ? <Deals {...props} /> : <Market {...props} />;
 }
 
-// The merchant's table: four small trade windows side by side, each settled on the spot. A deal is
-// armed by one tap and confirmed by a second, so a stray tap never trades.
+// The merchant's table: three trade windows side by side, each filling its share of the table and
+// settled on the spot. A deal is armed by one tap and confirmed by a second, so a stray tap never
+// trades.
 function Deals({ trading, collection, balance }: TradeProps) {
   const t = useTranslations("figurineLab.world.overlays.market");
   const [armed, setArmed] = useState<string | null>(null);
@@ -66,7 +67,7 @@ function Deals({ trading, collection, balance }: TradeProps) {
   const refresh = () => { if (trading.onRefresh()) { setArmed(null); playFigurineCue("paper"); } else playFigurineCue("deny"); };
   return <>
     <HeaderExtra><button type="button" className={frame.secondary} disabled={balance < 1} onClick={refresh}><LuRefreshCw />{t("refresh")}<Coins count={1} size={16} /></button></HeaderExtra>
-    <div className={`${styles.deals} ${frame.scroll}`}>{trading.deals.map(offer => {
+    <div className={styles.deals}>{trading.deals.map(offer => {
       const kind = tradeKind(offer), sold = done.has(offer.id), affordable = canAffordTrade(offer.give, balance, collection);
       return <article key={offer.id} className={styles.deal} data-kind={kind} data-sold={sold || undefined} data-armed={armed === offer.id || undefined}>
         <span className={styles.kind}>{t(kind)}</span>
@@ -84,13 +85,13 @@ function Deals({ trading, collection, balance }: TradeProps) {
 }
 
 const KINDS = ["all", "buy", "sell", "swap"] as const;
-// The players' exchange: the offers on the board, and beside them the trade window for the one
-// picked, both sides face to face, to accept or decline.
+// The players' exchange. The trade table lies across the top: what you give on the left, what you
+// get on the right, the other collector and the handshake between. Under it, the offers on the
+// board; picking one lays it on the table to accept or decline.
 function Market({ trading, collection, balance }: TradeProps) {
-  const t = useTranslations("figurineLab.world.overlays.market"), common = useTranslations("figurineLab");
-  const assetName = (asset: TradeAsset) => asset.kind === "coins" ? common("world.rewards.coins", { count: asset.amount }) : findFigure(asset.key)?.character.name;
+  const t = useTranslations("figurineLab.world.overlays.market");
   const [filter, setFilter] = useState<"all" | TradeKind>("all"), [picked, setPicked] = useState<string | null>(null);
-  const completed = trading.completed.filter(item => item.id.startsWith("player-")), done = new Set(completed.map(item => item.id));
+  const done = new Set(trading.completed.map(item => item.id));
   const open = PLAYER_OFFERS.filter(item => !done.has(item.id));
   const offers = open.filter(item => filter === "all" || tradeKind(item) === filter);
   const offer = open.find(item => item.id === picked) ?? null, getSide = useRef<HTMLDivElement>(null);
@@ -104,6 +105,18 @@ function Market({ trading, collection, balance }: TradeProps) {
     playFigurineCue(picked === item.id ? "pick" : "place"); setPicked(picked === item.id ? null : item.id);
   };
   return <div className={styles.market}>
+    <section className={styles.table} data-open={!!offer} aria-live="polite">
+      <div className={styles.pane}><small>{t("give")}</small>{offer ? <Asset asset={offer.give} /> : <span className={styles.slotEmpty} />}</div>
+      <div className={styles.between}>
+        {offer ? <>
+          <h3><i>{offer.collector[0]}</i>{offer.collector}</h3>
+          <LuArrowLeftRight className={styles.arrow} aria-hidden="true" />
+          <Action onClick={accept}><LuHandshake />{t("confirmAction")}</Action>
+          <Action secondary onClick={() => { playFigurineCue("pick"); setPicked(null); }}>{t("cancel")}</Action>
+        </> : <><LuHandshake className={styles.idle} aria-hidden="true" /><p>{t("pick")}</p></>}
+      </div>
+      <div className={styles.pane} data-get="true" ref={getSide}><small>{t("receive")}</small>{offer ? <Asset asset={offer.receive} /> : <span className={styles.slotEmpty} />}</div>
+    </section>
     <div className={styles.marketBoard}>
       <Chips values={KINDS} value={filter} onChange={value => { playFigurineCue("pick"); setFilter(value); setPicked(null); }} label={value => t(value)} count={value => value === "all" ? open.length : open.filter(item => tradeKind(item) === value).length} />
       {offers.length ? <div className={`${styles.offerGrid} ${frame.scroll}`}>{offers.map(item => {
@@ -114,17 +127,5 @@ function Market({ trading, collection, balance }: TradeProps) {
         </button>;
       })}</div> : <Empty icon={<LuArrowLeftRight />} text={t("empty")} />}
     </div>
-    <aside className={styles.tradeWindow} data-open={!!offer}>
-      <div className={styles.window}>{offer ? <>
-        <h3><i>{offer.collector[0]}</i>{offer.collector}</h3>
-        <div className={styles.windowSides}>
-          <div className={styles.side}><small>{t("give")}</small><Asset asset={offer.give} /></div>
-          <LuArrowLeftRight className={styles.arrow} aria-hidden="true" />
-          <div className={styles.side} data-get="true" ref={getSide}><small>{t("receive")}</small><Asset asset={offer.receive} /></div>
-        </div>
-        <div className={styles.windowActions}><Action onClick={accept}><LuHandshake />{t("confirmAction")}</Action><Action secondary onClick={() => { playFigurineCue("pick"); setPicked(null); }}>{t("cancel")}</Action></div>
-      </> : <div className={styles.windowEmpty}><LuHandshake aria-hidden="true" /><p>{t("pick")}</p></div>}</div>
-      {!!completed.length && <div className={styles.ledger}><h3>{t("history")}</h3><ul className={frame.scroll}>{completed.map(item => <li key={item.id}><LuCheck aria-hidden="true" /><span>{assetName(item.give)} → {assetName(item.receive)}</span><small>{item.collector}</small></li>)}</ul></div>}
-    </aside>
   </div>;
 }

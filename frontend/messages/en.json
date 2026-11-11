@@ -610,7 +610,6 @@
           "of": "of {total}"
         },
         "market": {
-          "history": "Completed",
           "refresh": "Refresh",
           "all": "All",
           "buy": "Buy",
@@ -679,16 +678,11 @@
         "rankings": "Rankings",
         "board": "Anglers' board",
         "closeBoard": "Close the anglers' board",
-        "standings": "Standings",
         "you": "You",
-        "bestTen": "Your best catches · {count} of {total}",
-        "boardEmpty": "Nothing on the board yet. Land a fish to score.",
         "points": "{points, plural, one {# pt} other {# pts}}",
         "gain": "+{points, plural, one {# pt} other {# pts}}",
         "scoringSize": "× its size for its kind, 1 to 2",
-        "scoringFinish": "× golden {golden}, galaxy {galaxy}",
-        "of": "of {total}",
-        "bestOf": "{name}'s best catches"
+        "scoringFinish": "× golden {golden}, galaxy {galaxy}"
       },
       "rewards": {
         "boost": "{quality} boost",

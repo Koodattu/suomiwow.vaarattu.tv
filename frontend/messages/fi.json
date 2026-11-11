@@ -610,7 +610,6 @@
           "of": "/ {total}"
         },
         "market": {
-          "history": "Tehdyt kaupat",
           "refresh": "Vaihda tarjoukset",
           "all": "Kaikki",
           "buy": "Osta",
@@ -679,16 +678,11 @@
         "rankings": "Tulokset",
         "board": "Kalastajien taulu",
         "closeBoard": "Sulje kalastajien taulu",
-        "standings": "Sijoitukset",
         "you": "Sinä",
-        "bestTen": "Parhaat saaliisi · {count}/{total}",
-        "boardEmpty": "Taulu on vielä tyhjä. Nappaa kala saadaksesi pisteitä.",
         "points": "{points} p",
         "gain": "+{points} p",
         "scoringSize": "× koko lajissaan, 1–2",
-        "scoringFinish": "× kulta {golden}, galaksi {galaxy}",
-        "of": "/ {total}",
-        "bestOf": "Parhaat saaliit: {name}"
+        "scoringFinish": "× kulta {golden}, galaksi {galaxy}"
       },
       "rewards": {
         "boost": "{quality}-tehostus",

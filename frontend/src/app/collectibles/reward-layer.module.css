@@ -1,29 +1,33 @@
 /* Rewards play over everything: panels, the HUD and the wallet's own row. */
 .layer { position: fixed; inset: 0; z-index: 60; pointer-events: none; overflow: hidden; }
-.coin { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; z-index: 2; }
-.coin img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .55)) drop-shadow(0 0 14px rgba(255, 200, 90, .45)); }
-.coin[data-idle="true"] img { animation: bob 2.2s ease-in-out var(--beat, 0s) infinite; }
-@keyframes bob { 0%, 100% { transform: translateY(-4px) rotate(-4deg); } 50% { transform: translateY(5px) rotate(4deg); } }
+.coin { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; z-index: 2; perspective: 400px; }
+.coin img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .55)) drop-shadow(0 0 16px rgba(255, 200, 90, .7)); }
+/* In flight a coin turns about its upright axis, glinting each time it faces the screen. */
+.coin[data-flying="true"] img { animation: turnCoin .42s linear infinite; }
+@keyframes turnCoin { 0% { transform: rotateY(0deg); filter: drop-shadow(0 0 16px rgba(255, 200, 90, .7)) brightness(1.35); } 50% { transform: rotateY(180deg); filter: drop-shadow(0 0 8px rgba(255, 200, 90, .5)) brightness(.9); } 100% { transform: rotateY(360deg); filter: drop-shadow(0 0 16px rgba(255, 200, 90, .7)) brightness(1.35); } }
 
-.backdrop { position: absolute; inset: 0; z-index: 1; border: 0; padding: 0; margin: 0; pointer-events: auto; cursor: pointer; color: #fff6e2; font: inherit;
-  background: radial-gradient(ellipse 70% 60% at 50% 42%, rgba(8, 12, 20, .5), rgba(8, 12, 20, .82)); animation: dim .28s ease-out both; -webkit-tap-highlight-color: transparent; }
-.backdrop[data-leaving] { animation: undim .5s ease-in .1s both; pointer-events: none; }
+/* The celebration. The page is drawn over the world, so around the world's own coins the darkness
+   and the light both leave a clear round (--clear) for them to show through untouched. */
+.backdrop { position: absolute; inset: 0; z-index: 1; border: 0; padding: 0; margin: 0; pointer-events: auto; cursor: pointer; color: #fff6e2; font: inherit; -webkit-tap-highlight-color: transparent;
+  background: radial-gradient(circle at 50% 49%, transparent var(--clear, 90px), rgba(8, 12, 20, .5) calc(var(--clear, 90px) + 60px), rgba(8, 12, 20, .84) calc(var(--clear, 90px) + 420px)); animation: dim .35s ease-out both; }
+.backdrop[data-prize] { background: radial-gradient(ellipse 70% 60% at 50% 42%, rgba(8, 12, 20, .5), rgba(8, 12, 20, .82)); }
+.backdrop[data-leaving] { animation: undim .4s ease-in both; pointer-events: none; }
 .backdrop:focus-visible { outline: none; }
 @keyframes dim { from { opacity: 0; } }
 @keyframes undim { to { opacity: 0; } }
-/* A slow fan of light behind the prize. */
-.rays { position: absolute; left: 50%; top: 40%; width: min(120vw, 900px); aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; opacity: .55;
-  background: repeating-conic-gradient(from 0deg, rgba(255, 214, 130, .22) 0 9deg, transparent 9deg 24deg);
-  mask-image: radial-gradient(circle, #000 8%, transparent 62%); -webkit-mask-image: radial-gradient(circle, #000 8%, transparent 62%); animation: turn 26s linear infinite, raysIn .6s ease-out both; }
+/* A slow fan of light, like a rising sun, behind the prize. */
+.rays { position: absolute; left: 50%; top: 49%; width: max(130vw, 130vh); aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; opacity: .6;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 214, 130, .3) 0 9deg, transparent 9deg 24deg);
+  mask-image: radial-gradient(circle, transparent var(--clear, 90px), #000 calc(var(--clear, 90px) + 14px), transparent 52%); -webkit-mask-image: radial-gradient(circle, transparent var(--clear, 90px), #000 calc(var(--clear, 90px) + 14px), transparent 52%); animation: turn 26s linear infinite, raysIn .7s cubic-bezier(.2, .9, .3, 1.1) both; }
+.backdrop[data-prize] .rays { top: 40%; width: min(120vw, 900px); mask-image: radial-gradient(circle, #000 8%, transparent 62%); -webkit-mask-image: radial-gradient(circle, #000 8%, transparent 62%); }
 @keyframes turn { to { rotate: 360deg; } }
 @keyframes raysIn { from { opacity: 0; scale: .5; } }
 
-.text { position: absolute; left: 50%; top: calc(40% + var(--half, 60px) + 22px); translate: -50% 0; width: min(560px, calc(100vw - 32px)); display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; opacity: 0; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
+.text { position: absolute; left: 50%; top: calc(50% + var(--half, 60px) + 6px); translate: -50% 0; width: min(560px, calc(100vw - 32px)); display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); animation: textIn .4s cubic-bezier(.2, .9, .3, 1.25) both; }
 .backdrop[data-prize] .text { top: 44%; translate: -50% -50%; }
-.text[data-shown] { animation: textIn .4s cubic-bezier(.2, .9, .3, 1.25) both; }
 @keyframes textIn { from { opacity: 0; transform: translateY(14px) scale(.9); } to { opacity: 1; transform: none; } }
 .text small { font: 700 12px system-ui, sans-serif; letter-spacing: .2em; text-transform: uppercase; color: #ffd77a; }
-.text > b { font: 700 clamp(54px, 9vw, 84px)/1 Georgia, serif; color: #ffe9b0; text-shadow: 0 0 28px rgba(255, 190, 70, .65), 0 3px 0 #7a5312, 0 6px 14px rgba(0, 0, 0, .7); font-variant-numeric: tabular-nums; }
+.text > b { font: 700 clamp(44px, 7vw, 68px)/1 Georgia, serif; color: #ffe9b0; text-shadow: 0 0 28px rgba(255, 190, 70, .65), 0 3px 0 #7a5312, 0 6px 14px rgba(0, 0, 0, .7); font-variant-numeric: tabular-nums; }
 .text em { padding: 4px 12px; border: 1px solid rgba(255, 215, 122, .45); border-radius: 999px; background: rgba(255, 215, 122, .14); color: #ffe2a0; font: 600 13px system-ui, sans-serif; font-style: normal; }
 .text i { margin-top: 10px; font: 500 13px system-ui, sans-serif; font-style: normal; letter-spacing: .06em; color: #d9cdb2; animation: hint 1.6s ease-in-out infinite alternate; }
 @keyframes hint { from { opacity: .55; } to { opacity: 1; } }
@@ -43,6 +47,5 @@
 @keyframes prizeIn { from { opacity: 0; transform: scale(.4) rotate(-8deg); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .coin[data-idle="true"] img, .rays, .text i, .prizePicture, .prizeBoost { animation: none; }
-  .text[data-shown] { animation: none; opacity: 1; }
+  .coin[data-flying="true"] img, .rays, .text, .text i, .prizePicture, .prizeBoost { animation: none; }
 }

@@ -280,6 +280,16 @@ export function moveFavorite(key: string, to: number, store: Store | null = sess
   }, store);
 }
 // Which finish a favourite shows.
+// Two favourites trade places; every other one stays where it is.
+export function swapFavorites(a: string, b: string, store: Store | null = sessionStore()) {
+  updateRecords((records) => {
+    const first = records.favorites.findIndex((entry) => entry.key === a), second = records.favorites.findIndex((entry) => entry.key === b);
+    if (first < 0 || second < 0 || first === second) return records;
+    const favorites = [...records.favorites];
+    [favorites[first], favorites[second]] = [favorites[second], favorites[first]];
+    return { ...records, favorites };
+  }, store);
+}
 export function setFavoriteQuality(key: string, quality: FigurineQuality, store: Store | null = sessionStore()) {
   if (!isQuality(quality)) return;
   updateRecords((records) => ({ ...records, favorites: records.favorites.map((entry) => entry.key === key ? { key, quality } : entry) }), store);

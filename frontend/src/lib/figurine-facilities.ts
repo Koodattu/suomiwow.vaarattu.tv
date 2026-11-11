@@ -7,7 +7,8 @@ import { applyFinish, releaseFinishes } from "@/lib/figurine-finish";
 import { WORLD_TEXTURES } from "@/lib/figurine-world";
 import { figurineBodyBounds, figurineScale, restoreFigurineMaterials } from "@/lib/figurine-materials";
 import { disposeFigurineObject } from "@/lib/figurine-cache";
-import { dailyChestAnimation } from "@/lib/figurine-chest";
+import { dailyChestAnimation, chestRewardPresentation, placeRewardCoin } from "@/lib/figurine-chest";
+import { coinCollectionFlight } from "@/lib/figurine-coin-flight";
 import { QUALITY_COLORS } from "@/lib/figurine-machine";
 
 // The plaza's facilities other than the shop and the two machines. Each is a small scene of game
@@ -18,8 +19,9 @@ export type Facility = "gallery" | "crate" | "wheel" | "mail" | "quests" | "feed
 // What a facility can act out when its panel asks: the wheel spins to a segment, the crate bursts
 // open, the pond casts a line with `catch` on the end of it. Cues mark moments worth a sound (and,
 // at the pond, what the line is doing); `done` ends the action, the pond's with how it went.
-export type FacilityAction = { kind: "spin"; segment: number } | { kind: "cast"; catch: CatchVisual } | { kind: "open" };
-export type ActionCue = "tick" | "splash" | "nibble" | "bite" | "escape" | "catch" | "burst" | "chestOpen" | "chestLift" | "cast" | "hook";
+// `coins` is how many coins the action pays, for the ones that fly out of it.
+export type FacilityAction = { kind: "spin"; segment: number; coins?: number } | { kind: "cast"; catch: CatchVisual } | { kind: "open"; coins?: number };
+export type ActionCue = "tick" | "splash" | "nibble" | "bite" | "escape" | "catch" | "burst" | "chestOpen" | "chestLift" | "chestReward" | "coinCollected" | "cast" | "hook";
 export type CastResult = "caught" | "missed" | "spooked";
 export type FacilityPoke = "hook" | "dismiss" | "ring";
 // The town bell: how tall it stands, how far it is turned from square-on so its swing shows, and
@@ -73,10 +75,9 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   let setChestReady: ((ready: boolean) => void) | undefined;
   // The pond's glint (while prize catches remain), and the tackle under the pointer.
   let setPrizes: ((left: number) => void) | null = null, hover: ((part: string | null) => void) | null = null;
-  let presentCatch: ((camera: THREE.PerspectiveCamera | null, reducedMotion: boolean) => void) | null = null;
+  let presentCatch: ((camera: THREE.PerspectiveCamera | null, reducedMotion: boolean, coinTarget: { x: number; y: number; width?: number } | null) => void) | null = null;
   let clearCatch: (() => void) | null = null;
-  // Where a reward leaves this facility, in its own space, for the coins that fly out on screen.
-  let rewardFrom: THREE.Vector3 | null = null;
+  let coinCollected: (() => void) | null = null;
   const partOutlines = new Map<string, ReturnType<typeof hoverOutline>>();
   let hoveredPart: string | null = null, disposed = false;
   // Sparks of gold for rewards: additive sprites flung up and falling back.
@@ -163,11 +164,17 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     const chest = prop("dailyChest", 1.05, 0, 0.12, -Math.PI / 2, 0.16);
     chest.group.userData.part = "chest";
     hover = (part) => { hoveredPart = part; };
-    rewardFrom = new THREE.Vector3(0, 0.75, 0.12);
+    const coin = placeRewardCoin(parent, placeProp);
+    const reward = chestRewardPresentation(parent, coin.group, sparkMap, burst, () => coinCollected?.());
+    presentCatch = (camera, reducedMotion, target) => reward.present(camera, reducedMotion, target);
+    clearCatch = reward.reset;
+    pokes.dismiss = reward.dismiss;
+    props.push(coin.ready);
     let claimed = false, opening = false;
     setChestReady = (ready) => {
       claimed = !ready;
       chestAnimation?.setClaimed(claimed);
+      if (ready && !opening) reward.reset();
     };
     const chestReady = chest.ready.then((group) => {
       if (disposed) return;
@@ -176,15 +183,21 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     });
     animate.push((delta) => {
       chestAnimation?.update(delta);
+      reward.update(delta);
     });
-    actions.open = (_, cue, done) => {
+    actions.open = (action, cue, done) => {
       if (opening) return;
+      const coins = action.kind === "open" ? action.coins ?? 1 : 1;
       opening = true;
-      void chestReady.then(() => {
+      coinCollected = () => cue("coinCollected");
+      void Promise.all([chestReady, coin.ready]).then(() => {
         if (disposed) return;
+        reward.reset();
         cue("chestOpen");
-        // The lid is up: the coins leave from here.
-        const reveal = () => { opening = false; burst(rewardFrom!.clone()); cue("chestLift"); done(); };
+        const reveal = () => {
+          cue("chestLift");
+          reward.begin(() => { opening = false; cue("chestReward"); done(); }, coins);
+        };
         if (chestAnimation) chestAnimation.open(reveal, () => {});
         else reveal(); // A failed model download must not block the reward.
       });
@@ -232,11 +245,19 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     prop("fairBalloonsBig", 3.7, 1.8, -0.5, 2.4);
     // Idle, it rocks a little; a spin turns it five times over and settles the segment at the top.
     let rest = 0, spun = false;
-    rewardFrom = new THREE.Vector3(0, 2.6, 0.2);
+    const coin = placeRewardCoin(parent, placeProp);
+    const reward = chestRewardPresentation(parent, coin.group, sparkMap, burst, () => coinCollected?.(), new THREE.Vector3(0, 2.6, 0.2));
+    presentCatch = (camera, reducedMotion, target) => reward.present(camera, reducedMotion, target);
+    clearCatch = reward.reset;
+    pokes.dismiss = reward.dismiss;
+    props.push(coin.ready);
+    animate.push((delta) => reward.update(delta));
     animate.push((_, time) => { if (!spun) wheel.rotation.z = rest + Math.sin(time * 0.6) * 0.06; });
     actions.spin = (action, cue, done) => {
       if (action.kind !== "spin") return;
-      spun = true;
+      spun = true; reward.reset();
+      coinCollected = () => cue("coinCollected");
+      const coins = action.coins ?? 0;
       const from = wheel.rotation.z, aim = Math.PI / 2 + (action.segment + 0.5) * Math.PI / 4 + (Math.random() - 0.5) * 0.5;
       const to = from + Math.PI * 10 + THREE.MathUtils.euclideanModulo(aim - from, Math.PI * 2), seconds = 4.6;
       let lastPeg = Math.floor(from / (Math.PI / 4));
@@ -245,7 +266,12 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
         wheel.rotation.z = from + (to - from) * ease;
         const peg = Math.floor(wheel.rotation.z / (Math.PI / 4));
         if (peg !== lastPeg) { lastPeg = peg; cue("tick", THREE.MathUtils.euclideanModulo(peg - 2, 8)); }
-        if (k >= 1) { rest = wheel.rotation.z; spun = false; burst(new THREE.Vector3(0, 2.75, 0.2)); done(); return false; }
+        if (k >= 1) {
+          rest = wheel.rotation.z; spun = false; burst(new THREE.Vector3(0, 2.75, 0.2));
+          // A coin prize leaves the pointer for the screen before the spin is over.
+          if (coins) void coin.ready.then(() => { if (!disposed) reward.begin(() => { cue("chestReward"); done(); }, coins); }); else done();
+          return false;
+        }
         return true;
       });
     };
@@ -615,7 +641,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     closing.castShadow = false; closing.visible = false; closing.raycast = () => {};
     // The catch on show: it leaps from the water to hang before the camera, finished
     // like its quality, until dismissal or the next cast collects it.
-    const SHOW = new THREE.Vector3(), FIGURE_EXIT = new THREE.Vector3(), BUCKET = new THREE.Vector3(bucketX, DOCK.deck + 0.2, bucketZ);
+    const SHOW = new THREE.Vector3(), WALLET = new THREE.Vector3(), FIGURE_EXIT = new THREE.Vector3(), BUCKET = new THREE.Vector3(bucketX, DOCK.deck + 0.2, bucketZ);
     const REVEAL_SECONDS = 1.1, STOW_SECONDS = 0.7;
     const smooth = (k: number) => k * k * (3 - 2 * k);
     const arc = (k: number) => 16 * k * k * (1 - k) * (1 - k);
@@ -625,13 +651,14 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     const catchBackdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: sparkMap, color: 0x000000, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
     catchBackdrop.name = "pond-catch-backdrop";
     catchBackdrop.visible = false; catchBackdrop.raycast = () => {}; presentation.add(catchBackdrop);
-    let displayScale = 0.5, stowScale = 0.5, stowSpin = 0, revealProgress = 0, displayTime = 0, reducedCatchMotion = false;
+    let walletScale = 0.05, displayScale = 0.5, stowScale = 0.5, stowSpin = 0, revealProgress = 0, displayTime = 0, reducedCatchMotion = false;
     const launchRotation = new THREE.Quaternion(), stowRotation = new THREE.Quaternion(), stowFrom = new THREE.Vector3();
     const coinFlip = new THREE.Quaternion(), flipAxis = new THREE.Vector3(1, 0, 0);
+    let coinFlight: ReturnType<typeof coinCollectionFlight> | null = null;
     const bucketRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, bucket.rotation.y, Math.PI / 3));
     // Anchor the landed model to the viewport, including while the player looks around.
     const screenCatch = new THREE.Vector3(), viewRotation = new THREE.Quaternion();
-    presentCatch = (camera, reducedMotion) => {
+    presentCatch = (camera, reducedMotion, coinTarget) => {
       presentation.visible = !!camera;
       if (!camera) return;
       reducedCatchMotion = reducedMotion;
@@ -641,6 +668,9 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       screenCatch.set(0, 0.04, -3).applyMatrix4(camera.matrixWorld);
       SHOW.copy(parent.worldToLocal(screenCatch));
       const halfHeight = 3 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      const target = coinTarget ?? { x: 0.9, y: 0.8 };
+      walletScale = (coinTarget?.width ?? 0.08) * halfHeight * camera.aspect / 1.4;
+      WALLET.copy(parent.worldToLocal(screenCatch.set(target.x * halfHeight * camera.aspect, target.y * halfHeight, -3).applyMatrix4(camera.matrixWorld)));
       FIGURE_EXIT.copy(parent.worldToLocal(screenCatch.set(-1.5 * halfHeight * camera.aspect, 1.5 * halfHeight, -3).applyMatrix4(camera.matrixWorld)));
       parent.getWorldQuaternion(viewRotation).invert().multiply(camera.quaternion);
       // One pose calculation owns the whole flight and the resting display. At k=1 the
@@ -718,6 +748,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       if (!show.visible || !shown || stowing >= 0) return;
       stowing = 0; stowScale = show.scale.x; stowSpin = holder.rotation.y;
       stowFrom.copy(show.position); stowRotation.copy(show.quaternion);
+      if (shown.kind === "coin") coinFlight = coinCollectionFlight(viewRotation);
     };
     animate.push((delta) => {
       const shade = show.visible && stowing < 0 ? THREE.MathUtils.smoothstep(revealProgress, 0.35, 1) * 0.65 : 0;
@@ -731,7 +762,12 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
       if (stowing < 0) return;
       stowing += delta;
       const k = Math.min(1, stowing / STOW_SECONDS), eased = smooth(k);
-      if (shown?.kind === "fish") {
+      if (shown?.kind === "coin") {
+        show.position.lerpVectors(stowFrom, WALLET, eased);
+        show.quaternion.slerpQuaternions(stowRotation, viewRotation, eased);
+        holder.rotation.y = Math.atan2(Math.sin(stowSpin), Math.cos(stowSpin)) * (1 - eased);
+        if (!reducedCatchMotion) coinFlight?.(show.position, show.quaternion, eased);
+      } else if (shown?.kind === "fish") {
         show.position.lerpVectors(stowFrom, BUCKET, eased);
         if (!reducedCatchMotion) show.position.y += arc(k) * 0.35;
         show.quaternion.slerpQuaternions(stowRotation, bucketRotation, eased);
@@ -740,10 +776,11 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
         show.position.lerpVectors(stowFrom, FIGURE_EXIT, eased);
         holder.rotation.y = stowSpin + 0.9 * stowing;
       }
-      const endScale = shown?.kind === "figure" && !reducedCatchMotion ? stowScale * 0.85 : 0.015;
+      const endScale = shown?.kind === "coin" ? walletScale : shown?.kind === "figure" && !reducedCatchMotion ? stowScale * 0.85 : 0.015;
       show.scale.setScalar(THREE.MathUtils.lerp(stowScale, endScale, eased));
       if (k >= 1) {
         if (shown?.kind !== "fish") burst(show.position.clone(), 0xffe6a0);
+        if (shown?.kind === "coin") coinCollected?.();
         const next = queued; queued = null; clearShow();
         if (next) showCatch(next);
       }
@@ -764,6 +801,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     let current: Line | null = null, lineCue: ((cue: ActionCue) => void) | null = null;
     actions.cast = (action, cue, done) => {
       if (action.kind !== "cast") return;
+      coinCollected = () => cue("coinCollected");
       lineCue = cue; cue("cast");
       stow(); fishing = true;
       const prize = action.catch.kind !== "fish";
@@ -810,7 +848,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
           revealProgress = k;
           show.visible = true;
           bobber.position.lerp(restOf(clock, rest), Math.min(1, since / 0.7));
-          if (k >= 1 && !finished) { burst(SHOW.clone(), 0xffe6a0); if (shown?.kind === "coin") clearShow(); cue("burst"); finish("caught"); }
+          if (k >= 1 && !finished) { burst(SHOW.clone(), 0xffe6a0); cue("burst"); finish("caught"); }
           if (k >= 1) { fishing = false; current = null; return false; }
         } else {
           // Lost: the bobber pops up empty and is reeled back to the rod.
@@ -886,8 +924,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     setPrizes(left: number) { setPrizes?.(left); },
     // The working part under the pointer.
     hover(part: string | null) { hover?.(part); },
-    present(camera: THREE.PerspectiveCamera | null, reducedMotion = false) { presentCatch?.(camera, reducedMotion); },
-    rewardFrom,
+    present(camera: THREE.PerspectiveCamera | null, reducedMotion = false, coinTarget: { x: number; y: number; width?: number } | null = null) { presentCatch?.(camera, reducedMotion, coinTarget); },
     dispose() { disposed = true; clearCatch?.(); chestAnimation?.dispose(); partOutlines.forEach((outline) => outline.dispose()); },
     // Acts out an action this facility has (the wheel spins, the pond casts, the crate opens).
     act(action: FacilityAction, cue: (cue: ActionCue, detail?: number) => void, done: (result?: CastResult) => void) {

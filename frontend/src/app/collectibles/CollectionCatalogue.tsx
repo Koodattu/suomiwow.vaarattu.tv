@@ -13,12 +13,14 @@ import css from "./collection-catalogue.module.css";
 // The collection as a catalogue. Three parts, each with its own place so nothing pushes anything
 // else about: the display rail (the sixteen numbered places of the cabinet, always all there,
 // filled by starring), the series (every figure, owned in colour and missing as silhouettes, each
-// series folding away under its header), and the inspector for the figure picked. Favourites
-// reorder by dragging along the rail with a mouse, or a step at a time from the inspector.
+// series folded away under its header until opened), and the inspector for the figure picked.
+// Favourites trade places: drag one onto another along the rail with a mouse, or swap it with its
+// neighbour from the inspector. Dropped on an empty place, it goes to the end.
 export type CatalogueActions = {
   onInspect: (key: string, quality: FigurineQuality) => void;
   onFavorite: (item: MachineItem) => void;
   onMoveFavorite: (key: string, to: number) => void;
+  onSwapFavorites: (a: string, b: string) => void;
   onFavoriteQuality: (key: string, quality: FigurineQuality) => void;
 };
 type Props = CatalogueActions & { collection: FigurineCollection; records: FigurineRecords; series: PanelSeries[] };
@@ -29,13 +31,14 @@ const FILTERS = ["all", "owned", "missing", "golden", "galaxy"] as const;
 type Filter = (typeof FILTERS)[number];
 // Which series are folded away, kept for the visit.
 const FOLDED_KEY = "suomiwow-figurine-collection-folded";
-const readFolded = (): string[] => { if (typeof window === "undefined") return []; try { const stored: unknown = JSON.parse(window.sessionStorage.getItem(FOLDED_KEY) ?? "[]"); return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === "string") : []; } catch { return []; } };
+const readFolded = (): string[] | null => { if (typeof window === "undefined") return null; try { const stored: unknown = JSON.parse(window.sessionStorage.getItem(FOLDED_KEY) ?? "null"); return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === "string") : null; } catch { return null; } };
 
-export default function CollectionCatalogue({ collection, records, series, onInspect, onFavorite, onMoveFavorite, onFavoriteQuality }: Props) {
+export default function CollectionCatalogue({ collection, records, series, onInspect, onFavorite, onMoveFavorite, onSwapFavorites, onFavoriteQuality }: Props) {
   const t = useTranslations("figurineLab");
   const format = useFormatter();
   const [query, setQuery] = useState(""), [filter, setFilter] = useState<Filter>("all");
-  const [folded, setFolded] = useState(readFolded);
+  // Every series starts folded: the rail and the list of series fit on one screen.
+  const [folded, setFolded] = useState(() => readFolded() ?? series.filter((entry) => entry.released).map((entry) => entry.id));
   const fold = (id: string) => {
     playFigurineCue("pick");
     setFolded((current) => { const next = current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]; try { window.sessionStorage.setItem(FOLDED_KEY, JSON.stringify(next)); } catch { /* it simply opens again next time */ } return next; });
@@ -61,13 +64,13 @@ export default function CollectionCatalogue({ collection, records, series, onIns
   };
   const countOf = (value: Filter) => value === "all" ? allKeys.length : value === "owned" ? owned : value === "missing" ? allKeys.length - owned : allKeys.filter((key) => collection[key]?.[value]).length;
 
-  // While dragging, the rail shows the dragged favourite where it would land.
+  // While dragging, the rail shows the two favourites already traded.
   const order = useMemo(() => {
-    if (!drag?.active) return favorites;
-    const moving = favorites.find(({ key }) => key === drag.key), rest = favorites.filter(({ key }) => key !== drag.key);
-    if (!moving) return favorites;
-    rest.splice(Math.min(drag.over, rest.length), 0, moving);
-    return rest;
+    const from = drag?.active ? favorites.findIndex(({ key }) => key === drag.key) : -1;
+    if (!drag || from < 0 || drag.over === from) return favorites;
+    const next = [...favorites];
+    if (drag.over < next.length) [next[from], next[drag.over]] = [next[drag.over], next[from]]; else next.push(...next.splice(from, 1));
+    return next;
   }, [favorites, drag]);
   const startDrag = (event: ReactPointerEvent, key: string, index: number) => {
     if (event.button !== 0 || event.pointerType !== "mouse") return;
@@ -80,27 +83,25 @@ export default function CollectionCatalogue({ collection, records, series, onIns
     let over = drag.over;
     if (active) {
       const slot = document.elementsFromPoint(event.clientX, event.clientY).map((element) => element.closest<HTMLElement>("[data-place]")).find(Boolean);
-      if (slot) over = Math.min(Number(slot.dataset.place), favorites.length - 1);
+      if (slot) over = Number(slot.dataset.place);
     }
     setDrag({ ...drag, x: event.clientX, y: event.clientY, over, active });
   };
   const endDrag = (event: ReactPointerEvent) => {
     if (!drag || event.pointerId !== drag.pointer) return;
-    if (drag.active) {
-      // Into the full list (which may hold favourites no longer owned): before the favourite now at
-      // the drop place, or last.
-      const rest = records.favorites.filter(({ key }) => key !== drag.key), after = favorites.filter(({ key }) => key !== drag.key)[drag.over];
+    const from = favorites.findIndex(({ key }) => key === drag.key), other = favorites[drag.over];
+    if (drag.active && drag.over !== from) {
       playFigurineCue("place");
-      onMoveFavorite(drag.key, after ? rest.findIndex(({ key }) => key === after.key) : rest.length);
+      // Onto another favourite: the two trade places. Onto an empty place: it goes last.
+      if (other) onSwapFavorites(drag.key, other.key); else onMoveFavorite(drag.key, records.favorites.length);
     }
     setDrag(null);
   };
   const moveBy = (key: string, step: number) => {
     const index = favorites.findIndex((entry) => entry.key === key), target = favorites[index + step];
     if (!target) return;
-    const rest = records.favorites.filter((entry) => entry.key !== key), at = rest.findIndex((entry) => entry.key === target.key);
     playFigurineCue("place");
-    onMoveFavorite(key, step > 0 ? at + 1 : at);
+    onSwapFavorites(key, target.key);
   };
 
   // The rail: sixteen numbered places, then any favourites waiting past them.
@@ -120,7 +121,8 @@ export default function CollectionCatalogue({ collection, records, series, onIns
         <header><h3><LuStar aria-hidden="true" />{t("world.collection.favorites")}</h3><span>{t("world.collection.onDisplay", { count: Math.min(favorites.length, SHOWCASE_SLOTS), total: SHOWCASE_SLOTS })}</span></header>
         <ol className={css.rail}>{Array.from({ length: places }, (_, index) => {
           const entry = order[index], dragging = !!entry && drag?.active && drag.key === entry.key;
-          return <li key={index} className={css.place} data-place={index} data-filled={!!entry} data-waiting={index >= SHOWCASE_SLOTS || undefined} data-selected={!!entry && picked === entry.key} data-dragging={dragging || undefined}
+          const landing = drag?.active && drag.over === index && !dragging;
+          return <li key={index} className={css.place} data-place={index} data-filled={!!entry} data-waiting={index >= SHOWCASE_SLOTS || undefined} data-selected={!!entry && picked === entry.key} data-dragging={dragging || undefined} data-landing={landing || undefined}
             onPointerDown={entry ? (event) => startDrag(event, entry.key, index) : undefined}>
             {entry ? <button type="button" onClick={() => { if (!drag?.active) pick(entry.key); }} aria-pressed={picked === entry.key} aria-label={findFigure(entry.key)?.character.name}><Portrait figureKey={entry.key} quality={entry.quality} /></button> : null}
             <span className={css.number}>{index < SHOWCASE_SLOTS ? index + 1 : "+"}</span>
@@ -167,7 +169,7 @@ export default function CollectionCatalogue({ collection, records, series, onIns
 function Inspector({ figureKey: key, collection, records, favorites, format, onClose, onInspect, onFavorite, onFavoriteQuality, onMove }: {
   figureKey: string; collection: FigurineCollection; records: FigurineRecords; favorites: MachineItem[]; format: ReturnType<typeof useFormatter>;
   onClose: () => void; onMove: (key: string, step: number) => void;
-} & Omit<CatalogueActions, "onMoveFavorite">) {
+} & Omit<CatalogueActions, "onMoveFavorite" | "onSwapFavorites">) {
   const t = useTranslations("figurineLab");
   const found = findFigure(key), copies = collection[key], best = bestQuality(copies);
   const index = favorites.findIndex((entry) => entry.key === key), favorite = index >= 0 ? favorites[index] : null;
