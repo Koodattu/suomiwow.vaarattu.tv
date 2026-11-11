@@ -36,6 +36,6 @@ export function getMythicPlusLeaderboardCacheKey(query: Record<string, unknown>)
   params.set("page", String(page));
   params.set("limit", String(limit));
 
-  return `mythic-plus:leaderboard:v3:${params.toString()}`;
+  return `mythic-plus:leaderboard:v4:${params.toString()}`;
 }
 

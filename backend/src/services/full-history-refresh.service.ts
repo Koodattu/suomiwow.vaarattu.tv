@@ -1,3 +1,4 @@
+import { QUALIFIED_RAID_AFFILIATION } from "../config/character-eligibility";
 import { randomUUID } from "crypto";
 import { TRACKED_RAIDS } from "../config/guilds";
 import CharacterIdentityResolution from "../models/CharacterIdentityResolution";
@@ -375,7 +376,7 @@ class FullHistoryRefreshService {
         ? await CharacterRaidParticipation.distinct("characterId", {
             reportGuildId: { $in: targetGuildIds },
             characterId: { $ne: null },
-            reportCount: { $gte: 2 },
+            ...QUALIFIED_RAID_AFFILIATION,
           })
         : [];
     const mythicPlusEnqueue =

@@ -5,7 +5,7 @@ import { compareRaidIdsByPriority } from "../utils/raidPriority";
 import { CLASSES } from "../config/classes";
 import { ROLE_BY_CLASS_AND_SPEC } from "../config/specs";
 import { CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
-import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/character-eligibility";
+import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY, QUALIFIED_RAID_AFFILIATION } from "../config/character-eligibility";
 import Character, { ICharacter } from "../models/Character";
 import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import CharacterIdentityLink from "../models/CharacterIdentityLink";
@@ -2449,7 +2449,7 @@ class CharacterService {
       CharacterRaidParticipation.find({
         reportGuildId: guild._id,
         zoneId,
-        affiliationQualifiedAt: { $type: "date" },
+        ...QUALIFIED_RAID_AFFILIATION,
         reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
       })
         .sort({ classID: 1, characterName: 1 })
@@ -2497,6 +2497,7 @@ class CharacterService {
       {
         $match: {
           characterName: nameMatch,
+          ...QUALIFIED_RAID_AFFILIATION,
         },
       },
       { $sort: { lastSeenAt: -1 } },
@@ -2535,6 +2536,7 @@ class CharacterService {
           pipeline: [
             {
               $match: {
+                ...QUALIFIED_RAID_AFFILIATION,
                 $expr: {
                   $and: [
                     { $eq: ["$classID", "$$classId"] },
@@ -2623,6 +2625,7 @@ class CharacterService {
 
     const participationRows = await CharacterRaidParticipation.find({
       zoneId: { $in: eligibility.zoneIds },
+      ...QUALIFIED_RAID_AFFILIATION,
       mythicReportCount: { $gte: eligibility.minMythicReportCount },
       $or: candidates.map((candidate) => ({
         wclCanonicalCharacterId: candidate.wclCanonicalCharacterId,
@@ -2676,7 +2679,7 @@ class CharacterService {
     if (trimmedQuery.length < 2) return [];
 
     const safeLimit = Math.min(Math.max(limit, 1), 200);
-    const rows = await CharacterRaidParticipation.find({ characterName: trimmedQuery })
+    const rows = await CharacterRaidParticipation.find({ characterName: trimmedQuery, ...QUALIFIED_RAID_AFFILIATION })
       .collation(ACCENT_INSENSITIVE_COLLATION)
       .sort({ lastSeenAt: -1 })
       .limit(Math.max(safeLimit * 10, 50))
@@ -2717,16 +2720,20 @@ class CharacterService {
     const maximumLimit = Math.min(Math.max(options.maximumLimit ?? 20, 1), 200);
     const safeLimit = Math.min(Math.max(limit, 1), maximumLimit);
     const nameMatch = createAccentInsensitiveSearchRegex(trimmedQuery, { prefix: options.prefix });
-    const characters = await Character.find({
-      $or: [
-        { name: nameMatch },
-        { "blizzardIdentityOverride.name": nameMatch },
-      ],
-    })
-      .sort({ lastReportSeenAt: -1, name: 1, realm: 1, classID: 1 })
-      .limit(safeLimit)
-      .select("wclCanonicalCharacterId name realm region classID guildName guildRealm lastReportSeenAt blizzardIdentityOverride")
-      .lean();
+    const characters = await Character.aggregate<ICharacter>([
+      { $match: { $or: [{ name: nameMatch }, { "blizzardIdentityOverride.name": nameMatch }] } },
+      { $sort: { lastReportSeenAt: -1, name: 1, realm: 1, classID: 1 } },
+      { $lookup: {
+        from: CharacterRaidParticipation.collection.name,
+        localField: "_id",
+        foreignField: "characterId",
+        pipeline: [{ $match: QUALIFIED_RAID_AFFILIATION }, { $limit: 1 }, { $project: { _id: 1 } }],
+        as: "qualifiedParticipation",
+      } },
+      { $match: { "qualifiedParticipation.0": { $exists: true } } },
+      { $limit: safeLimit },
+      { $project: { wclCanonicalCharacterId: 1, name: 1, realm: 1, region: 1, classID: 1, guildName: 1, guildRealm: 1, lastReportSeenAt: 1, blizzardIdentityOverride: 1 } },
+    ]);
 
     return characters.map((character) => {
       const currentNameMatches = nameMatch.test(character.name);
@@ -2922,6 +2929,7 @@ class CharacterService {
       {
         $match: {
           ...exactCharacterMatch,
+          ...QUALIFIED_RAID_AFFILIATION,
           zoneId: { $in: TRACKED_RAIDS },
         },
       },
@@ -3099,6 +3107,11 @@ class CharacterService {
       character = continuity.rootCharacter ?? fallbackCharacter;
       profileCanonicalIds = continuity.canonicalIds;
       profileClassId = fallbackCharacter.classID;
+      // A renamed character can qualify through its linked historical identity.
+      if (!await CharacterRaidParticipation.exists({
+        wclCanonicalCharacterId: { $in: profileCanonicalIds }, classID: profileClassId,
+        zoneId: { $in: TRACKED_RAIDS }, ...QUALIFIED_RAID_AFFILIATION,
+      })) return null;
 
       const [rawTimelineRows, rawRankingRows, rawMechanicsRows] = await Promise.all([
         CharacterRaidParticipation.find({ wclCanonicalCharacterId: { $in: profileCanonicalIds }, classID: profileClassId, zoneId: { $in: TRACKED_RAIDS } })
@@ -3411,10 +3424,14 @@ class CharacterService {
     if (canonicalIds.length) {
       canonicalIds = (await this.resolveContinuityContext(canonicalIds, classId, { name, realm })).canonicalIds;
     }
-    return CharacterReportAppearance.find({
+    const identity = {
       ...(canonicalIds.length ? { wclCanonicalCharacterId: { $in: canonicalIds } } : { characterRealm: realm, characterName: name }),
       classID: classId,
       characterRegion: region,
+    };
+    if (!await CharacterRaidParticipation.exists({ ...identity, ...QUALIFIED_RAID_AFFILIATION }).collation(CASE_INSENSITIVE_COLLATION)) return [];
+    return CharacterReportAppearance.find({
+      ...identity,
       hidden: { $ne: true },
     }).collation(CASE_INSENSITIVE_COLLATION).select("reportCode characterName characterRealm rankingFightIds -_id").lean();
   }
@@ -3447,18 +3464,14 @@ class CharacterService {
     if (canonicalIds.length > 0 && continuityClassId) {
       canonicalIds = (await this.resolveContinuityContext(canonicalIds, continuityClassId, { name, realm })).canonicalIds;
     }
-    const appearanceMatch =
-      canonicalIds.length > 0
-        ? {
-            wclCanonicalCharacterId: { $in: canonicalIds },
-            reportGuildId,
-            ...(classId ? { classID: classId } : participationClassIds.length > 0 ? { classID: { $in: participationClassIds } } : {}),
-          }
-        : {
-            ...exactCharacterMatch,
-            reportGuildId,
-            ...(classId ? { classID: classId } : {}),
-          };
+    const identityMatch = canonicalIds.length > 0 ? { wclCanonicalCharacterId: { $in: canonicalIds } } : exactCharacterMatch;
+    const qualifiedClasses = await CharacterRaidParticipation.distinct("classID", {
+      ...identityMatch,
+      ...(classId ? { classID: classId } : {}),
+      ...QUALIFIED_RAID_AFFILIATION,
+    }).collation(CASE_INSENSITIVE_COLLATION);
+    if (!qualifiedClasses.length) return null;
+    const appearanceMatch = { ...identityMatch, reportGuildId, classID: { $in: qualifiedClasses } };
 
     const [raid, appearanceRows] = await Promise.all([
       Raid.findOne({ id: zoneId }).select("id name -_id").lean(),
@@ -3576,7 +3589,7 @@ class CharacterService {
         zoneId: CURRENT_TIER_ID,
         characterId: { $ne: null },
         mythicReportCount: { $gt: 0 },
-        affiliationQualifiedAt: { $type: "date" },
+        ...QUALIFIED_RAID_AFFILIATION,
         lastSeenAt: { $gte: cutoffDate },
       });
       const eligibleFilter: any = {

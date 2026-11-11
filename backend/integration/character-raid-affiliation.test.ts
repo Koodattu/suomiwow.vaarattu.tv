@@ -9,6 +9,10 @@ import Report from "../src/models/Report";
 import service from "../src/services/character.service";
 import backfill from "../src/services/character-ranking-backfill.service";
 import cache from "../src/services/cache.service";
+import Character from "../src/models/Character";
+import SeasonScore from "../src/models/CharacterMythicPlusSeasonScore";
+import DungeonRun from "../src/models/CharacterMythicPlusDungeonRun";
+import mythicPlus from "../src/services/mythic-plus.service";
 
 // Deliberately isolated from deployment credentials and all application databases.
 const database = `raid_affiliation_test_${process.pid}`;
@@ -27,6 +31,47 @@ before(async () => {
   for (const model of [CharacterRaidParticipation, CharacterReportAppearance, CharacterLeaderboard, Ranking, Report]) {
     await model.createCollection();
   }
+});
+
+test("two same-night uploads cannot publish stored Mythic+ scores or expose a guest profile", async () => {
+  const season = "season-mn-2";
+  const guestId = new mongoose.Types.ObjectId();
+  const qualifiedId = new mongoose.Types.ObjectId();
+  const realm = "tarren-mill";
+  const now = new Date();
+  for (const [index, characterId] of [guestId, qualifiedId].entries()) {
+    const name = index === 0 ? "Yootoo" : "Yootooregular";
+    const identity = { wclCanonicalCharacterId: 101 + index, classID: 3, name, realm, region: "EU" };
+    await Character.collection.insertOne({ ...identity, _id: characterId, lastReportSeenAt: now });
+    await CharacterRaidParticipation.collection.insertOne({
+      characterId, wclCanonicalCharacterId: identity.wclCanonicalCharacterId, classID: 3,
+      characterName: name, characterRealm: realm, characterRegion: "EU", zoneId,
+      reportGuildId: guild, reportGuildName: "Tracked guild", reportGuildRealm: realm,
+      reportCount: 2, mythicReportCount: 2, raidNightCount: index + 1,
+      affiliationQualifiedAt: index === 0 ? null : now, firstSeenAt: now, lastSeenAt: now,
+    });
+    await SeasonScore.collection.insertOne({
+      ...identity, characterId, season, scores: { all: 4151 - index }, identityStatus: "current",
+    });
+    await DungeonRun.collection.insertOne({
+      ...identity, characterId, season, raiderIoDungeonId: 123, bucket: "all", mythicLevel: 20 - index,
+      score: 500 - index, identityStatus: "current",
+    });
+  }
+  for (const options of [{}, { dungeonId: 123 }, { search: "Yootoo" }]) {
+    const result = await mythicPlus.getLeaderboard({ season, ...options });
+    assert.equal(result.pagination.totalRankedItems, 1, JSON.stringify(options));
+    assert.deepEqual(result.data.map(row => row.character.id), [String(qualifiedId)]);
+  }
+  assert.deepEqual(await mythicPlus.getCharacterProfileMythicPlus(guestId), { seasons: [] });
+  const jobs = await mythicPlus.enqueueProfileJobs({ characterIds: [String(guestId), String(qualifiedId)] });
+  assert.equal(jobs.candidates, 1);
+  for (const results of [
+    await service.searchCharacters("Yootoo"), await service.searchCurrentCharacters("Yootoo", 1),
+  ]) assert.deepEqual(results.map(row => row.name), ["Yootooregular"]);
+  assert.deepEqual(await service.searchExactHistoricalCharacters("Yootoo"), []);
+  assert.equal(await service.getCharacterProfileByRealmName(realm, "Yootoo", 3), null);
+  assert.equal(await service.getCharacterRaidReportsByRealmName(realm, "Yootoo", zoneId, String(guild), 3), null);
 });
 after(async () => {
   if (mongoose.connection.name === database) await mongoose.connection.dropDatabase();

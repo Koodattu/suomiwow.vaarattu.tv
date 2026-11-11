@@ -31,7 +31,7 @@ test("current-season refresh uses recent eligible participation despite stale ch
   });
   service.getCurrentSeasonSlug = async () => "season-mn-2";
   CharacterRaidParticipation.aggregate = (async (pipeline: any[]) => {
-    assert.equal(pipeline[0].$match.reportCount.$gte, 2);
+    assert.deepEqual(pipeline[0].$match.affiliationQualifiedAt, { $type: "date" });
     assert.ok(pipeline[0].$match.lastSeenAt.$gte instanceof Date);
     assert.equal(pipeline[0].$match.characterId.$ne, null);
     assert.deepEqual(pipeline[1], { $group: { _id: "$characterId", lastSeenAt: { $max: "$lastSeenAt" } } });

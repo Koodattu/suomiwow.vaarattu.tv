@@ -790,7 +790,7 @@ export class CharacterMediaService {
         logger.error(`[CharacterMedia] Failed to propagate refreshed media or availability for ${item.characterId}:`, error);
       }
       await cacheService.invalidatePattern(
-        new RegExp(`^characters:profile:v4:${escapeRegExp(item.realm.toLowerCase())}:${escapeRegExp(item.name.toLowerCase())}:`),
+        new RegExp(`^characters:profile:v5:${escapeRegExp(item.realm.toLowerCase())}:${escapeRegExp(item.name.toLowerCase())}:`),
       );
     } catch (error) {
       const status = errorStatus(error);

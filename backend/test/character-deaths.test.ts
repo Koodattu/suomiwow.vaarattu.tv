@@ -7,6 +7,7 @@ import { getCharacterDeaths, parseDeathEventOptions, summarizeCharacterDeaths } 
 import characterService from "../src/services/character.service";
 import Fight from "../src/models/Fight";
 import Character from "../src/models/Character";
+import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import CharacterReportAppearance from "../src/models/CharacterReportAppearance";
 import charactersRouter from "../src/routes/characters";
 
@@ -235,6 +236,7 @@ test("lowercase region filters retain canonical identity lookup for uppercase st
   // The first lookup resolves the route; no persisted Character is needed for continuity in this fixture.
   let characterQueries = 0;
   context.mock.method(Character, "find", () => ({ select: () => ({ lean: async () => ++characterQueries === 1 ? candidates : [] }) }));
+  context.mock.method(CharacterRaidParticipation, "exists", () => ({ collation: async () => ({ _id: "qualified" }) }));
   let appearanceFilter: unknown;
   context.mock.method(CharacterReportAppearance, "find", (query: unknown) => {
     appearanceFilter = query;

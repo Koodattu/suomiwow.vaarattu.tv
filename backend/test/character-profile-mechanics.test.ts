@@ -34,6 +34,7 @@ test("character profiles preserve missing combined scores and distinguish them f
   t.mock.method(characterService as any, "resolveContinuityContext", async () => ({
     isCombined: false, rootCharacter: null, requestedCharacterId: null, canonicalIds: [character.wclCanonicalCharacterId],
   }));
+  t.mock.method(CharacterRaidParticipation, "exists", async () => ({ _id: "qualified" }));
   t.mock.method(CharacterRaidParticipation, "aggregate", () => ({ collation: async () => [] }));
   t.mock.method(CharacterReportAppearance, "aggregate", () => ({ collation: async () => [] }));
   t.mock.method(CharacterRaidParticipation, "find", () => queryResult([]) as any);

@@ -1,3 +1,4 @@
+import { QUALIFIED_RAID_AFFILIATION } from "../config/character-eligibility";
 import Guild, { IGuildCrest } from "../models/Guild";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import { CURRENT_RAID_IDS } from "../config/guilds";
@@ -255,7 +256,7 @@ class SearchService {
       return this.botCharacterCandidateCache.candidates;
     }
 
-    const rows = await CharacterRaidParticipation.find({ zoneId: { $in: CURRENT_RAID_IDS } })
+    const rows = await CharacterRaidParticipation.find({ zoneId: { $in: CURRENT_RAID_IDS }, ...QUALIFIED_RAID_AFFILIATION })
       .select("wclCanonicalCharacterId characterName characterRealm characterRegion classID reportGuildId reportGuildName reportGuildRealm reportCount lastSeenAt -_id")
       .lean();
 

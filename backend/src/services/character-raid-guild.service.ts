@@ -1,3 +1,4 @@
+import { QUALIFIED_RAID_AFFILIATION } from "../config/character-eligibility";
 import mongoose from "mongoose";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 
@@ -113,7 +114,7 @@ export async function getPrimaryCharacterRaidGuilds(
   const rows = await CharacterRaidParticipation.find({
     zoneId,
     characterId: { $in: uniqueCharacterIds },
-    affiliationQualifiedAt: { $type: "date" },
+    ...QUALIFIED_RAID_AFFILIATION,
   })
     .select("characterId zoneId reportGuildId reportGuildName reportGuildRealm reportCount mythicReportCount lastSeenAt raidNightCount mythicNightCount affiliationQualifiedAt -_id")
     .lean<CharacterRaidGuildParticipation[]>();
@@ -132,6 +133,6 @@ export async function getRaidRankingEligibleCharacterIds(zoneId: number, reportG
     zoneId,
     ...(reportGuildId ? { reportGuildId } : {}),
     characterId: { $ne: null },
-    affiliationQualifiedAt: { $type: "date" },
+    ...QUALIFIED_RAID_AFFILIATION,
   });
 }

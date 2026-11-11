@@ -10,22 +10,18 @@ import Guild from "../src/models/Guild";
 import characterService from "../src/services/character.service";
 import searchService from "../src/services/search.service";
 
-test("current-character search avoids the historical participation aggregation", async () => {
+test("current-character search checks affiliation before limiting results and keeps name overrides", async () => {
   const characterModel = Character as any;
   const service = characterService as any;
-  const originalFind = characterModel.find;
+  const originalAggregate = characterModel.aggregate;
   const overrideUpdatedAt = new Date("2026-08-01T12:00:00.000Z");
   const queries: Record<string, any>[] = [];
-  let requestedLimit = 0;
+
 
   try {
-    characterModel.find = (value: Record<string, any>) => {
-      queries.push(value);
-      return {
-        sort() { return this; },
-        limit(value: number) { requestedLimit = value; return this; },
-        select() { return this; },
-        lean: async () => [{
+    characterModel.aggregate = async (pipeline: Record<string, any>[]) => {
+      queries.push(...pipeline);
+      return [{
           _id: new mongoose.Types.ObjectId(),
           wclCanonicalCharacterId: 123,
           name: "Currentname",
@@ -41,21 +37,24 @@ test("current-character search avoids the historical participation aggregation",
             updatedAt: overrideUpdatedAt,
             updatedBy: "admin",
           },
-        }],
-      };
+      }];
     };
 
     const results = await service.searchCurrentCharacters("oldname", 5);
 
-    assert.equal(requestedLimit, 5);
-    assert.equal(Array.isArray(queries[0]?.$or), true);
+    const joinIndex = queries.findIndex(stage => stage.$lookup);
+    const limitIndex = queries.findIndex(stage => stage.$limit);
+    assert.ok(joinIndex > 0 && limitIndex > joinIndex);
+    assert.equal(queries[limitIndex].$limit, 5);
+    assert.deepEqual(queries[joinIndex].$lookup.pipeline[0].$match, { affiliationQualifiedAt: { $type: "date" } });
+    assert.equal(Array.isArray(queries[0]?.$match?.$or), true);
     assert.equal(results[0].name, "Currentname");
     assert.equal(results[0].realm, "stormreaver");
     assert.equal(results[0].matchedName, "Oldname");
     assert.equal(results[0].matchedRealm, "tarren-mill");
     assert.deepEqual(results[0].guild, { name: "Current Guild", realm: "stormreaver" });
   } finally {
-    characterModel.find = originalFind;
+    characterModel.aggregate = originalAggregate;
   }
 });
 
@@ -191,7 +190,7 @@ test("exact historical search uses accent-insensitive indexed equality and dedup
 
     const results = await characterService.searchExactHistoricalCharacters("laake", 5);
 
-    assert.deepEqual(query, { characterName: "laake" });
+    assert.deepEqual(query, { characterName: "laake", affiliationQualifiedAt: { $type: "date" } });
     assert.deepEqual(collation, { locale: "en", strength: 1 });
     assert.equal(requestedLimit, 50);
     assert.equal(results.length, 1);

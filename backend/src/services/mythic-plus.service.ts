@@ -1,7 +1,7 @@
 import fetch, { Response } from "node-fetch";
 import mongoose from "mongoose";
 import { CLASSES, getSpecRole } from "../config/classes";
-import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/character-eligibility";
+import { QUALIFIED_RAID_AFFILIATION } from "../config/character-eligibility";
 import {
   MYTHIC_PLUS_ROLE_BUCKETS,
   MYTHIC_PLUS_SCORE_BUCKETS,
@@ -465,7 +465,7 @@ class MythicPlusService {
 
     const filter: Record<string, unknown> = {
       characterId: characterIds ? { $in: characterIds } : { $ne: null },
-      reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
+      ...QUALIFIED_RAID_AFFILIATION,
     };
     const eligibleIds = await CharacterRaidParticipation.distinct("characterId", filter);
     return eligibleIds.filter((id): id is mongoose.Types.ObjectId => id instanceof mongoose.Types.ObjectId);
@@ -550,7 +550,7 @@ class MythicPlusService {
     return Boolean(
       await CharacterRaidParticipation.exists({
         characterId,
-        reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
+        ...QUALIFIED_RAID_AFFILIATION,
       }),
     );
   }
@@ -1592,7 +1592,7 @@ class MythicPlusService {
     const participation = await CharacterRaidParticipation.aggregate<{ _id: mongoose.Types.ObjectId; lastSeenAt: Date }>([
       { $match: {
         characterId: { $ne: null },
-        reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
+        ...QUALIFIED_RAID_AFFILIATION,
         lastSeenAt: { $gte: activeSince },
       } },
       { $group: { _id: "$characterId", lastSeenAt: { $max: "$lastSeenAt" } } },
@@ -2141,7 +2141,7 @@ class MythicPlusService {
   private async processJob(job: ICharacterMythicPlusFetchJob): Promise<void> {
     if (!(await this.isCharacterEligible(job.characterId))) {
       await this.markJob(job, "skipped", {
-        completionReason: `Requires at least ${MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY} Heroic/Mythic reports for the same guild and raid`,
+        completionReason: `Requires a qualified raid guild affiliation`,
       });
       return;
     }

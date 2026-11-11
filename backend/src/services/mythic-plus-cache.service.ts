@@ -1,6 +1,6 @@
 import { SharedSnapshotCacheService } from "./shared-snapshot-cache.service";
 
-export const MYTHIC_PLUS_OPTIONS_CACHE_KEY = "mythic-plus:options:v2";
+export const MYTHIC_PLUS_OPTIONS_CACHE_KEY = "mythic-plus:options:v3";
 export const MYTHIC_PLUS_OPTIONS_TTL_MS = 24 * 60 * 60 * 1000;
 export const MYTHIC_PLUS_LEADERBOARD_TTL_MS = 5 * 60 * 1000;
 
