@@ -165,12 +165,16 @@ export class ForeverRunner {
                   await releaseRosterCoverage({ _id: current._id }, completedAt, session);
                 }
               }
+              const keepGuildClassification = current.rulesetInferredFromGuild &&
+                (profile.ruleset === "Unknown" || !["Alliance", "Horde"].includes(profile.faction));
               await ForeverCharacter.updateOne({ _id: job._id }, { $set: { ...profile,
+                ...(keepGuildClassification ? { faction: current.faction, ruleset: current.ruleset } : {}),
                 level: Math.max(profile.level, current.level ?? 0), profileLevel: profile.level, profileFetchedAt: completedAt,
                 lastLevelAt, lastAttemptAt: completedAt, lastFetchedAt: completedAt, failures: 0,
                 nextFetchAt: current.refreshRequestedAt || current.refreshQueuedAt ? completedAt
                   : covered ? nextProfileAuditAt(current, completedAt) : new Date(completedAt.getTime() + refreshDelay(Math.max(profile.level, current.level ?? 0), lastLevelAt)),
-              }, $unset: { errorCode: 1, rulesetInferredFromGuild: 1, lowLevelRecheck: 1, ...(!covered ? { rosterCoverageUntil: 1 } : {}) }, ...(changed ? { $push: { history: {
+              }, $unset: { errorCode: 1, ...(!keepGuildClassification ? { rulesetInferredFromGuild: 1 } : {}),
+                lowLevelRecheck: 1, ...(!covered ? { rosterCoverageUntil: 1 } : {}) }, ...(changed ? { $push: { history: {
                 level: profile.level, observedAt: completedAt, sourceUpdatedAt: profile.sourceUpdatedAt, source: "character",
               } } } : {}) }, { session });
               if (profile.guild) await ForeverGuild.updateOne({ region: profile.guild.region, slug: profile.guild.slug },

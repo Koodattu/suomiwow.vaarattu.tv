@@ -152,10 +152,17 @@ Roster entries provide faction but not ruleset. During an approved roster sync,
 three directly fetched, current members must agree on faction and ruleset before
 missing rulesets are filled for other usable members. Any conflicting direct
 profile or current roster faction prevents inference. `rulesetInferredFromGuild`
-records the origin; inferred values never count as confirming evidence. Direct
-profile values are preserved. A later profile replaces the inference, and roster
-sync removes inferred values when confirmation is lost, membership ends, or the
-member is marked outdated. No profile timestamps or levels are invented.
+records which guild supplied the ruleset. A departure, outdated entry or loss of
+guild consensus preserves the last confirmed faction and ruleset. A subsequent
+accepted membership in a confirmed guild can update that pair. An individual
+profile reporting a known faction and ruleset takes precedence. Inferred values
+never count toward guild confirmation.
+
+For older records whose ruleset was cleared, an approved guild sync restores the
+pair when the character has a prior accepted roster observation for that guild,
+a compatible faction and no direct profile. The repair preserves the recorded
+level history and observation times. The stored guild identifies the last
+observed membership. There is no separate record of the first importing guild.
 
 Known levels 1–9 with current roster membership are roster-only; public and admin
 profile refreshes remain blocked. A roster observation reaching level 10 queues

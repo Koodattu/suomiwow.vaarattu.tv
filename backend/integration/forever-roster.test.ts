@@ -109,26 +109,75 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       assert.ok(confirmed.profileFetchedAt);
     });
 
-    await t.test("conflicts and departures withdraw inferred rulesets without overwriting direct observations", async () => {
+    await t.test("the last confirmed guild classification survives conflicting, outdated and missing rosters until a direct profile replaces it", async () => {
       await guild();
       for (const slug of ["known-one", "known-two", "known-three"]) await tracked(slug);
-      const roster = [member("known-one"), member("known-two"), member("known-three"), member("young-member", 5)];
+      const roster = [member("known-one"), member("known-two"), member("known-three"), member("young-member", 17)];
       await run(roster);
       assert.equal((await ForeverCharacter.findOne({ slug: "young-member" }).lean())?.ruleset, "Normal");
       await ForeverCharacter.updateOne({ slug: "known-three" }, { $set: { ruleset: "PvP", status: "paused" } });
       await dueGuild(); await run(roster);
       const conflict = (await ForeverCharacter.findOne({ slug: "young-member" }).lean())!;
-      assert.equal(conflict.ruleset, undefined); assert.equal(conflict.rulesetInferredFromGuild, undefined);
+      assert.equal(conflict.ruleset, "Normal"); assert.equal(conflict.rulesetInferredFromGuild, guildIdentity.slug);
+      assert.equal(conflict.faction, "Alliance");
       assert.equal((await ForeverCharacter.findOne({ slug: "known-three" }).lean())?.ruleset, "PvP");
       assert.equal((await ForeverCharacter.findOne({ slug: "known-three" }).lean())?.status, "paused");
-      await ForeverCharacter.updateOne({ slug: "known-three" }, { $set: { ruleset: "Normal" } });
-      await dueGuild(); await run(roster);
-      assert.equal((await ForeverCharacter.findOne({ slug: "young-member" }).lean())?.ruleset, "Normal");
+      await dueGuild(); await run(roster.map(m => m.slug === "young-member" ? { ...m, faction: "Horde", isOutdated: true } : m));
+      const outdated = (await ForeverCharacter.findById(conflict._id).lean())!;
+      assert.equal(outdated.faction, "Alliance"); assert.equal(outdated.ruleset, "Normal");
       await ForeverCharacter.updateMany({ level: { $gte: 10 } }, { $set: { nextFetchAt: new Date(Date.now() + PROFILE_AUDIT_INTERVAL) } });
       await dueGuild(); await run(roster.filter(m => m.slug !== "young-member"));
       const left = (await ForeverCharacter.findOne({ slug: "young-member" }).lean())!;
-      assert.equal(left.ruleset, undefined); assert.equal(left.nextFetchAt, null);
+      assert.equal(left.ruleset, "Normal"); assert.equal(left.rulesetInferredFromGuild, guildIdentity.slug);
+      assert.equal(left.faction, "Alliance"); assert.equal(left.rosterCoverageUntil, undefined);
       assert.equal(left.status, "tracked"); assert.equal(left.history.length, 1);
+      await ForeverCharacter.updateOne({ _id: left._id }, { $set: { nextFetchAt: new Date(0) } });
+      await run([], async identity => ({ ...profile(identity.slug), guild: null, ruleset: "Unknown" }));
+      const partial = (await ForeverCharacter.findById(left._id).lean())!;
+      assert.ok(partial.profileFetchedAt); assert.equal(partial.ruleset, "Normal");
+      assert.equal(partial.rulesetInferredFromGuild, guildIdentity.slug);
+      await ForeverCharacter.updateOne({ _id: left._id }, { $set: { nextFetchAt: new Date(0) } });
+      await run([], async identity => ({ ...profile(identity.slug), guild: null, faction: "Horde", ruleset: "PvP" }));
+      const direct = (await ForeverCharacter.findById(left._id).lean())!;
+      assert.equal(direct.faction, "Horde"); assert.equal(direct.ruleset, "PvP");
+      assert.equal(direct.rulesetInferredFromGuild, undefined);
+    });
+
+    await t.test("a confirmed guild recovers missing rulesets from accepted former memberships", async () => {
+      await guild();
+      const roster = ["known-one", "known-two", "known-three"].map(slug => member(slug));
+      for (const m of roster) await tracked(m.slug);
+      const nextFetchAt = new Date(Date.now() + PROFILE_AUDIT_INTERVAL);
+      const former = { region: "eu", source: "guild", status: "tracked", guild: guildIdentity, rosterGuildSlug: guildIdentity.slug,
+        rosterObservedAt: new Date(1000), level: 5, faction: "Alliance", failures: 1, nextFetchAt,
+        history: [{ level: 5, source: "roster", observedAt: new Date(1000) }] };
+      await ForeverCharacter.insertMany([
+        { ...former, slug: "former-member" },
+        { ...former, slug: "hint-only", rosterObservedAt: null },
+        { ...former, slug: "other-faction", faction: "Horde" },
+        { ...former, slug: "moved-member", guild: { ...guildIdentity, slug: "other-guild" } },
+        { ...former, slug: "direct-member", ruleset: "PvP", sourceUpdatedAt: new Date(2000) },
+      ]);
+      await run(roster);
+      const recovered = (await ForeverCharacter.findOne({ slug: "former-member" }).lean())!;
+      assert.equal(recovered.ruleset, "Normal"); assert.equal(recovered.rulesetInferredFromGuild, guildIdentity.slug);
+      assert.equal(recovered.faction, "Alliance"); assert.equal(recovered.rosterObservedAt?.getTime(), 1000);
+      assert.equal(recovered.profileFetchedAt, undefined); assert.equal(recovered.rosterCoverageUntil, undefined);
+      assert.equal(recovered.nextFetchAt?.getTime(), nextFetchAt.getTime()); assert.equal(recovered.history.length, 1);
+      for (const slug of ["hint-only", "other-faction", "moved-member"]) {
+        assert.equal((await ForeverCharacter.findOne({ slug }).lean())?.ruleset, undefined, slug);
+      }
+      assert.equal((await ForeverCharacter.findOne({ slug: "direct-member" }).lean())?.ruleset, "PvP");
+
+      const nextGuild = { ...guildIdentity, slug: "next-guild", name: "Next Guild" };
+      await ForeverGuild.create({ ...nextGuild, status: "approved", nextFetchAt: new Date(0) });
+      const nextRoster = ["next-one", "next-two", "next-three"].map(slug => ({ ...member(slug), faction: "Horde" }));
+      for (const m of nextRoster) await tracked(m.slug, { guild: nextGuild, faction: "Horde", ruleset: "PvP" });
+      await run([...nextRoster, { ...member("former-member", 6), faction: "Horde" }]);
+      await dueGuild(); await run(roster);
+      const moved = (await ForeverCharacter.findById(recovered._id).lean())!;
+      assert.equal(moved.rulesetInferredFromGuild, nextGuild.slug);
+      assert.equal(moved.faction, "Horde"); assert.equal(moved.ruleset, "PvP");
     });
 
     await t.test("outdated sub-10 roster entries suppress lookups without publishing unverified progress", async () => {

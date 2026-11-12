@@ -38,8 +38,6 @@ export async function applyApprovedRoster(
   const identity = { region: guild.region, slug: guild.slug };
   const slugs = roster.map(member => member.slug);
   await releaseRosterCoverage({ region: guild.region, rosterGuildSlug: guild.slug, slug: { $nin: slugs } }, now, session);
-  await ForeverCharacter.updateMany({ region: guild.region, rulesetInferredFromGuild: guild.slug, slug: { $nin: slugs } },
-    { $unset: { ruleset: 1, rulesetInferredFromGuild: 1 } }, { session });
   if (!roster.length) return;
 
   await ForeverCharacter.bulkWrite<StoredCharacter>(roster.map(member => ({ updateOne: {
@@ -56,6 +54,15 @@ export async function applyApprovedRoster(
   const members = new Map(roster.map(member => [member.slug, member]));
   // Pausing tracking does not erase an already verified member's counterevidence.
   const classification = confirmedGuildRuleset(guild, roster, rosterCharacters);
+  if (classification) {
+    // Older syncs erased rulesets on departure. A prior accepted observation
+    // still proves membership even if this roster no longer includes the character.
+    await ForeverCharacter.updateMany({
+      region: guild.region, status: "tracked", rosterGuildSlug: guild.slug, "guild.slug": guild.slug,
+      rosterObservedAt: { $ne: null }, profileFetchedAt: null, sourceUpdatedAt: null,
+      ruleset: { $in: [null, "", "Unknown"] }, faction: { $in: [classification.faction, null, "", "Unknown"] },
+    }, { $set: { ...classification, rulesetInferredFromGuild: guild.slug } }, { session });
+  }
   const lagging = characters.filter(character => {
     const member = members.get(character.slug)!;
     return !member.isOutdated && character.guild?.slug === guild.slug && (character.level ?? 0) > member.level;
@@ -85,28 +92,27 @@ export async function applyApprovedRoster(
         rosterGuildSlug: guild.slug, rosterCoverageUntil: new Date(now.getTime() + ROSTER_COVERAGE) } }
         : character.failures === 0 ? { $min: { nextFetchAt: now } } : {}),
       $unset: { ...(!blockedBelowLevel && character.rosterGuildSlug === guild.slug ? { rosterCoverageUntil: 1 as const } : {}),
-        ...(blockedBelowLevel ? { errorCode: 1 as const, refreshRequestedAt: 1 as const, refreshQueuedAt: 1 as const, lowLevelRecheck: 1 as const } : {}),
-        ...(character.rulesetInferredFromGuild === guild.slug ? { ruleset: 1 as const, rulesetInferredFromGuild: 1 as const } : {}) },
+        ...(blockedBelowLevel ? { errorCode: 1 as const, refreshRequestedAt: 1 as const, refreshQueuedAt: 1 as const, lowLevelRecheck: 1 as const } : {}) },
     } } };
 
     const changed = member.level > (character.level ?? 0);
     const belowProfileLevel = !mayFetchProfile(member.level);
     const inferRuleset = classification && (!character.ruleset || character.ruleset === "Unknown" || character.rulesetInferredFromGuild);
+    const knownFaction = character.faction === "Horde" || character.faction === "Alliance";
     const unset: Record<string, 1> = {
       lowLevelRecheck: 1,
-      ...(character.rulesetInferredFromGuild && !inferRuleset ? { ruleset: 1, rulesetInferredFromGuild: 1 } : {}),
       ...(belowProfileLevel ? { errorCode: 1, refreshRequestedAt: 1, refreshQueuedAt: 1 } : {}),
     };
     const set: Record<string, unknown> = {
       name: member.name, level: member.level, className: member.className,
-      ...(member.race ? { race: member.race } : {}), ...(member.faction ? { faction: member.faction } : {}),
+      ...(member.race ? { race: member.race } : {}), ...(!knownFaction && member.faction ? { faction: member.faction } : {}),
       guild: { ...identity, name: guild.name }, lastFetchedAt: now,
       rosterObservedAt: now, rosterLevel: member.level, rosterGuildSlug: guild.slug,
       ...(fetchedProfile ? { profileFetchedAt: fetchedProfile } : {}),
       ...(fetchedProfile && character.profileLevel == null && !character.rosterObservedAt ? { profileLevel: character.level } : {}),
       ...(changed ? { lastLevelAt: now } : {}),
       rosterCoverageUntil: new Date(now.getTime() + ROSTER_COVERAGE),
-      ...(inferRuleset ? { ruleset: classification.ruleset, rulesetInferredFromGuild: guild.slug } : {}),
+      ...(inferRuleset ? { ...classification, rulesetInferredFromGuild: guild.slug } : {}),
     };
     // Never swallow a requested refresh or replace a failure's retry deadline.
     if (belowProfileLevel) {
