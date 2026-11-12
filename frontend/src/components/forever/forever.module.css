@@ -69,6 +69,7 @@
 .faction { display: flex; align-items: center; gap: 5px; color: #aaa99c; font-size: 10px; margin-top: 4px; }
 .faction img { width: 15px; height: 15px; object-fit: contain; }
 .levelCell { text-align: right; white-space: nowrap; }
+.finishTime { display: block; margin-top: 3px; font-size: 11px; color: #a9a89c; font-variant-numeric: tabular-nums; }
 .level { font-family: Georgia, serif; color: #ecd49b; font-size: 25px; line-height: 1; font-variant-numeric: lining-nums tabular-nums; }
 .checked { font-size: 11px; color: #a9a89c; white-space: nowrap; }
 .retry { color: #ddb779; font-size: 10px; display: block; margin-top: 3px; }

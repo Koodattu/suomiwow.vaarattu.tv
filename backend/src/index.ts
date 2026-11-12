@@ -71,6 +71,7 @@ import reporterScheduler from "./features/reporter/reporter-scheduler.service";
 import { foreverRouter, foreverAdminRouter } from "./features/forever/forever.routes";
 import foreverWorker, { initializeForever } from "./features/forever/forever.worker";
 import foreverTwitchWorker from "./features/forever/forever-twitch";
+import foreverLevel60Worker from "./features/forever/forever-level60.worker";
 import { startForeverLeaderboard, stopForeverLeaderboard } from "./features/forever/forever-leaderboard";
 
 // ============================================================================
@@ -683,6 +684,7 @@ const startServer = async () => {
     if (isWorkerProcess) {
       foreverWorker.start();
       foreverTwitchWorker.start();
+      foreverLevel60Worker.start();
       // Run background initialization (scheduler, processor, cache warming, etc.)
       // In "both" mode this is fire-and-forget so the API is available immediately.
       // In "worker" mode we await it so the process stays alive.
@@ -720,7 +722,7 @@ async function shutdown(): Promise<void> {
   await stopForeverLeaderboard();
   logger.info("Shutting down; draining active ingestion...");
   if (isWorkerProcess) {
-    await Promise.all([foreverWorker.stop(), foreverTwitchWorker.stop()]);
+    await Promise.all([foreverWorker.stop(), foreverTwitchWorker.stop(), foreverLevel60Worker.stop()]);
     scheduler.stop();
     reporterScheduler.stop();
     backgroundGuildProcessor.stop();

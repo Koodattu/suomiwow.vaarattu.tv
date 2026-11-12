@@ -14,7 +14,7 @@ const IDLE_MS = 5_000;
 const LEASE_MS = 90_000;
 export async function initializeForever() {
   await Promise.all([ForeverCharacter.init(), ForeverGuild.init(), ForeverRequestLimit.init(), ForeverWorker.init()]);
-  for (const id of ["armory", "twitch"]) {
+  for (const id of ["armory", "twitch", "level60"]) {
     try { await ForeverWorker.updateOne({ _id: id }, { $setOnInsert: { nextRequestAt: new Date() } }, { upsert: true }); }
     catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
   }
@@ -152,6 +152,10 @@ export class ForeverRunner {
               validateProgress({ level: current.profileLevel ?? (current.rosterObservedAt ? undefined : current.level), sourceUpdatedAt: current.sourceUpdatedAt }, profile);
               const changed = profile.level > (current.level ?? 0);
               const lastLevelAt = changed ? completedAt : current.lastLevelAt || completedAt;
+              // A lagging direct profile can arrive after the roster reported 60.
+              // Its dated level can disprove an already published Legacy estimate.
+              const estimate = current.estimatedLevel60At;
+              const disproved = estimate && (profile.level < 60 ? profile.sourceUpdatedAt >= estimate : profile.sourceUpdatedAt < estimate);
               let covered = !!current.rosterCoverageUntil && current.rosterCoverageUntil > completedAt &&
                 current.rosterGuildSlug === profile.guild?.slug;
               if (current.rosterObservedAt && current.rosterLevel != null && current.rosterGuildSlug === profile.guild?.slug) {
@@ -174,6 +178,7 @@ export class ForeverRunner {
                 nextFetchAt: current.refreshRequestedAt || current.refreshQueuedAt ? completedAt
                   : covered ? nextProfileAuditAt(current, completedAt) : new Date(completedAt.getTime() + refreshDelay(Math.max(profile.level, current.level ?? 0), lastLevelAt)),
               }, $unset: { errorCode: 1, ...(!keepGuildClassification ? { rulesetInferredFromGuild: 1 } : {}),
+                ...(disproved ? { estimatedLevel60At: 1 } : {}),
                 lowLevelRecheck: 1, ...(!covered ? { rosterCoverageUntil: 1 } : {}) }, ...(changed ? { $push: { history: {
                 level: profile.level, observedAt: completedAt, sourceUpdatedAt: profile.sourceUpdatedAt, source: "character",
               } } } : {}) }, { session });

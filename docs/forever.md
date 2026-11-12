@@ -10,8 +10,8 @@ Expired snapshots wait for a fresh build rather than serving indefinitely stale 
 
 A build reads only public character fields, without histories, using MongoDB
 snapshot read concern for a consistent population during concurrent worker updates.
-Ranks are assigned once by level descending, first observation of that level,
-then ID. Filtering, statistics and pagination operate on that ranked population
+Ranks are assigned once by level descending, with the level-60 timing rule below.
+Filtering, statistics and pagination operate on that ranked population
 in memory. Warm requests perform one indexed worker-revision read, rather than
 repeating population scans and ranking queries. Admin visibility/status changes
 bump that revision so all API processes invalidate the old population.
@@ -335,14 +335,28 @@ host. Existing characters gain portraits on their next normal refresh; until the
 or if an image fails, the UI shows a bundled class icon. The same compact visual
 system is used on character profiles and the hub.
 
-The leaderboard orders by latest observed level, then the earliest observation of
-that level, then stable record ID. Ranks are unique and calculated globally before
-filtering/pagination. A roster observes several members at the same time; it cannot
-establish their actual in-game level-up order. It is not a verified race finish
-order. History records only observed levels, from first tracking onward, with
-observation and upstream update times. It does not invent intermediate levels
-or claim exact level-up times. Lower levels and older upstream snapshots are
-rejected rather than overwriting progress.
+The leaderboard ranks characters by observed level. Below 60, ties use the first
+observation at that level, then stable record ID. At 60, ranking uses the minute
+of the estimated finish when available, otherwise the minute first observed at 60.
+Ties within a minute use the original first observation at 60, then stable ID.
+Ranks are global before filtering and pagination.
+
+The EU Battle.net character achievements endpoint in `profile-forever-eu`
+returns a timestamp for the account’s first level 60 in each class. The worker
+checks the character slug, class-specific Master achievement ID and completed
+criterion. It uses a single consistent timestamp after the last lower-level
+observation and no later than the earliest evidence of 60. Dated Armory profiles
+can narrow the window or disprove a previously accepted estimate.
+The window must be at most 24 hours. Characters first seen at 60, long gaps
+and conflicting evidence use the first sighting. Two characters of the same
+class on one account could finish within the same window, so the UI labels
+the Legacy time as an estimate. The level history keeps its observation times.
+
+An independent leased worker checks one visible, tracked EU level-60 character
+every ten seconds using the existing Blizzard app credentials. Newly capped and
+previously tracked characters enter the same queue. A missing completion or
+404 is checked again after six hours. API failures retain observed ranks and
+honor Retry-After. Accepted estimates appear on the next leaderboard snapshot.
 
 ## Storage and worker
 

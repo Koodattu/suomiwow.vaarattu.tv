@@ -223,7 +223,7 @@ export class BlizzardApiClient {
   /**
    * Get a valid access token, fetching a new one if necessary
    */
-  private async getAccessToken(): Promise<string> {
+  async getAccessToken(): Promise<string> {
     try {
       // Check if we have a valid token in the database
       const existingToken = await AuthToken.findOne({ service: "blizzard" });

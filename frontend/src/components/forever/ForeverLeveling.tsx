@@ -11,7 +11,7 @@ import { getRankColor } from "@/lib/utils";
 import { CharacterDetailsLoader } from "@/components/forever/ForeverCharacterDetails";
 import ForeverPopulation, { ForeverBoardSummary } from "@/components/forever/ForeverPopulation";
 import ForeverNav from "@/components/forever/ForeverNav";
-import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink } from "@/components/forever/ForeverShared";
+import { CharacterForm, classColor, Faction, ForeverDate, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink } from "@/components/forever/ForeverShared";
 import styles from "@/components/forever/forever.module.css";
 
 const filterFields = ["guild", "race", "className", "faction", "ruleset"] as const;
@@ -106,7 +106,11 @@ function ForeverLevelingBoard({ initialData }: { initialData?: ForeverBoard }) {
                 <Portrait character={character} /><span className={styles.name} style={{ color: classColor(character.className) }}>{character.name}</span>
               </button>
             </td>
-            <td className={styles.levelCell}><span className={styles.level}>{character.level}</span></td>
+            <td className={styles.levelCell}><span className={styles.level}>{character.level}</span>
+              {character.level === 60 && character.lastLevelAt && <small className={styles.finishTime}>
+                {t(character.estimatedLevel60At ? "finishEstimated" : "finishObserved")} <ForeverDate value={character.estimatedLevel60At ?? character.lastLevelAt} compact />
+              </small>}
+            </td>
             <td className={styles.attribute}>{foreverRace(character.race)}</td>
             <td className={styles.attribute} style={{ color: classColor(character.className) }}>{character.className || "—"}</td>
             <td><span className={styles.guild}>{character.guild?.name ? `‹${character.guild.name}›` : "—"}</span></td>

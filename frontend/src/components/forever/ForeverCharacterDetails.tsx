@@ -55,6 +55,8 @@ export function CharacterDetails({ character, showCharacterLink = true }: { char
         <div><strong>{character.level == null ? "—" : Math.max(0, 60 - character.level)}</strong><span>{t("progress.toGo")}</span></div>
       </div>
       <dl className={styles.progressFacts}>
+        {character.level === 60 && character.estimatedLevel60At && <div><dt>{t("progress.legacyEstimate")}</dt><dd><ForeverDate value={character.estimatedLevel60At} compact /></dd></div>}
+        {character.level === 60 && character.lastLevelAt && <div><dt>{t("progress.firstSeen60")}</dt><dd><ForeverDate value={character.lastLevelAt} compact /></dd></div>}
         <div><dt>{t("progress.firstSeen")}</dt><dd><ForeverDate value={first ? new Date(first.timestamp).toISOString() : undefined} compact /></dd></div>
         <div><dt>{t("sourceUpdated")}</dt><dd><ForeverDate value={character.sourceUpdatedAt} compact /></dd></div>
       </dl>

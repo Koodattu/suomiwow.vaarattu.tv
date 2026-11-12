@@ -3,9 +3,10 @@ import logger from "../../utils/logger";
 import { ForeverCharacter, ForeverWorker } from "./forever.models";
 import { visibleForeverCharacters } from "./forever-visibility";
 import { ForeverError } from "./forever-errors";
+import { compareForeverLevels } from "./forever-level60";
 import { ForeverLeaderboardCache, ForeverLeaderboardLease } from "./forever-leaderboard.models";
 
-export const FOREVER_PUBLIC_FIELDS = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt errorCode twitchChannel twitchIsLive twitchCheckedAt";
+export const FOREVER_PUBLIC_FIELDS = "region slug name level className race faction ruleset avatarUrl guild lastFetchedAt lastAttemptAt nextFetchAt sourceUpdatedAt lastLevelAt estimatedLevel60At errorCode twitchChannel twitchIsLive twitchCheckedAt";
 const FRESH_MS = 30_000;
 const fields = ["race", "className", "faction", "ruleset", "guild"] as const;
 const skyborneRaces = ["Skyborne", "Windshaper Skyborne", "High Order Skyborne"];
@@ -21,7 +22,7 @@ async function buildSnapshot() {
     ForeverCharacter.countDocuments({ ...visible, region: "eu", status: "tracked", level: { $exists: false } }).maxTimeMS(10_000),
   ]);
   // Rank once, before any filtering or pagination. Histories never enter the snapshot.
-  const ranked = characters.map((character, index) => ({ ...character, rank: index + 1 }));
+  const ranked = characters.sort(compareForeverLevels).map((character, index) => ({ ...character, rank: index + 1 }));
   const filterOptions = Object.fromEntries(fields.map(field => [field, [...new Set(ranked.map(character => {
     const value = field === "guild" ? character.guild?.name : character[field];
     return field === "race" && value ? displayRace(value) : value;
@@ -38,7 +39,7 @@ let timer: ReturnType<typeof setInterval> | undefined;
 async function snapshot(warm = false) {
   // This small indexed read also prevents stale L1 data across API processes after moderation.
   const worker = await ForeverWorker.findById("armory").select("leaderboardRevision lastTickAt lastSuccessAt nextRequestAt errorCode").lean();
-  const key = `forever:leaderboard:v1:${worker?.leaderboardRevision || 0}`;
+  const key = `forever:leaderboard:v2:${worker?.leaderboardRevision || 0}`;
   const freshAfter = Date.now() - (warm ? FRESH_MS / 2 : FRESH_MS);
   if (local?.key === key && Date.parse(local.data.generatedAt) > freshAfter) return { data: local.data, worker };
   let promise = pendingBuild?.key === key ? pendingBuild.promise : undefined;

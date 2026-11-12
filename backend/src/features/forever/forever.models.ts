@@ -14,6 +14,7 @@ const characterSchema = new Schema({
   twitchChannel: String, twitchIsLive: Boolean, twitchCheckedAt: Date, twitchNextCheckAt: Date,
   name: String, level: Number, className: String, race: String, faction: String, ruleset: String, avatarUrl: String,
   sourceUpdatedAt: Date, lastLevelAt: Date, refreshRequestedAt: Date, refreshQueuedAt: Date,
+  estimatedLevel60At: Date, level60NextCheckAt: Date,
   profileFetchedAt: Date, profileLevel: Number,
   lowLevelRecheck: Boolean,
   rulesetInferredFromGuild: String,
@@ -28,6 +29,7 @@ characterSchema.index({ status: 1, profileFetchedAt: 1, sourceUpdatedAt: 1, next
 characterSchema.index({ status: 1, refreshRequestedAt: 1 });
 characterSchema.index({ status: 1, level: -1, name: 1 });
 characterSchema.index({ region: 1, status: 1, level: -1, lastLevelAt: 1, _id: 1 });
+characterSchema.index({ level60NextCheckAt: 1, _id: 1 }, { partialFilterExpression: { region: "eu", status: "tracked", level: 60 } });
 characterSchema.index({ status: 1, twitchNextCheckAt: 1 });
 characterSchema.index({ rosterCoverageUntil: 1 });
 characterSchema.index({ status: 1, lowLevelRecheck: 1, rosterCoverageUntil: 1 });

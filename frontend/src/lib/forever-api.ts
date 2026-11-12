@@ -1,6 +1,7 @@
 export interface ForeverCharacter {
   _id: string; region: string; slug: string; status?: string; source?: string;
   rank?: number; name?: string; level?: number; className?: string; race?: string; faction?: string; ruleset?: string; avatarUrl?: string | null;
+  lastLevelAt?: string; estimatedLevel60At?: string;
   twitchChannel?: string; twitchIsLive?: boolean; twitchCheckedAt?: string;
   guild?: { name: string; slug: string; region: string } | null;
   refreshRequestedAt?: string; lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string; failures?: number;

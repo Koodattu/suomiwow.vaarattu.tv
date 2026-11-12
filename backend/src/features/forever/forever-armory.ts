@@ -157,6 +157,13 @@ async function request(url: string, init: RequestInit = {}): Promise<string> {
   }
 }
 
+export async function fetchForeverAchievements(slug: string): Promise<unknown> {
+  const { default: blizzard } = await import("../../services/blizzard.service");
+  const token = await blizzard.getAccessToken();
+  const url = `https://eu.api.blizzard.com/profile/wow/character/${encodeURIComponent(normalizeSlug(slug))}/achievements?namespace=profile-forever-eu&locale=en_GB`;
+  return JSON.parse(await request(url, { headers: { Authorization: `Bearer ${token}` } }));
+}
+
 export async function fetchForeverCharacter(identity: ForeverIdentity): Promise<ForeverProfile> {
   return parseCharacterHtml(await request(armoryUrl(identity)), identity);
 }
