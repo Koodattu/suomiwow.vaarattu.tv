@@ -10,7 +10,7 @@ const UNCLOSED_LINK_TOKEN_PATTERN = /\[\[\s*([A-Z]\d+)\s*\|\s*([^\]\n]{1,80})(?=
 export function calculateReporterUsage(rawUsage: RawUsage): ReporterUsage {
   const tokens = usageTokens(rawUsage);
   const rates = { ...REPORTER_CONFIG.pricing };
-  const estimatedCostUsd = standardLunaCostUsd(rawUsage, tokens, rates);
+  const estimatedCostUsd = standardLunaCostUsd(tokens);
   return {
     ...tokens,
     estimatedCostUsd: Number(estimatedCostUsd.toFixed(8)),

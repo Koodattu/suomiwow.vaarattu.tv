@@ -62,8 +62,8 @@ export default function AiUsagePanel() {
     {data && <>
       <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {card(t("estimated"), subtotal(data.totals), data.totals.unpriced ? t("unpriced", { count: data.totals.unpriced }) : t("estimatedNote"))}
-        {card(t("billed"), data.billing.status === "available" ? currency.format(data.billing.usd) : t(`billing.${data.billing.status}`), t("billedNote"))}
         {card(t("tokens"), number.format(data.totals.totalTokens), t("tokenCounts", { input: data.totals.inputTokens, output: data.totals.outputTokens }))}
+        {card(t("reasoningTokens"), number.format(data.totals.reasoningTokens), t("reasoningNote"))}
         {card(t("calls"), number.format(data.totals.calls), t("callCounts", { polls: data.totals.polls, failures: data.totals.failures }))}
       </dl>
       <section className={panel}>
@@ -89,7 +89,7 @@ export default function AiUsagePanel() {
           <table className="w-full text-sm">
             <thead className="bg-gray-900/60 text-gray-300"><tr>
               {(["time", "feature", "endpoint", "status"] as const).map(k => <th key={k} scope="col" className="whitespace-nowrap px-3 py-2 text-left font-medium">{t(k)}</th>)}
-              {(["input", "output", "estimated"] as const).map(k => <th key={k} scope="col" className={head}>{t(k)}</th>)}
+              {(["input", "output", "reasoning", "tokens", "estimated"] as const).map(k => <th key={k} scope="col" className={head}>{t(k)}</th>)}
             </tr></thead>
             <tbody>{data.calls.map(row => <tr key={row._id} className="border-t border-gray-700">
               <td className="whitespace-nowrap px-3 py-2"><time dateTime={row.at}>{date.format(new Date(row.at))}</time></td>
@@ -99,12 +99,15 @@ export default function AiUsagePanel() {
                 <dl className="mt-1 space-y-1 text-xs text-gray-300">
                   <div><dt>{t("model")}</dt><dd>{row.model} · {row.tier}</dd></div>
                   {row.requestId && <div><dt>{t("requestId")}</dt><dd className="break-all font-mono">{row.requestId}</dd></div>}
-                  {row.inputTokens != null && <div><dt>{t("tokenDetails")}</dt><dd>{t("tokenDetailsValue", { cached: row.cachedInputTokens ?? 0, written: row.cacheWriteTokens ?? 0, reasoning: row.reasoningTokens ?? 0 })}</dd></div>}
+                  {row.inputTokens != null && <div><dt>{t("tokenDetails")}</dt><dd>{t("tokenDetailsValue", { cached: row.cachedInputTokens ?? 0, written: row.cacheWriteTokens ?? 0 })}</dd>
+                    {row.cacheWrite12hTokens != null && !!row.cacheWriteTokens && <dd>{t("longCacheWrites", { count: row.cacheWrite12hTokens })}</dd>}</div>}
                 </dl>
               </details></td>
               <td className="whitespace-nowrap px-3 py-2">{t.has(`statuses.${row.status}`) ? t(`statuses.${row.status}`) : row.status} {row.httpStatus}</td>
               <td className={cell}>{row.inputTokens == null ? "—" : number.format(row.inputTokens)}</td>
               <td className={cell}>{row.outputTokens == null ? "—" : number.format(row.outputTokens)}</td>
+              <td className={cell}>{row.reasoningTokens == null ? "—" : number.format(row.reasoningTokens)}</td>
+              <td className={cell}>{row.totalTokens == null ? "—" : number.format(row.totalTokens)}</td>
               <td className={`${cell} text-amber-300`}>{amount(row.costNanoUsd)}</td>
             </tr>)}</tbody>
           </table>

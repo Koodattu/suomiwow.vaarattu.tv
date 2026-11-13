@@ -19,7 +19,6 @@ export interface AiUsageReport {
   features: string[];
   totals: AiUsageTotals;
   byFeature: (AiUsageTotals & { _id: string })[];
-  billing: { status: "available"; usd: number } | { status: "unconfigured" | "unavailable" };
   pageSize: number;
   calls: {
     _id: string;
@@ -34,6 +33,7 @@ export interface AiUsageReport {
     inputTokens?: number;
     cachedInputTokens?: number;
     cacheWriteTokens?: number;
+    cacheWrite12hTokens?: number;
     outputTokens?: number;
     reasoningTokens?: number;
     totalTokens?: number;

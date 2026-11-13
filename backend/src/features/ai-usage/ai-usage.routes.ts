@@ -2,7 +2,6 @@ import { Router } from "express";
 import { requireAdmin } from "../../middleware/admin.middleware";
 import logger from "../../utils/logger";
 import { AiCall, AI_FEATURES, type AiFeature } from "./ai-usage";
-import { billedProjectCost } from "./ai-billing";
 
 const metrics = {
   calls: { $sum: 1 }, polls: { $sum: { $cond: [{ $eq: ["$endpoint", "poll"] }, 1, 0] } },
@@ -15,21 +14,19 @@ const metrics = {
 type Totals = Record<keyof typeof metrics, number>;
 const zero = Object.fromEntries(Object.keys(metrics).map(key => [key, 0])) as Totals;
 export async function usageReport(days: number, page: number, feature?: AiFeature, now = new Date()) {
-  // UTC calendar days align with OpenAI's daily Costs buckets.
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days + 1));
   const match = { at: { $gte: start, $lte: now }, ...(feature && { feature }) };
   const pageSize = 25;
-  const [grouped, calls, first, billing] = await Promise.all([
+  const [grouped, calls, first] = await Promise.all([
     AiCall.aggregate<{ totals: Totals[]; byFeature: (Totals & { _id: string })[] }>([
       { $match: match }, { $facet: { totals: [{ $group: { _id: null, ...metrics } }, { $project: { _id: 0 } }],
         byFeature: [{ $group: { _id: "$feature", ...metrics } }, { $sort: { costNanoUsd: -1, _id: 1 } }] } },
     ]),
     AiCall.find(match).sort({ at: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).select("-__v").lean(),
     AiCall.findOne().sort({ at: 1, _id: 1 }).select("at").lean(),
-    billedProjectCost(start, days),
   ]);
   return { start, end: now, firstRecordedAt: first?.at ?? null, pageSize, features: AI_FEATURES,
-    totals: grouped[0]?.totals[0] ?? zero, byFeature: grouped[0]?.byFeature ?? [], calls, billing };
+    totals: grouped[0]?.totals[0] ?? zero, byFeature: grouped[0]?.byFeature ?? [], calls };
 }
 
 export const aiUsageRouter = Router();

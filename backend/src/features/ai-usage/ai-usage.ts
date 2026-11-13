@@ -1,7 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import { randomUUID } from "node:crypto";
 import logger from "../../utils/logger";
-import { REPORTER_CONFIG } from "../reporter/reporter.config";
 import { priceUsage, type RawUsage } from "./pricing";
 
 export const AI_FEATURES = ["namegame", "guildLanguage", "twitchCurse", "supporterArt", "reporterFi", "reporterEn"] as const;
@@ -10,7 +9,7 @@ const schema = new Schema({
   _id: { type: String, required: true }, at: { type: Date, required: true }, feature: { type: String, required: true },
   endpoint: { type: String, required: true }, model: String, tier: String, status: String, httpStatus: Number, requestId: String,
   inputTokens: Number, cachedInputTokens: Number, cacheWriteTokens: Number, outputTokens: Number, reasoningTokens: Number, totalTokens: Number,
-  costNanoUsd: Number,
+  cacheWrite12hTokens: Number, costNanoUsd: Number,
 }, { collection: "ai_usage_calls", versionKey: false, bufferCommands: false });
 schema.index({ at: -1, _id: -1 });
 schema.index({ feature: 1, at: -1, _id: -1 });
@@ -29,7 +28,7 @@ async function record(call: Call) {
   const responseId = call.responseId || body.id;
   const status = ok ? body.status || (endpoint === "decisions" && body.usage ? "completed" : "unknown") : "failed";
   const measured = body.usage && !["queued", "in_progress"].includes(status)
-    ? priceUsage(body.usage, model, endpoint === "decisions", tier, call.host, feature.startsWith("reporter") ? REPORTER_CONFIG.pricing : undefined) : null;
+    ? priceUsage(body.usage, model, endpoint === "decisions", tier, call.host) : null;
   const metadata = { at, feature, endpoint, model, httpStatus, requestId, status, tier };
   if (endpoint === "poll") {
     // Each HTTP retrieval appears in the log. Its cumulative usage belongs to the original POST.

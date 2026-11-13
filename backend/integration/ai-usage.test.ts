@@ -13,7 +13,6 @@ const uri = process.env.AI_USAGE_TEST_MONGODB_URI;
 test("HTTP attempts, background billing, admin access, filtering and pagination", { skip: !uri }, async t => {
   process.env.BLIZZARD_CLIENT_ID ??= "test-client";
   process.env.BLIZZARD_CLIENT_SECRET ??= "test-secret";
-  delete process.env.OPENAI_ADMIN_KEY;
   const { aiUsageRouter, usageReport } = await import("../src/features/ai-usage/ai-usage.routes");
   const { default: discord } = await import("../src/services/discord.service");
   await mongoose.connect(uri!, { dbName: "ai_usage_test_" + randomUUID().replaceAll("-", ""), serverSelectionTimeoutMS: 5000 });
@@ -27,7 +26,7 @@ test("HTTP attempts, background billing, admin access, filtering and pagination"
     fetch: meteredFetch("namegame", model, async () => {
       const status = ["queued", "in_progress", "completed", "completed"][count++];
       return Response.json({ object: "response", id: "resp_original", model, status, output: [],
-        usage: status === "completed" ? { input_tokens: 200, output_tokens: 25 } : null,
+        usage: status === "completed" ? { input_tokens: 200, output_tokens: 25, output_tokens_details: { reasoning_tokens: 20 } } : null,
       }, { headers: { "x-request-id": "req_" + count } });
     }),
   });
@@ -36,7 +35,9 @@ test("HTTP attempts, background billing, admin access, filtering and pagination"
   assert.equal((await usageReport(7, 1, "namegame")).totals.unpriced, 1);
   await Promise.all([client.responses.retrieve("resp_original"), client.responses.retrieve("resp_original")]);
   const decision = meteredFetch("guildLanguage", model, async () => Response.json({ answers: ["private answer"], model,
-    usage: { input_tokens: 100, output_tokens: 8 } }, { headers: { "x-request-id": "req_decision" } }));
+    usage: { input_tokens: 100, output_tokens: 8, output_tokens_details: { reasoning_tokens: 4 },
+      input_tokens_details: { cached_tokens: 10, cache_write_tokens: 6, cache_write_tokens_details: { ttl_12h_tokens: 2 } } },
+  }, { headers: { "x-request-id": "req_decision" } }));
   const res = await decision("https://api.openai.com/v1/decisions", { method: "POST" });
   assert.deepEqual((await res.json() as { answers: string[] }).answers, ["private answer"]);
   const fail = meteredFetch("reporterEn", model, async () => Response.json({ error: { message: "private failure" } }, { status: 429 }));
@@ -46,7 +47,8 @@ test("HTTP attempts, background billing, admin access, filtering and pagination"
 
   const summary = await usageReport(7, 1);
   assert.deepEqual(summary.totals, { calls: 7, polls: 3, failures: 2, unpriced: 2, inputTokens: 300, outputTokens: 33,
-    cachedInputTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0, totalTokens: 333, costNanoUsd: 42_500 });
+    cachedInputTokens: 10, cacheWriteTokens: 6, reasoningTokens: 24, totalTokens: 333, costNanoUsd: 42_000 });
+  assert.equal(summary.calls.find(c => c.endpoint === "decisions")?.cacheWrite12hTokens, 2);
   assert.equal(summary.byFeature[0]._id, "namegame");
   const original = summary.calls.find(c => c._id === "resp_original");
   assert.equal(original?.requestId, "req_1");
