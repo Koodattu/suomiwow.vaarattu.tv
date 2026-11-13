@@ -176,7 +176,7 @@
         "high": "High confidence",
         "unavailable": "Unavailable",
         "unscored": "Awaiting assessment.",
-        "retry": "Run the assessment again to retry missing results."
+        "retry": "Missing results are retried automatically after an hour."
       },
       "searchRoster": "Find a member",
       "fetchStatus": "Armory status",

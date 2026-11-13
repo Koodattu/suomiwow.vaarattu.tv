@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { createHash } from "node:crypto";
+import { guildsReadyForLanguageAssessment } from "./forever-guild-language";
 import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } from "./forever.models";
 import { ArmoryError, armoryUrl, normalizeSlug, parseArmoryInput } from "./forever-armory";
 import { mayFetchProfile, mayRequestRefresh, MINUTE, profileFetchEligibility } from "./forever-policy";
@@ -214,7 +215,9 @@ export async function adminOverview(query: { status?: unknown; characterPage?: u
     ForeverCharacter.countDocuments(filter), ForeverGuild.countDocuments(guildFilter),
     ForeverCharacter.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
     ForeverGuild.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
-    ForeverGuild.countDocuments({ languageDueAt: { $exists: true } }),
+    process.env.OPENAI_API_KEY?.trim() ? ForeverGuild.countDocuments({ $or: [
+      ...guildsReadyForLanguageAssessment(new Date()).$or, { languageLease: { $ne: null } },
+    ] }) : 0,
   ]);
   return { characters, guilds, worker, totalCharacters, totalGuilds, languagePending,
     characterCounts: Object.fromEntries(characterCounts.map((entry) => [entry._id, entry.count])),

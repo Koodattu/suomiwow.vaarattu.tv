@@ -15,6 +15,18 @@ export type GuildLanguageEvidence = { guildName: string; characterNames: string[
 export type GuildLanguageDecision = { percent: number; yes: boolean; confidence: "low" | "medium" | "high" };
 export type GuildLanguageScores = { plain?: number | null; structured?: number | null; decision?: GuildLanguageDecision | null };
 
+export function guildsReadyForLanguageAssessment(now: Date) {
+  return { $or: [
+    { languageDueAt: { $lte: now } },
+    { languageDueAt: null, $or: [
+      { "languageAssessment.plain": null },
+      { "languageAssessment.structured": null },
+      { "languageAssessment.decision": null },
+      { "languageAssessment.source": "profiles" as const, lastFetchedAt: { $ne: null } },
+    ] },
+  ] };
+}
+
 function percent(value: unknown): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 100) throw new Error("Invalid percentage");
   return value;

@@ -176,7 +176,7 @@
         "high": "Vahva varmuus",
         "unavailable": "Ei saatavilla",
         "unscored": "Odottaa arviointia.",
-        "retry": "Hae puuttuvat tulokset käynnistämällä arviointi uudelleen."
+        "retry": "Puuttuvia tuloksia haetaan automaattisesti uudelleen tunnin kuluttua."
       },
       "searchRoster": "Hae jäsentä",
       "fetchStatus": "Armoryn tila",
