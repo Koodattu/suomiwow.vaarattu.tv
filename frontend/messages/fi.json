@@ -1,5 +1,17 @@
 {
   "forever": {
+    "namegame": {
+      "title": "Nimipeli",
+      "description": "Hauskimmat hahmonimet GPT-6 Lunan pisteyttämänä asteikolla 0–100.",
+      "category": "Huumorilaji", "all": "Kaikki lajit",
+      "count": "{count, plural, one {# nimi} other {# nimeä}}",
+      "points": "{score} pistettä sadasta", "pages": "Nimipelin sivut",
+      "empty": "Ensimmäiset nimet ilmestyvät tänne pisteytyksen valmistuttua.", "emptyCategory": "Tässä lajissa ei vielä ole pisteytettyjä nimiä.",
+      "categories": {
+        "wordplay": "Sanaleikki", "reference": "Kulttuuriviittaus", "warcraft": "WoW-huumori", "deadpan": "Kuiva arkihuumori",
+        "absurd": "Absurdi huumori", "sound": "Sointu ja riimi", "edgy": "Harmaan alueen huumori", "straight": "Nimi vailla vitsiä"
+      }
+    },
     "analytics": {
       "title": "Tilastot",
       "tracked": "Seuratut hahmot",
@@ -105,19 +117,17 @@
     "sourceUpdated": "Armory päivitetty",
     "nextCheck": "Seuraava mahdollinen tarkistus",
     "history": "Tasohistoria",
-    "historyNote": "Havaitut tasot, eivät tarkat saavutusajat.",
     "progress": {
       "title": "Matka tasolle 60",
-      "observationCount": "{count, plural, one {# havainto} other {# havaintoa}}",
       "chartLabel": "Hahmon {name} havaitut tasot",
       "noObservations": "Ei vielä tasohavaintoja.",
       "firstObservation": "Ensimmäinen havainto tallennettu. Kuvaaja täydentyy uusien tasojen myötä.",
-      "allObservations": "Näytä havainnot",
-      "observedAt": "Havaittu",
       "levelsObserved": "tasoa seurannan alusta",
       "toGo": "tasoa jäljellä",
       "firstSeen": "Ensimmäinen havainto",
       "legacyEstimate": "Arvio tason 60 saavutusajasta (tilin Legacy-saavutus)",
+      "estimated60Short": "Taso 60 (arvio)",
+      "observed60Short": "Taso 60 havaittu",
       "firstSeen60": "Ensimmäinen havainto tasolla 60",
       "characterLink": "Hahmon linkki",
       "characterDetails": "Hahmon {name} edistyminen",
@@ -149,6 +159,25 @@
       "searchCharacters": "Hae hahmoja",
       "searchHint": "Nimi, kilta tai Twitch-kanava",
       "searchGuilds": "Hae kiltaa",
+      "language": {
+        "title": "Kuinka todennäköisesti kilta on suomenkielinen?",
+        "run": "Arvioi kaikkien kiltojen suomenkielisyys",
+        "queued": "{count, plural, one {# kilta lisättiin arviointijonoon.} other {# kiltaa lisättiin arviointijonoon.}}",
+        "pending": "{count, plural, one {# kilta jäljellä} other {# kiltaa jäljellä}}",
+        "roster": "GPT-6 Lunan arvion pohjana on killan nimi ja {count, plural, one {# nimi jäsenlistalta} other {# nimeä jäsenlistalta}}",
+        "profiles": "GPT-6 Lunan arvion pohjana on killan nimi ja {count, plural, one {# tunnettu hahmonimi} other {# tunnettua hahmonimeä}}",
+        "plain": "Tekstivastaus",
+        "structured": "Rakenteinen vastaus",
+        "decision": "Decisions",
+        "yes": "Kyllä",
+        "no": "Ei",
+        "low": "Heikko varmuus",
+        "medium": "Kohtalainen varmuus",
+        "high": "Vahva varmuus",
+        "unavailable": "Ei saatavilla",
+        "unscored": "Odottaa arviointia.",
+        "retry": "Hae puuttuvat tulokset käynnistämällä arviointi uudelleen."
+      },
       "searchRoster": "Hae jäsentä",
       "fetchStatus": "Armoryn tila",
       "health": {
@@ -223,6 +252,7 @@
     "errors": {
       "below_armory_level": "Armory-profiili on saatavilla tasolta 10 alkaen. Sitä ennen päivitykset vaativat seuratun killan jäsenlistan.",
       "invalid_twitch": "Anna Twitch-kanavan nimi tai linkki.",
+      "openai_not_configured": "Määritä palvelimen OpenAI-rajapinta-avain kiltojen arviointia varten.",
       "invalid_url": "Anna hahmon koko nimi, killan nimi tai vastaava Blizzardin Forever-Armory-linkki. Retail- ja Classic-linkkejä ei tueta.",
       "rate_limited": "Liian monta pyyntöä. Yritä uudelleen tunnin kuluttua.",
       "login_required": "Jatka kirjautumalla Discordilla.",
@@ -230,8 +260,7 @@
       "unavailable": "Tietojen lataus tai tallennus epäonnistui. Yritä uudelleen."
     },
     "rankingShort": "Korkein taso ensin, samalla tasolla ensin havaittu edellä. Tasolla 60 luokan Legacy-saavutus voi tarkentaa aikaa, jos se sopii hahmon tasohavaintoihin.",
-    "finishEstimated": "Arvio",
-    "finishObserved": "Havaittu",
+    "finishTime": "Tason 60 ajankohta",
     "charactersShort": "hahmoa",
     "pagination": "Tasoseurannan sivut",
     "aboutTracking": "Tietoa seurannasta",

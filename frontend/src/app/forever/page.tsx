@@ -12,6 +12,7 @@ export default function ForeverHub() {
     <div className={analytics.hubGrid}>
       <Link href="/forever/leveling" className={styles.hubLink}><div><h2>{t("title")}</h2><p>{t("hubDescription")}</p></div><span aria-hidden="true">→</span></Link>
       <Link href="/forever/analytics" className={styles.hubLink}><div><h2>{t("analytics.title")}</h2><p>{t("analytics.hubDescription")}</p></div><span aria-hidden="true">→</span></Link>
+      <Link href="/forever/namegame" className={styles.hubLink}><div><h2>{t("namegame.title")}</h2><p>{t("namegame.description")}</p></div><span aria-hidden="true">→</span></Link>
     </div>
   </div></div>;
 }

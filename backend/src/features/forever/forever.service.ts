@@ -206,21 +206,22 @@ export async function adminOverview(query: { status?: unknown; characterPage?: u
   else if (query.health !== undefined && query.health !== "all") throw new ForeverError("invalid_input");
   const guildFilter: Record<string, unknown> = searchFilter(query.guildSearch, ["name", "slug"]);
   if (["proposed", "pending", "approved", "paused", "rejected"].includes(String(query.guildStatus))) guildFilter.status = query.guildStatus;
-  const [characters, guilds, worker, totalCharacters, totalGuilds, characterCounts, guildCounts] = await Promise.all([
+  const [characters, guilds, worker, totalCharacters, totalGuilds, characterCounts, guildCounts, languagePending] = await Promise.all([
     ForeverCharacter.find(filter).select("-history -proposedBy").sort({ createdAt: -1, _id: -1 }).skip((characterPage - 1) * 50).limit(50).lean(),
     ForeverGuild.aggregate([{ $match: guildFilter }, { $sort: { name: 1, _id: 1 } }, { $skip: (guildPage - 1) * 50 }, { $limit: 50 },
-      { $addFields: { rosterCount: { $size: { $ifNull: ["$roster", []] } } } }, { $project: { roster: 0 } }]),
+      { $addFields: { rosterCount: { $size: { $ifNull: ["$roster", []] } } } }, { $project: { roster: 0, languageLease: 0, "languageAssessment.fingerprint": 0 } }]),
     ForeverWorker.findById("armory").select("-leaseToken").lean(),
     ForeverCharacter.countDocuments(filter), ForeverGuild.countDocuments(guildFilter),
     ForeverCharacter.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
     ForeverGuild.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+    ForeverGuild.countDocuments({ languageDueAt: { $exists: true } }),
   ]);
-  return { characters, guilds, worker, totalCharacters, totalGuilds,
+  return { characters, guilds, worker, totalCharacters, totalGuilds, languagePending,
     characterCounts: Object.fromEntries(characterCounts.map((entry) => [entry._id, entry.count])),
     guildCounts: Object.fromEntries(guildCounts.map((entry) => [entry._id, entry.count])), enabled: true };
 }
 export async function guildDetail(id: unknown) {
-  const guild = await ForeverGuild.findById(objectId(id)).lean();
+  const guild = await ForeverGuild.findById(objectId(id)).select("-languageAssessment.fingerprint -languageLease").lean();
   if (!guild) throw new ForeverError("not_found", 404);
   const characters = await ForeverCharacter.find({ region: guild.region, slug: { $in: guild.roster.map((member) => member.slug) } }).select("slug status").lean();
   const tracked = new Map(characters.map((character) => [character.slug, character]));

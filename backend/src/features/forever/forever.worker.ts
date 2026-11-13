@@ -14,7 +14,7 @@ const IDLE_MS = 5_000;
 const LEASE_MS = 90_000;
 export async function initializeForever() {
   await Promise.all([ForeverCharacter.init(), ForeverGuild.init(), ForeverRequestLimit.init(), ForeverWorker.init()]);
-  for (const id of ["armory", "twitch", "level60"]) {
+  for (const id of ["armory", "twitch", "level60", "namegame"]) {
     try { await ForeverWorker.updateOne({ _id: id }, { $setOnInsert: { nextRequestAt: new Date() } }, { upsert: true }); }
     catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
   }

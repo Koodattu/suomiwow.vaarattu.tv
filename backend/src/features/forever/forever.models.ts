@@ -11,6 +11,10 @@ const characterSchema = new Schema({
   status: { type: String, enum: ["pending", "tracked", "paused", "rejected"], default: "pending", required: true },
   proposedBy: String, source: { type: String, enum: ["proposal", "admin", "guild", "seed"], required: true },
   independentlyTracked: Boolean,
+  namegameBatch: { type: String, select: false },
+  nameRating: { type: new Schema({
+    name: { type: String, required: true }, score: { type: Number, required: true }, category: { type: String, required: true },
+  }, { _id: false }) },
   twitchChannel: String, twitchIsLive: Boolean, twitchCheckedAt: Date, twitchNextCheckAt: Date,
   name: String, level: Number, className: String, race: String, faction: String, ruleset: String, avatarUrl: String,
   sourceUpdatedAt: Date, lastLevelAt: Date, refreshRequestedAt: Date, refreshQueuedAt: Date,
@@ -24,6 +28,7 @@ const characterSchema = new Schema({
     source: { type: String, enum: ["character", "roster"] } }, { _id: false })], default: [] },
 }, { timestamps: true, collection: "forever_characters" });
 characterSchema.index({ region: 1, slug: 1 }, { unique: true });
+characterSchema.index({ "nameRating.score": -1, "nameRating.name": 1, _id: 1 }, { partialFilterExpression: { "nameRating.score": { $exists: true } } });
 characterSchema.index({ status: 1, nextFetchAt: 1 });
 characterSchema.index({ status: 1, profileFetchedAt: 1, sourceUpdatedAt: 1, nextFetchAt: 1 });
 characterSchema.index({ status: 1, refreshRequestedAt: 1 });
@@ -43,10 +48,20 @@ const guildSchema = new Schema({
   profileComparisons: { type: Number, default: 0 }, profileAheadCount: { type: Number, default: 0 },
   rosterAheadCount: { type: Number, default: 0 }, lastComparedAt: Date,
   roster: { type: [member], default: [] },
+  languageDueAt: Date, languageLease: { type: String, select: false },
+  languageAssessment: { type: new Schema({
+    fingerprint: String, assessedAt: Date, nameCount: Number, source: { type: String, enum: ["roster", "profiles"] },
+    plain: Number, structured: Number,
+    decision: { type: new Schema({
+      percent: { type: Number, required: true }, yes: { type: Boolean, required: true },
+      confidence: { type: String, enum: ["low", "medium", "high"], required: true },
+    }, { _id: false }) },
+  }, { _id: false }) },
 }, { timestamps: true, collection: "forever_guilds" });
 guildSchema.index({ region: 1, slug: 1 }, { unique: true });
 guildSchema.index({ status: 1, nextFetchAt: 1 });
 guildSchema.index({ status: 1, lastFetchedAt: 1, nextFetchAt: 1 });
+guildSchema.index({ languageDueAt: 1 }, { sparse: true });
 
 const workerSchema = new Schema({
   _id: { type: String, default: "armory" }, leaseToken: String, leaseUntil: Date,

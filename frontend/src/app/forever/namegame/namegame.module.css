@@ -1,0 +1,18 @@
+.header, .controls, .pages, .card { display: flex; align-items: center; justify-content: space-between; }
+.header { gap: 12px 24px; flex-wrap: wrap; margin-bottom: 16px; }
+.controls { gap: 8px 16px; flex-wrap: wrap; border-bottom: 1px solid var(--forever-line); padding-bottom: 10px; margin-bottom: 10px; }
+.controls > span, .pages { color: var(--forever-muted); font-size: 12px; }
+.controls select { max-width: none; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 205px), 1fr)); gap: 5px; margin: 0; padding: 0; list-style: none; }
+.card { min-width: 0; gap: 8px; padding: 8px 11px; background: #191d18; border: 1px solid #464337; border-radius: 3px; }
+.card div { min-width: 0; overflow-wrap: anywhere; }
+.card strong { display: block; color: #efe6ce; font-size: 14px; line-height: 1.25; }
+.card span { display: block; color: #b1ad9b; font-size: 11px; line-height: 1.25; margin-top: 2px; }
+.card b { color: var(--forever-gold); font: 600 19px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
+.pages { justify-content: center; gap: 14px; margin-top: 14px; }
+.error { margin-block: 10px; }
+@media (max-width: 540px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card { padding: 7px; gap: 4px; }
+  .card strong { font-size: 13px; }
+}

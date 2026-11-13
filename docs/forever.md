@@ -1,5 +1,45 @@
 # Forever leveling
 
+## Namegame
+
+The Forever hub and navigation link to `/forever/namegame`. The public API at `GET /api/forever/namegame`
+accepts `category` and a one-based `page`. Each page contains up to 96 names, ordered by overall score,
+then name and character ID for stable ties. Filtering uses the same overall scores.
+
+The backend worker automatically scores existing and newly eligible tracked characters when `OPENAI_API_KEY` is configured.
+Guild imports must belong to an approved, visible guild's current roster. A profile can establish membership before
+the first roster fetch. Independently confirmed characters and legacy admin/seed entries qualify on their own.
+Eligibility is checked again when serving the board, so moderation also applies to previously rated names.
+
+Each Responses API request sends up to 64 names with their own guild context to `gpt-6-luna` at medium reasoning
+effort. The rubric and strict output schema live in `forever-namegame-rating.ts`. Every character has its own
+required output slot and gets one overall 0–100 score and a primary humor category. Existing scores survive
+guild moves, pauses, worker restarts and rubric edits.
+
+The worker claims character IDs and records the batch in MongoDB in one transaction. It saves the OpenAI background
+response ID, polls that generation, then commits the scores and removes the job together. An explicit submission
+rejection backs off and retries. An ambiguous submission, invalid result or expired response keeps its claims to
+prevent duplicate scoring. Inspect `forever_namegame_batches` and the worker logs for these exceptions. If a submission
+lost its acknowledgement, match the batch ID to `namegame_batch` in OpenAI request metadata, record the original
+`responseId` on the batch and clear its `error` to resume polling. A process interruption before acknowledgement
+can leave the same case with neither field set.
+
+## Guild language estimates
+
+In **Admin → Forever → Discovered guilds**, choose **Assess Finnish language for all guilds**.
+The worker evaluates every saved Forever guild across regions and moderation states, including guilds outside the current filters.
+The button queues work in MongoDB and the run continues after the panel closes. Both the API and worker use the backend `OPENAI_API_KEY`.
+
+The guild inspector shows three independent GPT-6 Luna estimates of the likelihood that Finnish is the guild's main shared language.
+Plain text and strict structured output use low reasoning effort. Decisions returns a boolean choice and a probability for each option.
+The percentage always refers to **Yes**. The confidence label describes the chosen answer using the API's separate confidence value
+(low below 65%, medium from 65% to below 85%, high from 85%). These are model estimates from names alone.
+
+Each method receives the guild name and every name in its saved roster. Until a roster is available, the worker uses all linked
+character names in the same region, or just the guild name if none are known. The inspector records the source, number of names
+and assessment time. Running again reuses completed scores for identical names and rubric, retries missing methods, and
+reassesses changed inputs. Scores are available only through the Forever admin API and have no effect on moderation.
+
 ## Leaderboard performance and freshness
 
 The leveling endpoint shares a 30-second ranked snapshot across API processes,
@@ -320,10 +360,9 @@ one race filter; their original Armory race remains in storage.
 Selecting a character expands its row on desktop without navigating away.
 Below 1100px it opens an accessible dialog with Escape/outside-click dismissal
 and focus restoration. History is fetched only when details open. The chart
-plots observed levels on a proportional time axis with a fixed 1–60 level scale;
-steps show the last observed level between observations, not exact level-up
-times. Dots, a keyboard-operable observation selector and a dated data table
-expose the same observations. Single-point and not-yet-observed histories have
+plots observed levels on a proportional time axis with a fixed 1–60 level scale.
+Chart point tooltips show each observed level and its timestamp.
+Single-point and not-yet-observed histories have
 explicit states. Summary gains start at the first observation; no XP percentage,
 estimated completion time or missing intermediate levels are invented.
 Direct name links reuse these details and place a clear return link above the

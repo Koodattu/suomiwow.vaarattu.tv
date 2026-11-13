@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNow, useTranslations } from "next-intl";
+import { useFormatter, useNow, useTranslations } from "next-intl";
 import { foreverApi, foreverCharacterPath, formatForeverDate, type ForeverAdminData, type ForeverGuild } from "@/lib/forever-api";
 import { buttonClass, CharacterForm, classColor, controlClass, ForeverDate, ForeverErrorMessage, ForeverUpdated, Portrait, StreamerLink, TwitchEditor, WorkerStatus } from "@/components/forever/ForeverShared";
 import styles from "@/components/forever/forever.module.css";
@@ -34,6 +34,25 @@ function Pagination({ page, total, onChange, disabled }: { page: number; total: 
   </div></div>;
 }
 
+function GuildLanguageEstimate({ guild }: { guild: ForeverGuild }) {
+  const t = useTranslations("forever.admin.language"), format = useFormatter();
+  const result = guild.languageAssessment;
+  const pct = (value?: number | null) => value == null ? t("unavailable") : format.number(value / 100, { style: "percent" });
+  return <section className={styles.languageEstimate}>
+    <h4>{t("title")}</h4>
+    {result ? <>
+      <p className={styles.adminHelp}>{t(result.source, { count: result.nameCount })} · <ForeverDate value={result.assessedAt} /></p>
+      <dl>{(["plain", "structured", "decision"] as const).map(method => <div key={method}>
+        <dt>{t(method)}</dt><dd>{pct(method === "decision" ? result.decision?.percent : result[method])}</dd>
+        {method === "decision" && result.decision && <dd className={styles.languageVerdict}>
+          {t(result.decision.yes ? "yes" : "no")} · {t(result.decision.confidence)}
+        </dd>}
+      </div>)}</dl>
+      {(result.plain == null || result.structured == null || result.decision == null) && <p className={styles.adminHelp}>{t("retry")}</p>}
+    </> : <p className={styles.adminHelp}>{t("unscored")}</p>}
+  </section>;
+}
+
 export default function ForeverAdminPanel() {
   const t = useTranslations("forever"), client = useQueryClient();
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
@@ -44,7 +63,7 @@ export default function ForeverAdminPanel() {
   const [characterPage, setCharacterPage] = useState(1), [guildPage, setGuildPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]), [guildId, setGuildId] = useState<string | null>(null);
   const params = new URLSearchParams({ status: filter, health, search, guildStatus: guildFilter, guildSearch, characterPage: String(characterPage), guildPage: String(guildPage) });
-  const overview = useQuery({ queryKey: ["forever", "admin", params.toString()], queryFn: () => foreverApi<ForeverAdminData>(`admin/forever?${params}`), refetchInterval: (query) => query.state.data?.characters.some((character) => character.refreshRequestedAt) ? 2_000 : 30_000 });
+  const overview = useQuery({ queryKey: ["forever", "admin", params.toString()], queryFn: () => foreverApi<ForeverAdminData>(`admin/forever?${params}`), refetchInterval: (query) => (view === "guilds" && query.state.data?.languagePending) || query.state.data?.characters.some((character) => character.refreshRequestedAt) ? 2_000 : 30_000 });
   const data = overview.data, activeGuildId = guildId || data?.guilds[0]?._id;
   const guild = useQuery({ queryKey: ["forever", "admin", "guild", activeGuildId], queryFn: () => foreverApi<ForeverGuild>(`admin/forever/guilds/${activeGuildId}`), enabled: view === "guilds" && !!activeGuildId, refetchInterval: 30_000 });
   const refresh = () => void client.invalidateQueries({ queryKey: ["forever"] });
@@ -52,8 +71,9 @@ export default function ForeverAdminPanel() {
     setError(null); setNotice(""); setBusy(true);
     setRefreshingId(path.endsWith("/refresh-now") ? path.split("/")[1] : null);
     try {
-      const result = await foreverApi<{ updated?: number; skipped?: number; refreshState?: "refreshed" | "failed" | "prioritized" }>(`admin/forever/${path}`, method, body);
-      setNotice(result.refreshState ? t(`admin.refreshStates.${result.refreshState}`) : result.updated === undefined ? t("admin.saved") : t("admin.result", { count: result.updated, skipped: result.skipped || 0 }));
+      const result = await foreverApi<{ queued?: number; updated?: number; skipped?: number; refreshState?: "refreshed" | "failed" | "prioritized" }>(`admin/forever/${path}`, method, body);
+      if (result.queued !== undefined) setNotice(t("admin.language.queued", { count: result.queued }));
+      else setNotice(result.refreshState ? t(`admin.refreshStates.${result.refreshState}`) : result.updated === undefined ? t("admin.saved") : t("admin.result", { count: result.updated, skipped: result.skipped || 0 }));
       setSelected([]); await client.invalidateQueries({ queryKey: ["forever"] });
     } catch (caught) { setError(caught); } finally { setBusy(false); setRefreshingId(null); }
   }
@@ -124,6 +144,9 @@ export default function ForeverAdminPanel() {
       <div className={styles.adminGuildToolbar}>
         <label className={styles.adminSearch}>{t("admin.searchGuilds")}<input className={styles.input} type="search" maxLength={100} value={guildSearch} onChange={(event) => { setGuildSearch(event.target.value); setGuildPage(1); setGuildId(null); setRosterSearch(""); }} /></label>
         <label className={styles.adminFilter}>{t("status")}<select className={controlClass} value={guildFilter} onChange={(event) => { setGuildFilter(event.target.value); setGuildPage(1); setGuildId(null); }}>{["all", "proposed", "pending", "approved", "paused", "rejected"].map((status) => <option key={status} value={status}>{t(`statuses.${status}`)}</option>)}</select></label>
+        <button className={buttonClass} disabled={busy || !data || !total(data.guildCounts) || data.languagePending > 0}
+          onClick={() => void act("guild-language", "POST")}>{t("admin.language.run")}</button>
+        {!!data?.languagePending && <span className={styles.adminHelp} role="status">{t("admin.language.pending", { count: data.languagePending })}</span>}
       </div>
       {overview.isPending ? <p role="status">{t("loading")}</p> : <div className={styles.adminGuildGrid}>
         <div><div className={styles.adminGuildList}>{data?.guilds.map((entry) => <button className={styles.adminGuildChoice} key={entry._id} aria-pressed={activeGuildId === entry._id} onClick={() => { setGuildId(entry._id); setRosterSearch(""); }}>
@@ -142,6 +165,7 @@ export default function ForeverAdminPanel() {
               <div><span>{t("nextCheck")}</span><ForeverDate value={activeGuild.hidden || !["pending", "approved"].includes(activeGuild.status) ? undefined : activeGuild.nextFetchAt} /></div>
             </div>
             <FetchState errorCode={activeGuild.errorCode} failures={activeGuild.failures} />
+            <GuildLanguageEstimate guild={data?.guilds.find(entry => entry._id === activeGuild._id) ?? activeGuild} />
             <div className={styles.adminInspectorActions}>
               {activeGuild.status !== "approved" ? <button className={buttonClass} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}`, "PATCH", { status: "approved" })}>{t("approveGuild")}</button> : <button className={buttonClass} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}`, "PATCH", { status: "paused" })}>{t("pauseGuild")}</button>}
               {activeGuild.status === "pending" && <button className={`${buttonClass} ${styles.quietButton}`} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}`, "PATCH", { status: "paused" })}>{t("pauseGuild")}</button>}

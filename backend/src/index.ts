@@ -72,6 +72,8 @@ import { foreverRouter, foreverAdminRouter } from "./features/forever/forever.ro
 import foreverWorker, { initializeForever } from "./features/forever/forever.worker";
 import foreverTwitchWorker from "./features/forever/forever-twitch";
 import foreverLevel60Worker from "./features/forever/forever-level60.worker";
+import guildLanguageWorker from "./features/forever/forever-guild-language.worker";
+import namegameWorker from "./features/forever/forever-namegame.worker";
 import { startForeverLeaderboard, stopForeverLeaderboard } from "./features/forever/forever-leaderboard";
 
 // ============================================================================
@@ -685,6 +687,8 @@ const startServer = async () => {
       foreverWorker.start();
       foreverTwitchWorker.start();
       foreverLevel60Worker.start();
+      guildLanguageWorker.start();
+      namegameWorker.start();
       // Run background initialization (scheduler, processor, cache warming, etc.)
       // In "both" mode this is fire-and-forget so the API is available immediately.
       // In "worker" mode we await it so the process stays alive.
@@ -722,7 +726,7 @@ async function shutdown(): Promise<void> {
   await stopForeverLeaderboard();
   logger.info("Shutting down; draining active ingestion...");
   if (isWorkerProcess) {
-    await Promise.all([foreverWorker.stop(), foreverTwitchWorker.stop(), foreverLevel60Worker.stop()]);
+    await Promise.all([foreverWorker.stop(), foreverTwitchWorker.stop(), foreverLevel60Worker.stop(), guildLanguageWorker.stop(), namegameWorker.stop()]);
     scheduler.stop();
     reporterScheduler.stop();
     backgroundGuildProcessor.stop();

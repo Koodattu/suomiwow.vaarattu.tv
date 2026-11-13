@@ -24,7 +24,7 @@ test("Forever mutation routes require Discord login and admin routes reject ordi
     }
     const adminRoutes = [["POST", "/guilds"], ["PATCH", "/guilds/507f1f77bcf86cd799439011/visibility"], ["GET", ""], ["POST", "/characters"], ["POST", "/characters/bulk"], ["PATCH", "/characters/507f1f77bcf86cd799439011"], ["PATCH", "/characters/507f1f77bcf86cd799439011/twitch"],
       ["POST", "/characters/507f1f77bcf86cd799439011/refresh"], ["POST", "/characters/507f1f77bcf86cd799439011/refresh-now"], ["GET", "/guilds/507f1f77bcf86cd799439011"],
-      ["PATCH", "/guilds/507f1f77bcf86cd799439011"], ["POST", "/guilds/507f1f77bcf86cd799439011/refresh"]];
+      ["PATCH", "/guilds/507f1f77bcf86cd799439011"], ["POST", "/guilds/507f1f77bcf86cd799439011/refresh"], ["POST", "/guild-language"]];
     for (const [method, path] of adminRoutes) {
       assert.equal((await fetch(`${base}/api/admin/forever${path}`, { method })).status, 401);
       assert.equal((await fetch(`${base}/api/admin/forever${path}`, { method, headers: { "x-test-member": "true" } })).status, 403);

@@ -1,5 +1,17 @@
 {
   "forever": {
+    "namegame": {
+      "title": "Namegame",
+      "description": "The funniest character names, scored from 0 to 100 by GPT-6 Luna.",
+      "category": "Humor", "all": "All categories",
+      "count": "{count, plural, one {# name} other {# names}}",
+      "points": "{score} out of 100", "pages": "Namegame pages",
+      "empty": "The first names will appear here as they are scored.", "emptyCategory": "No scored names in this category yet.",
+      "categories": {
+        "wordplay": "Wordplay", "reference": "Cultural reference", "warcraft": "Warcraft humor", "deadpan": "Everyday deadpan",
+        "absurd": "Absurd humor", "sound": "Rhythm & rhyme", "edgy": "Gray-area humor", "straight": "Straight-faced"
+      }
+    },
     "analytics": {
       "title": "Analytics",
       "tracked": "Tracked characters",
@@ -105,19 +117,17 @@
     "sourceUpdated": "Armory updated",
     "nextCheck": "Next eligible check",
     "history": "Level history",
-    "historyNote": "Observed levels, not exact level-up times.",
     "progress": {
       "title": "Journey to 60",
-      "observationCount": "{count, plural, one {# observation} other {# observations}}",
       "chartLabel": "Observed leveling progress for {name}",
       "noObservations": "No level observations yet.",
       "firstObservation": "First sighting recorded. The chart grows as we observe new levels.",
-      "allObservations": "View observations",
-      "observedAt": "Observed at",
       "levelsObserved": "levels gained since tracking",
       "toGo": "levels to 60",
       "firstSeen": "First observed",
       "legacyEstimate": "Estimated level 60 (account Legacy achievement)",
+      "estimated60Short": "Estimated 60",
+      "observed60Short": "First seen at 60",
       "firstSeen60": "First observed at level 60",
       "characterLink": "Character link",
       "characterDetails": "Progress for {name}",
@@ -149,6 +159,25 @@
       "searchCharacters": "Find characters",
       "searchHint": "Name, guild or Twitch channel",
       "searchGuilds": "Find a guild",
+      "language": {
+        "title": "Likelihood the guild speaks Finnish",
+        "run": "Assess Finnish language for all guilds",
+        "queued": "{count, plural, one {# guild queued for assessment.} other {# guilds queued for assessment.}}",
+        "pending": "{count, plural, one {# guild remaining} other {# guilds remaining}}",
+        "roster": "GPT-6 Luna estimate from the guild name and {count, plural, one {# roster name} other {# roster names}}",
+        "profiles": "GPT-6 Luna estimate from the guild name and {count, plural, one {# linked character name} other {# linked character names}}",
+        "plain": "Plain text",
+        "structured": "Structured output",
+        "decision": "Decisions",
+        "yes": "Yes",
+        "no": "No",
+        "low": "Low confidence",
+        "medium": "Medium confidence",
+        "high": "High confidence",
+        "unavailable": "Unavailable",
+        "unscored": "Awaiting assessment.",
+        "retry": "Run the assessment again to retry missing results."
+      },
       "searchRoster": "Find a member",
       "fetchStatus": "Armory status",
       "health": {
@@ -223,6 +252,7 @@
     "errors": {
       "below_armory_level": "Armory profiles become available at level 10. Below that, updates require a tracked guild roster.",
       "invalid_twitch": "Enter a Twitch channel name or channel link.",
+      "openai_not_configured": "Configure the backend OpenAI API key to assess guilds.",
       "invalid_url": "Enter a full character name, a guild name, or the matching Blizzard Forever Armory link. Retail and Classic links are not supported.",
       "rate_limited": "Too many requests. Please try again in an hour.",
       "login_required": "Sign in with Discord to continue.",
@@ -230,8 +260,7 @@
       "unavailable": "Could not load or save the data. Please try again."
     },
     "rankingShort": "Highest level first, then earliest sighting. At 60, a class Legacy achievement can refine the time when it fits the character’s observed progress.",
-    "finishEstimated": "Est.",
-    "finishObserved": "Seen",
+    "finishTime": "Level 60 time",
     "charactersShort": "characters",
     "pagination": "Leaderboard pages",
     "aboutTracking": "About this board",

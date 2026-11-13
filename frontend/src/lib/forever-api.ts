@@ -26,14 +26,15 @@ export function isForeverStreamLive(character: Pick<ForeverCharacter, "twitchIsL
   const checkedAt = Date.parse(character.twitchCheckedAt || "");
   return character.twitchIsLive === true && checkedAt <= now && now - checkedAt < 5 * 60_000;
 }
-export function formatForeverDate(value: string, compact = false): string {
+export function formatForeverDate(value: string, layout: boolean | "stacked" = false): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "—";
   const parts = Object.fromEntries(new Intl.DateTimeFormat("fi-FI", {
     timeZone: "Europe/Helsinki", day: "numeric", month: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   }).formatToParts(date).map(({ type, value: part }) => [type, part]));
-  return `${parts.day}.${parts.month}.${compact ? "" : parts.year} ${parts.hour}.${parts.minute}`;
+  if (layout === "stacked") return `${parts.day}.${parts.month}.\n${parts.hour}:${parts.minute}`;
+  return `${parts.day}.${parts.month}.${layout ? "" : parts.year} ${parts.hour}.${parts.minute}`;
 }
 export function foreverUpdateAge(value: string | null | undefined, now: number): { unit: "now" | "minutes" | "hours" | "days"; count: number } | null {
   const timestamp = Date.parse(value || "");
@@ -48,6 +49,11 @@ export interface ForeverGuild {
   _id: string; name: string; region: string; slug: string; status: string; hidden?: boolean;
   lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; errorCode?: string; failures?: number; rosterCount?: number;
   roster?: { region: string; slug: string; name: string; level: number; className: string; trackingStatus?: string }[];
+  languageAssessment?: {
+    plain: number | null; structured: number | null;
+    decision: { percent: number; yes: boolean; confidence: "low" | "medium" | "high" } | null;
+    assessedAt: string; nameCount: number; source: "roster" | "profiles";
+  };
 }
 export interface ForeverWorker { lastTickAt?: string; lastSuccessAt?: string; nextRequestAt?: string; errorCode?: string }
 export interface ForeverStatistics {
@@ -84,6 +90,7 @@ export interface ForeverAnalyticsTimeline {
 export interface ForeverAdminData {
   characters: ForeverCharacter[]; guilds: ForeverGuild[]; worker: ForeverWorker | null;
   totalCharacters: number; totalGuilds: number; enabled: boolean;
+  languagePending: number;
   characterCounts: Record<string, number>; guildCounts: Record<string, number>;
 }
 export class ForeverApiError extends Error { constructor(public code: string) { super(code); } }

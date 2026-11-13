@@ -1,3 +1,6 @@
+import en from "../../messages/en.json";
+import fi from "../../messages/fi.json";
+
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL || "https://suomiwow.vaarattu.tv"
 ).replace(/\/$/, "");
@@ -145,6 +148,10 @@ export function getPageMetadata(
 ): PageSeoMetadata {
   const isEnglish = locale === "en";
 
+  if (pathname === "/forever/namegame") {
+    const copy = (isEnglish ? en : fi).forever.namegame;
+    return withEmbedMetadata(pathname, { title: `Forever · ${copy.title}`, description: copy.description });
+  }
   if (pathname.startsWith("/forever")) return withEmbedMetadata(pathname, {
     title: isEnglish ? "Forever · Leveling" : "Forever · Tasoseuranta",
     description: isEnglish ? "Follow the SuomiWoW community's leveling journey in WoW Forever." : "Seuraa SuomiWoW-yhteisön hahmojen tasokehitystä WoW Foreverissa.",
