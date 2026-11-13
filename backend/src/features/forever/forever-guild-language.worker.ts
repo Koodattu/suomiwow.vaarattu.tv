@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import OpenAI from "openai";
+import { meteredFetch } from "../ai-usage/ai-usage";
 import logger from "../../utils/logger";
 import { ForeverCharacter, ForeverGuild } from "./forever.models";
 import { ForeverError } from "./forever-errors";
@@ -18,7 +19,7 @@ export class GuildLanguageWorker {
   start() {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (this.timer || !apiKey) return;
-    const client = new OpenAI({ apiKey, timeout: 45_000, maxRetries: 0 });
+    const client = new OpenAI({ apiKey, timeout: 45_000, maxRetries: 0, fetch: meteredFetch("guildLanguage", GUILD_LANGUAGE_MODEL) });
     const poll = () => {
       if (this.active) return;
       this.active = this.tick(client).catch(() => { logger.error("[Forever] Guild language assessment could not be saved"); })

@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import mongoose, { Schema } from "mongoose";
 import OpenAI from "openai";
+import { meteredFetch } from "../ai-usage/ai-usage";
 import logger from "../../utils/logger";
 import { ForeverCharacter, ForeverWorker } from "./forever.models";
 import { namegamePopulation } from "./forever-namegame";
-import { NAMEGAME_BATCH_SIZE, readNamegameRatings, submitNamegameBatch } from "./forever-namegame-rating";
+import { NAMEGAME_BATCH_SIZE, NAMEGAME_MODEL, readNamegameRatings, submitNamegameBatch } from "./forever-namegame-rating";
 
 const batchSchema = new Schema({
   _id: { type: String, required: true }, responseId: String, error: String,
@@ -46,7 +47,7 @@ export class NamegameWorker {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!this.stopped || !apiKey) return;
     this.stopped = false;
-    const client = new OpenAI({ apiKey, timeout: 30_000, maxRetries: 0 });
+    const client = new OpenAI({ apiKey, timeout: 30_000, maxRetries: 0, fetch: meteredFetch("namegame", NAMEGAME_MODEL) });
     const schedule = (delay: number) => {
       if (this.stopped) return;
       this.timer = setTimeout(() => {

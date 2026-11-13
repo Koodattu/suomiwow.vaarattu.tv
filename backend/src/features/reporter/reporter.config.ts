@@ -1,3 +1,5 @@
+import { LUNA_RATES } from "../ai-usage/pricing";
+
 const parsePositiveNumber = (value: string | undefined, fallback: number): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
@@ -12,10 +14,10 @@ export const REPORTER_CONFIG = {
   maxOutputTokens: 5000,
   promptVersion: "reporter-v7",
   pricing: {
-    inputPerMillion: parsePositiveNumber(process.env.REPORTER_INPUT_COST_PER_MILLION, 0.1),
-    cachedInputPerMillion: parsePositiveNumber(process.env.REPORTER_CACHED_INPUT_COST_PER_MILLION, 0.01),
-    cacheWritePerMillion: parsePositiveNumber(process.env.REPORTER_CACHE_WRITE_COST_PER_MILLION, 0.125),
-    outputPerMillion: parsePositiveNumber(process.env.REPORTER_OUTPUT_COST_PER_MILLION, 0.5),
+    inputPerMillion: parsePositiveNumber(process.env.REPORTER_INPUT_COST_PER_MILLION, LUNA_RATES.inputPerMillion),
+    cachedInputPerMillion: parsePositiveNumber(process.env.REPORTER_CACHED_INPUT_COST_PER_MILLION, LUNA_RATES.cachedInputPerMillion),
+    cacheWritePerMillion: parsePositiveNumber(process.env.REPORTER_CACHE_WRITE_COST_PER_MILLION, LUNA_RATES.cacheWritePerMillion),
+    outputPerMillion: parsePositiveNumber(process.env.REPORTER_OUTPUT_COST_PER_MILLION, LUNA_RATES.outputPerMillion),
   },
 } as const;
 

@@ -39,10 +39,10 @@ test("Reporter usage separates cached, cache-write, regular input and output cos
     total_tokens: 1_100_000,
   });
   const expected =
-    0.7 * REPORTER_CONFIG.pricing.inputPerMillion +
+    2 * (0.7 * REPORTER_CONFIG.pricing.inputPerMillion +
     0.2 * REPORTER_CONFIG.pricing.cachedInputPerMillion +
-    0.1 * REPORTER_CONFIG.pricing.cacheWritePerMillion +
-    0.1 * REPORTER_CONFIG.pricing.outputPerMillion;
+    0.1 * REPORTER_CONFIG.pricing.cacheWritePerMillion) +
+    1.5 * 0.1 * REPORTER_CONFIG.pricing.outputPerMillion;
 
   assert.equal(usage.inputTokens, 1_000_000);
   assert.equal(usage.outputTokens, 100_000);

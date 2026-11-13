@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { meteredFetch } from "../features/ai-usage/ai-usage";
 
 export const SUPPORTER_ART_MODEL = "gpt-6-luna";
 export const SUPPORTER_ART_APPROVAL_THRESHOLD = 75;
@@ -20,7 +21,7 @@ export async function reviewSupporterImage(data: Buffer, client?: Pick<OpenAI, "
     policyVersion: SUPPORTER_ART_POLICY, responseId: null, autoApproved: false, reviewedAt: new Date() };
   try {
     if (!client && !process.env.OPENAI_API_KEY?.trim()) return result;
-    const openai = client ?? new OpenAI({ apiKey: process.env.OPENAI_API_KEY!.trim(), timeout: 25_000, maxRetries: 0 });
+    const openai = client ?? new OpenAI({ apiKey: process.env.OPENAI_API_KEY!.trim(), timeout: 25_000, maxRetries: 0, fetch: meteredFetch("supporterArt", SUPPORTER_ART_MODEL) });
     const response = await openai.responses.create({
       model: SUPPORTER_ART_MODEL, reasoning: { effort: "low" }, store: false, max_output_tokens: 1200,
       instructions: "Check an image submitted to a public community card gallery for clearly unsuitable content. This is a content safety check, not a check of artistic quality or relevance to World of Warcraft. "

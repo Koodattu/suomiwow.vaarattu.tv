@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { meteredFetch } from "../features/ai-usage/ai-usage";
 import RateLimitState from "../models/RateLimitState";
 import TwitchChatAuditEvent from "../models/TwitchChatAuditEvent";
 import { getNextHelsinkiReset } from "../utils/helsinki-time";
@@ -6,6 +7,7 @@ import logger from "../utils/logger";
 import { buildCurseInstructions, formatCurse, getCursePhrases, selectCurseExamples, type CurseStyle } from "../features/twitch-curse/curse-content";
 
 const DAILY_LIMIT = 100;
+const CURSE_MODEL = "gpt-6-luna";
 const DAILY_LIMIT_KEY = "twitch:curse:daily";
 
 export async function reserveCurseGeneration(now = new Date()): Promise<boolean> {
@@ -68,9 +70,9 @@ class TwitchCurseService {
     }
 
     try {
-      const openai = new OpenAI({ apiKey, timeout: 15_000, maxRetries: 0 });
+      const openai = new OpenAI({ apiKey, timeout: 15_000, maxRetries: 0, fetch: meteredFetch("twitchCurse", CURSE_MODEL) });
       const response = await openai.responses.create({
-        model: "gpt-6-luna",
+        model: CURSE_MODEL,
         reasoning: { effort: "low" },
         store: false,
         max_output_tokens: 1200,

@@ -1,4 +1,5 @@
 import { REPORTER_CONFIG } from "./reporter.config";
+import { standardLunaCostUsd, usageTokens, type RawUsage } from "../ai-usage/pricing";
 import { ReporterFact, ReporterGeneratedContent, ReporterLink, ReporterLocaleContent, ReporterResolvedLink, ReporterUsage } from "./reporter.types";
 
 const LINK_TOKEN_PATTERN = /\[\[([A-Z]\d+)\|([^\]\n]{1,80})\]\]/g;
@@ -6,34 +7,12 @@ const MARKDOWN_WRAPPED_LINK_TOKEN_PATTERN = /\[([^\]\n]{1,80})\]\(\s*\[\[([A-Z]\
 const RECOVERABLE_LINK_TOKEN_PATTERN = /\[{1,2}\s*([A-Z]\d+)(?:\s*\|\s*([^\]\n]{0,80}))?\s*\]{1,2}/g;
 const UNCLOSED_LINK_TOKEN_PATTERN = /\[\[\s*([A-Z]\d+)\s*\|\s*([^\]\n]{1,80})(?=\n|$)/g;
 
-export function calculateReporterUsage(rawUsage: {
-  input_tokens?: number;
-  input_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number };
-  output_tokens?: number;
-  output_tokens_details?: { reasoning_tokens?: number };
-  total_tokens?: number;
-}): ReporterUsage {
-  const inputTokens = Math.max(0, rawUsage.input_tokens || 0);
-  const cachedInputTokens = Math.min(inputTokens, Math.max(0, rawUsage.input_tokens_details?.cached_tokens || 0));
-  const cacheWriteTokens = Math.min(inputTokens - cachedInputTokens, Math.max(0, rawUsage.input_tokens_details?.cache_write_tokens || 0));
-  const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens - cacheWriteTokens);
-  const outputTokens = Math.max(0, rawUsage.output_tokens || 0);
-  const reasoningTokens = Math.min(outputTokens, Math.max(0, rawUsage.output_tokens_details?.reasoning_tokens || 0));
+export function calculateReporterUsage(rawUsage: RawUsage): ReporterUsage {
+  const tokens = usageTokens(rawUsage);
   const rates = { ...REPORTER_CONFIG.pricing };
-  const estimatedCostUsd =
-    (uncachedInputTokens * rates.inputPerMillion +
-      cachedInputTokens * rates.cachedInputPerMillion +
-      cacheWriteTokens * rates.cacheWritePerMillion +
-      outputTokens * rates.outputPerMillion) /
-    1_000_000;
-
+  const estimatedCostUsd = standardLunaCostUsd(rawUsage, tokens, rates);
   return {
-    inputTokens,
-    cachedInputTokens,
-    cacheWriteTokens,
-    outputTokens,
-    reasoningTokens,
-    totalTokens: Math.max(0, rawUsage.total_tokens || inputTokens + outputTokens),
+    ...tokens,
     estimatedCostUsd: Number(estimatedCostUsd.toFixed(8)),
     rates,
   };

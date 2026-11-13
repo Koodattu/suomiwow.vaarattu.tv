@@ -4,6 +4,7 @@ export const NAMEGAME_CATEGORIES = ["wordplay", "reference", "warcraft", "deadpa
 export type HumorCategory = typeof NAMEGAME_CATEGORIES[number];
 export type NamegameInput = { name: string; guild: string | null };
 export const NAMEGAME_BATCH_SIZE = 64;
+export const NAMEGAME_MODEL = "gpt-6-luna";
 
 const rubric = `Judge World of Warcraft character names for a Finnish gaming audience. Give each full name ONE overall humor score from 0 to 100, then label the strongest comic device. Use the same scale in every batch, language and category. Read first name and surname together, aloud and across their boundary. Try Finnish compounds, inflections, dialect, sound-alikes, English and bilingual readings. A name can land immediately or reward a satisfying second reading.
 
@@ -23,7 +24,7 @@ export function submitNamegameBatch(client: OpenAI, names: NamegameInput[], batc
   if (!names.length || names.length > NAMEGAME_BATCH_SIZE) throw new Error("Invalid Namegame batch size");
   const slots = names.map((_, index) => "n" + index);
   return client.responses.create({
-    model: "gpt-6-luna", reasoning: { effort: "medium" }, background: true, store: true,
+    model: NAMEGAME_MODEL, reasoning: { effort: "medium" }, background: true, store: true,
     metadata: { namegame_batch: batchId }, max_output_tokens: 16_384, instructions: rubric,
     input: [{ role: "user", content: JSON.stringify(names.map((entry, index) => ({
       slot: slots[index], character_name: entry.name, guild_name: entry.guild,

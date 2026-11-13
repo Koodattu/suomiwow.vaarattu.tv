@@ -12,6 +12,7 @@ import CcgAdminPanel from "@/components/admin/CcgAdminPanel";
 import ReportOverridesPanel from "@/components/admin/ReportOverridesPanel";
 import ReporterAdminPanel from "@/components/admin/ReporterAdminPanel";
 import ForeverAdminPanel from "@/components/admin/ForeverAdminPanel";
+import AiUsagePanel from "@/components/admin/AiUsagePanel";
 import TwitchChatAuditPanel from "@/components/admin/TwitchChatAuditPanel";
 import MechanicCollectionPanel from "@/components/admin/MechanicCollectionPanel";
 import { api } from "@/lib/api";
@@ -151,7 +152,7 @@ const FULL_HISTORY_STAGE_LABELS: Record<FullHistoryRefreshStage, string> = {
   failed: "Failed",
 };
 
-const ADMIN_TABS = ["overview", "users", "guilds", "streams", "characters", "pickems", "ccg", "reporter", "forever", "system", "tasks"] as const;
+const ADMIN_TABS = ["overview", "users", "guilds", "streams", "characters", "pickems", "ccg", "reporter", "forever", "ai-usage", "system", "tasks"] as const;
 type TabType = (typeof ADMIN_TABS)[number];
 
 function getAdminTab(value: string | null): TabType {
@@ -741,6 +742,7 @@ function AdminPageContent() {
           case "ccg":
           case "reporter":
           case "forever":
+          case "ai-usage":
             break;
 
           case "tasks": {
@@ -2334,6 +2336,7 @@ function AdminPageContent() {
         {!loading && activeTab === "ccg" && <CcgAdminPanel />}
         {!loading && activeTab === "reporter" && <ReporterAdminPanel />}
         {!loading && activeTab === "forever" && <ForeverAdminPanel />}
+        {!loading && activeTab === "ai-usage" && <AiUsagePanel />}
 
         {/* Overview Tab */}
         {!loading && activeTab === "overview" && (

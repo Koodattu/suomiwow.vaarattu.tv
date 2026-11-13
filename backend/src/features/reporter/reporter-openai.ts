@@ -1,4 +1,5 @@
 import { REPORTER_CONFIG, requireReporterApiKey } from "./reporter.config";
+import { meteredFetch } from "../ai-usage/ai-usage";
 import {
   calculateReporterUsage,
   combineReporterUsage,
@@ -117,7 +118,8 @@ async function requestReporterLocale(input: {
   const timeout = setTimeout(() => controller.abort(), 120_000);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const request = meteredFetch(input.schemaName.endsWith("_en") ? "reporterEn" : "reporterFi", REPORTER_CONFIG.model);
+    const response = await request("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

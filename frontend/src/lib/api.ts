@@ -1,5 +1,6 @@
 import type { AdminReportOverride, AdminReportOverrideAction } from "@/types";
 import type { CharacterDeathsResponse } from "@/types/character-deaths";
+import type { AiUsageReport } from "@/types/ai-usage";
 import type { MechanicFilters, MechanicLeaderboard, MechanicOptions, MechanicCollectionStatus, MechanicBackfillRequest, MechanicBackfillResult } from "@/types/avoidable-damage";
 import {
   GuildListItem,
@@ -1276,6 +1277,14 @@ export const api = {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to fetch daily analytics");
+    return response.json();
+  },
+
+  async getAiUsage(days: number, page: number, feature: string, signal?: AbortSignal): Promise<AiUsageReport> {
+    const query = new URLSearchParams({ days: String(days), page: String(page) });
+    if (feature) query.set("feature", feature);
+    const response = await fetch(`${API_URL}/api/admin/ai-usage?${query}`, { credentials: "include", cache: "no-store", signal });
+    if (!response.ok) throw new Error("Failed to fetch AI usage");
     return response.json();
   },
 
