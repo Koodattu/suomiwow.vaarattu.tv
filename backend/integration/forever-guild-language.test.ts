@@ -30,19 +30,19 @@ test("the worker automatically assesses every guild, resumes missing results and
           probabilities: [{ value: true, probability: 0.8 }, { value: false, probability: 0.2 }] }] });
       }
       return Response.json({ object: "response", status: "completed", output: [{ type: "message", content: [
-        { type: "output_text", text: body.text ? '{"percent":90}' : "0" },
+        { type: "output_text", text: '{"percent":0}' },
       ] }] });
     } });
     const worker = new GuildLanguageWorker();
     const drain = () => Promise.all(Array.from({ length: 4 }, () => worker.tick(client)));
     assert.equal((await adminOverview({})).languagePending, 3);
     await drain();
-    assert.equal(calls.length, 9);
+    assert.equal(calls.length, 6);
     assert.deepEqual(calls.find(x => x.guildName === "One")?.characterNames, ["two names", "Ää One"]);
     assert.deepEqual(calls.find(x => x.guildName === "Two")?.characterNames, ["Some Member"]);
     assert.deepEqual(calls.find(x => x.guildName === "Three")?.characterNames, []);
     const result = await guildDetail(String(guild._id));
-    assert.equal(result.languageAssessment?.plain, 0);
+    assert.equal(result.languageAssessment?.structured, 0);
     assert.equal(result.languageAssessment?.decision, null);
     assert.equal(result.languageAssessment?.fingerprint, undefined);
     assert.equal(result.status, "rejected");
@@ -50,32 +50,36 @@ test("the worker automatically assesses every guild, resumes missing results and
     const overview = await adminOverview({ guildStatus: "rejected" });
     assert.equal(overview.languagePending, 0);
     assert.equal(overview.guilds.length, 1);
-    assert.equal(overview.guilds[0].languageAssessment.structured, 90);
+    assert.equal(overview.guilds[0].languageAssessment.structured, 0);
     await drain();
-    assert.equal(calls.length, 9, "idle workers respect the retry delay and skip complete results");
+    assert.equal(calls.length, 6, "idle workers respect the retry delay and skip complete results");
     failDecision = false;
     const retry = await ForeverGuild.findById(guild._id).select("languageDueAt").lean();
     assert.ok(retry?.languageDueAt && retry.languageDueAt > new Date());
     await ForeverGuild.updateOne({ _id: guild._id }, { $set: { languageDueAt: new Date(0) } });
     await drain();
-    assert.equal(calls.length, 10);
+    assert.equal(calls.length, 7);
     assert.equal((await guildDetail(String(guild._id))).languageAssessment?.decision?.percent, 80);
     await ForeverGuild.updateOne({ _id: guild._id }, { $set: { name: "Changed" } });
     assert.deepEqual(await queueGuildLanguageAssessments(), { queued: 3 });
     assert.deepEqual(await queueGuildLanguageAssessments(), { queued: 0 });
     await drain();
-    assert.equal(calls.length, 13);
-    assert.equal(calls.filter(x => x.guildName === "Changed").length, 3);
+    assert.equal(calls.length, 9);
+    assert.equal(calls.filter(x => x.guildName === "Changed").length, 2);
     await ForeverGuild.create({ region: "eu", slug: "four", name: "Four", status: "approved" });
     await ForeverGuild.updateOne({ slug: "two" }, { $set: { lastFetchedAt: new Date(),
       roster: [{ region: "us", slug: "roster-only", name: "Roster Only" }] } });
     assert.equal((await adminOverview({})).languagePending, 2);
     await drain();
-    assert.equal(calls.length, 19);
-    assert.equal(calls.filter(x => x.guildName === "Four").length, 3);
+    assert.equal(calls.length, 13);
+    assert.equal(calls.filter(x => x.guildName === "Four").length, 2);
     assert.deepEqual(calls.filter(x => x.guildName === "Two").pop()?.characterNames, ["Roster Only"]);
-    await drain();
-    assert.equal(calls.length, 19);
+    // A pre-deployment assessment can still contain the retired plain-text result.
+    await ForeverGuild.collection.updateOne({ _id: guild._id }, { $set: { "languageAssessment.plain": 75 } });
+    assert.ok(!("plain" in (await guildDetail(String(guild._id))).languageAssessment!));
+    assert.ok(!("plain" in (await adminOverview({ guildStatus: "rejected" })).guilds[0].languageAssessment));
+    await queueGuildLanguageAssessments(); await drain();
+    assert.equal(calls.length, 13, "already-paid assessments with identical evidence require no calls");
   } finally {
     if (oldKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = oldKey;
     await mongoose.connection.dropDatabase();

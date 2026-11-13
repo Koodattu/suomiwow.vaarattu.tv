@@ -51,7 +51,7 @@ const guildSchema = new Schema({
   languageDueAt: Date, languageLease: { type: String, select: false },
   languageAssessment: { type: new Schema({
     fingerprint: String, assessedAt: Date, nameCount: Number, source: { type: String, enum: ["roster", "profiles"] },
-    plain: Number, structured: Number,
+    structured: Number,
     decision: { type: new Schema({
       percent: { type: Number, required: true }, yes: { type: Boolean, required: true },
       confidence: { type: String, enum: ["low", "medium", "high"], required: true },

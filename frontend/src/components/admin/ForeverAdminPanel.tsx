@@ -42,13 +42,13 @@ function GuildLanguageEstimate({ guild }: { guild: ForeverGuild }) {
     <h4>{t("title")}</h4>
     {result ? <>
       <p className={styles.adminHelp}>{t(result.source, { count: result.nameCount })} · <ForeverDate value={result.assessedAt} /></p>
-      <dl>{(["plain", "structured", "decision"] as const).map(method => <div key={method}>
-        <dt>{t(method)}</dt><dd>{pct(method === "decision" ? result.decision?.percent : result[method])}</dd>
-        {method === "decision" && result.decision && <dd className={styles.languageVerdict}>
+      <dl><div><dt>{t("structured")}</dt><dd>{pct(result.structured)}</dd></div>
+        <div><dt>{t("decision")}</dt><dd>{pct(result.decision?.percent)}</dd>
+        {result.decision && <dd className={styles.languageVerdict}>
           {t(result.decision.yes ? "yes" : "no")} · {t(result.decision.confidence)}
         </dd>}
-      </div>)}</dl>
-      {(result.plain == null || result.structured == null || result.decision == null) && <p className={styles.adminHelp}>{t("retry")}</p>}
+      </div></dl>
+      {(result.structured == null || result.decision == null) && <p className={styles.adminHelp}>{t("retry")}</p>}
     </> : <p className={styles.adminHelp}>{t("unscored")}</p>}
   </section>;
 }

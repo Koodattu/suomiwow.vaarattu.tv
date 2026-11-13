@@ -13,13 +13,12 @@ const rubric = [
 
 export type GuildLanguageEvidence = { guildName: string; characterNames: string[] };
 export type GuildLanguageDecision = { percent: number; yes: boolean; confidence: "low" | "medium" | "high" };
-export type GuildLanguageScores = { plain?: number | null; structured?: number | null; decision?: GuildLanguageDecision | null };
+export type GuildLanguageScores = { structured?: number | null; decision?: GuildLanguageDecision | null };
 
 export function guildsReadyForLanguageAssessment(now: Date) {
   return { $or: [
     { languageDueAt: { $lte: now } },
     { languageDueAt: null, $or: [
-      { "languageAssessment.plain": null },
       { "languageAssessment.structured": null },
       { "languageAssessment.decision": null },
       { "languageAssessment.source": "profiles" as const, lastFetchedAt: { $ne: null } },
@@ -32,23 +31,20 @@ function percent(value: unknown): number {
   return value;
 }
 
-async function responseScore(client: OpenAI, input: string, structured: boolean) {
+async function responseScore(client: OpenAI, input: string) {
   const response = await client.responses.create({
     model: GUILD_LANGUAGE_MODEL, reasoning: { effort: "low" }, store: false, max_output_tokens: 1200,
-    instructions: rubric + (structured ? " Return the estimated percentage in percent." : " Return only a whole-number percentage from 0 to 100."),
+    instructions: rubric + " Return the estimated percentage in percent.",
     input: [{ role: "user", content: input }],
-    ...(structured && { text: { format: { type: "json_schema" as const, name: "guild_language", strict: true,
+    text: { format: { type: "json_schema", name: "guild_language", strict: true,
       schema: { type: "object", additionalProperties: false, required: ["percent"],
         properties: { percent: { type: "integer", minimum: 0, maximum: 100 } } },
-    } } }),
+    } },
   });
   if (response.status !== "completed" || response.output.some(item => item.type === "message" && item.content.some(part => part.type === "refusal"))) {
     throw new Error("No completed score");
   }
-  const output = response.output_text.trim();
-  if (structured) return percent(JSON.parse(output)?.percent);
-  const match = /^(\d{1,3})\s*%?$/.exec(output);
-  return percent(match ? Number(match[1]) : null);
+  return percent(JSON.parse(response.output_text)?.percent);
 }
 
 function probability(value: unknown): value is number {
@@ -72,10 +68,9 @@ async function decisionScore(client: OpenAI, input: string): Promise<GuildLangua
 // Each method can fail independently. Retrying the same evidence only calls missing methods.
 export async function scoreGuildLanguage(client: OpenAI, evidence: GuildLanguageEvidence, previous: GuildLanguageScores = {}) {
   const input = JSON.stringify(evidence);
-  const [plain, structured, decision] = await Promise.all([
-    previous.plain ?? responseScore(client, input, false).catch(() => null),
-    previous.structured ?? responseScore(client, input, true).catch(() => null),
+  const [structured, decision] = await Promise.all([
+    previous.structured ?? responseScore(client, input).catch(() => null),
     previous.decision ?? decisionScore(client, input).catch(() => null),
   ]);
-  return { plain, structured, decision };
+  return { structured, decision };
 }

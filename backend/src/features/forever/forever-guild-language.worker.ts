@@ -61,12 +61,12 @@ export class GuildLanguageWorker {
     const source = hasRoster ? "roster" : "profiles";
     const fence = { _id: guild._id, languageLease: lease };
     const finish = { languageDueAt: 1, languageLease: 1 } as const;
-    if (previous?.plain != null && previous.structured != null && previous.decision != null && previous.source === source) {
+    if (previous?.structured != null && previous.decision != null && previous.source === source) {
       await ForeverGuild.updateOne(fence, { $unset: finish }, { timestamps: false });
       return;
     }
     const scores = await scoreGuildLanguage(client, evidence, previous);
-    const missing = (["plain", "structured", "decision"] as const).filter(method => scores[method] == null);
+    const missing = (["structured", "decision"] as const).filter(method => scores[method] == null);
     const assessedAt = new Date();
     const retry = missing.length > 0;
     await ForeverGuild.updateOne(fence, { $set: { languageAssessment: {

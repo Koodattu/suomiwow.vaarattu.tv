@@ -50,7 +50,7 @@ export interface ForeverGuild {
   lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; errorCode?: string; failures?: number; rosterCount?: number;
   roster?: { region: string; slug: string; name: string; level: number; className: string; trackingStatus?: string }[];
   languageAssessment?: {
-    plain: number | null; structured: number | null;
+    structured: number | null;
     decision: { percent: number; yes: boolean; confidence: "low" | "medium" | "high" } | null;
     assessedAt: string; nameCount: number; source: "roster" | "profiles";
   };

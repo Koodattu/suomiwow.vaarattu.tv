@@ -8,7 +8,7 @@ const textResponse = (text: string, status = "completed") => ({ object: "respons
   { type: "message", content: [{ type: "output_text", text }] },
 ] });
 
-test("all three methods use the same names, separate from instructions, and report probability of Finnish even for a No", async () => {
+test("one structured Responses call and one Decisions call use the same names and report Finnish probability even for a No", async () => {
   const methods: string[] = [];
   const client = new OpenAI({ apiKey: "test", maxRetries: 0, fetch: async (url, init) => {
     const body = JSON.parse(String(init?.body));
@@ -24,32 +24,29 @@ test("all three methods use the same names, separate from instructions, and repo
     assert.deepEqual(body.reasoning, { effort: "low" });
     assert.equal(body.store, false);
     assert.ok(!body.instructions.includes(evidence.guildName));
-    if (body.text) {
-      methods.push("structured");
-      assert.equal(body.text.format.type, "json_schema");
-      assert.equal(body.text.format.strict, true);
-      return Response.json(textResponse('{"percent":100}'));
-    }
-    methods.push("plain");
-    return Response.json(textResponse("0%"));
+    methods.push("structured");
+    assert.ok(String(url).endsWith("/responses"));
+    assert.equal(body.text.format.type, "json_schema");
+    assert.equal(body.text.format.strict, true);
+    return Response.json(textResponse('{"percent":100}'));
   } });
-  assert.deepEqual(await scoreGuildLanguage(client, evidence), { plain: 0, structured: 100,
+  assert.deepEqual(await scoreGuildLanguage(client, evidence), { structured: 100,
     decision: { percent: 1, yes: false, confidence: "high" } });
-  assert.deepEqual(methods.sort(), ["decision", "plain", "structured"]);
+  assert.deepEqual(methods.sort(), ["decision", "structured"]);
 });
 
-test("invalid, refused and incomplete outputs stay unavailable; retries preserve even a 0% result", async () => {
-  const client = new OpenAI({ apiKey: "test", maxRetries: 0, fetch: async (url, init) => {
+test("invalid, refused and incomplete outputs stay unavailable and retries keep the completed decision", async () => {
+  const client = new OpenAI({ apiKey: "test", maxRetries: 0, fetch: async (url) => {
     if (String(url).endsWith("/decisions")) return Response.json({ answers: [{ type: "refusal", name: "finnish" }] });
-    return Response.json(textResponse(JSON.parse(String(init?.body)).text ? '{"percent":101}' : "0 to 10%"));
+    return Response.json(textResponse('{"percent":101}'));
   } });
-  assert.deepEqual(await scoreGuildLanguage(client, evidence), { plain: null, structured: null, decision: null });
+  assert.deepEqual(await scoreGuildLanguage(client, evidence), { structured: null, decision: null });
   let calls = 0;
   const retry = new OpenAI({ apiKey: "test", maxRetries: 0, fetch: async () => {
     calls++;
     return Response.json(textResponse('{"percent":50}', "incomplete"));
   } });
-  const previous = { plain: 0, structured: null, decision: { percent: 100, yes: true, confidence: "high" as const } };
+  const previous = { structured: null, decision: { percent: 100, yes: true, confidence: "high" as const } };
   assert.deepEqual(await scoreGuildLanguage(retry, evidence, previous), previous);
   assert.equal(calls, 1);
 });
