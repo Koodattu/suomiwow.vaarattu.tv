@@ -3,13 +3,21 @@
 ## Namegame
 
 The Forever hub and navigation link to `/forever/namegame`. The public API at `GET /api/forever/namegame`
-accepts `category` and a one-based `page`. Each page contains up to 96 names, ordered by overall score,
-then name and character ID for stable ties. Filtering uses the same overall scores.
+accepts `category`, literal case-insensitive `search`, `sort` (`score-desc`, `score-asc`, or `name`),
+and a one-based `page`. Each page contains up to 48 names. The default order is overall score,
+then name and character ID for stable ties. Ranks remain global when searching, filtering, or sorting.
+The screen keeps criteria in the URL, retains results during loading, and prefetches the next page.
+
+One projected name population is cached for 60 seconds using the existing Forever shared snapshot/lease
+collections and an in-process cache. Concurrent requests share the build; search, sort, counts and pagination
+run on that snapshot. Each request checks the indexed moderation revision before using cached data.
+Admin moderation invalidates it across processes; worker roster/score updates appear after expiry.
+The browser checks for updates every 30 seconds, with a 15-second query freshness window.
 
 The backend worker automatically scores existing and newly eligible tracked characters when `OPENAI_API_KEY` is configured.
 Guild imports must belong to an approved, visible guild's current roster. A profile can establish membership before
 the first roster fetch. Independently confirmed characters and legacy admin/seed entries qualify on their own.
-Eligibility is checked again when serving the board, so moderation also applies to previously rated names.
+Eligibility is checked when building the snapshot, so moderation also applies to previously rated names.
 
 Each Responses API request sends up to 64 names with their own guild context to `gpt-6-luna` at medium reasoning
 effort. The rubric and strict output schema live in `forever-namegame-rating.ts`. Every character has its own

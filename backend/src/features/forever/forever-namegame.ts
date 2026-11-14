@@ -1,4 +1,6 @@
-import { ForeverCharacter, ForeverGuild } from "./forever.models";
+import { SharedSnapshotCacheService } from "../../services/shared-snapshot-cache.service";
+import { ForeverCharacter, ForeverGuild, ForeverWorker } from "./forever.models";
+import { ForeverLeaderboardCache, ForeverLeaderboardLease } from "./forever-leaderboard.models";
 import { ForeverError } from "./forever-errors";
 import { NAMEGAME_CATEGORIES, type HumorCategory } from "./forever-namegame-rating";
 import { visibleForeverCharacters } from "./forever-visibility";
@@ -22,19 +24,43 @@ export async function namegamePopulation() {
   return { filter, roster };
 }
 
-export async function namegameLeaderboard(query: { category?: unknown; page?: unknown }) {
-  const { category, page = "1" } = query;
-  if (category !== undefined && !NAMEGAME_CATEGORIES.includes(category as HumorCategory)) throw new ForeverError("invalid_input");
-  if (typeof page !== "string" || !/^[1-9]\d{0,6}$/.test(page)) throw new ForeverError("invalid_input");
-  const pageNumber = Number(page), pageSize = 96;
+const FRESH_MS = 60_000;
+const shared = new SharedSnapshotCacheService("Forever Namegame", () => 0, { cache: ForeverLeaderboardCache, leases: ForeverLeaderboardLease });
+async function buildSnapshot() {
   const population = await namegamePopulation();
-  const filter = { ...population.filter, "nameRating.score": { $gte: 0 },
-    ...(typeof category === "string" && { "nameRating.category": category }) };
-  const [rows, total] = await Promise.all([
-    ForeverCharacter.find(filter).select("nameRating").sort({ "nameRating.score": -1, "nameRating.name": 1, _id: 1 })
-      .skip((pageNumber - 1) * pageSize).limit(pageSize).lean(),
-    ForeverCharacter.countDocuments(filter),
-  ]);
-  return { names: rows.map(({ nameRating }) => ({ name: nameRating!.name, category: nameRating!.category, score: nameRating!.score })),
-    total, page: pageNumber, pageSize, categories: NAMEGAME_CATEGORIES };
+  const rows = await ForeverCharacter.find({ ...population.filter, "nameRating.score": { $gte: 0 } })
+    .select("nameRating").sort({ "nameRating.score": -1, "nameRating.name": 1, _id: 1 }).lean().maxTimeMS(10_000);
+  return { generatedAt: new Date().toISOString(), names: rows.map(({ nameRating }, index) => ({
+    name: nameRating!.name, category: nameRating!.category, score: nameRating!.score, rank: index + 1,
+  })) };
+}
+type Snapshot = Awaited<ReturnType<typeof buildSnapshot>>;
+let local: { key: string; data: Snapshot } | undefined;
+let pending: { key: string; promise: Promise<Snapshot> } | undefined;
+async function snapshot() {
+  // This indexed revision read applies moderation across API processes, including to warm caches.
+  const worker = await ForeverWorker.findById("armory").select("leaderboardRevision").lean();
+  const key = `forever:namegame:v1:${worker?.leaderboardRevision || 0}`;
+  if (local?.key === key && Date.parse(local.data.generatedAt) > Date.now() - FRESH_MS) return local.data;
+  if (pending?.key === key) return pending.promise;
+  const promise = shared.get(key, buildSnapshot, FRESH_MS).then(data => {
+    local = { key, data };
+    return data;
+  }).finally(() => { if (pending?.promise === promise) pending = undefined; });
+  pending = { key, promise };
+  return promise;
+}
+
+export async function namegameLeaderboard(query: { category?: unknown; page?: unknown; search?: unknown; sort?: unknown }) {
+  const { category, page = "1", search = "", sort = "score-desc" } = query;
+  if (category !== undefined && category !== "" && !NAMEGAME_CATEGORIES.includes(category as HumorCategory)) throw new ForeverError("invalid_input");
+  if (typeof page !== "string" || !/^[1-9]\d{0,6}$/.test(page)) throw new ForeverError("invalid_input");
+  if (typeof search !== "string" || search.length > 100 || typeof sort !== "string" || !["score-desc", "score-asc", "name"].includes(sort)) throw new ForeverError("invalid_input");
+  const data = await snapshot(), needle = search.trim().toLocaleLowerCase("fi");
+  const names = data.names.filter(entry => (!category || entry.category === category) && (!needle || entry.name.toLocaleLowerCase("fi").includes(needle)));
+  if (sort === "score-asc") names.sort((a, b) => a.score - b.score || a.rank - b.rank);
+  else if (sort === "name") names.sort((a, b) => a.name.localeCompare(b.name, "fi") || a.rank - b.rank);
+  const pageSize = 48, pageNumber = Math.min(Number(page), Math.max(1, Math.ceil(names.length / pageSize)));
+  return { generatedAt: data.generatedAt, names: names.slice((pageNumber - 1) * pageSize, pageNumber * pageSize),
+    total: names.length, page: pageNumber, pageSize, categories: NAMEGAME_CATEGORIES };
 }

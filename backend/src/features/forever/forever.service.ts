@@ -161,6 +161,7 @@ export async function setGuildStatus(id: unknown, status: unknown) {
   if (!["approved", "paused", "rejected"].includes(String(status))) throw new ForeverError("invalid_input");
   const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { status } });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
+  await invalidateForeverLeaderboard();
   // Approval queues a fresh roster. Pausing stops expansion; already tracked members remain tracked.
   if (status === "approved") await ForeverGuild.updateOne({ _id: objectId(id), failures: 0 }, { $set: { nextFetchAt: new Date() } });
   else {

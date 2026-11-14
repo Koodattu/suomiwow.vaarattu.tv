@@ -1,18 +1,35 @@
-.header, .controls, .pages, .card { display: flex; align-items: center; justify-content: space-between; }
-.header { gap: 12px 24px; flex-wrap: wrap; margin-bottom: 16px; }
-.controls { gap: 8px 16px; flex-wrap: wrap; border-bottom: 1px solid var(--forever-line); padding-bottom: 10px; margin-bottom: 10px; }
-.controls > span, .pages { color: var(--forever-muted); font-size: 12px; }
-.controls select { max-width: none; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 205px), 1fr)); gap: 5px; margin: 0; padding: 0; list-style: none; }
-.card { min-width: 0; gap: 8px; padding: 8px 11px; background: #191d18; border: 1px solid #464337; border-radius: 3px; }
-.card div { min-width: 0; overflow-wrap: anywhere; }
-.card strong { display: block; color: #efe6ce; font-size: 14px; line-height: 1.25; }
-.card span { display: block; color: #b1ad9b; font-size: 11px; line-height: 1.25; margin-top: 2px; }
-.card b { color: var(--forever-gold); font: 600 19px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
-.pages { justify-content: center; gap: 14px; margin-top: 14px; }
-.error { margin-block: 10px; }
-@media (max-width: 540px) {
-  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .card { padding: 7px; gap: 4px; }
-  .card strong { font-size: 13px; }
+.header, .controls, .summary, .pages { display: flex; align-items: center; }
+.header { justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; margin-bottom: 24px; }
+.controls { gap: 12px 20px; flex-wrap: wrap; border-bottom: 1px solid var(--forever-line); padding-bottom: 16px; }
+.controls select { max-width: 100%; }
+.search { flex: 1; min-width: 240px; max-width: 440px; }
+.search input { width: 100%; min-width: 0; }
+.results { scroll-margin-top: 84px; outline: none; }
+.summary { justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; min-height: 42px; padding-block: 10px; color: var(--forever-muted); font-size: 12px; }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 28px; margin: 0; padding: 0; list-style: none; }
+.row { display: grid; grid-template-columns: 4ch minmax(0, 1fr) 3ch; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #ffffff12; }
+.rank { color: var(--forever-muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
+.identity { min-width: 0; overflow-wrap: anywhere; }
+.identity strong { display: block; color: #efe6ce; font-size: 15px; font-weight: 600; line-height: 1.35; }
+.identity span { display: block; color: var(--forever-muted); font-size: 11px; line-height: 1.4; margin-top: 2px; }
+.score { color: var(--forever-gold); font: 600 22px/1 Georgia, serif; font-variant-numeric: tabular-nums; text-align: right; }
+.pages { justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 24px; color: var(--forever-muted); }
+.pages button { min-width: 36px; }
+.pageButton:not([aria-current]) { background: transparent; border-color: transparent; color: #c9c4b6; }
+.pageButton[aria-current="page"] { border-color: var(--forever-gold); text-decoration: underline; text-underline-offset: 4px; }
+.controls button:active:not(:disabled), .pages button:active:not(:disabled) { background: #64502b; }
+.error { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-block: 12px; }
+.empty { padding: 48px 16px; text-align: center; color: var(--forever-muted); }
+.empty button { margin-top: 16px; }
+.skeleton { height: 63px; border-bottom: 1px solid #ffffff12; background: linear-gradient(90deg, #ffffff06 65%, transparent 65%); }
+@media (max-width: 1200px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; } }
+@media (max-width: 600px) {
+  .header { margin-bottom: 20px; }
+  .controls { align-items: end; gap: 12px; }
+  .controls label { flex: 1; min-width: 0; flex-direction: column; align-items: stretch; gap: 5px; }
+  .controls .search { flex-basis: 100%; max-width: none; }
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .row { padding-block: 10px; }
+  .pages button { padding-inline: 9px; }
 }
