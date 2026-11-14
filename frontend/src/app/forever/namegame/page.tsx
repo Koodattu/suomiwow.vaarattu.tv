@@ -7,9 +7,35 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 import { useTranslations } from "next-intl";
 import ForeverNav from "@/components/forever/ForeverNav";
 import { ForeverErrorMessage } from "@/components/forever/ForeverShared";
-import { namegameOptions } from "@/lib/forever-namegame-query";
+import { namegameOptions, namegameOverviewOptions } from "@/lib/forever-namegame-query";
 import world from "@/components/forever/forever.module.css";
 import styles from "./namegame.module.css";
+
+function NamegameOverview() {
+  const t = useTranslations("forever"), client = useQueryClient();
+  const overview = useQuery(namegameOverviewOptions()), data = overview.data;
+  return <>
+    <div className={styles.summary}><span role="status">{data ? t("namegame.count", { count: data.total }) : overview.isPending ? t("loading") : ""}</span><span>{t("namegame.scoring")}</span></div>
+    {overview.error && <div className={styles.error}><ForeverErrorMessage error={overview.error} /><button className={world.button} onClick={() => void overview.refetch()}>{t("progress.tryAgain")}</button></div>}
+    {overview.isPending && <div className={styles.boards} aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <div key={i} className={styles.previewSkeleton} />)}</div>}
+    {data && (data.total ? <div className={styles.boards}>
+      {data.boards.map(board => {
+        const title = t(board.category ? `namegame.categories.${board.category}` : "namegame.overall");
+        const href = board.category ? `/forever/namegame?category=${board.category}` : "/forever/namegame?view=all";
+        const prefetch = () => void client.prefetchQuery(namegameOptions({ category: board.category, search: "", sort: "score-desc" }, 1));
+        return <section key={board.category} className={styles.preview} aria-label={title}>
+          <header className={styles.previewHeader}><h2>{title}</h2><span>{t("namegame.count", { count: board.total })}</span></header>
+          {board.names.length ? <ol aria-label={title}>{board.names.map(entry => <li key={entry.rank} className={styles.row}>
+            <span className={styles.rank} aria-label={t("namegame.rank", { rank: entry.rank })}>{entry.rank}</span>
+            <div className={styles.identity}><strong>{entry.name}</strong>{!board.category && <span>{t(`namegame.categories.${entry.category}`)}</span>}</div>
+            <b className={styles.score} aria-label={t("namegame.points", { score: entry.score })}>{entry.score}</b>
+          </li>)}</ol> : <p className={styles.previewEmpty}>{t("namegame.emptyCategory")}</p>}
+          <Link className={`${world.button} ${world.quietButton} ${styles.viewAll}`} href={href} onMouseEnter={prefetch} onFocus={prefetch} aria-label={t("namegame.viewCategory", { category: title })}>{t("namegame.viewAll")} <span aria-hidden="true">→</span></Link>
+        </section>;
+      })}
+    </div> : <p className={world.empty}>{t("namegame.empty")}</p>)}
+  </>;
+}
 
 function NamegameBoard() {
   const t = useTranslations("forever"), params = useSearchParams(), client = useQueryClient();
@@ -37,6 +63,7 @@ function NamegameBoard() {
       if (!value || (key === "page" && value === "1") || (key === "sort" && value === "score-desc")) next.delete(key);
       else next.set(key, value);
     }
+    if (!next.has("category")) next.set("view", "all");
     window.history[push ? "pushState" : "replaceState"](null, "", `${window.location.pathname}${next.size ? `?${next}` : ""}`);
   }
   function changePage(value: number) {
@@ -44,25 +71,20 @@ function NamegameBoard() {
     results.current?.scrollIntoView({ block: "start" });
     results.current?.focus({ preventScroll: true });
   }
-  const reset = () => updateQuery({ category: "", search: "", sort: "score-desc", page: "1" });
-  const filtered = !!category || !!search;
+  const reset = () => updateQuery({ search: "", sort: "score-desc", page: "1" });
+  const title = t(category ? `namegame.categories.${category}` : "namegame.overall");
   return <>
+    <div className={styles.boardHeading}><Link href="/forever/namegame" className={styles.backLink}>← {t("namegame.leaderboards")}</Link><h2>{title}</h2></div>
     <div className={styles.controls}>
       <label className={`${world.filter} ${styles.search}`}><span>{t("namegame.search")}</span>
         <input className={world.input} type="search" maxLength={100} value={search} placeholder={t("namegame.searchPlaceholder")} onChange={event => updateQuery({ search: event.target.value, page: "1" })} />
-      </label>
-      <label className={world.filter}>{t("namegame.category")}
-        <select className={world.select} value={category} onChange={event => updateQuery({ category: event.target.value, page: "1" }, true)}>
-          <option value="">{t("namegame.all")}</option>
-          {(data?.categories ?? (category ? [category] : [])).map(value => <option key={value} value={value}>{t(`namegame.categories.${value}`)}</option>)}
-        </select>
       </label>
       <label className={world.filter}>{t("namegame.sort")}
         <select className={world.select} value={sort} onChange={event => updateQuery({ sort: event.target.value, page: "1" }, true)}>
           {["score-desc", "score-asc", "name"].map(value => <option key={value} value={value}>{t(`namegame.sorts.${value}`)}</option>)}
         </select>
       </label>
-      {(filtered || sort !== "score-desc") && <button className={`${world.button} ${world.quietButton}`} onClick={reset}>{t("clearFilters")}</button>}
+      {(search || sort !== "score-desc") && <button className={`${world.button} ${world.quietButton}`} onClick={reset}>{t("clearFilters")}</button>}
     </div>
     <div ref={results} tabIndex={-1} className={styles.results}>
       <div className={styles.summary}>
@@ -75,10 +97,10 @@ function NamegameBoard() {
         {data.names.length ? <ol className={styles.grid} aria-label={t("namegame.title")}>
           {data.names.map(entry => <li key={entry.rank} className={styles.row}>
             <span className={styles.rank} aria-label={t("namegame.rank", { rank: entry.rank })}>{entry.rank}</span>
-            <div className={styles.identity}><strong>{entry.name}</strong><span>{t(`namegame.categories.${entry.category}`)}</span></div>
+            <div className={styles.identity}><strong>{entry.name}</strong>{!category && <span>{t(`namegame.categories.${entry.category}`)}</span>}</div>
             <b className={styles.score} aria-label={t("namegame.points", { score: entry.score })}>{entry.score}</b>
           </li>)}
-        </ol> : <div className={styles.empty}><p>{t(filtered ? "namegame.noMatches" : "namegame.empty")}</p>{filtered && <button className={world.button} onClick={reset}>{t("clearFilters")}</button>}</div>}
+        </ol> : <div className={styles.empty}><p>{t(search ? "namegame.noMatches" : category ? "namegame.emptyCategory" : "namegame.empty")}</p>{search && <button className={world.button} onClick={reset}>{t("clearFilters")}</button>}</div>}
         {pageCount > 1 && <nav className={styles.pages} aria-label={t("namegame.pages")}>
           <button className={world.button} disabled={currentPage === 1 || board.isPlaceholderData || search !== debouncedSearch} onClick={() => changePage(currentPage - 1)} aria-label={t("previous")}>←</button>
           {pageNumbers.map((value, index) => <Fragment key={value}>
@@ -92,6 +114,12 @@ function NamegameBoard() {
   </>;
 }
 
+function NamegameView() {
+  const params = useSearchParams();
+  const expanded = params.get("view") === "all" || ["category", "search", "sort", "page"].some(key => params.has(key));
+  return expanded ? <NamegameBoard /> : <NamegameOverview />;
+}
+
 export default function NamegamePage() {
   const t = useTranslations("forever");
   return <div className={world.world}><div className={world.shell}>
@@ -102,6 +130,6 @@ export default function NamegamePage() {
       </div>
       <ForeverNav current="namegame" />
     </header>
-    <Suspense fallback={<p className={world.empty} role="status">{t("loading")}</p>}><NamegameBoard /></Suspense>
+    <Suspense fallback={<p className={world.empty} role="status">{t("loading")}</p>}><NamegameView /></Suspense>
   </div></div>;
 }

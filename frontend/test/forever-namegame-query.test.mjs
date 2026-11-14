@@ -31,3 +31,12 @@ test("Namegame caches each page/search/category/order separately and forwards ca
   assert.equal(first.refetchInterval, 30_000);
   assert.equal(first.refetchOnWindowFocus, true);
 });
+
+test("Namegame overview has one shared query for all previews and forwards cancellation", async () => {
+  const overview = exports.namegameOverviewOptions();
+  assert.notDeepEqual(overview.queryKey, exports.namegameOptions({ category: "", search: "", sort: "score-desc" }, 1).queryKey);
+  const controller = new AbortController();
+  await overview.queryFn({ signal: controller.signal });
+  assert.equal(calls.at(-1)[0], "forever/namegame/overview");
+  assert.equal(calls.at(-1)[3], controller.signal);
+});

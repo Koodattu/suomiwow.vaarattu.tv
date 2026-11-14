@@ -8,6 +8,7 @@
       "sort": "Järjestys", "sorts": { "score-desc": "Eniten pisteitä", "score-asc": "Vähiten pisteitä", "name": "Nimi A–Ö" },
       "range": "{start}–{end} / {count} nimeä", "rank": "Sija {rank}",
       "scoring": "Lunan pisteet · 0–100", "noMatches": "Hakuehtoja vastaavia nimiä ei löytynyt.",
+      "overall": "Kaikki nimet", "leaderboards": "Kaikki tuloslistat", "viewAll": "Näytä kaikki", "viewCategory": "Näytä kaikki: {category}",
       "count": "{count, plural, one {# nimi} other {# nimeä}}",
       "points": "{score} pistettä sadasta", "pages": "Nimipelin sivut",
       "empty": "Ensimmäiset nimet ilmestyvät tänne pisteytyksen valmistuttua.", "emptyCategory": "Tässä lajissa ei vielä ole pisteytettyjä nimiä.",

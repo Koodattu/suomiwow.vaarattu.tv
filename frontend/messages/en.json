@@ -8,6 +8,7 @@
       "sort": "Sort", "sorts": { "score-desc": "Highest score", "score-asc": "Lowest score", "name": "Name A–Z" },
       "range": "{start}–{end} of {count} names", "rank": "Rank {rank}",
       "scoring": "Luna scores · 0–100", "noMatches": "No names match your filters.",
+      "overall": "Overall", "leaderboards": "All leaderboards", "viewAll": "View all", "viewCategory": "View all: {category}",
       "count": "{count, plural, one {# name} other {# names}}",
       "points": "{score} out of 100", "pages": "Namegame pages",
       "empty": "The first names will appear here as they are scored.", "emptyCategory": "No scored names in this category yet.",

@@ -2,10 +2,15 @@
 
 ## Namegame
 
-The Forever hub and navigation link to `/forever/namegame`. The public API at `GET /api/forever/namegame`
+The Forever hub and navigation link to `/forever/namegame`. Its overview shows the top five overall and
+in each humor category, with a **View all** link to an expanded searchable, sortable leaderboard.
+`GET /api/forever/namegame/overview` returns all nine previews and their counts from the same snapshot.
+The overall expanded view uses `?view=all`; category views use `?category=wordplay`, for example.
+The public API at `GET /api/forever/namegame`
 accepts `category`, literal case-insensitive `search`, `sort` (`score-desc`, `score-asc`, or `name`),
 and a one-based `page`. Each page contains up to 48 names. The default order is overall score,
-then name and character ID for stable ties. Ranks remain global when searching, filtering, or sorting.
+then name and character ID for stable ties. Ranks are scoped to the selected leaderboard and stay fixed
+while searching or changing the sort order.
 The screen keeps criteria in the URL, retains results during loading, and prefetches the next page.
 
 One projected name population is cached for 60 seconds using the existing Forever shared snapshot/lease

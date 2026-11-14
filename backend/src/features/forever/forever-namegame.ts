@@ -57,10 +57,19 @@ export async function namegameLeaderboard(query: { category?: unknown; page?: un
   if (typeof page !== "string" || !/^[1-9]\d{0,6}$/.test(page)) throw new ForeverError("invalid_input");
   if (typeof search !== "string" || search.length > 100 || typeof sort !== "string" || !["score-desc", "score-asc", "name"].includes(sort)) throw new ForeverError("invalid_input");
   const data = await snapshot(), needle = search.trim().toLocaleLowerCase("fi");
-  const names = data.names.filter(entry => (!category || entry.category === category) && (!needle || entry.name.toLocaleLowerCase("fi").includes(needle)));
+  const ranked = category ? data.names.filter(entry => entry.category === category).map((entry, index) => ({ ...entry, rank: index + 1 })) : data.names;
+  const names = ranked.filter(entry => !needle || entry.name.toLocaleLowerCase("fi").includes(needle));
   if (sort === "score-asc") names.sort((a, b) => a.score - b.score || a.rank - b.rank);
   else if (sort === "name") names.sort((a, b) => a.name.localeCompare(b.name, "fi") || a.rank - b.rank);
   const pageSize = 48, pageNumber = Math.min(Number(page), Math.max(1, Math.ceil(names.length / pageSize)));
   return { generatedAt: data.generatedAt, names: names.slice((pageNumber - 1) * pageSize, pageNumber * pageSize),
     total: names.length, page: pageNumber, pageSize, categories: NAMEGAME_CATEGORIES };
+}
+
+export async function namegameOverview() {
+  const data = await snapshot();
+  return { generatedAt: data.generatedAt, total: data.names.length, boards: ["", ...NAMEGAME_CATEGORIES].map(category => {
+    const names = category ? data.names.filter(entry => entry.category === category) : data.names;
+    return { category, total: names.length, names: names.slice(0, 5).map((entry, index) => ({ ...entry, rank: index + 1 })) };
+  }) };
 }
