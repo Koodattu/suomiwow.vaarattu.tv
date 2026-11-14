@@ -27,7 +27,6 @@
 .rank { color: var(--forever-muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
 .identity { min-width: 0; overflow-wrap: anywhere; }
 .identity strong { display: block; color: #efe6ce; font-size: 15px; font-weight: 600; line-height: 1.35; }
-.identity span { display: block; color: var(--forever-muted); font-size: 11px; line-height: 1.4; margin-top: 2px; }
 .score { color: var(--forever-gold); font: 600 22px/1 Georgia, serif; font-variant-numeric: tabular-nums; text-align: right; }
 .pages { justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 24px; color: var(--forever-muted); }
 .pages button { min-width: 36px; }

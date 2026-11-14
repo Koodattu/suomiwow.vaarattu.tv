@@ -27,7 +27,7 @@ function NamegameOverview() {
           <header className={styles.previewHeader}><h2>{title}</h2><span>{t("namegame.count", { count: board.total })}</span></header>
           {board.names.length ? <ol aria-label={title}>{board.names.map(entry => <li key={entry.rank} className={styles.row}>
             <span className={styles.rank} aria-label={t("namegame.rank", { rank: entry.rank })}>{entry.rank}</span>
-            <div className={styles.identity}><strong>{entry.name}</strong>{!board.category && <span>{t(`namegame.categories.${entry.category}`)}</span>}</div>
+            <div className={styles.identity}><strong>{entry.name}</strong></div>
             <b className={styles.score} aria-label={t("namegame.points", { score: entry.score })}>{entry.score}</b>
           </li>)}</ol> : <p className={styles.previewEmpty}>{t("namegame.emptyCategory")}</p>}
           <Link className={`${world.button} ${world.quietButton} ${styles.viewAll}`} href={href} onMouseEnter={prefetch} onFocus={prefetch} aria-label={t("namegame.viewCategory", { category: title })}>{t("namegame.viewAll")} <span aria-hidden="true">→</span></Link>
@@ -97,7 +97,7 @@ function NamegameBoard() {
         {data.names.length ? <ol className={styles.grid} aria-label={t("namegame.title")}>
           {data.names.map(entry => <li key={entry.rank} className={styles.row}>
             <span className={styles.rank} aria-label={t("namegame.rank", { rank: entry.rank })}>{entry.rank}</span>
-            <div className={styles.identity}><strong>{entry.name}</strong>{!category && <span>{t(`namegame.categories.${entry.category}`)}</span>}</div>
+            <div className={styles.identity}><strong>{entry.name}</strong></div>
             <b className={styles.score} aria-label={t("namegame.points", { score: entry.score })}>{entry.score}</b>
           </li>)}
         </ol> : <div className={styles.empty}><p>{t(search ? "namegame.noMatches" : category ? "namegame.emptyCategory" : "namegame.empty")}</p>{search && <button className={world.button} onClick={reset}>{t("clearFilters")}</button>}</div>}
