@@ -159,6 +159,14 @@
       "searchCharacters": "Hae hahmoja",
       "searchHint": "Nimi, kilta tai Twitch-kanava",
       "searchGuilds": "Hae kiltaa",
+      "guildSort": {
+        "label": "Järjestä killat",
+        "name": "Nimi (A–Ö)",
+        "structured-desc": "Luna % · suurin ensin",
+        "structured-asc": "Luna % · pienin ensin",
+        "decision-desc": "Decisions % · suurin ensin",
+        "decision-asc": "Decisions % · pienin ensin"
+      },
       "language": {
         "title": "Kuinka todennäköisesti kilta on suomenkielinen?",
         "run": "Arvioi kaikkien kiltojen suomenkielisyys",
@@ -167,6 +175,7 @@
         "roster": "GPT-6 Lunan arvion pohjana on killan nimi ja {count, plural, one {# nimi jäsenlistalta} other {# nimeä jäsenlistalta}}",
         "profiles": "GPT-6 Lunan arvion pohjana on killan nimi ja {count, plural, one {# tunnettu hahmonimi} other {# tunnettua hahmonimeä}}",
         "structured": "GPT-6 Lunan arvio",
+        "structuredShort": "Luna",
         "decision": "Decisions",
         "yes": "Kyllä",
         "no": "Ei",

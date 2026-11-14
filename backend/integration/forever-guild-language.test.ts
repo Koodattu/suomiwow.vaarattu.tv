@@ -8,6 +8,57 @@ import { GuildLanguageWorker, queueGuildLanguageAssessments } from "../src/featu
 import { adminOverview, guildDetail } from "../src/features/forever/forever.service";
 
 const uri = process.env.FOREVER_TEST_MONGODB_URI;
+test("admin guild language sorting applies before pagination, preserves filters and puts missing scores last", { skip: !uri }, async () => {
+  await mongoose.connect(uri!, { dbName: "forever_language_sort_test_" + randomUUID().replace(/-/g, ""), serverSelectionTimeoutMS: 5000 });
+  try {
+    const decision = (percent: number) => ({ percent, yes: percent >= 50, confidence: "high" as const });
+    const fixtures = Array.from({ length: 55 }, (_, index) => {
+      const percent = index === 54 ? 100 : index;
+      return { region: "eu", slug: `match-${index}`, name: `Match ${String(index).padStart(2, "0")}`, status: "pending" as const,
+        languageAssessment: { structured: percent, decision: decision(100 - percent) } };
+    });
+    const guilds = await ForeverGuild.create([
+      ...fixtures,
+      { region: "eu", slug: "missing", name: "Match missing", status: "pending" },
+      { region: "eu", slug: "null", name: "Match null", status: "pending", languageAssessment: { structured: null, decision: null } },
+      { region: "eu", slug: "structured-only", name: "Match partial", status: "pending", languageAssessment: { structured: 50, decision: null } },
+      { region: "eu", slug: "decision-only", name: "Match partial", status: "pending", languageAssessment: { structured: null, decision: decision(50) } },
+      { ...fixtures[50], slug: "tie", name: "Match 50" },
+    ]);
+    await ForeverGuild.create([
+      { ...fixtures[54], slug: "rejected", status: "rejected" },
+      { ...fixtures[54], slug: "other", name: "Other" },
+    ]);
+    const filters = { guildSearch: "Match", guildStatus: "pending" };
+    for (const field of ["structured", "decision"] as const) {
+      for (const direction of ["asc", "desc"] as const) {
+        const score = (guild: typeof guilds[number]) => field === "structured" ? guild.languageAssessment?.structured : guild.languageAssessment?.decision?.percent;
+        const expected = [...guilds].sort((left, right) => {
+          const a = score(left), b = score(right);
+          if (a == null && b != null) return 1;
+          if (a != null && b == null) return -1;
+          const difference = ((a ?? 0) - (b ?? 0)) * (direction === "asc" ? 1 : -1);
+          return difference || left.name.localeCompare(right.name) || String(left._id).localeCompare(String(right._id));
+        });
+        const pages = await Promise.all([1, 2].map(guildPage => adminOverview({ ...filters, guildPage, guildSort: `${field}-${direction}` })));
+        assert.equal(pages[0].totalGuilds, guilds.length);
+        assert.equal(pages[0].guilds.length, 50);
+        const actual = pages.flatMap(page => page.guilds);
+        assert.deepEqual(actual.map(guild => String(guild._id)), expected.map(guild => String(guild._id)), `${field}-${direction}`);
+        assert.ok(actual.every(guild => !("languageSort" in guild)));
+      }
+    }
+    const defaultOrder = await adminOverview(filters), nameOrder = await adminOverview({ ...filters, guildSort: "name" });
+    assert.deepEqual(defaultOrder.guilds.map(guild => String(guild._id)), nameOrder.guilds.map(guild => String(guild._id)));
+    assert.equal(defaultOrder.guilds[0].name, "Match 00");
+    await assert.rejects(adminOverview({ guildSort: "unsupported" }), /invalid_input/);
+    await assert.rejects(adminOverview({ guildSort: { structured: -1 } }), /invalid_input/);
+  } finally {
+    await mongoose.connection.dropDatabase();
+    await mongoose.disconnect();
+  }
+});
+
 test("the worker automatically assesses every guild, resumes missing results and picks up new guilds and first rosters", { skip: !uri }, async () => {
   const oldKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test";

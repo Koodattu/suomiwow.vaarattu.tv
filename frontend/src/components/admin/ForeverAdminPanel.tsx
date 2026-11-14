@@ -34,14 +34,20 @@ function Pagination({ page, total, onChange, disabled }: { page: number; total: 
   </div></div>;
 }
 
-function GuildLanguageEstimate({ guild }: { guild: ForeverGuild }) {
+function GuildLanguageEstimate({ guild, compact = false }: { guild: ForeverGuild; compact?: boolean }) {
   const t = useTranslations("forever.admin.language"), format = useFormatter();
   const result = guild.languageAssessment;
   const pct = (value?: number | null) => value == null ? t("unavailable") : format.number(value / 100, { style: "percent" });
+  if (compact) return <span className={styles.guildLanguageSummary} title={t("title")}>
+    <span title={t("structured")}>{t("structuredShort")} <b>{pct(result?.structured)}</b></span>
+    <span>{t("decision")} <b>{pct(result?.decision?.percent)}</b></span>
+  </span>;
   return <section className={styles.languageEstimate}>
-    <h4>{t("title")}</h4>
-    {result ? <>
-      <p className={styles.adminHelp}>{t(result.source, { count: result.nameCount })} · <ForeverDate value={result.assessedAt} /></p>
+    <div className={styles.languageEstimateInfo}>
+      <h4>{t("title")}</h4>
+      <p className={styles.adminHelp}>{result ? <>{t(result.source, { count: result.nameCount })} · <ForeverDate value={result.assessedAt} /></> : t("unscored")}</p>
+    </div>
+    {result && <>
       <dl><div><dt>{t("structured")}</dt><dd>{pct(result.structured)}</dd></div>
         <div><dt>{t("decision")}</dt><dd>{pct(result.decision?.percent)}</dd>
         {result.decision && <dd className={styles.languageVerdict}>
@@ -49,7 +55,7 @@ function GuildLanguageEstimate({ guild }: { guild: ForeverGuild }) {
         </dd>}
       </div></dl>
       {(result.structured == null || result.decision == null) && <p className={styles.adminHelp}>{t("retry")}</p>}
-    </> : <p className={styles.adminHelp}>{t("unscored")}</p>}
+    </>}
   </section>;
 }
 
@@ -60,9 +66,10 @@ export default function ForeverAdminPanel() {
   const [error, setError] = useState<unknown>(null), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
   const [filter, setFilter] = useState("all"), [health, setHealth] = useState("all"), [search, setSearch] = useState("");
   const [guildFilter, setGuildFilter] = useState("all"), [guildSearch, setGuildSearch] = useState(""), [rosterSearch, setRosterSearch] = useState("");
+  const [guildSort, setGuildSort] = useState("name");
   const [characterPage, setCharacterPage] = useState(1), [guildPage, setGuildPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]), [guildId, setGuildId] = useState<string | null>(null);
-  const params = new URLSearchParams({ status: filter, health, search, guildStatus: guildFilter, guildSearch, characterPage: String(characterPage), guildPage: String(guildPage) });
+  const params = new URLSearchParams({ status: filter, health, search, guildStatus: guildFilter, guildSearch, guildSort, characterPage: String(characterPage), guildPage: String(guildPage) });
   const overview = useQuery({ queryKey: ["forever", "admin", params.toString()], queryFn: () => foreverApi<ForeverAdminData>(`admin/forever?${params}`), refetchInterval: (query) => (view === "guilds" && query.state.data?.languagePending) || query.state.data?.characters.some((character) => character.refreshRequestedAt) ? 2_000 : 30_000 });
   const data = overview.data, activeGuildId = guildId || data?.guilds[0]?._id;
   const guild = useQuery({ queryKey: ["forever", "admin", "guild", activeGuildId], queryFn: () => foreverApi<ForeverGuild>(`admin/forever/guilds/${activeGuildId}`), enabled: view === "guilds" && !!activeGuildId, refetchInterval: 30_000 });
@@ -144,13 +151,14 @@ export default function ForeverAdminPanel() {
       <div className={styles.adminGuildToolbar}>
         <label className={styles.adminSearch}>{t("admin.searchGuilds")}<input className={styles.input} type="search" maxLength={100} value={guildSearch} onChange={(event) => { setGuildSearch(event.target.value); setGuildPage(1); setGuildId(null); setRosterSearch(""); }} /></label>
         <label className={styles.adminFilter}>{t("status")}<select className={controlClass} value={guildFilter} onChange={(event) => { setGuildFilter(event.target.value); setGuildPage(1); setGuildId(null); }}>{["all", "proposed", "pending", "approved", "paused", "rejected"].map((status) => <option key={status} value={status}>{t(`statuses.${status}`)}</option>)}</select></label>
+        <label className={`${styles.adminFilter} ${styles.adminGuildSort}`}>{t("admin.guildSort.label")}<select className={controlClass} value={guildSort} onChange={(event) => { setGuildSort(event.target.value); setGuildPage(1); setGuildId(null); setRosterSearch(""); }}>{["name", "structured-desc", "structured-asc", "decision-desc", "decision-asc"].map((sort) => <option key={sort} value={sort}>{t(`admin.guildSort.${sort}`)}</option>)}</select></label>
         <button className={buttonClass} disabled={busy || !data || !total(data.guildCounts) || data.languagePending > 0}
           onClick={() => void act("guild-language", "POST")}>{t("admin.language.run")}</button>
         {!!data?.languagePending && <span className={styles.adminHelp} role="status">{t("admin.language.pending", { count: data.languagePending })}</span>}
       </div>
       {overview.isPending ? <p role="status">{t("loading")}</p> : <div className={styles.adminGuildGrid}>
         <div><div className={styles.adminGuildList}>{data?.guilds.map((entry) => <button className={styles.adminGuildChoice} key={entry._id} aria-pressed={activeGuildId === entry._id} onClick={() => { setGuildId(entry._id); setRosterSearch(""); }}>
-          <strong>{entry.name}{entry.hidden && <small className={styles.hiddenBadge}>{t("admin.hidden")}</small>}</strong><span>{t(`statuses.${entry.status}`)} · {entry.lastFetchedAt ? t("rosterCount", { count: entry.rosterCount || 0 }) : t("admin.rosterNotLoaded")}</span><FetchState errorCode={entry.errorCode} /></button>)}</div>
+          <strong>{entry.name}{entry.hidden && <small className={styles.hiddenBadge}>{t("admin.hidden")}</small>}</strong><span>{t(`statuses.${entry.status}`)} · {entry.lastFetchedAt ? t("rosterCount", { count: entry.rosterCount || 0 }) : t("admin.rosterNotLoaded")}</span><GuildLanguageEstimate guild={entry} compact /><FetchState errorCode={entry.errorCode} /></button>)}</div>
           {!data?.guilds.length && <p className={styles.empty}>{t("admin.noGuildMatches")}</p>}
           <Pagination page={guildPage} total={data?.totalGuilds || 0} onChange={(page) => { setGuildPage(page); setGuildId(null); }} disabled={busy} />
         </div>

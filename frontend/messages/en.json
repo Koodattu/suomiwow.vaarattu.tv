@@ -159,6 +159,14 @@
       "searchCharacters": "Find characters",
       "searchHint": "Name, guild or Twitch channel",
       "searchGuilds": "Find a guild",
+      "guildSort": {
+        "label": "Sort guilds",
+        "name": "Name (A–Z)",
+        "structured-desc": "Luna % · high to low",
+        "structured-asc": "Luna % · low to high",
+        "decision-desc": "Decisions % · high to low",
+        "decision-asc": "Decisions % · low to high"
+      },
       "language": {
         "title": "Likelihood the guild speaks Finnish",
         "run": "Assess Finnish language for all guilds",
@@ -167,6 +175,7 @@
         "roster": "GPT-6 Luna estimate from the guild name and {count, plural, one {# roster name} other {# roster names}}",
         "profiles": "GPT-6 Luna estimate from the guild name and {count, plural, one {# linked character name} other {# linked character names}}",
         "structured": "GPT-6 Luna estimate",
+        "structuredShort": "Luna",
         "decision": "Decisions",
         "yes": "Yes",
         "no": "No",

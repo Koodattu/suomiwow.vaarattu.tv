@@ -189,7 +189,7 @@ export async function characterDetail(id: unknown) {
   if (!character) throw new ForeverError("not_found", 404);
   return { ...character, armoryUrl: armoryUrl(character as { region: "eu" | "us"; slug: string }) };
 }
-export async function adminOverview(query: { status?: unknown; characterPage?: unknown; guildPage?: unknown; search?: unknown; health?: unknown; guildStatus?: unknown; guildSearch?: unknown } = {}) {
+export async function adminOverview(query: { status?: unknown; characterPage?: unknown; guildPage?: unknown; search?: unknown; health?: unknown; guildStatus?: unknown; guildSearch?: unknown; guildSort?: unknown } = {}) {
   const characterPage = Math.min(1000, Math.max(1, Number.parseInt(String(query.characterPage), 10) || 1));
   const guildPage = Math.min(1000, Math.max(1, Number.parseInt(String(query.guildPage), 10) || 1));
   const status = query.status;
@@ -207,10 +207,21 @@ export async function adminOverview(query: { status?: unknown; characterPage?: u
   else if (query.health !== undefined && query.health !== "all") throw new ForeverError("invalid_input");
   const guildFilter: Record<string, unknown> = searchFilter(query.guildSearch, ["name", "slug"]);
   if (["proposed", "pending", "approved", "paused", "rejected"].includes(String(query.guildStatus))) guildFilter.status = query.guildStatus;
+  const guildSort = query.guildSort ?? "name";
+  if (typeof guildSort !== "string" || !["name", "structured-desc", "structured-asc", "decision-desc", "decision-asc"].includes(guildSort)) throw new ForeverError("invalid_input");
+  let guildSortStages: mongoose.PipelineStage[] = [{ $sort: { name: 1, _id: 1 } }];
+  if (guildSort !== "name") {
+    const direction = guildSort.endsWith("-asc") ? 1 : -1;
+    const field = guildSort.startsWith("structured-") ? "$languageAssessment.structured" : "$languageAssessment.decision.percent";
+    guildSortStages = [
+      { $addFields: { languageSort: { $ifNull: [field, direction === 1 ? 101 : -1] } } },
+      { $sort: { languageSort: direction, name: 1, _id: 1 } },
+    ];
+  }
   const [characters, guilds, worker, totalCharacters, totalGuilds, characterCounts, guildCounts, languagePending] = await Promise.all([
     ForeverCharacter.find(filter).select("-history -proposedBy").sort({ createdAt: -1, _id: -1 }).skip((characterPage - 1) * 50).limit(50).lean(),
-    ForeverGuild.aggregate([{ $match: guildFilter }, { $sort: { name: 1, _id: 1 } }, { $skip: (guildPage - 1) * 50 }, { $limit: 50 },
-      { $addFields: { rosterCount: { $size: { $ifNull: ["$roster", []] } } } }, { $project: { roster: 0, languageLease: 0, "languageAssessment.fingerprint": 0, "languageAssessment.plain": 0 } }]),
+    ForeverGuild.aggregate([{ $match: guildFilter }, ...guildSortStages, { $skip: (guildPage - 1) * 50 }, { $limit: 50 },
+      { $addFields: { rosterCount: { $size: { $ifNull: ["$roster", []] } } } }, { $project: { roster: 0, languageSort: 0, languageLease: 0, "languageAssessment.fingerprint": 0, "languageAssessment.plain": 0 } }]),
     ForeverWorker.findById("armory").select("-leaseToken").lean(),
     ForeverCharacter.countDocuments(filter), ForeverGuild.countDocuments(guildFilter),
     ForeverCharacter.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
