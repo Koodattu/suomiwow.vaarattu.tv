@@ -18,10 +18,18 @@
 .option[data-ready] .medal { background: radial-gradient(circle at 35% 30%, #fbe7b4, #c9a35e 72%); color: #33250e; box-shadow: 0 0 14px #ffd77a80; }
 .option[data-ready] .text small { color: #ffd77a; font-weight: 600; }
 .enter { display: none; }
+.facilityNav { position: absolute; z-index: 4; top: calc(max(16px, env(safe-area-inset-top)) + 64px); left: 50%; transform: translateX(-50%); display: flex; gap: 6px; width: max-content; max-width: calc(100% - 24px); }
+.facilityNav button { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; min-height: 44px; padding: 8px 14px; border: 1px solid #f0d9a859; border-radius: 12px; background: #17252ef2; color: #f3e4c7; font: 400 16px/1.2 Georgia, serif; cursor: pointer; }
+.facilityNav svg { flex: none; width: 20px; height: 20px; }
+.facilityNav span { min-width: 0; overflow-wrap: anywhere; }
+.facilityNav button[aria-current], .facilityNav button:hover { border-color: #ffe4aa; background: #3b3b2f; color: #ffe4aa; }
+.facilityNav button:focus-visible { outline: 2px solid #ffe4aa; outline-offset: 3px; }
 @keyframes titleIn { from { opacity: 0; translate: 0 -8px; } to { opacity: 1; translate: 0 0; } }
 @keyframes cardIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 @media (max-width: 1000px) { .option { width: 196px; } .text b { font-size: 17px; } .medal { width: 48px; height: 48px; } .medal svg { width: 23px; height: 23px; } }
 @media (max-width: 780px) {
+  .facilityNav { top: calc(max(16px, env(safe-area-inset-top)) + 100px); width: calc(100% - 24px); }
+  .facilityNav button { flex: 1 1 0; padding: 8px 6px; gap: 5px; font-size: 13px; }
   .title { top: max(112px, calc(env(safe-area-inset-top) + 100px)); font-size: 26px; }
   .bar { width: calc(100vw - 16px); grid-template-columns: auto minmax(0, 1fr); gap: 4px; bottom: max(10px, calc(env(safe-area-inset-bottom) + 6px)); }
   .options { gap: 6px; }

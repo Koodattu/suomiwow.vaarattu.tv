@@ -127,6 +127,9 @@ const JOIN_ANNOUNCEMENT_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const JOIN_ANNOUNCEMENT_MESSAGE = "SuomiWoW Bot is here! Type !commands or !komennot for features.";
 const SHARED_CHAT_CACHE_MS = 60 * 1000;
 const SHARED_CHAT_MESSAGE_DEDUPE_MS = 60 * 1000;
+const COMMAND_BURST_CAPACITY = 5;
+const COMMAND_REFILL_INTERVAL_MS = 10 * 1000;
+const CURSE_USER_COOLDOWN_MS = 5 * 1000;
 
 interface TwitchChannelTarget {
   channelName: string;
@@ -184,8 +187,8 @@ class TwitchChatBotService {
   private botLogin: string | null = null;
   private channelJoinAttempts = new Map<string, Promise<void>>();
   private missingSince = new Map<string, number>();
-  private userCooldowns = new Map<string, number>();
-  private channelCommandCooldowns = new Map<string, number>();
+  private curseUserCooldowns = new Map<string, number>();
+  private channelCommandBuckets = new Map<string, { tokens: number; refilledAt: number }>();
   private sharedChatSessionCache = new Map<string, { session: TwitchSharedChatApiSession | null; expiresAt: number }>();
   private sharedChatChannelByBroadcasterId = new Map<string, string>();
   private sharedChatRepresentativeBySessionId = new Map<string, string>();
@@ -1049,27 +1052,15 @@ class TwitchChatBotService {
 
       const channelSettings = await this.getChannelSettings(channelName);
       if (parsed.name === "alerts") {
-        const requestedState = this.parseAlertsState(parsed.args);
-        const isBroadcaster = Boolean(
-          message?.userInfo.isBroadcaster ||
-          (message?.sourceChannelId && message.userInfo.userId === message.sourceChannelId),
-        );
-        if (requestedState !== null && !isBroadcaster) {
-          await this.queueSay(replyChannelName, "Only the broadcaster can change progress alerts.", {
-            kind: "command_reply",
-            commandName: commandName || parsed.name,
-            userName: user,
-            relatedEventId: auditEventId,
-          });
-          await this.recordCommandOutcome(channelName, parsed.name, "replied", auditEventId);
-          return;
-        }
-
         if (this.isOnCooldown(channelName, user, parsed.name)) {
           await this.recordCommandOutcome(channelName, parsed.name, "cooldown", auditEventId);
           return;
         }
 
+        const isBroadcaster = Boolean(
+          message?.userInfo.isBroadcaster ||
+          (message?.sourceChannelId && message.userInfo.userId === message.sourceChannelId),
+        );
         const response = await this.handleAlertsCommand(channelSettings, parsed.args, user, isBroadcaster);
         await this.queueSay(replyChannelName, response, {
           kind: "command_reply",
@@ -1291,34 +1282,41 @@ class TwitchChatBotService {
     this.pruneCooldowns(now);
 
     const userKey = `${channelName}:${user.toLowerCase()}`;
-    const channelKey = `${channelName}:${commandName}`;
-    const lastUserCommand = this.userCooldowns.get(userKey) || 0;
-    const lastChannelCommand = this.channelCommandCooldowns.get(channelKey) || 0;
-
-    const channelCooldownMs = commandName === "curse" ? 5000 : 10000;
-    if (now - lastUserCommand < 5000 || now - lastChannelCommand < channelCooldownMs) {
+    const lastCurse = this.curseUserCooldowns.get(userKey);
+    if (commandName === "curse" && lastCurse !== undefined && now - lastCurse < CURSE_USER_COOLDOWN_MS) {
       return true;
     }
 
-    this.userCooldowns.set(userKey, now);
-    this.channelCommandCooldowns.set(channelKey, now);
+    // All commands share five slots per source channel. Rejected attempts spend
+    // nothing and do not move the refill clock or start a personal cooldown.
+    const bucket = this.channelCommandBuckets.get(channelName) || { tokens: COMMAND_BURST_CAPACITY, refilledAt: now };
+    const refilledTokens = Math.floor(Math.max(0, now - bucket.refilledAt) / COMMAND_REFILL_INTERVAL_MS);
+    const tokens = Math.min(COMMAND_BURST_CAPACITY, bucket.tokens + refilledTokens);
+    if (tokens < 1) return true;
+
+    this.channelCommandBuckets.set(channelName, {
+      tokens: tokens - 1,
+      // Preserve progress toward the next slot unless the bucket was full.
+      refilledAt: tokens === COMMAND_BURST_CAPACITY ? now : bucket.refilledAt + refilledTokens * COMMAND_REFILL_INTERVAL_MS,
+    });
+    if (commandName === "curse") this.curseUserCooldowns.set(userKey, now);
     return false;
   }
 
   private pruneCooldowns(now: number): void {
-    if (this.userCooldowns.size < 5000 && this.channelCommandCooldowns.size < 1000) {
+    if (this.curseUserCooldowns.size < 5000 && this.channelCommandBuckets.size < 1000) {
       return;
     }
 
-    for (const [key, timestamp] of this.userCooldowns) {
+    for (const [key, timestamp] of this.curseUserCooldowns) {
       if (now - timestamp > 10 * 60 * 1000) {
-        this.userCooldowns.delete(key);
+        this.curseUserCooldowns.delete(key);
       }
     }
 
-    for (const [key, timestamp] of this.channelCommandCooldowns) {
-      if (now - timestamp > 10 * 60 * 1000) {
-        this.channelCommandCooldowns.delete(key);
+    for (const [key, bucket] of this.channelCommandBuckets) {
+      if (now - bucket.refilledAt > 10 * 60 * 1000) {
+        this.channelCommandBuckets.delete(key);
       }
     }
   }

@@ -47,6 +47,7 @@ export type StageWorld = {
   // Streak bonuses claimed, and today's day while its bonus is still available.
   streak: { opened: number; today: number | null };
   chestReady: boolean;
+  questsReady: boolean;
   // The fishing pond's prize catches left today: while any remain, something glints in the water.
   prizes: number;
 };
@@ -177,7 +178,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series), machinesRef = useRef(machines);
   useEffect(() => { labelsRef.current = labels; lineupRef.current = lineup; silhouettesRef.current = silhouettes; worldRef.current = world; seriesRef.current = series; machinesRef.current = machines; });
   // Lets later prop changes reach the running scene without rebuilding the renderer.
-  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; setChestReady: (ready: boolean) => void; setPrizes: (left: number) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: StagePoke) => void } | null>(null);
+  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; setChestReady: (ready: boolean) => void; setQuestsReady: (ready: boolean) => void; setPrizes: (left: number) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void; poke: (poke: StagePoke) => void } | null>(null);
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
@@ -687,6 +688,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       setCollection, setMachines, setShowcase,
       setStreak: (opened, today) => facilities.forEach((facility) => facility.setStreak(opened, today)),
       setChestReady: (ready) => facilities.forEach((facility) => facility.setChestReady(ready)),
+      setQuestsReady: (ready) => facilities.forEach((facility) => facility.setQuestsReady(ready)),
       setPrizes: (left) => facilities.forEach((facility) => facility.setPrizes(left)),
       act: ({ run, station, action: next }) => {
         if (run === actedRun) return;
@@ -717,7 +719,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         else facilities.find((entry) => entry.kind === station)?.poke(kind, quality);
       },
     };
-    if (worldSetup) { setCollection(worldSetup.collection); setShowcase(worldSetup.showcase); facilities.forEach((facility) => { facility.setStreak(worldSetup.streak.opened, worldSetup.streak.today); facility.setChestReady(worldSetup.chestReady); facility.setPrizes(worldSetup.prizes); }); }
+    if (worldSetup) { setCollection(worldSetup.collection); setShowcase(worldSetup.showcase); facilities.forEach((facility) => { facility.setStreak(worldSetup.streak.opened, worldSetup.streak.today); facility.setChestReady(worldSetup.chestReady); facility.setQuestsReady(worldSetup.questsReady); facility.setPrizes(worldSetup.prizes); }); }
     if (machinesRef.current) setMachines(machinesRef.current);
     if (immersive && scenery) void (async () => {
       callbacks.current.onProgress?.(0.1);
@@ -820,7 +822,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if ((flight && flight.t < 0.6) || !immersive || !navigable()) return null;
       if ((view === "pond" || view === "crate") && groups[view]) {
         const part = pickFacilityPart(raycaster, groups[view]!);
-        return part ? { kind: "part", station: view, part } : null;
+        if (part) return { kind: "part", station: view, part };
+        if (view === "pond") return null;
       }
       // Only the stations are targets; glows and sprites never block what is behind them.
       const roots = stationGroups;
@@ -1390,6 +1393,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   useEffect(() => { if (showcase) api.current?.setShowcase(showcase); }, [showcase]);
   const streakOpened = world?.streak.opened, streakToday = world?.streak.today;
   useEffect(() => { if (streakOpened !== undefined) api.current?.setStreak(streakOpened, streakToday ?? null); }, [streakOpened, streakToday]);
+  const questsReady = world?.questsReady;
+  useEffect(() => { if (questsReady !== undefined) api.current?.setQuestsReady(questsReady); }, [questsReady]);
   const chestReady = world?.chestReady;
   useEffect(() => { if (chestReady !== undefined) api.current?.setChestReady(chestReady); }, [chestReady]);
   const prizes = world?.prizes;

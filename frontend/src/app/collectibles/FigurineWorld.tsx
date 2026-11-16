@@ -17,7 +17,7 @@ import WorldPanel, { type LinePhase, type PanelResult, type PanelSeries } from "
 import PondHud, { type PondPart, type PondSheet } from "./PondHud";
 import ChestHud from "./ChestHud";
 import RewardLayer, { BoostPrize, FigurePrize, Wallet, coinLanded, flyCoins, holdCoins, presentCoins, presentPrize, releaseCoins, type RewardPoint } from "./RewardLayer";
-import DistrictHud, { type DistrictOption } from "./DistrictHud";
+import DistrictHud, { DailyNavigation, type DistrictOption } from "./DistrictHud";
 import OverviewHud, { OverviewBack } from "./OverviewHud";
 import WheelHud, { WHEEL_PRIZES } from "./WheelHud";
 import type { ActionCue, CastResult, CatchVisual, FacilityAction } from "@/lib/figurine-facilities";
@@ -462,6 +462,7 @@ export default function FigurineWorld() {
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
+  const quests = questBoard(records, completeSeries, now), questsReady = quests.filter((quest) => quest.done && !quest.claimed).length;
   const world: StageWorld = useMemo(() => ({
     collection,
     series: [
@@ -478,8 +479,8 @@ export default function FigurineWorld() {
       collected: (owned, total) => t("seriesCollected", { got: owned, total }), comingSoon: t("comingSoon"),
     },
     showcase: showcaseOf(records.favorites, collection),
-    streak, chestReady: crate.ready, prizes,
-  }), [collection, records.favorites, streak, crate.ready, prizes, t]);
+    streak, chestReady: crate.ready, questsReady: questsReady > 0, prizes,
+  }), [collection, records.favorites, streak, crate.ready, questsReady, prizes, t]);
   // The collection lists released series, a secret one once found, then the announced ones.
   const panelSeries: PanelSeries[] = useMemo(() => [...collectionShelves(world.series, collection).filter((entry) => entry.released), ...world.series.filter((entry) => !entry.hidden && !entry.released)]
     .map(({ id, number, released, hidden, keys }) => ({ id, number, released, hidden, keys })), [world.series, collection]);
@@ -496,7 +497,6 @@ export default function FigurineWorld() {
   } : undefined;
   // How each station of a district stands, for its card, and what is waiting to be collected.
   const waitTime = (ms: number) => { const minutes = Math.ceil(ms / 60000); return t("world.crate.comeBack", { hours: Math.floor(minutes / 60), minutes: minutes % 60 }); };
-  const quests = questBoard(records, completeSeries, now), questsReady = quests.filter((quest) => quest.done && !quest.claimed).length;
   const spinReady = canSpin(records, now), done = new Set(trading.completed.map((item) => item.id));
   const forgeSets = trayGroups(collection, CATALOG_ORDER, "forge").length, spares = trayGroups(collection, CATALOG_ORDER, "recycler").reduce((sum, group) => sum + spare(collection, [], group), 0);
   const giftsLeft = PREVIEW_GIFTS.filter((gift) => !communityPreview.claimed.includes(gift.id)).length;
@@ -559,6 +559,7 @@ export default function FigurineWorld() {
       onCast={cast} onHook={hook} onDismiss={dismissCatch} onSheet={openSheet} onBack={leavePond} />}
     {view === "overview" && revealedWorld && <OverviewHud onNavigate={navigate} onHover={setNavHover} hovered={pointed} alerts={alerts} />}
     {isDistrict(view) && revealedWorld && <DistrictHud district={view} options={districtOptions[view]} hovered={navHover && navHover !== "opening" ? navHover : pointed} focused={focused} onFocus={setFocus} onOpen={navigate} onHover={setNavHover} onBack={back} />}
+    {revealedWorld && (view === "crate" || view === "quests" || view === "wheel") && <DailyNavigation active={view} onOpen={navigate} />}
     {revealedWorld && view !== "overview" && view !== "pond" && view !== "crate" && view !== "wheel" && !isDistrict(view) && (!isOverlayStation(view) || away) && <OverviewBack onBack={back} disabled={state.phase === "loading" || state.phase === "opening"} />}
     {view === "crate" && revealedWorld && <ChestHud ready={crate.ready} day={crate.day} remainingMs={crate.remainingMs} bonusReady={crate.bonusReady} busy={busy} onOpen={openDailyChest} onBack={back} />}
     {view === "wheel" && revealedWorld && <WheelHud ready={spinReady} busy={busy} turn={nextTurn("daily", now)} now={now} at={wheelAt} onSpin={panelActions.onSpin} onBack={back} />}

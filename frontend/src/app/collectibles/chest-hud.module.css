@@ -26,7 +26,7 @@
 .action[data-ready] { animation: ready 1.4s ease-in-out infinite alternate; }
 @keyframes ready { to { box-shadow: 0 0 44px rgba(255, 200, 90, .7), inset 0 1px 0 rgba(255, 255, 255, .55); filter: brightness(1.1); } }
 @media (max-width: 700px) {
-  .title { top: max(112px, calc(env(safe-area-inset-top) + 100px)); }
+  .title { top: calc(max(16px, env(safe-area-inset-top)) + 160px); }
   .action { min-width: 150px; padding-inline: 18px; font-size: 17px; }
   .streak { gap: 4px; }
   .streak li { width: 32px; height: 32px; font-size: 14px; }

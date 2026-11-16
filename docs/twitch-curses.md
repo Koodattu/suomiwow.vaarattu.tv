@@ -36,15 +36,29 @@ continues with randomized examples and themes. History survives restarts through
 the existing audit collection; concurrent requests can see the same history until
 their replies are sent and logged.
 
-Both aliases share a five-second cooldown per channel. Existing command-enabled
-settings, channel eligibility and shared-chat deduplication still apply. A
-bot-wide cap allows 100 generation attempts per Helsinki calendar day. Admission
+Both aliases share a five-second cooldown per viewer within a channel. Different
+viewers can request curses concurrently. All chat commands share a five-command
+burst allowance per channel: one slot returns every ten seconds, up to five.
+This admits simultaneous requests (including repeated prediction commands), then
+limits sustained traffic to six commands per minute once the burst is spent.
+Twenty quiet seconds restore two slots; fifty restore all five. Other commands
+have no personal cooldown, and switching commands or aliases does not bypass the
+channel allowance. Rejected requests stay silent and neither spend slots nor
+extend the wait. Slots are spent when processing starts, even if processing fails.
+Cooldowns are in memory and reset on backend process restart. Shared Chat uses
+the original source channel's allowance. The existing global outgoing queue still
+spaces replies by 1.5 seconds by default, so admission does not mean simultaneous
+delivery. The allowance also covers alerts permission-denial replies.
+
+Existing command-enabled settings, channel eligibility and shared-chat
+deduplication still apply. A bot-wide cap allows 100 generation attempts per
+Helsinki calendar day. Admission
 is an atomic conditional update in the existing `RateLimitState` collection,
 under `twitch:curse:daily`; the unique key prevents concurrent admissions beyond
 the cap. This state survives bot restarts. Failed generations also consume an
 attempt, so outages cannot bypass the cap. Over-limit requests receive a curated
 curse in the randomly selected style without calling the LLM or loading progression.
-The same five-second cooldown still applies.
+The same personal cooldown and channel burst allowance still apply.
 
 The channel's tracked guild supplies context. The most recently pulled,
 unkilled boss with logged pulls in an incomplete current Mythic raid is preferred;

@@ -3,12 +3,26 @@
 import { useTranslations } from "next-intl";
 import { LuChevronRight, LuArrowLeftRight, LuBadgePercent, LuBell, LuCrown, LuFerrisWheel, LuGift, LuHammer, LuPackageOpen, LuRecycle, LuScrollText, LuTrophy } from "react-icons/lu";
 import type { District, Station } from "@/lib/figurine-world";
+import { DISTRICTS } from "@/lib/figurine-world";
 import { OverviewBack } from "./OverviewHud";
 import { playFigurineCue } from "@/lib/figurine-audio";
 import styles from "./district-hud.module.css";
 
 const ICONS: Partial<Record<Station, typeof LuGift>> = { crate: LuPackageOpen, quests: LuScrollText, wheel: LuFerrisWheel, recycler: LuRecycle, forge: LuHammer, trading: LuArrowLeftRight, mail: LuGift, merchant: LuBadgePercent, feed: LuBell, fame: LuCrown, leaderboard: LuTrophy };
 export type DistrictOption = { station: Station; status: string; ready?: boolean };
+
+// Keep the daily stations reachable even when a panel covers their world models.
+export function DailyNavigation({ active, onOpen }: { active: typeof DISTRICTS.fair[number]; onOpen: (station: Station) => void }) {
+  const t = useTranslations("figurineLab.world");
+  return <nav className={styles.facilityNav} aria-label={t("overview.labels.fair")}>
+    {DISTRICTS.fair.map(station => {
+      const Icon = ICONS[station]!;
+      return <button key={station} type="button" aria-current={active === station || undefined} onClick={() => onOpen(station)}>
+        <Icon aria-hidden="true" /><span>{t(`stations.${station}`)}</span>
+      </button>;
+    })}
+  </nav>;
+}
 
 // A district from the square: its name, and a card for each station with how it stands right now.
 // Each card and its station in the world light up together. On a tall screen the world shows one

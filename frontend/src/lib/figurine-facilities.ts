@@ -73,6 +73,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
   let paintStreak: ((opened: number, today: number | null) => void) | null = null;
   let chestAnimation: ReturnType<typeof dailyChestAnimation> = null;
   let setChestReady: ((ready: boolean) => void) | undefined;
+  let setQuestsReady: ((ready: boolean) => void) | undefined;
   // The pond's glint (while prize catches remain), and the tackle under the pointer.
   let setPrizes: ((left: number) => void) | null = null, hover: ((part: string | null) => void) | null = null;
   let presentCatch: ((camera: THREE.PerspectiveCamera | null, reducedMotion: boolean, coinTarget: { x: number; y: number; width?: number } | null) => void) | null = null;
@@ -282,13 +283,15 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     prop("gift", 0.25, 0.32, 0.18, 0.3, 0.72);
     prop("giftRed", 0.2, 0.9, 0.2, -0.4, 0.72);
   } else if (kind === "quests") {
-    // Quest giver: the mission board hung by its chains from a beam, under a floating golden "!",
+    // Quest giver: the mission board under a golden "!" while rewards are claimable,
     // with the campaign table and its maps before it.
     for (const side of [-1, 1]) frame.push(add(new THREE.BoxGeometry(0.2, 3.2, 0.2), wood, side * 1.5, 1.6, -0.34));
     frame.push(add(new THREE.BoxGeometry(3.4, 0.2, 0.22), wood, 0, 3.14, -0.34));
     prop("questBoard", 2.75, 0, -0.26, -Math.PI / 2, 0.42);
     prop("questTable", 0.92, 0, 1.05, -Math.PI / 2);
     const mark = new THREE.Group(); mark.position.set(0, 3.75, -0.15); parent.add(mark);
+    mark.visible = false;
+    setQuestsReady = (ready) => { mark.visible = ready; };
     const glow = new THREE.MeshStandardMaterial({ color: 0xffd24a, emissive: 0xffb81c, emissiveIntensity: 0.9, metalness: 0.3, roughness: 0.35 });
     add(new THREE.BoxGeometry(0.13, 0.42, 0.13), glow, 0, 0.12, 0, mark);
     add(new THREE.SphereGeometry(0.085, 14, 10), glow, 0, -0.25, 0, mark);
@@ -920,6 +923,7 @@ export function buildFacility(parent: THREE.Group, kind: Facility, { placeProp, 
     setStreak(opened: number, today: number | null) { paintStreak?.(opened, today); },
     // Chest restocks independently of the once-per-day streak bonus.
     setChestReady(ready: boolean) { setChestReady?.(ready); },
+    setQuestsReady(ready: boolean) { setQuestsReady?.(ready); },
     // The pond: how many prize catches remain today (they glint under the water).
     setPrizes(left: number) { setPrizes?.(left); },
     // The working part under the pointer.

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { Types } from "mongoose";
 import Guild from "../src/models/Guild";
 import TwitchBotRuntimeState, { ITwitchBotChannelBan, ITwitchBotSharedChatSession } from "../src/models/TwitchBotRuntimeState";
@@ -60,31 +60,138 @@ type TwitchChatBotServiceInternals = {
   outboundQueue: Promise<void>;
   lastOutboundAt: number;
   lastInboundDiagnosticAt: number;
-  userCooldowns: Map<string, number>;
-  channelCommandCooldowns: Map<string, number>;
+  curseUserCooldowns: Map<string, number>;
+  channelCommandBuckets: Map<string, { tokens: number; refilledAt: number }>;
   isOnCooldown(channelName: string, user: string, commandName: string): boolean;
 };
 
-test("curse aliases share a five-second channel cooldown without changing other command limits", (t) => {
+function setupCommandCooldowns(t: TestContext) {
   const service = twitchChatBotService as unknown as TwitchChatBotServiceInternals;
-  const oldUsers = service.userCooldowns;
-  const oldChannels = service.channelCommandCooldowns;
-  service.userCooldowns = new Map();
-  service.channelCommandCooldowns = new Map();
-  t.after(() => { service.userCooldowns = oldUsers; service.channelCommandCooldowns = oldChannels; });
+  const oldUsers = service.curseUserCooldowns;
+  const oldChannels = service.channelCommandBuckets;
+  service.curseUserCooldowns = new Map();
+  service.channelCommandBuckets = new Map();
+  t.after(() => { service.curseUserCooldowns = oldUsers; service.channelCommandBuckets = oldChannels; });
   let now = 100_000;
   t.mock.method(Date, "now", () => now);
-  assert.equal(service.isOnCooldown("channel", "alice", twitchChatCommandService.parse("!curse")!.name), false);
-  now += 4999;
-  assert.equal(service.isOnCooldown("channel", "bob", twitchChatCommandService.parse("!kirous")!.name), true);
-  now += 1;
-  assert.equal(service.isOnCooldown("channel", "alice", "curse"), false);
-  assert.equal(service.isOnCooldown("other_channel", "bob", "curse"), false);
-  assert.equal(service.isOnCooldown("channel", "charlie", "best"), false);
-  now += 5000;
-  assert.equal(service.isOnCooldown("channel", "dave", "best"), true);
-  now += 5000;
-  assert.equal(service.isOnCooldown("channel", "dave", "best"), false);
+  return { service, setTime: (elapsed: number) => { now = 100_000 + elapsed; } };
+}
+
+test("allows five commands per channel, sharing the allowance across commands and aliases", (t) => {
+  const { service } = setupCommandCooldowns(t);
+  for (const text of ["!ennustus", "!prediction", "!ennustus", "!best", "!log"]) {
+    assert.equal(service.isOnCooldown("channel", "alice", twitchChatCommandService.parse(text)!.name), false, text);
+  }
+  assert.equal(service.isOnCooldown("channel", "bob", "search"), true);
+  assert.equal(service.isOnCooldown("channel", "bob", "curse"), true);
+  assert.equal(service.isOnCooldown("other_channel", "alice", "prediction"), false);
+});
+
+test("refills one command every ten seconds without rejected spam extending the wait", (t) => {
+  const { service, setTime } = setupCommandCooldowns(t);
+  for (let i = 0; i < 5; i++) assert.equal(service.isOnCooldown("channel", "alice", "prediction"), false);
+  for (let now = 1000; now < 10000; now += 1000) {
+    setTime(now);
+    assert.equal(service.isOnCooldown("channel", "bob", "best"), true);
+  }
+  setTime(9999);
+  assert.equal(service.isOnCooldown("channel", "bob", "prediction"), true);
+  setTime(10000);
+  assert.equal(service.isOnCooldown("channel", "bob", "prediction"), false);
+  assert.equal(service.isOnCooldown("channel", "carol", "log"), true);
+  setTime(25000);
+  assert.equal(service.isOnCooldown("channel", "carol", "log"), false);
+  assert.equal(service.isOnCooldown("channel", "carol", "log"), true);
+  setTime(29999);
+  assert.equal(service.isOnCooldown("channel", "carol", "log"), true);
+  setTime(30000);
+  assert.equal(service.isOnCooldown("channel", "carol", "log"), false);
+});
+
+test("quiet time restores partial bursts and caps a fully recovered channel at five", (t) => {
+  const { service, setTime } = setupCommandCooldowns(t);
+  for (let i = 0; i < 5; i++) assert.equal(service.isOnCooldown("channel", "alice", "prediction"), false);
+  setTime(20000);
+  for (let i = 0; i < 2; i++) assert.equal(service.isOnCooldown("channel", "alice", "prediction"), false);
+  assert.equal(service.isOnCooldown("channel", "alice", "prediction"), true);
+  for (const now of [70000, 3600000]) {
+    setTime(now);
+    for (let i = 0; i < 5; i++) assert.equal(service.isOnCooldown("channel", "alice", "prediction"), false);
+    assert.equal(service.isOnCooldown("channel", "alice", "prediction"), true);
+  }
+});
+
+test("curse aliases share only a five-second personal cooldown within their channel", (t) => {
+  const { service, setTime } = setupCommandCooldowns(t);
+  const curse = twitchChatCommandService.parse("!curse")!.name;
+  const kirous = twitchChatCommandService.parse("!kirous")!.name;
+  assert.equal(service.isOnCooldown("channel", "Alice", curse), false);
+  assert.equal(service.isOnCooldown("channel", "alice", kirous), true);
+  assert.equal(service.isOnCooldown("channel", "bob", kirous), false);
+  assert.equal(service.isOnCooldown("channel", "alice", "prediction"), false);
+  assert.equal(service.isOnCooldown("other_channel", "alice", kirous), false);
+  setTime(4999);
+  assert.equal(service.isOnCooldown("channel", "ALICE", curse), true);
+  setTime(5000);
+  assert.equal(service.isOnCooldown("channel", "alice", kirous), false);
+  // Rejected personal attempts consumed no channel slots.
+  assert.equal(service.isOnCooldown("channel", "carol", curse), false);
+  assert.equal(service.isOnCooldown("channel", "dave", curse), true);
+  setTime(9999);
+  assert.equal(service.isOnCooldown("channel", "dave", curse), true);
+  setTime(10000);
+  // Rejection by the channel limit did not start Dave's personal cooldown.
+  assert.equal(service.isOnCooldown("channel", "dave", curse), false);
+});
+
+for (const command of ["!ennustus", "!kirous", "!alerts off"]) {
+  test(`concurrent ${command} requests admit five viewers and limit the sixth`, async (t) => {
+    const { service } = setupCommandCooldowns(t);
+    const internals = service as any;
+    t.mock.method(internals, "recordInboundDiagnostic", () => {});
+    t.mock.method(internals, "recordInboundAudit", async () => undefined);
+    t.mock.method(internals, "recordCommandDiagnostic", () => {});
+    const outcomes = t.mock.method(internals, "recordCommandOutcome", async () => {});
+    t.mock.method(internals, "isChannelAllowedToChat", async () => true);
+    t.mock.method(internals, "getChannelSettings", async () => ({ commandsEnabled: true }));
+    t.mock.method(internals, "getSettings", async () => ({ includeUrl: false }));
+    const replies: string[] = [];
+    t.mock.method(internals, "queueSay", async (_channel: string, _text: string, context: { userName: string }) => {
+      replies.push(context.userName);
+    });
+    t.mock.method(twitchChatCommandService, "handle", async () => "Test reply");
+    await Promise.all(Array.from({ length: 6 }, (_, i) => service.handleMessage("#channel", `viewer${i}`, command)));
+    assert.deepEqual(replies.sort(), ["viewer0", "viewer1", "viewer2", "viewer3", "viewer4"]);
+    assert.equal(outcomes.mock.calls.filter((call: { arguments: unknown[] }) => call.arguments[2] === "cooldown").length, 1);
+  });
+}
+
+test("shared chat commands consume the source channel allowance", async (t) => {
+  const { service } = setupCommandCooldowns(t);
+  const internals = service as any;
+  const oldChannels = service.sharedChatChannelByBroadcasterId;
+  service.sharedChatChannelByBroadcasterId = new Map([["source-id", "source"]]);
+  t.after(() => { service.sharedChatChannelByBroadcasterId = oldChannels; });
+  t.mock.method(internals, "isDuplicateSharedChatMessage", () => false);
+  t.mock.method(internals, "recordInboundDiagnostic", () => {});
+  t.mock.method(internals, "recordInboundAudit", async () => undefined);
+  t.mock.method(internals, "recordCommandDiagnostic", () => {});
+  t.mock.method(internals, "recordCommandOutcome", async () => {});
+  t.mock.method(internals, "isChannelAllowedToChat", async () => true);
+  t.mock.method(internals, "getChannelSettings", async () => ({ commandsEnabled: true }));
+  t.mock.method(internals, "getSettings", async () => ({ includeUrl: false }));
+  const replies = t.mock.method(internals, "queueSay", async () => {});
+  t.mock.method(twitchChatCommandService, "handle", async () => "Test reply");
+  for (let i = 0; i < 5; i++) {
+    await service.handleMessage("#representative", "viewer", "!ennustus", {
+      id: `message-${i}`, sourceChannelId: "source-id", parentMessageUserName: null,
+      userInfo: { userId: "viewer-id", displayName: "Viewer", isBroadcaster: false },
+    });
+  }
+  await service.handleMessage("#source", "viewer", "!prediction");
+  assert.equal(replies.mock.callCount(), 5);
+  await service.handleMessage("#representative", "viewer", "!prediction");
+  assert.equal(replies.mock.callCount(), 6);
 });
 
 test("unexpected curse failures stay silent while other commands retain their error reply", async (t) => {
@@ -267,8 +374,8 @@ test("audits command replies, unsupported commands, and bot mentions", async () 
   service.outboundQueue = Promise.resolve();
   service.lastOutboundAt = 0;
   service.lastInboundDiagnosticAt = 0;
-  service.userCooldowns.clear();
-  service.channelCommandCooldowns.clear();
+  service.curseUserCooldowns.clear();
+  service.channelCommandBuckets.clear();
   process.env.TWITCH_BOT_HOME_CHANNEL = "vaarattu";
 
   try {
@@ -309,8 +416,8 @@ test("audits command replies, unsupported commands, and bot mentions", async () 
     service.outboundQueue = Promise.resolve();
     service.lastOutboundAt = 0;
     service.lastInboundDiagnosticAt = 0;
-    service.userCooldowns.clear();
-    service.channelCommandCooldowns.clear();
+    service.curseUserCooldowns.clear();
+    service.channelCommandBuckets.clear();
     if (originalHomeChannel === undefined) delete process.env.TWITCH_BOT_HOME_CHANNEL;
     else process.env.TWITCH_BOT_HOME_CHANNEL = originalHomeChannel;
   }
@@ -359,8 +466,8 @@ test("lets the broadcaster persistently turn channel progress alerts off", async
   service.diagnosticQueue = Promise.resolve();
   service.outboundQueue = Promise.resolve();
   service.lastOutboundAt = 0;
-  service.userCooldowns.clear();
-  service.channelCommandCooldowns.clear();
+  service.curseUserCooldowns.clear();
+  service.channelCommandBuckets.clear();
   process.env.TWITCH_BOT_HOME_CHANNEL = "vaarattu";
 
   try {
@@ -390,8 +497,8 @@ test("lets the broadcaster persistently turn channel progress alerts off", async
     service.diagnosticQueue = Promise.resolve();
     service.outboundQueue = Promise.resolve();
     service.lastOutboundAt = 0;
-    service.userCooldowns.clear();
-    service.channelCommandCooldowns.clear();
+    service.curseUserCooldowns.clear();
+    service.channelCommandBuckets.clear();
     if (originalHomeChannel === undefined) delete process.env.TWITCH_BOT_HOME_CHANNEL;
     else process.env.TWITCH_BOT_HOME_CHANNEL = originalHomeChannel;
   }
