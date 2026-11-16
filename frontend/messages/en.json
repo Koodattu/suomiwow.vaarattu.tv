@@ -2703,6 +2703,7 @@
       "subsets": "Input includes cache reads and writes. Output includes reasoning tokens.",
       "empty": "No calls in this period for the selected features.",
       "history": "Call history",
+      "historyNote": "Successful status checks are hidden here but included in request totals. Failed checks remain visible.",
       "time": "Time (UTC)",
       "endpoint": "Operation",
       "status": "Status",

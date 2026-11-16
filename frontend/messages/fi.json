@@ -2703,6 +2703,7 @@
       "subsets": "Syötteen tokenimäärä sisältää välimuistin luvut ja kirjoitukset. Vastauksen tokenimäärä sisältää päättelyn.",
       "empty": "Valituilla toiminnoilla ei ole kutsuja tällä ajanjaksolla.",
       "history": "Kutsuhistoria",
+      "historyNote": "Onnistuneet tilakyselyt on piilotettu tästä, mutta ne sisältyvät kutsujen kokonaismääriin. Epäonnistuneet kyselyt näkyvät edelleen.",
       "time": "Aika (UTC)",
       "endpoint": "Kutsu",
       "status": "Tila",

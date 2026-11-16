@@ -28,7 +28,7 @@ export default function AiUsagePanel() {
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" });
   const amount = (nano?: number | null) => nano == null ? t("unknown") : currency.format(nano / 1e9);
   const subtotal = (v: AiUsageTotals) => v.calls > 0 && v.unpriced === v.calls ? t("unknown") : amount(v.costNanoUsd);
-  const pages = data ? Math.max(1, Math.ceil(data.totals.calls / data.pageSize)) : 1;
+  const pages = data ? Math.max(1, Math.ceil(data.historyTotal / data.pageSize)) : 1;
   const features = data?.features ?? (feature ? [feature] : []);
   const card = (label: string, value: string, note: string) => <div className={`${panel} p-4`}>
     <dt className="text-sm text-gray-300">{label}</dt>
@@ -84,7 +84,10 @@ export default function AiUsagePanel() {
         </div> : <p className="p-4 text-sm text-gray-400">{t("empty")}</p>}
       </section>
       <section className={panel}>
-        <h3 className="p-4 text-lg font-medium">{t("history")}</h3>
+        <div className="p-4">
+          <h3 className="text-lg font-medium">{t("history")}</h3>
+          <p className="mt-1 text-xs text-gray-400">{t("historyNote")}</p>
+        </div>
         {data.calls.length ? <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-900/60 text-gray-300"><tr>

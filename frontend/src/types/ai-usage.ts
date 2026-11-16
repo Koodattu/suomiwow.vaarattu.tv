@@ -20,6 +20,7 @@ export interface AiUsageReport {
   totals: AiUsageTotals;
   byFeature: (AiUsageTotals & { _id: string })[];
   pageSize: number;
+  historyTotal: number;
   calls: {
     _id: string;
     at: string;

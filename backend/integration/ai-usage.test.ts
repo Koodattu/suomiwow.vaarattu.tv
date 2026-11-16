@@ -44,9 +44,11 @@ test("HTTP attempts, background billing, admin access, filtering and pagination"
   await fail("https://api.openai.com/v1/responses", { method: "POST" });
   const timeout = meteredFetch("twitchCurse", model, async () => { throw new Error("private timeout"); });
   await assert.rejects(timeout("https://api.openai.com/v1/responses", { method: "POST" }), /private timeout/);
+  const failedPoll = meteredFetch("namegame", model, async () => Response.json({ error: { message: "private failure" } }, { status: 503 }));
+  await failedPoll("https://api.openai.com/v1/responses/resp_original");
 
   const summary = await usageReport(7, 1);
-  assert.deepEqual(summary.totals, { calls: 7, polls: 3, failures: 2, unpriced: 2, inputTokens: 300, outputTokens: 33,
+  assert.deepEqual(summary.totals, { calls: 8, polls: 4, failures: 3, unpriced: 2, inputTokens: 300, outputTokens: 33,
     cachedInputTokens: 10, cacheWriteTokens: 6, reasoningTokens: 24, totalTokens: 333, costNanoUsd: 42_000 });
   assert.equal(summary.calls.find(c => c.endpoint === "decisions")?.cacheWrite12hTokens, 2);
   assert.equal(summary.byFeature[0]._id, "namegame");
@@ -54,17 +56,27 @@ test("HTTP attempts, background billing, admin access, filtering and pagination"
   assert.equal(original?.requestId, "req_1");
   assert.equal(original?.status, "completed");
   assert.equal(original?.costNanoUsd, 32_500);
-  assert.equal(summary.calls.filter(c => c.endpoint === "poll" && c.costNanoUsd === 0).length, 3);
+  assert.equal(summary.historyTotal, 5);
+  assert.equal(summary.calls.length, 5);
+  assert.deepEqual(summary.calls.filter(c => c.endpoint === "poll").map(c => c.httpStatus), [503]);
+  assert.equal(await AiCall.countDocuments({ endpoint: "poll", status: "completed", costNanoUsd: 0 }), 3);
   assert.doesNotMatch(JSON.stringify(summary), /private/);
 
   // Cross midnight UTC and both sides of the page boundary with deterministic entries.
   const midnight = new Date("2025-01-02T00:00:00Z");
   await AiCall.insertMany(Array.from({ length: 27 }, (_, i) => ({ _id: "history_" + i, at: new Date(midnight.getTime() + i - 1),
     feature: "supporterArt", endpoint: "responses", status: "completed", costNanoUsd: 0 })));
+  // Hidden polls must neither displace visible calls nor inflate the number of history pages.
+  await AiCall.insertMany(Array.from({ length: 30 }, (_, i) => ({ _id: "poll_" + i, at: new Date(midnight.getTime() + i),
+    feature: "supporterArt", endpoint: "poll", status: "completed", costNanoUsd: 0 })));
   const end = new Date("2025-01-02T12:00:00Z");
   const [p1, p2] = await Promise.all([usageReport(1, 1, "supporterArt", end), usageReport(1, 2, "supporterArt", end)]);
-  assert.equal(p1.totals.calls, 26);
+  assert.equal(p1.totals.calls, 56);
+  assert.equal(p1.totals.polls, 30);
+  assert.equal(p1.historyTotal, 26);
   assert.equal(p1.calls.length, 25);
+  assert.ok(p1.calls.every(c => c.endpoint === "responses"));
+  assert.equal(p2.historyTotal, 26);
   assert.deepEqual(p2.calls.map(c => c._id), ["history_1"]);
   assert.equal((await usageReport(7, 1, "guildLanguage")).totals.calls, 1);
 
@@ -85,5 +97,7 @@ test("HTTP attempts, background billing, admin access, filtering and pagination"
   const report = await fetch(url + "?days=7&feature=namegame", admin);
   assert.equal(report.status, 200);
   assert.match(report.headers.get("cache-control") ?? "", /private, no-store/);
-  assert.equal((await report.json() as typeof summary).totals.calls, 4);
+  const namegame = await report.json() as typeof summary;
+  assert.equal(namegame.totals.calls, 5);
+  assert.equal(namegame.historyTotal, 2);
 });

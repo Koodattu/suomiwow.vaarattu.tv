@@ -16,16 +16,18 @@ const zero = Object.fromEntries(Object.keys(metrics).map(key => [key, 0])) as To
 export async function usageReport(days: number, page: number, feature?: AiFeature, now = new Date()) {
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days + 1));
   const match = { at: { $gte: start, $lte: now }, ...(feature && { feature }) };
+  const historyMatch = { ...match, $or: [{ endpoint: { $ne: "poll" } }, { status: { $ne: "completed" } }] };
   const pageSize = 25;
-  const [grouped, calls, first] = await Promise.all([
+  const [grouped, calls, historyTotal, first] = await Promise.all([
     AiCall.aggregate<{ totals: Totals[]; byFeature: (Totals & { _id: string })[] }>([
       { $match: match }, { $facet: { totals: [{ $group: { _id: null, ...metrics } }, { $project: { _id: 0 } }],
         byFeature: [{ $group: { _id: "$feature", ...metrics } }, { $sort: { costNanoUsd: -1, _id: 1 } }] } },
     ]),
-    AiCall.find(match).sort({ at: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).select("-__v").lean(),
+    AiCall.find(historyMatch).sort({ at: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).select("-__v").lean(),
+    AiCall.countDocuments(historyMatch),
     AiCall.findOne().sort({ at: 1, _id: 1 }).select("at").lean(),
   ]);
-  return { start, end: now, firstRecordedAt: first?.at ?? null, pageSize, features: AI_FEATURES,
+  return { start, end: now, firstRecordedAt: first?.at ?? null, pageSize, historyTotal, features: AI_FEATURES,
     totals: grouped[0]?.totals[0] ?? zero, byFeature: grouped[0]?.byFeature ?? [], calls };
 }
 
