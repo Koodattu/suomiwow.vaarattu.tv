@@ -6,14 +6,14 @@ import ts from "typescript";
 
 const exports = {};
 const source = readFileSync(new URL("../src/lib/forever-guilds.ts", import.meta.url), "utf8");
-runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports });
-const { filterForeverGuilds, filterForeverRoster, emptyGuildFilters } = exports;
+runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports, URLSearchParams });
+const { filterForeverGuilds, filterForeverRoster, emptyGuildFilters, readGuildDirectoryQuery, guildDirectoryQuery } = exports;
 const guilds = [
   { _id: "1", name: "Näätä [EU]", rosterCount: 20, ruleset: "Normal", faction: "Alliance" },
   { _id: "2", name: "Alpha", rosterCount: 50, ruleset: "Hardcore", faction: "Horde" },
   { _id: "3", name: "Beta", rosterCount: 50, ruleset: "Normal", faction: "Horde" },
   { _id: "4", name: "Zulu", rosterCount: 0, ruleset: null, faction: null },
-];
+].map(guild => ({ ...guild, lastFetchedAt: "2026-11-16T10:00:00Z" }));
 const ids = values => Array.from(values, value => value._id);
 
 test("guild search is literal, Unicode-normalized and combined with faction/ruleset filters", () => {
@@ -40,6 +40,25 @@ test("roster search and level/name sorting retain untracked members and place un
   assert.deepEqual(names("", "nameDesc"), ["Zulu", "Beta", "Alpha"]);
   assert.deepEqual(names(" ALPHA ", "levelDesc"), ["Alpha"]);
   assert.deepEqual(roster.map(member => member.name), ["Zulu", "Alpha", "Beta"]);
+});
+
+test("unknown roster sizes sort after known sizes, including confirmed empty guilds", () => {
+  const data = [...guilds, { ...guilds[0], _id: "5", name: "Awaiting roster", lastFetchedAt: null, rosterCount: 0 }];
+  assert.deepEqual(ids(filterForeverGuilds(data, emptyGuildFilters, "sizeAsc", "en")), ["4", "1", "2", "3", "5"]);
+  assert.deepEqual(ids(filterForeverGuilds(data, emptyGuildFilters, "sizeDesc", "en")), ["2", "3", "1", "4", "5"]);
+});
+
+test("directory URLs preserve all browsing choices for roster return links without accepting unrelated parameters", () => {
+  const params = new URLSearchParams({ search: "Näätä & Co", ruleset: "Normal", faction: "Alliance", sort: "nameDesc", page: "3", redirect: "https://example.com" });
+  const state = readGuildDirectoryQuery(params), saved = guildDirectoryQuery(state);
+  assert.deepEqual(readGuildDirectoryQuery(new URLSearchParams(saved)), state);
+  assert.equal(new URLSearchParams(saved).get("search"), "Näätä & Co");
+  assert.equal(new URLSearchParams(saved).has("redirect"), false);
+  assert.equal(guildDirectoryQuery(readGuildDirectoryQuery(new URLSearchParams())), "");
+  for (const value of ["0", "-1", "NaN", "2.5", "99999999999"]) {
+    assert.equal(readGuildDirectoryQuery(new URLSearchParams({ page: value, sort: "invalid" })).page, 1);
+    assert.equal(readGuildDirectoryQuery(new URLSearchParams({ page: value, sort: "invalid" })).sort, "sizeDesc");
+  }
 });
 
 test("guild translations cover the same keys in both maintained languages", () => {

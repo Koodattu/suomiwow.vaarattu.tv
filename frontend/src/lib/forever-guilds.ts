@@ -15,14 +15,38 @@ export const rosterSorts = ["levelDesc", "levelAsc", "nameAsc", "nameDesc"] as c
 export type RosterSort = typeof rosterSorts[number];
 export const emptyGuildFilters = { search: "", faction: "", ruleset: "" };
 
+export function readGuildDirectoryQuery(params: Pick<URLSearchParams, "get">) {
+  const sort = params.get("sort"), page = params.get("page") || "1";
+  return {
+    search: (params.get("search") || "").slice(0, 100), faction: params.get("faction") || "", ruleset: params.get("ruleset") || "",
+    sort: guildSorts.includes(sort as GuildSort) ? sort as GuildSort : "sizeDesc" as GuildSort,
+    page: /^[1-9]\d{0,6}$/.test(page) ? Number(page) : 1,
+  };
+}
+
+export function guildDirectoryQuery(state: ReturnType<typeof readGuildDirectoryQuery>) {
+  const params = new URLSearchParams();
+  for (const field of ["search", "faction", "ruleset"] as const) if (state[field]) params.set(field, state[field]);
+  if (state.sort !== "sizeDesc") params.set("sort", state.sort);
+  if (state.page > 1) params.set("page", String(state.page));
+  return params.size ? `?${params}` : "";
+}
+
 export function filterForeverGuilds(guilds: PublicForeverGuild[], filters: typeof emptyGuildFilters, sort: GuildSort, locale: string) {
   const search = filters.search.trim().normalize("NFC").toLocaleLowerCase(locale);
   const byName = (a: PublicForeverGuild, b: PublicForeverGuild) => a.name.localeCompare(b.name, locale) || a._id.localeCompare(b._id);
   return guilds.filter(guild => (!search || guild.name.normalize("NFC").toLocaleLowerCase(locale).includes(search)) &&
     (!filters.faction || (guild.faction || "unknown") === filters.faction) &&
     (!filters.ruleset || (guild.ruleset || "unknown") === filters.ruleset))
-    .sort((a, b) => sort === "sizeDesc" ? b.rosterCount - a.rosterCount || byName(a, b) :
-      sort === "sizeAsc" ? a.rosterCount - b.rosterCount || byName(a, b) : sort === "nameDesc" ? -byName(a, b) : byName(a, b));
+    .sort((a, b) => {
+      if (sort === "nameAsc") return byName(a, b);
+      if (sort === "nameDesc") return -byName(a, b);
+      // An unfetched roster is unknown, not a zero-member guild.
+      if (!a.lastFetchedAt && !b.lastFetchedAt) return byName(a, b);
+      if (!a.lastFetchedAt) return 1;
+      if (!b.lastFetchedAt) return -1;
+      return (sort === "sizeDesc" ? b.rosterCount - a.rosterCount : a.rosterCount - b.rosterCount) || byName(a, b);
+    });
 }
 
 export function filterForeverRoster(roster: ForeverRosterMember[], search: string, sort: RosterSort, locale: string) {

@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { use, useMemo, useState } from "react";
+import { Suspense, use, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
-import { GuildHeader, GuildPagination, guildPageSize } from "@/components/forever/ForeverGuildShared";
+import { GuildDirectoryBackLink, GuildHeader, GuildPagination, guildPageSize } from "@/components/forever/ForeverGuildShared";
 import { classColor, Faction, ForeverDate, ForeverErrorMessage } from "@/components/forever/ForeverShared";
 import { foreverApi, foreverCharacterPath, foreverRace } from "@/lib/forever-api";
 import { filterForeverRoster, rosterSorts, type RosterSort, type PublicForeverGuildDetail } from "@/lib/forever-guilds";
@@ -23,7 +23,7 @@ export default function ForeverGuildPage({ params }: { params: Promise<{ id: str
   const roster = useMemo(() => filterForeverRoster(guild?.roster ?? [], search, sort, locale), [guild, search, sort, locale]);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(roster.length / guildPageSize)));
   return <div className={world.world}><div className={world.shell}>
-    <Link className={world.backToBoard} href="/forever/guilds">← {t("guilds.back")}</Link>
+    <Suspense fallback={<Link className={world.backToBoard} href="/forever/guilds">← {t("guilds.back")}</Link>}><GuildDirectoryBackLink id={id} /></Suspense>
     <GuildHeader name={guild?.name} />
     {query.error && <div className={styles.error}><ForeverErrorMessage error={query.error} /><button className={world.button} onClick={() => void query.refetch()}>{t("progress.tryAgain")}</button></div>}
     {query.isPending && <p className={world.empty} role="status">{t("loading")}</p>}

@@ -6,6 +6,9 @@ The Forever hub and navigation link to `/forever/guilds`. The public directory a
 `GET /api/forever/guilds` includes every approved, non-hidden guild, including those
 waiting for their first roster. Search, faction/ruleset filters and name/size sorting
 run in the browser over the summaries; lists display 50 results per page.
+Browsing choices are kept in the URL. Returning from a roster restores the filtered
+page and focuses the guild's row. On phones, rows keep member counts visible without
+horizontal scrolling. Unfetched roster sizes sort after known sizes in either direction.
 
 `GET /api/forever/guilds/:id` applies the same visibility rules and returns the saved
 Armory roster, including untracked members and marked outdated entries. Only publicly
