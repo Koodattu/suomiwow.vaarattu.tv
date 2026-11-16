@@ -15,6 +15,18 @@ export type GuildLanguageEvidence = { guildName: string; characterNames: string[
 export type GuildLanguageDecision = { percent: number; yes: boolean; confidence: "low" | "medium" | "high" };
 export type GuildLanguageScores = { structured?: number | null; decision?: GuildLanguageDecision | null };
 
+export const guildsAwaitingLanguageReview = {
+  status: { $in: ["proposed", "pending"] as const }, hidden: { $ne: true }, manualReviewAt: null,
+};
+
+export function guildLanguageAutoAction(scores: GuildLanguageScores): "approved" | "rejected" | null {
+  const values = [scores.structured, scores.decision?.percent];
+  if (!values.every(value => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100)) return null;
+  if (values.every(value => value! > 85)) return "approved";
+  if (values.every(value => value! < 30)) return "rejected";
+  return null;
+}
+
 export function guildsReadyForLanguageAssessment(now: Date) {
   return { $or: [
     { languageDueAt: { $lte: now } },
@@ -22,6 +34,7 @@ export function guildsReadyForLanguageAssessment(now: Date) {
       { "languageAssessment.structured": null },
       { "languageAssessment.decision": null },
       { "languageAssessment.source": "profiles" as const, lastFetchedAt: { $ne: null } },
+      { ...guildsAwaitingLanguageReview, "languageAssessment.automationChecked": { $ne: true } },
     ] },
   ] };
 }

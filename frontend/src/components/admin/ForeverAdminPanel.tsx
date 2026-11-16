@@ -46,6 +46,10 @@ function GuildLanguageEstimate({ guild, compact = false }: { guild: ForeverGuild
     <div className={styles.languageEstimateInfo}>
       <h4>{t("title")}</h4>
       <p className={styles.adminHelp}>{result ? <>{t(result.source, { count: result.nameCount })} · <ForeverDate value={result.assessedAt} /></> : t("unscored")}</p>
+      {guild.autoReview && <p className={styles.adminHelp}>
+        <strong>{t(`auto-${guild.autoReview.action}`)}</strong> · <ForeverDate value={guild.autoReview.reviewedAt} /><br />
+        {t("actionScores", { structured: pct(guild.autoReview.structured), decision: pct(guild.autoReview.decision) })}
+      </p>}
     </div>
     {result && <>
       <dl><div><dt>{t("structured")}</dt><dd>{pct(result.structured)}</dd></div>
@@ -88,7 +92,8 @@ export default function ForeverAdminPanel() {
   const bulk = (action: string) => void act("characters/bulk", "POST", { ids: selectedVisible.map((character) => character._id), action });
   const changeCharacterPage = (page: number) => { setCharacterPage(page); setSelected([]); };
   const total = (counts?: Record<string, number>) => Object.values(counts || {}).reduce((sum, count) => sum + count, 0);
-  const activeGuild = guild.data;
+  // Overview polling can observe an automatic action before the roster detail refreshes.
+  const activeGuild = guild.data ? { ...guild.data, ...data?.guilds.find(entry => entry._id === guild.data._id) } : undefined;
   const members = activeGuild?.roster?.filter((member) => `${member.name} ${member.className}`.toLocaleLowerCase().includes(rosterSearch.toLocaleLowerCase())) || [];
 
   return <div className={styles.adminPanel}>
@@ -150,15 +155,17 @@ export default function ForeverAdminPanel() {
     </section> : <section aria-label={t("discoveredGuilds")}>
       <div className={styles.adminGuildToolbar}>
         <label className={styles.adminSearch}>{t("admin.searchGuilds")}<input className={styles.input} type="search" maxLength={100} value={guildSearch} onChange={(event) => { setGuildSearch(event.target.value); setGuildPage(1); setGuildId(null); setRosterSearch(""); }} /></label>
-        <label className={styles.adminFilter}>{t("status")}<select className={controlClass} value={guildFilter} onChange={(event) => { setGuildFilter(event.target.value); setGuildPage(1); setGuildId(null); }}>{["all", "proposed", "pending", "approved", "paused", "rejected"].map((status) => <option key={status} value={status}>{t(`statuses.${status}`)}</option>)}</select></label>
+        <label className={styles.adminFilter}>{t("status")}<select className={controlClass} value={guildFilter} onChange={(event) => { setGuildFilter(event.target.value); setGuildPage(1); setGuildId(null); }}>{["all", "proposed", "pending", "approved", "paused", "rejected", "auto-approved", "auto-rejected"].map((status) => <option key={status} value={status}>{t(status.startsWith("auto-") ? `admin.language.${status}` : `statuses.${status}`)}</option>)}</select></label>
         <label className={`${styles.adminFilter} ${styles.adminGuildSort}`}>{t("admin.guildSort.label")}<select className={controlClass} value={guildSort} onChange={(event) => { setGuildSort(event.target.value); setGuildPage(1); setGuildId(null); setRosterSearch(""); }}>{["name", "structured-desc", "structured-asc", "decision-desc", "decision-asc"].map((sort) => <option key={sort} value={sort}>{t(`admin.guildSort.${sort}`)}</option>)}</select></label>
         <button className={buttonClass} disabled={busy || !data || !total(data.guildCounts) || data.languagePending > 0}
           onClick={() => void act("guild-language", "POST")}>{t("admin.language.run")}</button>
         {!!data?.languagePending && <span className={styles.adminHelp} role="status">{t("admin.language.pending", { count: data.languagePending })}</span>}
       </div>
+      <p className={styles.adminHelp}>{t("admin.language.automation")}</p>
+      {guildFilter.startsWith("auto-") && <p className={styles.adminHelp}>{t("admin.language.historyNote")}</p>}
       {overview.isPending ? <p role="status">{t("loading")}</p> : <div className={styles.adminGuildGrid}>
         <div><div className={styles.adminGuildList}>{data?.guilds.map((entry) => <button className={styles.adminGuildChoice} key={entry._id} aria-pressed={activeGuildId === entry._id} onClick={() => { setGuildId(entry._id); setRosterSearch(""); }}>
-          <strong>{entry.name}{entry.hidden && <small className={styles.hiddenBadge}>{t("admin.hidden")}</small>}</strong><span>{t(`statuses.${entry.status}`)} · {entry.lastFetchedAt ? t("rosterCount", { count: entry.rosterCount || 0 }) : t("admin.rosterNotLoaded")}</span><GuildLanguageEstimate guild={entry} compact /><FetchState errorCode={entry.errorCode} /></button>)}</div>
+          <strong>{entry.name}{entry.hidden && <small className={styles.hiddenBadge}>{t("admin.hidden")}</small>}</strong><span>{t(`statuses.${entry.status}`)} · {entry.lastFetchedAt ? t("rosterCount", { count: entry.rosterCount || 0 }) : t("admin.rosterNotLoaded")}</span>{entry.autoReview && <span>{t(`admin.language.auto-${entry.autoReview.action}`)}</span>}<GuildLanguageEstimate guild={entry} compact /><FetchState errorCode={entry.errorCode} /></button>)}</div>
           {!data?.guilds.length && <p className={styles.empty}>{t("admin.noGuildMatches")}</p>}
           <Pagination page={guildPage} total={data?.totalGuilds || 0} onChange={(page) => { setGuildPage(page); setGuildId(null); }} disabled={busy} />
         </div>

@@ -1,5 +1,29 @@
 {
   "forever": {
+    "guilds": {
+      "title": "Killat",
+      "description": "Selaa hyväksyttyjä, seurannassa olevia kiltoja ja tutustu niiden jäseniin.",
+      "search": "Etsi kiltaa",
+      "searchRoster": "Etsi jäsentä",
+      "sort": "Järjestä",
+      "sorts": { "sizeDesc": "Suurimmat ensin", "sizeAsc": "Pienimmät ensin", "nameAsc": "Nimi A–Ö", "nameDesc": "Nimi Ö–A", "levelDesc": "Korkein taso", "levelAsc": "Matalin taso" },
+      "members": "Jäseniä",
+      "roster": "Jäsenet",
+      "count": "{count} / {total} kiltaa",
+      "rosterCount": "{count} / {total} jäsentä",
+      "back": "Kaikki killat",
+      "pages": "Kiltojen ja jäsenten sivut",
+      "empty": "Ei vielä hyväksyttyjä kiltoja.",
+      "noMatches": "Näillä suodattimilla ei löytynyt kiltoja. Kokeile toista hakua tai tyhjennä suodattimet.",
+      "noMembers": "Haulla ei löytynyt jäseniä.",
+      "emptyRoster": "Viimeisimmässä jäsenlistassa ei ole jäseniä.",
+      "awaitingRoster": "Odotetaan ensimmäistä jäsenlistan päivitystä.",
+      "outdated": "Vanhentunut Armory-tieto",
+      "classificationNote": "Pelimuoto vahvistetaan jäsenten profiileista. Tuntematon tarkoittaa, ettei yhtenäistä tietoa ole vielä riittävästi.",
+      "rosterNote": "Jäsenet viimeisimmästä Armory-listasta. Seurattavien hahmojen nimistä pääsee niiden profiileihin.",
+      "tableScroll": "Killat — vieritä vaakasuunnassa nähdäksesi lisää sarakkeita",
+      "rosterScroll": "Jäsenet — vieritä vaakasuunnassa nähdäksesi lisää sarakkeita"
+    },
     "namegame": {
       "title": "Nimipeli",
       "description": "Hauskimmat hahmonimet GPT-6 Lunan pisteyttämänä asteikolla 0–100.",
@@ -174,6 +198,11 @@
       },
       "language": {
         "title": "Kuinka todennäköisesti kilta on suomenkielinen?",
+        "auto-approved": "Automaattisesti hyväksytty",
+        "auto-rejected": "Automaattisesti hylätty",
+        "automation": "Käsittelemätön kilta hyväksytään ja sen jäsenet lisätään seurantaan, kun molemmat arviot ylittävät 85 %. Jos molemmat ovat alle 30 %, kilta piilotetaan ja hylätään. Muut tulokset jäävät käsin tarkistettaviksi.",
+        "historyNote": "Mukana ovat myös killat, joita olet myöhemmin muuttanut käsin. Nykyinen tila näytetään erikseen.",
+        "actionScores": "Arviot päätöshetkellä: GPT-6 Luna {structured} · Decisions {decision}",
         "run": "Arvioi kaikkien kiltojen suomenkielisyys",
         "queued": "{count, plural, one {# kilta lisättiin arviointijonoon.} other {# kiltaa lisättiin arviointijonoon.}}",
         "pending": "{count, plural, one {# kilta jäljellä} other {# kiltaa jäljellä}}",

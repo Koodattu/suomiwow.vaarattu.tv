@@ -6,6 +6,7 @@ import * as service from "./forever.service";
 import { foreverAnalytics } from "./forever-analytics";
 import { namegameLeaderboard, namegameOverview } from "./forever-namegame";
 import { queueGuildLanguageAssessments } from "./forever-guild-language.worker";
+import { publicGuilds, publicGuildDetail } from "./forever-guilds";
 
 function route(handler: (req: Request, res: Response) => Promise<unknown>) {
   return async (req: Request, res: Response) => {
@@ -32,6 +33,8 @@ foreverRouter.get("/leveling", route(async (req) => service.leaderboard(req.quer
 foreverRouter.get("/analytics", route(async () => foreverAnalytics()));
 foreverRouter.get("/namegame", route(async (req) => namegameLeaderboard(req.query)));
 foreverRouter.get("/namegame/overview", route(async () => namegameOverview()));
+foreverRouter.get("/guilds", route(async () => publicGuilds()));
+foreverRouter.get("/guilds/:id", route(async (req) => publicGuildDetail(service.objectId(req.params.id))));
 foreverRouter.get("/characters/:id", route(async (req) => service.characterDetail(req.params.id)));
 foreverRouter.post("/proposals", requireDiscord, route(async (req, res) => {
   const result = await service.addCharacter(req.body?.url, "proposal", req.session.userId!);

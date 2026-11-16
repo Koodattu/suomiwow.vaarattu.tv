@@ -44,12 +44,19 @@ const guildSchema = new Schema({
   ...identity, ...polling, name: { type: String, required: true },
   status: { type: String, enum: ["proposed", "pending", "approved", "paused", "rejected"], default: "pending", required: true },
   proposedBy: String, hidden: { type: Boolean, default: false },
+  manualReviewAt: Date,
+  autoReview: { type: new Schema({
+    action: { type: String, enum: ["approved", "rejected"], required: true },
+    reviewedAt: { type: Date, required: true },
+    structured: { type: Number, required: true }, decision: { type: Number, required: true },
+  }, { _id: false }) },
   rosterPollingVersion: Number, rosterLaggingMembers: Number,
   profileComparisons: { type: Number, default: 0 }, profileAheadCount: { type: Number, default: 0 },
   rosterAheadCount: { type: Number, default: 0 }, lastComparedAt: Date,
   roster: { type: [member], default: [] },
   languageDueAt: Date, languageLease: { type: String, select: false },
   languageAssessment: { type: new Schema({
+    automationChecked: Boolean,
     fingerprint: String, assessedAt: Date, nameCount: Number, source: { type: String, enum: ["roster", "profiles"] },
     structured: Number,
     decision: { type: new Schema({

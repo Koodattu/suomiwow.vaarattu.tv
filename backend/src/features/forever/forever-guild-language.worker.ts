@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import OpenAI from "openai";
+import mongoose from "mongoose";
 import { meteredFetch } from "../ai-usage/ai-usage";
 import logger from "../../utils/logger";
-import { ForeverCharacter, ForeverGuild } from "./forever.models";
+import { ForeverCharacter, ForeverGuild, ForeverWorker } from "./forever.models";
+import { releaseRosterCoverage } from "./forever-roster-sync";
 import { ForeverError } from "./forever-errors";
-import { GUILD_LANGUAGE_MODEL, GUILD_LANGUAGE_VERSION, guildsReadyForLanguageAssessment, scoreGuildLanguage } from "./forever-guild-language";
+import { GUILD_LANGUAGE_MODEL, GUILD_LANGUAGE_VERSION, guildLanguageAutoAction, guildsAwaitingLanguageReview, guildsReadyForLanguageAssessment, scoreGuildLanguage } from "./forever-guild-language";
 
 const RETRY_DELAY_MS = 60 * 60_000;
 
@@ -61,18 +63,35 @@ export class GuildLanguageWorker {
     const source = hasRoster ? "roster" : "profiles";
     const fence = { _id: guild._id, languageLease: lease };
     const finish = { languageDueAt: 1, languageLease: 1 } as const;
-    if (previous?.structured != null && previous.decision != null && previous.source === source) {
-      await ForeverGuild.updateOne(fence, { $unset: finish }, { timestamps: false });
-      return;
-    }
     const scores = await scoreGuildLanguage(client, evidence, previous);
     const missing = (["structured", "decision"] as const).filter(method => scores[method] == null);
     const assessedAt = new Date();
     const retry = missing.length > 0;
-    await ForeverGuild.updateOne(fence, { $set: { languageAssessment: {
-      ...scores, source, fingerprint, assessedAt, nameCount: members.length,
-    }, ...(retry && { languageDueAt: new Date(assessedAt.getTime() + RETRY_DELAY_MS) }) },
-    $unset: retry ? { languageLease: 1 } : finish }, { timestamps: false });
+    const action = guildLanguageAutoAction(scores);
+    await mongoose.connection.transaction(async session => {
+      // Commit the action, audit record and assessment together. A reclaimed lease or
+      // concurrent manual review must never publish an automatic moderation action.
+      if (action) {
+        const reviewed = await ForeverGuild.findOneAndUpdate({ ...fence, ...guildsAwaitingLanguageReview }, {
+          $set: { status: action, ...(action === "rejected" && { hidden: true }),
+            autoReview: { action, reviewedAt: assessedAt, structured: scores.structured, decision: scores.decision!.percent } },
+        }, { session, returnDocument: "after" }).select("region slug failures").lean();
+        if (reviewed) {
+          if (action === "approved") {
+            // Match manual approval: queue a fresh roster without bypassing an upstream backoff.
+            if (!reviewed.failures) await ForeverGuild.updateOne(fence, { $set: { nextFetchAt: assessedAt } }, { session });
+          } else {
+            await releaseRosterCoverage({ region: reviewed.region, rosterGuildSlug: reviewed.slug }, assessedAt, session);
+            await ForeverWorker.updateOne({ _id: "armory" }, { $inc: { leaderboardRevision: 1 } }, { session, upsert: true });
+          }
+        }
+      }
+      await ForeverGuild.updateOne(fence, { $set: { languageAssessment: {
+        ...scores, source, fingerprint, automationChecked: true, nameCount: members.length,
+        assessedAt: previous?.structured != null && previous.decision != null && previous.source === source ? previous.assessedAt : assessedAt,
+      }, ...(retry && { languageDueAt: new Date(assessedAt.getTime() + RETRY_DELAY_MS) }) },
+      $unset: retry ? { languageLease: 1 } : finish }, { session, timestamps: false });
+    });
     if (retry) logger.warn(`[Forever] Guild ${guild._id} missing ${missing.join(", ")} language results. Retry scheduled in one hour.`);
   }
 }

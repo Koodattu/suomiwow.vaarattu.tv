@@ -152,6 +152,10 @@ export function getPageMetadata(
     const copy = (isEnglish ? en : fi).forever.namegame;
     return withEmbedMetadata(pathname, { title: `Forever · ${copy.title}`, description: copy.description });
   }
+  if (pathname === "/forever/guilds" || pathname.startsWith("/forever/guilds/")) {
+    const copy = (isEnglish ? en : fi).forever.guilds;
+    return withEmbedMetadata(pathname, { title: `Forever · ${copy.title}`, description: copy.description });
+  }
   if (pathname.startsWith("/forever")) return withEmbedMetadata(pathname, {
     title: isEnglish ? "Forever · Leveling" : "Forever · Tasoseuranta",
     description: isEnglish ? "Follow the SuomiWoW community's leveling journey in WoW Forever." : "Seuraa SuomiWoW-yhteisön hahmojen tasokehitystä WoW Foreverissa.",

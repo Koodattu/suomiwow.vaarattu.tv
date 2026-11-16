@@ -47,6 +47,7 @@ export function foreverUpdateAge(value: string | null | undefined, now: number):
 }
 export interface ForeverGuild {
   _id: string; name: string; region: string; slug: string; status: string; hidden?: boolean;
+  autoReview?: { action: "approved" | "rejected"; reviewedAt: string; structured: number; decision: number };
   lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; errorCode?: string; failures?: number; rosterCount?: number;
   roster?: { region: string; slug: string; name: string; level: number; className: string; trackingStatus?: string }[];
   languageAssessment?: {

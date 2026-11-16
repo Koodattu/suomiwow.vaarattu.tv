@@ -1,5 +1,18 @@
 # Forever leveling
 
+## Guild directory
+
+The Forever hub and navigation link to `/forever/guilds`. The public directory at
+`GET /api/forever/guilds` includes every approved, non-hidden guild, including those
+waiting for their first roster. Search, faction/ruleset filters and name/size sorting
+run in the browser over the summaries; lists display 50 results per page.
+
+`GET /api/forever/guilds/:id` applies the same visibility rules and returns the saved
+Armory roster, including untracked members and marked outdated entries. Only publicly
+tracked characters receive profile links. Neither endpoint exposes moderation data.
+Rulesets use the existing three-profile confirmation policy; insufficient or conflicting
+evidence remains unknown. No new polling, storage or external Armory requests are added.
+
 ## Namegame
 
 The Forever hub and navigation link to `/forever/namegame`. Its overview shows the top five overall and
@@ -43,15 +56,27 @@ In **Admin → Forever → Discovered guilds**, choose **Assess Finnish language
 The worker evaluates every saved Forever guild across regions and moderation states, including guilds outside the current filters.
 The button queues work in MongoDB and the run continues after the panel closes. Both the API and worker use the backend `OPENAI_API_KEY`.
 
-The guild inspector shows three independent GPT-6 Luna estimates of the likelihood that Finnish is the guild's main shared language.
-Plain text and strict structured output use low reasoning effort. Decisions returns a boolean choice and a probability for each option.
+The guild inspector shows two GPT-6 Luna estimates of the likelihood that Finnish is the guild's main shared language.
+Strict structured output uses low reasoning effort. Decisions returns a boolean choice and a probability for each option.
 The percentage always refers to **Yes**. The confidence label describes the chosen answer using the API's separate confidence value
 (low below 65%, medium from 65% to below 85%, high from 85%). These are model estimates from names alone.
 
 Each method receives the guild name and every name in its saved roster. Until a roster is available, the worker uses all linked
 character names in the same region, or just the guild name if none are known. The inspector records the source, number of names
 and assessment time. Running again reuses completed scores for identical names and rubric, retries missing methods, and
-reassesses changed inputs. Scores are available only through the Forever admin API and have no effect on moderation.
+reassesses changed inputs. Scores are available only through the Forever admin API.
+
+Unreviewed, visible proposed/pending guilds are automatically approved when both percentages are strictly above 85%.
+This queues a fresh roster and tracks current and future members through the normal roster worker, respecting fetch backoffs.
+When both percentages are strictly below 30%, the guild is hidden and rejected, roster coverage is released and the leaderboard
+cache is invalidated. Exact boundaries, mixed results and missing scores remain for manual review. Existing completed assessments
+are also evaluated automatically without repeating paid calls for unchanged evidence. Missing results retain the hourly retry.
+Manual status/visibility changes prevent subsequent automatic moderation, including changes made while scoring is in flight.
+Already approved, paused, rejected or hidden guilds are never automatically changed.
+
+The **Auto approved** and **Auto rejected** status filters show all recorded automatic actions, including guilds later changed
+manually. Each guild retains the action time and both percentages used for that action, separately from its latest assessment
+and current status. The worker commits moderation, audit evidence and assessment completion in one transaction.
 
 ## Leaderboard performance and freshness
 
@@ -537,6 +562,7 @@ node --test -r ts-node/register test/forever.test.ts test/forever-auth.test.ts t
 $env:FOREVER_TEST_MONGODB_URI='mongodb://127.0.0.1:27028/?directConnection=true'
 node --test -r ts-node/register integration/forever.test.ts
 node --test -r ts-node/register integration/forever-roster.test.ts
+node --test -r ts-node/register test/forever-guild-language.test.ts integration/forever-guild-language.test.ts
 node --test -r ts-node/register test/forever-guild-ruleset.test.ts
 ```
 

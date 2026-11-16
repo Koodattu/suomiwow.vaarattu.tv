@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import mongoose from "mongoose";
 import OpenAI from "openai";
-import { ForeverCharacter, ForeverGuild } from "../src/features/forever/forever.models";
+import { ForeverCharacter, ForeverGuild, ForeverWorker } from "../src/features/forever/forever.models";
 import { GuildLanguageWorker, queueGuildLanguageAssessments } from "../src/features/forever/forever-guild-language.worker";
-import { adminOverview, guildDetail } from "../src/features/forever/forever.service";
+import { adminOverview, guildDetail, setGuildStatus, setGuildVisibility } from "../src/features/forever/forever.service";
+import { GUILD_LANGUAGE_MODEL, GUILD_LANGUAGE_VERSION } from "../src/features/forever/forever-guild-language";
+import { ForeverRunner } from "../src/features/forever/forever.worker";
+import { visibleForeverCharacters } from "../src/features/forever/forever-visibility";
 
 const uri = process.env.FOREVER_TEST_MONGODB_URI;
 test("admin guild language sorting applies before pagination, preserves filters and puts missing scores last", { skip: !uri }, async () => {
@@ -59,6 +62,140 @@ test("admin guild language sorting applies before pagination, preserves filters 
   }
 });
 
+
+test("guild automation and review history (isolated replica-set database)", { skip: !uri }, async t => {
+  await mongoose.connect(uri!, { dbName: "forever_auto_review_test_" + randomUUID().replace(/-/g, ""), serverSelectionTimeoutMS: 5000 });
+  let structured = 95, decision = 96, failDecision = false, calls = 0;
+  let duringScoring: (() => Promise<unknown>) | undefined;
+  const client = new OpenAI({ apiKey: "test", maxRetries: 0, fetch: async url => {
+    calls++;
+    if (String(url).endsWith("/decisions")) {
+      if (failDecision) return Response.json({ error: {} }, { status: 429 });
+      return Response.json({ answers: [{ type: "choice", name: "finnish", choice: decision > 50, confidence: 0.99,
+        probabilities: [{ value: true, probability: decision / 100 }, { value: false, probability: 1 - decision / 100 }] }] });
+    }
+    await duringScoring?.();
+    return Response.json({ object: "response", status: "completed", output: [{ type: "message", content: [
+      { type: "output_text", text: JSON.stringify({ percent: structured }) },
+    ] }] });
+  } });
+  const worker = new GuildLanguageWorker();
+  const create = (extra = {}) => ForeverGuild.create({ region: "eu", slug: "guild", name: "Guild", status: "pending",
+    nextFetchAt: new Date(Date.now() + 86_400_000), ...extra });
+  t.beforeEach(async () => {
+    await ForeverCharacter.deleteMany({}); await ForeverGuild.deleteMany({}); await ForeverWorker.deleteMany({});
+    await ForeverWorker.create({ _id: "armory", nextRequestAt: new Date(0) });
+    structured = 95; decision = 96; failDecision = false; calls = 0; duringScoring = undefined;
+  });
+  try {
+    await t.test("approval queues a fresh roster and the existing worker tracks its members", async () => {
+      const guild = await create({ status: "proposed" });
+      await Promise.all([worker.tick(client), worker.tick(client)]);
+      const saved = (await ForeverGuild.findById(guild._id).lean())!;
+      assert.equal(calls, 2, "concurrent workers score the guild once");
+      assert.equal(saved.status, "approved"); assert.equal(saved.hidden, false);
+      assert.ok(saved.nextFetchAt! <= new Date());
+      assert.equal(saved.autoReview?.action, "approved");
+      assert.equal(saved.autoReview?.structured, 95); assert.equal(saved.autoReview?.decision, 96);
+      const runner = new ForeverRunner({ character: async () => { throw new Error("unexpected profile fetch"); },
+        roster: async () => [{ region: "eu", slug: "new-member", name: "New Member", level: 20,
+          className: "Mage", race: "Human", faction: "Alliance", isOutdated: false }] });
+      await runner.tick();
+      assert.equal((await ForeverCharacter.findOne({ slug: "new-member" }).lean())?.status, "tracked");
+      assert.equal((await adminOverview({ guildStatus: "auto-approved" })).totalGuilds, 1);
+      assert.equal((await adminOverview({ guildStatus: "auto-rejected" })).totalGuilds, 0);
+    });
+    await t.test("rejection hides guild imports, releases coverage and invalidates the leaderboard", async () => {
+      structured = 12; decision = 9;
+      const guild = await create();
+      await ForeverCharacter.create({ region: "eu", slug: "member", source: "guild", status: "tracked", level: 20,
+        guild: { region: "eu", slug: "guild", name: "Guild" }, rosterGuildSlug: "guild",
+        rosterCoverageUntil: new Date(Date.now() + 86_400_000), nextFetchAt: new Date(Date.now() + 86_400_000) });
+      await worker.tick(client);
+      const saved = await guildDetail(String(guild._id));
+      assert.equal(saved.status, "rejected"); assert.equal(saved.hidden, true);
+      assert.equal(saved.autoReview?.action, "rejected");
+      const member = (await ForeverCharacter.findOne({ slug: "member" }).lean())!;
+      assert.equal(member.rosterCoverageUntil, undefined); assert.ok(member.nextFetchAt! <= new Date());
+      assert.equal(await ForeverCharacter.countDocuments(await visibleForeverCharacters()), 0);
+      assert.equal((await ForeverWorker.findById("armory").lean())?.leaderboardRevision, 1);
+      const filtered = await adminOverview({ guildStatus: "auto-rejected", guildSearch: "Guild" });
+      assert.equal(filtered.totalGuilds, 1); assert.equal(filtered.guilds[0].autoReview.structured, 12);
+      assert.equal((await adminOverview({ guildStatus: "auto-rejected", guildSearch: "absent" })).totalGuilds, 0);
+      await setGuildVisibility(String(guild._id), false); await setGuildStatus(String(guild._id), "approved");
+      await ForeverGuild.updateOne({ _id: guild._id }, { $set: { languageDueAt: new Date(0) } });
+      await worker.tick(client);
+      const overridden = (await adminOverview({ guildStatus: "auto-rejected" })).guilds[0];
+      assert.equal(overridden.status, "approved"); assert.equal(overridden.hidden, false);
+      assert.equal(overridden.autoReview.reviewedAt.getTime(), saved.autoReview!.reviewedAt.getTime());
+      assert.equal(calls, 2, "unchanged evidence is reused after a manual override");
+    });
+    await t.test("boundaries and disagreement stay pending without repeatedly scoring", async () => {
+      for (const [a, b] of [[85, 99], [99, 85], [30, 0], [0, 30], [99, 0], [0, 99], [50, 50]]) {
+        structured = a; decision = b;
+        const guild = await create({ slug: `guild-${a}-${b}` });
+        await worker.tick(client);
+        const saved = await ForeverGuild.findById(guild._id).lean();
+        assert.equal(saved?.status, "pending"); assert.equal(saved?.hidden, false); assert.equal(saved?.autoReview, undefined);
+      }
+      const completedCalls = calls;
+      await worker.tick(client); assert.equal(calls, completedCalls);
+    });
+    await t.test("partial scores wait for retry, then apply the completed assessment once", async () => {
+      failDecision = true;
+      const guild = await create(); await worker.tick(client);
+      const partial = (await ForeverGuild.findById(guild._id).lean())!;
+      assert.equal(partial.status, "pending"); assert.equal(partial.autoReview, undefined);
+      assert.ok(partial.languageDueAt! > new Date());
+      await worker.tick(client); assert.equal(calls, 2);
+      failDecision = false;
+      await ForeverGuild.updateOne({ _id: guild._id }, { $set: { languageDueAt: new Date(0) } });
+      await worker.tick(client); await worker.tick(client);
+      assert.equal(calls, 3); assert.equal((await ForeverGuild.findById(guild._id).lean())?.status, "approved");
+    });
+    await t.test("existing complete assessments are automatically reviewed without new API calls", async () => {
+      const assessedAt = new Date("2026-01-01");
+      const fingerprint = createHash("sha256").update(JSON.stringify([GUILD_LANGUAGE_VERSION, GUILD_LANGUAGE_MODEL,
+        { guildName: "Guild", characterNames: [] }])).digest("hex");
+      const guild = await create({ languageAssessment: { fingerprint, source: "profiles", assessedAt, nameCount: 0,
+        structured: 98, decision: { percent: 99, yes: true, confidence: "high" } } });
+      await worker.tick(client); await worker.tick(client);
+      const saved = (await ForeverGuild.findById(guild._id).lean())!;
+      assert.equal(calls, 0); assert.equal(saved.status, "approved");
+      assert.equal(saved.languageAssessment?.assessedAt?.getTime(), assessedAt.getTime());
+      assert.equal(saved.autoReview?.structured, 98);
+    });
+    await t.test("manual moderation states and in-flight manual decisions are preserved", async () => {
+      for (const extra of [{ status: "approved" }, { status: "paused" }, { status: "rejected" }, { hidden: true }, { manualReviewAt: new Date() }]) {
+        const guild = await create({ slug: randomUUID(), ...extra });
+        await worker.tick(client);
+        const saved = (await ForeverGuild.findById(guild._id).lean())!;
+        assert.equal(saved.status, guild.status); assert.equal(saved.hidden, guild.hidden); assert.equal(saved.autoReview, undefined);
+      }
+      const guild = await create();
+      duringScoring = async () => { await setGuildVisibility(String(guild._id), true); await setGuildVisibility(String(guild._id), false); };
+      await worker.tick(client);
+      const saved = (await ForeverGuild.findById(guild._id).lean())!;
+      assert.equal(saved.status, "pending"); assert.equal(saved.hidden, false); assert.equal(saved.autoReview, undefined);
+      assert.equal(saved.languageAssessment?.structured, 95);
+    });
+    await t.test("a lost lease cannot publish scores or moderation", async () => {
+      const guild = await create();
+      duringScoring = () => ForeverGuild.updateOne({ _id: guild._id }, { $set: { languageLease: "replacement" } }).exec();
+      await worker.tick(client);
+      const saved = (await ForeverGuild.findById(guild._id).lean())!;
+      assert.equal(saved.status, "pending"); assert.equal(saved.autoReview, undefined); assert.equal(saved.languageAssessment, undefined);
+    });
+    await t.test("approval preserves an existing fetch backoff", async () => {
+      const nextFetchAt = new Date(Date.now() + 86_400_000);
+      const guild = await create({ failures: 2, nextFetchAt }); await worker.tick(client);
+      const saved = (await ForeverGuild.findById(guild._id).lean())!;
+      assert.equal(saved.status, "approved"); assert.equal(saved.nextFetchAt!.getTime(), nextFetchAt.getTime());
+    });
+  } finally {
+    await mongoose.connection.dropDatabase(); await mongoose.disconnect();
+  }
+});
 test("the worker automatically assesses every guild, resumes missing results and picks up new guilds and first rosters", { skip: !uri }, async () => {
   const oldKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test";

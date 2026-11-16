@@ -1,5 +1,29 @@
 {
   "forever": {
+    "guilds": {
+      "title": "Guilds",
+      "description": "Browse approved guilds being tracked and explore their rosters.",
+      "search": "Find a guild",
+      "searchRoster": "Find a member",
+      "sort": "Sort by",
+      "sorts": { "sizeDesc": "Largest first", "sizeAsc": "Smallest first", "nameAsc": "Name A–Z", "nameDesc": "Name Z–A", "levelDesc": "Highest level", "levelAsc": "Lowest level" },
+      "members": "Members",
+      "roster": "Roster",
+      "count": "{count} of {total} guilds",
+      "rosterCount": "{count} of {total} members",
+      "back": "All guilds",
+      "pages": "Guild and roster pages",
+      "empty": "No approved guilds yet.",
+      "noMatches": "No guilds match these filters. Try another search or clear the filters.",
+      "noMembers": "No members match your search.",
+      "emptyRoster": "No members in the latest roster.",
+      "awaitingRoster": "Waiting for the first roster update.",
+      "outdated": "Outdated Armory entry",
+      "classificationNote": "Rulesets are confirmed from member profiles. Unknown means there is not enough consistent data yet.",
+      "rosterNote": "Members from the latest Armory roster. Tracked names link to their character profiles.",
+      "tableScroll": "Guilds — scroll horizontally for more columns",
+      "rosterScroll": "Roster — scroll horizontally for more columns"
+    },
     "namegame": {
       "title": "Namegame",
       "description": "The funniest character names, scored from 0 to 100 by GPT-6 Luna.",
@@ -174,6 +198,11 @@
       },
       "language": {
         "title": "Likelihood the guild speaks Finnish",
+        "auto-approved": "Auto approved",
+        "auto-rejected": "Auto rejected",
+        "automation": "Unreviewed guilds are approved and their rosters tracked when both estimates exceed 85%. Both below 30% hides and rejects the guild. All other results remain for manual review.",
+        "historyNote": "Includes guilds you later changed manually. The current status is shown separately.",
+        "actionScores": "Estimates at the time: GPT-6 Luna {structured} · Decisions {decision}",
         "run": "Assess Finnish language for all guilds",
         "queued": "{count, plural, one {# guild queued for assessment.} other {# guilds queued for assessment.}}",
         "pending": "{count, plural, one {# guild remaining} other {# guilds remaining}}",

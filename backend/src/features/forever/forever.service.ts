@@ -85,15 +85,15 @@ export async function addGuild(input: unknown, source: "admin" | "proposal", use
       ...identity, name, proposedBy: userId, status: source === "proposal" ? "proposed" : "pending", nextFetchAt: new Date(),
     } }, { upsert: true });
   } catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
-  // Admin additions queue a preview; importing members still requires explicit approval.
-  if (source === "admin") await ForeverGuild.updateOne({ ...identity, status: { $in: ["proposed", "rejected"] } }, { $set: { status: "pending", nextFetchAt: new Date() } });
+  // Admin additions queue a preview. Reopening a rejected guild stays under manual review.
+  if (source === "admin") await ForeverGuild.updateOne({ ...identity, status: { $in: ["proposed", "rejected"] } }, { $set: { status: "pending", nextFetchAt: new Date(), manualReviewAt: new Date() } });
   const guild = await ForeverGuild.findOne(identity).select("status").lean();
   return { id: String(guild!._id), status: guild!.status };
 }
 
 export async function setGuildVisibility(id: unknown, hidden: unknown) {
   if (typeof hidden !== "boolean") throw new ForeverError("invalid_input");
-  const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { hidden } });
+  const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { hidden, manualReviewAt: new Date() } });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
   await invalidateForeverLeaderboard();
   if (hidden) {
@@ -159,7 +159,7 @@ export async function requestRefresh(id: unknown, userId: string) {
 
 export async function setGuildStatus(id: unknown, status: unknown) {
   if (!["approved", "paused", "rejected"].includes(String(status))) throw new ForeverError("invalid_input");
-  const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { status } });
+  const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { status, manualReviewAt: new Date() } });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
   await invalidateForeverLeaderboard();
   // Approval queues a fresh roster. Pausing stops expansion; already tracked members remain tracked.
@@ -208,6 +208,8 @@ export async function adminOverview(query: { status?: unknown; characterPage?: u
   else if (query.health !== undefined && query.health !== "all") throw new ForeverError("invalid_input");
   const guildFilter: Record<string, unknown> = searchFilter(query.guildSearch, ["name", "slug"]);
   if (["proposed", "pending", "approved", "paused", "rejected"].includes(String(query.guildStatus))) guildFilter.status = query.guildStatus;
+  else if (query.guildStatus === "auto-approved") guildFilter["autoReview.action"] = "approved";
+  else if (query.guildStatus === "auto-rejected") guildFilter["autoReview.action"] = "rejected";
   const guildSort = query.guildSort ?? "name";
   if (typeof guildSort !== "string" || !["name", "structured-desc", "structured-asc", "decision-desc", "decision-asc"].includes(guildSort)) throw new ForeverError("invalid_input");
   let guildSortStages: mongoose.PipelineStage[] = [{ $sort: { name: 1, _id: 1 } }];

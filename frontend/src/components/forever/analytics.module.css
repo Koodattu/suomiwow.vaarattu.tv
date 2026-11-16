@@ -8,7 +8,7 @@
 .controlReset { border: 0; padding: 2px 0; background: none; color: #edcf8d; cursor: pointer; font-size: 10px; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
 .controlReset:disabled { color: #b2afa0; text-decoration: none; cursor: default; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-.nav { display: flex; gap: 4px; font: 12px/1.4 Arial, sans-serif; }
+.nav { display: flex; flex-wrap: wrap; gap: 4px; font: 12px/1.4 Arial, sans-serif; }
 .nav a { color: #bdb6a3; padding: 7px 11px; border: 1px solid transparent; border-radius: 3px; text-decoration: none; }
 .nav a:hover { color: #f1d9a5; border-color: #61543a; }
 .nav a[aria-current="page"] { color: #edcf8d; background: #d7b87512; border-color: #74603c; }
@@ -63,7 +63,7 @@
 .legend i { width: 16px; height: 2px; }
 .loading, .error { padding: 24px 0; color: #b9b4a4; }
 .error { display: flex; align-items: center; gap: 16px; }
-.hubGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.hubGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 @media (max-width: 800px) {
   .activityHeading { grid-template-columns: 1fr auto; }
   .activityHeading h2 { grid-column: 1 / -1; }
