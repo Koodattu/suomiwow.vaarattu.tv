@@ -2,7 +2,7 @@
   "forever": {
     "guilds": {
       "title": "Killat",
-      "description": "Selaa hyväksyttyjä, seurannassa olevia kiltoja ja tutustu niiden jäseniin.",
+      "description": "Killat ja niiden jäsenet.",
       "search": "Etsi kiltaa",
       "searchRoster": "Etsi jäsentä",
       "sort": "Järjestä",
@@ -28,16 +28,16 @@
     },
     "namegame": {
       "title": "Nimipeli",
-      "description": "Hauskimmat hahmonimet GPT-6 Lunan pisteyttämänä asteikolla 0–100.",
+      "description": "Hahmonimet hauskuusjärjestyksessä.",
       "category": "Huumorilaji", "all": "Kaikki lajit",
       "search": "Haku", "searchPlaceholder": "Etsi nimeä…",
       "sort": "Järjestys", "sorts": { "score-desc": "Eniten pisteitä", "score-asc": "Vähiten pisteitä", "name": "Nimi A–Ö" },
       "range": "{start}–{end} / {count} nimeä", "rank": "Sija {rank}",
-      "scoring": "Lunan pisteet · 0–100", "noMatches": "Hakuehtoja vastaavia nimiä ei löytynyt.",
+      "scoring": "Nimipisteet · 0–100", "noMatches": "Hakuehtoja vastaavia nimiä ei löytynyt.",
       "overall": "Kaikki nimet", "leaderboards": "Kaikki tuloslistat", "viewAll": "Näytä kaikki", "viewCategory": "Näytä kaikki: {category}",
       "count": "{count, plural, one {# nimi} other {# nimeä}}",
       "points": "{score} pistettä sadasta", "pages": "Nimipelin sivut",
-      "empty": "Ensimmäiset nimet ilmestyvät tänne pisteytyksen valmistuttua.", "emptyCategory": "Tässä lajissa ei vielä ole pisteytettyjä nimiä.",
+      "empty": "Ei vielä pisteytettyjä nimiä.", "emptyCategory": "Tässä lajissa ei vielä ole pisteytettyjä nimiä.",
       "categories": {
         "wordplay": "Sanaleikki", "reference": "Kulttuuriviittaus", "warcraft": "WoW-huumori", "deadpan": "Kuiva arkihuumori",
         "absurd": "Absurdi huumori", "sound": "Sointu ja riimi", "edgy": "Harmaan alueen huumori", "straight": "Nimi vailla vitsiä"
@@ -71,7 +71,7 @@
       "active": "Aktiiviset hahmot",
       "observed": "Siihen mennessä havaitut hahmot",
       "partialWindow": "Ensimmäisten 24 tunnin tiedot ovat puutteelliset.",
-      "noHistory": "Aktiivisuus näkyy, kun tasohavaintoja on saatavilla.",
+      "noHistory": "Ei vielä tallennettuja tasonnousuja.",
       "timeRange": "Aikaväli",
       "days": "{count} päivää"
     },
@@ -94,6 +94,7 @@
     "rank": "Sija",
     "addTracking": "Lisää hahmo tai kilta",
     "suggestionType": "Ehdotuksen tyyppi",
+    "suggest": "Ehdota",
     "proposeGuildTitle": "Ehdota kiltaa",
     "characterInput": "Etunimi Sukunimi tai Armory-linkki",
     "guildInput": "Killan nimi tai Armory-linkki",
@@ -107,7 +108,7 @@
     "live": "LIVE",
     "watchLive": "Katso kanavan {channel} suoraa lähetystä Twitchissä",
     "openTwitch": "Avaa {channel} Twitchissä",
-    "hubDescription": "Yhteisön matka tasolle 60.",
+    "hubDescription": "Hahmojen tasot ja sijoitukset.",
     "community": "Yhteisö",
     "title": "Tasoseuranta",
     "addTitle": "Hahmo seurantaan",
@@ -151,8 +152,8 @@
     "progress": {
       "title": "Matka tasolle 60",
       "chartLabel": "Hahmon {name} havaitut tasot",
-      "noObservations": "Ei vielä tasohavaintoja.",
-      "firstObservation": "Ensimmäinen havainto tallennettu. Kuvaaja täydentyy uusien tasojen myötä.",
+      "noObservations": "Ei vielä tasohistoriaa.",
+      "firstObservation": "Kuvaaja täydentyy hahmon saadessa tasoja.",
       "levelsObserved": "tasoa seurannan alusta",
       "toGo": "tasoa jäljellä",
       "firstSeen": "Ensimmäinen havainto",
@@ -303,7 +304,7 @@
       "not_found": "Hahmoa tai kiltaa ei ole saatavilla.",
       "unavailable": "Tietojen lataus tai tallennus epäonnistui. Yritä uudelleen."
     },
-    "rankingShort": "Korkein taso ensin, samalla tasolla ensin havaittu edellä. Tasolla 60 luokan Legacy-saavutus voi tarkentaa aikaa, jos se sopii hahmon tasohavaintoihin.",
+    "rankingShort": "Järjestys määräytyy tason ja sen ensimmäisen havaintoajan mukaan. Tason 60 ajankohta voi olla arvio.",
     "finishTime": "Tason 60 ajankohta",
     "charactersShort": "hahmoa",
     "pagination": "Tasoseurannan sivut",
@@ -2216,8 +2217,8 @@
         "description": "Avaa pakkoja ja kasvata kokoelmaasi"
       },
       "forever": {
-        "title": "Levelöintiranking",
-        "description": "Suomalaiset hahmot · Kohti tasoa 60"
+        "title": "Tutustu Foreveriin",
+        "description": "Hahmot, killat ja yhteisön tilastot"
       },
       "compare": {
         "title": "Vertaile kiltoja",

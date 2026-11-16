@@ -1,5 +1,4 @@
-.header, .controls, .summary, .pages { display: flex; align-items: center; }
-.header { justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; margin-bottom: 24px; }
+.controls, .summary, .pages { display: flex; align-items: center; }
 .boards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .preview { min-width: 0; display: flex; flex-direction: column; padding: 16px; border-top: 2px solid #78643f; background: #12171288; }
 .previewHeader { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; }
@@ -41,7 +40,6 @@
 @media (max-width: 1000px) { .boards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; } }
 @media (max-width: 600px) {
-  .header { margin-bottom: 20px; }
   .controls { align-items: end; gap: 12px; }
   .controls label { flex: 1; min-width: 0; flex-direction: column; align-items: stretch; gap: 5px; }
   .controls .search { flex-basis: 100%; max-width: none; }

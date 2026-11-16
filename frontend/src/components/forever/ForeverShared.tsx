@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useId, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { useNow, useTranslations } from "next-intl";
 import { useAuth } from "@/context/AuthContext";
@@ -84,25 +84,26 @@ export function WorkerStatus({ worker, enabled }: { worker: ForeverWorker | null
 }
 export function CharacterForm({ admin = false, compact = false, onAdded }: { admin?: boolean; compact?: boolean; onAdded?: () => void }) {
   const t = useTranslations("forever"), { user, login, isLoading } = useAuth();
+  const inputId = useId();
   const [url, setUrl] = useState(""), [busy, setBusy] = useState(false), [success, setSuccess] = useState(false), [error, setError] = useState<unknown>(null);
   const [twitchChannel, setTwitchChannel] = useState("");
   const [kind, setKind] = useState<"character" | "guild">("character");
   const title = admin ? "addTracking" : kind === "guild" ? "proposeGuildTitle" : "proposeTitle";
   const content = <div className={styles.formContents}>
     <div className={styles.suggestionHeading}>
-      <label htmlFor={admin ? "forever-add-url" : "forever-propose-url"}>{t(title)}</label>
+      <label htmlFor={inputId}>{t(title)}</label>
       <div className={styles.suggestionKinds} role="group" aria-label={t("suggestionType")}>
         {(["character", "guild"] as const).map((value) => <button key={value} type="button" aria-pressed={kind === value} disabled={busy} onClick={() => { setKind(value); setUrl(""); setSuccess(false); setError(null); }}>{t(value)}</button>)}
       </div>
     </div>
-    {!user ? <button className={buttonClass} disabled={isLoading} onClick={() => void login("/forever/leveling").catch(setError)}>{t("login")}</button> :
+    {!user ? <button className={buttonClass} disabled={isLoading} onClick={() => void login(`${window.location.pathname}${window.location.search}${window.location.hash}`).catch(setError)}>{t("login")}</button> :
       <form onSubmit={async (event) => {
         event.preventDefault(); setBusy(true); setError(null); setSuccess(false);
         try { await foreverApi(admin ? `admin/forever/${kind === "guild" ? "guilds" : "characters"}` : kind === "guild" ? "forever/guild-proposals" : "forever/proposals", "POST", { url, ...(admin && kind === "character" && twitchChannel.trim() ? { twitchChannel } : {}) }); setSuccess(true); setUrl(""); setTwitchChannel(""); onAdded?.(); }
         catch (caught) { setError(caught); } finally { setBusy(false); }
       }}>
         <div className={styles.formFields}>
-          <input id={admin ? "forever-add-url" : "forever-propose-url"} type="text" required maxLength={500} value={url} onChange={(event) => { setUrl(event.target.value); setSuccess(false); }} className={styles.input} placeholder={t(kind === "guild" ? "guildInput" : "characterInput")} />
+          <input id={inputId} type="text" required maxLength={500} value={url} onChange={(event) => { setUrl(event.target.value); setSuccess(false); }} className={styles.input} placeholder={t(kind === "guild" ? "guildInput" : "characterInput")} />
           <button disabled={busy} className={buttonClass}>{t(busy ? "sending" : admin ? "add" : compact ? "send" : "propose")}</button>
         </div>
         {admin && kind === "character" && <div className={styles.optionalTwitch}><label htmlFor="forever-add-twitch">{t("twitchChannel")}</label><input id="forever-add-twitch" className={styles.input} value={twitchChannel} maxLength={100} onChange={(event) => setTwitchChannel(event.target.value)} placeholder="twitch.tv/…" /></div>}
@@ -110,6 +111,6 @@ export function CharacterForm({ admin = false, compact = false, onAdded }: { adm
     {success && <p role="status" className={styles.formSuccess}>{t(admin ? kind === "guild" ? "guildAdded" : "added" : "proposed")}</p>}
     {error != null && <div className="mt-3"><ForeverErrorMessage error={error} /></div>}
     </div>;
-  if (compact) return <section className={styles.compactForm} aria-label={t("proposeTitle")}>{content}</section>;
+  if (compact) return <section className={styles.compactForm} aria-label={t(title)}>{content}</section>;
   return <details className={styles.form} open={!admin}><summary>{t(admin ? "addTracking" : "proposeTitle")}</summary>{content}</details>;
 }

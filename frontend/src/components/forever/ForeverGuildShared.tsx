@@ -4,19 +4,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { guildDirectoryQuery, readGuildDirectoryQuery } from "@/lib/forever-guilds";
-import ForeverNav from "./ForeverNav";
+import ForeverHeader from "./ForeverHeader";
 import world from "./forever.module.css";
 import styles from "./guilds.module.css";
 
 export function GuildHeader({ name }: { name?: string }) {
   const t = useTranslations("forever");
-  return <header className={styles.header}>
-    <div className={world.heading}>
-      <Link href="/forever" className={world.wordmark} aria-label={t("brand")}><small>SuomiWoW</small><strong>Forever</strong></Link>
-      <h1 className={`${world.title} ${styles.title}`}>{name || t("guilds.title")}</h1>
-    </div>
-    <ForeverNav current="guilds" />
-  </header>;
+  return <ForeverHeader title={name || t("guilds.title")} current="guilds" />;
 }
 
 export const guildPageSize = 50;

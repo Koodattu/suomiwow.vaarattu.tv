@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { foreverApi, type ForeverAnalytics } from "@/lib/forever-api";
-import ForeverNav from "@/components/forever/ForeverNav";
+import ForeverHeader from "@/components/forever/ForeverHeader";
 import ForeverAnalyticsCharts from "@/components/forever/ForeverAnalyticsCharts";
 import ForeverPopulation from "@/components/forever/ForeverPopulation";
 import ForeverAnalyticsControls, { analyticsDate } from "@/components/forever/ForeverAnalyticsControls";
@@ -30,14 +29,8 @@ export default function ForeverAnalyticsPage() {
     [timeline, index, query.data]);
   const data = useMemo(() => timeline?.days.length && minimum > 1 ? selectForeverAnalytics(timeline, index, minimum) : population,
     [timeline, index, minimum, population]);
-  return <div className={world.world}><div className={`${world.shell} ${styles.shell}`}>
-    <header className={styles.header}>
-      <div className={world.heading}>
-        <Link href="/forever" className={world.wordmark} aria-label={t("brand")}><small>SuomiWoW</small><strong>Forever</strong></Link>
-        <h1 className={world.title}>{t("analytics.title")}</h1>
-      </div>
-      <ForeverNav current="analytics" />
-    </header>
+  return <div className={world.world}><div className={world.shell}>
+    <ForeverHeader title={t("analytics.title")} current="analytics" />
     {query.error && <div className={styles.error}><ForeverErrorMessage error={query.error} /><button className={world.button} onClick={() => void query.refetch()}>{t("progress.tryAgain")}</button></div>}
     {query.isPending ? <div className={styles.loading} role="status">{t("loading")}</div> : data && <>
       <dl className={styles.summary}>

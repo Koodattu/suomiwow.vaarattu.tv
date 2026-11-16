@@ -305,7 +305,8 @@ export default function HomeHighlights() {
           </span>
         </Link>
 
-        <Link href="/forever/leveling" className={styles.forever}>
+        <Link href="/forever" className={styles.forever}>
+          <Image src="/forever-logo.png" alt="" width={1353} height={1162} sizes="180px" className={styles.foreverLogo} />
           <span className={styles.brand}><small>SuomiWoW</small><strong>Forever</strong></span>
           <span className={styles.destination}><span>{t("features.forever.title")}</span><FaArrowRight aria-hidden="true" /></span>
           <span className={styles.caption}>{t("features.forever.description")}</span>

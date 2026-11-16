@@ -92,7 +92,7 @@ function GuildDirectory() {
 
 export default function ForeverGuildsPage() {
   const t = useTranslations("forever");
-  return <div className={world.world}><div className={`${world.shell} ${styles.directoryShell}`}>
+  return <div className={world.world}><div className={world.shell}>
     <GuildHeader />
     <Suspense fallback={<p className={world.empty} role="status">{t("loading")}</p>}><GuildDirectory /></Suspense>
   </div></div>;

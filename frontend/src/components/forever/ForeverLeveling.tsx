@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,9 +8,9 @@ import { foreverRace, ForeverBoard, formatForeverDate } from "@/lib/forever-api"
 import { emptyForeverFilters as emptyFilters, foreverLevelingOptions } from "@/lib/forever-leveling-query";
 import { getRankColor } from "@/lib/utils";
 import { CharacterDetailsLoader } from "@/components/forever/ForeverCharacterDetails";
-import ForeverPopulation, { ForeverBoardSummary } from "@/components/forever/ForeverPopulation";
-import ForeverNav from "@/components/forever/ForeverNav";
-import { CharacterForm, classColor, Faction, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink } from "@/components/forever/ForeverShared";
+import { ForeverBoardSummary } from "@/components/forever/ForeverPopulation";
+import ForeverHeader from "@/components/forever/ForeverHeader";
+import { classColor, Faction, ForeverUpdated, ForeverErrorMessage, Portrait, StreamerLink } from "@/components/forever/ForeverShared";
 import styles from "@/components/forever/forever.module.css";
 
 const filterFields = ["guild", "race", "className", "faction", "ruleset"] as const;
@@ -54,17 +53,9 @@ function ForeverLevelingBoard({ initialData }: { initialData?: ForeverBoard }) {
   const columnCount = showStreams ? 12 : 11;
   const selected = data?.characters.find((character) => character._id === selectedId);
   const toggle = (id: string) => setSelectedId((current) => current === id ? null : id);
-  return <div className={`${styles.world} ${styles.levelingWorld}`}>
-    <header className={`${styles.header} ${styles.levelingHeader}`}>
-      <div className={styles.heading}>
-        <Link href="/forever" className={styles.wordmark} aria-label={t("brand")}><small>SuomiWoW</small><strong>Forever</strong></Link>
-        <h1 className={styles.title}>{t("title")}</h1>
-        <ForeverNav current="leveling" />
-      </div>
-      <ForeverPopulation statistics={data?.statistics} total={data?.total || 0} loading={board.isPending} />
-      <CharacterForm compact />
-    </header>
+  return <div className={styles.world}>
     <div className={`${styles.shell} ${styles.levelingShell}`}>
+    <ForeverHeader title={t("title")} current="leveling" />
     <section className={styles.board} aria-label={t("title")} aria-busy={board.isFetching}>
       <div className={styles.toolbar}>
         <div className={styles.filters}>

@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import styles from "./analytics.module.css";
+import styles from "./header.module.css";
 
-export default function ForeverNav({ current }: { current: "leveling" | "analytics" | "namegame" | "guilds" }) {
+export type ForeverSection = "leveling" | "analytics" | "namegame" | "guilds";
+
+export default function ForeverNav({ current }: { current?: ForeverSection }) {
   const t = useTranslations("forever");
   return <nav className={styles.nav} aria-label={t("brand")}>
     <Link href="/forever/leveling" aria-current={current === "leveling" ? "page" : undefined}>{t("title")}</Link>

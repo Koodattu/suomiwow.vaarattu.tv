@@ -386,8 +386,15 @@ identity, guild, level, a Blizzard portrait, source/check times, and a level his
 are outside this first version.
 
 The public UI follows the Forever Armory's dark earthy surfaces, gold accents,
-and class-colored names. The EU-only leaderboard spans the content width, with a
-compact suggestion form in its header row. Race, class, guild, faction, ruleset,
+and class-colored names. All public Forever pages use the same 1600px maximum
+content width and responsive side padding. The hub starts directly with a compact,
+centered destination menu capped at 960px. The subpages share a header with
+the brand and title, centered Leveling/Analytics/Namegame/Guilds navigation, and
+an inline character/guild suggestion form on desktop. On smaller screens,
+navigation occupies its own row and a Suggest button opens the form in a dialog.
+Sign-in returns to the current page,
+including its filters. The home card links to the Forever hub.
+The EU-only leaderboard spans the content width. Race, class, guild, faction, ruleset,
 level and update time have separate columns; Twitch is the optional last column.
 Guild, race, class, faction and ruleset filters apply before pagination. Their options
 come from all published EU characters. On mobile the table scrolls horizontally
@@ -587,11 +594,9 @@ bulk queue retries keep their existing limits.
 
 ## Leaderboard population statistics
 
-The full-width header places compact faction and ruleset pie charts between the
-leveling title and the labeled character suggestion form. An adjacent count table
-shows faction-by-ruleset combinations and collapses into an expandable row on
-phones to keep the header short. Average observed level and characters at
-level 60 remain in the summary footer. Queue size and automatic-update status
+Faction and ruleset charts and the faction-by-ruleset table appear on Analytics,
+not in the leveling header. The leveling toolbar retains character count,
+average observed level, and characters at level 60. Queue size and automatic-update status
 are omitted from the public header; worker status remains in admin. Aggregation uses the same
 EU/tracked/fetched population and every active table filter, before pagination.
 Missing faction or ruleset values remain an explicit unknown group; unfetched,

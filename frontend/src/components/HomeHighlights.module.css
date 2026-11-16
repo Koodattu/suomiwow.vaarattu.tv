@@ -29,20 +29,11 @@
   box-shadow: inset 0 1px #d7b87526;
   transition: border-color .15s, background-color .15s;
 }
-.forever::after {
-  content: "";
-  position: absolute;
-  right: -40px;
-  top: -65px;
-  width: 180px;
-  height: 180px;
-  border: 1px solid #d7b87520;
-  border-radius: 50%;
-  box-shadow: 0 0 0 12px #d7b87506, 0 0 0 13px #d7b87512;
-  pointer-events: none;
-}
 .forever:hover { border-color: #e0c583; background-color: #303728; }
 .forever:focus-visible { outline: 2px solid #efd58d; outline-offset: 3px; }
+/* Offset the asset's transparent right margin so the visible emblem sits 6px from the edge. */
+.foreverLogo { position: absolute; right: 6px; top: 50%; width: auto; height: 100%; max-width: none; transform: translate(12.8%, -50%); pointer-events: none; }
+.brand, .destination, .caption { position: relative; z-index: 1; }
 .brand { display: flex; flex-direction: column; align-items: flex-start; color: #e1c280; line-height: 1; }
 .brand small { font-size: 9px; letter-spacing: .2em; text-transform: uppercase; }
 .brand strong { font-family: "Forever Display", Georgia, serif; font-size: 42px; font-weight: 400; text-shadow: 0 2px 6px #0009; }

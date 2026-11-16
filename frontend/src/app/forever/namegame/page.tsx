@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import ForeverNav from "@/components/forever/ForeverNav";
+import ForeverHeader from "@/components/forever/ForeverHeader";
 import { ForeverErrorMessage } from "@/components/forever/ForeverShared";
 import { namegameOptions, namegameOverviewOptions } from "@/lib/forever-namegame-query";
 import world from "@/components/forever/forever.module.css";
@@ -123,13 +123,7 @@ function NamegameView() {
 export default function NamegamePage() {
   const t = useTranslations("forever");
   return <div className={world.world}><div className={world.shell}>
-    <header className={styles.header}>
-      <div className={world.heading}>
-        <Link href="/forever" className={world.wordmark} aria-label={t("brand")}><small>SuomiWoW</small><strong>Forever</strong></Link>
-        <h1 className={world.title}>{t("namegame.title")}</h1>
-      </div>
-      <ForeverNav current="namegame" />
-    </header>
+    <ForeverHeader title={t("namegame.title")} current="namegame" />
     <Suspense fallback={<p className={world.empty} role="status">{t("loading")}</p>}><NamegameView /></Suspense>
   </div></div>;
 }
