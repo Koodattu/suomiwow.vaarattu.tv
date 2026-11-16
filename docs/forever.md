@@ -14,7 +14,31 @@ horizontal scrolling. Unfetched roster sizes sort after known sizes in either di
 Armory roster, including untracked members and marked outdated entries. Only publicly
 tracked characters receive profile links. Neither endpoint exposes moderation data.
 Rulesets use the existing three-profile confirmation policy; insufficient or conflicting
-evidence remains unknown. No new polling, storage or external Armory requests are added.
+evidence remains unknown. The directory summary uses a server-prepared shared snapshot;
+individual rosters still read the saved data directly. Neither adds external Armory requests.
+
+## Background page caches
+
+Analytics, Namegame and the guild directory warm at server startup, then check every
+15 seconds for snapshots at least 30 seconds old, even without visitors.
+Both API and worker processes run the warmer. Each page refreshes
+independently, with shared leases preventing duplicate builds across processes. A slow
+or failed page refresh does not block the other pages; failures retry on the next tick.
+
+These snapshots have a 60-second lifetime and use the existing isolated
+`forever_leaderboard_cache` and `forever_leaderboard_leases` collections, plus an
+in-process cache. Refreshing ahead of expiry keeps data ready between visits.
+Fresh saved snapshots survive API process replacement. The last fresh result remains
+readable during a proactive refresh; a genuinely cold or expired snapshot still waits
+for a build. Shutdown stops the schedules and drains active builds.
+
+Each read checks the indexed moderation revision. Admin visibility/status changes and
+automatic guild moderation invalidate all three pages across processes immediately.
+An older in-flight build cannot publish into the new revision. Normal roster, level and
+name-score updates appear through the periodic refresh without requiring a page visit.
+
+`node --test -r ts-node/register test/forever-snapshot.test.ts` covers startup and idle
+warming for all three pages, shared reuse, concurrency, failures, moderation and shutdown.
 
 ## Namegame
 
@@ -32,7 +56,7 @@ The screen keeps criteria in the URL, retains results during loading, and prefet
 One projected name population is cached for 60 seconds using the existing Forever shared snapshot/lease
 collections and an in-process cache. Concurrent requests share the build; search, sort, counts and pagination
 run on that snapshot. Each request checks the indexed moderation revision before using cached data.
-Admin moderation invalidates it across processes; worker roster/score updates appear after expiry.
+Admin moderation invalidates it across processes; background warming refreshes worker roster/score updates.
 The browser checks for updates every 30 seconds, with a 15-second query freshness window.
 
 The backend worker automatically scores existing and newly eligible tracked characters when `OPENAI_API_KEY` is configured.
@@ -142,13 +166,13 @@ the character's level today, and ends at the selected date.
 The response includes sparse daily buckets keyed by level and a shared
 race/class/faction/ruleset dictionary. Each bucket stores count, active/new counts,
 observed gains and history coverage, with no character identities or raw histories.
-A single sweep through sorted histories builds every day; the existing 60-second
-API cache and in-flight coalescing share that work between viewers. Both controls
+A single sweep through sorted histories builds every day; the 60-second shared
+snapshot and background warmer prepare that work before viewers arrive. Both controls
 fold cached buckets locally without requests or database aggregation per slider
 movement. The browser checks the dataset at most every 30 seconds and schedules
 the next check by its generation time, avoiding an extra minute of client staleness
 on top of the API cache. No 60-fold set of
-precomputed minimum-level variants or permanent snapshot collection is needed.
+precomputed minimum-level variants or separate historical snapshot collection is needed.
 The selected view's activity series uses daily samples; the legacy top-level API
 activity remains sampled every six hours. A level cutoff shows the population at
 or above a level, not a measured abandonment rate or the reason someone stopped.
@@ -173,10 +197,10 @@ First discovery now contributes to activity, so bulk imports can increase that
 metric without proving in-game activity. Armory delays can shift when gains become observable. Dates use
 Finnish formatting in Europe/Helsinki in both languages.
 
-The API reads only the fields needed for aggregation and caches the result in-process
-for 60 seconds, coalescing concurrent reads. Guild visibility is checked before cache
-reuse; a changed visibility predicate triggers a new aggregate immediately. Other
-updates appear within the cache interval. No history arrays or character identities
+The API reads only the fields needed for aggregation and caches the result in the shared
+snapshot storage and in-process for 60 seconds, coalescing concurrent reads. The moderation
+revision is checked before cache reuse; a changed revision triggers a new aggregate
+immediately. Other updates appear through background warming. No history arrays or character identities
 are returned to the browser. The sweep over merged gain intervals avoids scanning
 every character for every timeline point. Tests:
 

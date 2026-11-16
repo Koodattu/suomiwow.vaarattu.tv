@@ -5,14 +5,16 @@ import mongoose from "mongoose";
 import express from "express";
 import { AddressInfo } from "node:net";
 import { randomUUID } from "node:crypto";
-import { ForeverCharacter, ForeverGuild } from "../src/features/forever/forever.models";
-import { foreverAnalytics } from "../src/features/forever/forever-analytics";
+import { ForeverCharacter, ForeverGuild, ForeverWorker } from "../src/features/forever/forever.models";
+import { foreverAnalytics, foreverAnalyticsCache } from "../src/features/forever/forever-analytics";
+import { ForeverLeaderboardCache, ForeverLeaderboardLease } from "../src/features/forever/forever-leaderboard.models";
+import { setGuildVisibility } from "../src/features/forever/forever.service";
 
 test("Forever analytics API scopes the population and coalesces history reads", { skip: !process.env.FOREVER_TEST_MONGODB_URI }, async () => {
   await mongoose.connect(process.env.FOREVER_TEST_MONGODB_URI!, { dbName: `forever_analytics_test_${randomUUID().replace(/-/g, "")}` });
   let server: ReturnType<express.Express["listen"]> | undefined;
   try {
-    await ForeverCharacter.init(); await ForeverGuild.init();
+    await Promise.all([ForeverCharacter.init(), ForeverGuild.init(), ForeverWorker.init(), ForeverLeaderboardCache.init(), ForeverLeaderboardLease.init()]);
     const now = Date.now();
     const base = { region: "eu", source: "guild", status: "tracked", level: 20, race: "Human", className: "Mage", faction: "Alliance", ruleset: "PvP",
       history: [{ level: 10, observedAt: new Date(now - 48 * 3600_000) }, { level: 20, observedAt: new Date(now - 3600_000) }] };
@@ -38,9 +40,12 @@ test("Forever analytics API scopes the population and coalesces history reads", 
     assert.equal(timeline.days[timeline.days.length - 1].buckets.reduce((sum, bucket) => sum + bucket[2], 0), 3);
     assert.equal(characterReads, 1, "concurrent viewers share one history read");
     await foreverAnalytics(); assert.equal(characterReads, 1, "cached viewers do not reread all histories");
-    await ForeverGuild.updateOne({ _id: guild._id }, { $set: { hidden: true } });
+    await foreverAnalyticsCache.stop();
+    assert.equal((await foreverAnalytics()).total, 3);
+    assert.equal(characterReads, 1, "a replacement API process reuses the persisted aggregate");
+    await setGuildVisibility(String(guild._id), true);
     const hidden = await foreverAnalytics();
-    assert.equal(hidden.total, 2); assert.equal(hidden.active24h, 2); assert.equal(characterReads, 2, "guild hiding changes the cache visibility key immediately");
+    assert.equal(hidden.total, 2); assert.equal(hidden.active24h, 2); assert.equal(characterReads, 2, "guild hiding changes the cache moderation revision immediately");
     assert.equal(hidden.statistics.combinations[0].count, 2); assert.equal(hidden.levelsGained24h, 20);
     assert.equal(hidden.timeline.days[0].buckets.reduce((sum, bucket) => sum + bucket[2], 0), 2, "hiding also invalidates historical aggregates");
     process.env.BLIZZARD_CLIENT_ID ??= "test-client"; process.env.BLIZZARD_CLIENT_SECRET ??= "test-secret";
@@ -54,6 +59,7 @@ test("Forever analytics API scopes the population and coalesces history reads", 
     assert.ok(!JSON.stringify(result).includes("manual-member"), "response contains aggregates, not character identities");
   } finally {
     if (server) await new Promise<void>(resolve => server!.close(() => resolve()));
+    await foreverAnalyticsCache.stop();
     mongoose.set("debug", false); await mongoose.connection.dropDatabase(); await mongoose.disconnect();
   }
 });

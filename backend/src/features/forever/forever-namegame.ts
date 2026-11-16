@@ -1,6 +1,5 @@
-import { SharedSnapshotCacheService } from "../../services/shared-snapshot-cache.service";
-import { ForeverCharacter, ForeverGuild, ForeverWorker } from "./forever.models";
-import { ForeverLeaderboardCache, ForeverLeaderboardLease } from "./forever-leaderboard.models";
+import { ForeverCharacter, ForeverGuild } from "./forever.models";
+import { ForeverSnapshotCache } from "./forever-snapshot";
 import { ForeverError } from "./forever-errors";
 import { NAMEGAME_CATEGORIES, type HumorCategory } from "./forever-namegame-rating";
 import { visibleForeverCharacters } from "./forever-visibility";
@@ -24,8 +23,6 @@ export async function namegamePopulation() {
   return { filter, roster };
 }
 
-const FRESH_MS = 60_000;
-const shared = new SharedSnapshotCacheService("Forever Namegame", () => 0, { cache: ForeverLeaderboardCache, leases: ForeverLeaderboardLease });
 async function buildSnapshot() {
   const population = await namegamePopulation();
   const rows = await ForeverCharacter.find({ ...population.filter, "nameRating.score": { $gte: 0 } })
@@ -34,29 +31,14 @@ async function buildSnapshot() {
     name: nameRating!.name, category: nameRating!.category, score: nameRating!.score, rank: index + 1,
   })) };
 }
-type Snapshot = Awaited<ReturnType<typeof buildSnapshot>>;
-let local: { key: string; data: Snapshot } | undefined;
-let pending: { key: string; promise: Promise<Snapshot> } | undefined;
-async function snapshot() {
-  // This indexed revision read applies moderation across API processes, including to warm caches.
-  const worker = await ForeverWorker.findById("armory").select("leaderboardRevision").lean();
-  const key = `forever:namegame:v1:${worker?.leaderboardRevision || 0}`;
-  if (local?.key === key && Date.parse(local.data.generatedAt) > Date.now() - FRESH_MS) return local.data;
-  if (pending?.key === key) return pending.promise;
-  const promise = shared.get(key, buildSnapshot, FRESH_MS).then(data => {
-    local = { key, data };
-    return data;
-  }).finally(() => { if (pending?.promise === promise) pending = undefined; });
-  pending = { key, promise };
-  return promise;
-}
+export const foreverNamegameCache = new ForeverSnapshotCache("forever:namegame:v2", buildSnapshot);
 
 export async function namegameLeaderboard(query: { category?: unknown; page?: unknown; search?: unknown; sort?: unknown }) {
   const { category, page = "1", search = "", sort = "score-desc" } = query;
   if (category !== undefined && category !== "" && !NAMEGAME_CATEGORIES.includes(category as HumorCategory)) throw new ForeverError("invalid_input");
   if (typeof page !== "string" || !/^[1-9]\d{0,6}$/.test(page)) throw new ForeverError("invalid_input");
   if (typeof search !== "string" || search.length > 100 || typeof sort !== "string" || !["score-desc", "score-asc", "name"].includes(sort)) throw new ForeverError("invalid_input");
-  const data = await snapshot(), needle = search.trim().toLocaleLowerCase("fi");
+  const data = await foreverNamegameCache.get(), needle = search.trim().toLocaleLowerCase("fi");
   const ranked = category ? data.names.filter(entry => entry.category === category).map((entry, index) => ({ ...entry, rank: index + 1 })) : data.names;
   const names = ranked.filter(entry => !needle || entry.name.toLocaleLowerCase("fi").includes(needle));
   if (sort === "score-asc") names.sort((a, b) => a.score - b.score || a.rank - b.rank);
@@ -67,7 +49,7 @@ export async function namegameLeaderboard(query: { category?: unknown; page?: un
 }
 
 export async function namegameOverview() {
-  const data = await snapshot();
+  const data = await foreverNamegameCache.get();
   return { generatedAt: data.generatedAt, total: data.names.length, boards: ["", ...NAMEGAME_CATEGORIES].map(category => {
     const names = category ? data.names.filter(entry => entry.category === category) : data.names;
     return { category, total: names.length, names: names.slice(0, 5).map((entry, index) => ({ ...entry, rank: index + 1 })) };

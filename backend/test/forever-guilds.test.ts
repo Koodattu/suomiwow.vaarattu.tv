@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { Types } from "mongoose";
-import { ForeverCharacter, ForeverGuild } from "../src/features/forever/forever.models";
-import { publicGuilds, publicGuildDetail } from "../src/features/forever/forever-guilds";
+import { ForeverCharacter, ForeverGuild, ForeverWorker } from "../src/features/forever/forever.models";
+import { foreverGuildsCache, publicGuilds, publicGuildDetail } from "../src/features/forever/forever-guilds";
+import { ForeverLeaderboardCache, ForeverLeaderboardLease } from "../src/features/forever/forever-leaderboard.models";
+import { mockSnapshotStorage } from "./helpers/snapshot-cache";
 
 const guildId = new Types.ObjectId();
 const roster = ["alpha", "beta", "gamma"].map(slug => ({ region: "eu" as const, slug, name: slug, level: 20, className: "Mage", faction: "Alliance" }));
@@ -12,7 +14,14 @@ const characters = roster.map(member => ({ ...member, _id: new Types.ObjectId(),
   ruleset: "Normal", sourceUpdatedAt: new Date() }));
 const query = (value: unknown) => ({ select: () => ({ lean: async () => value }) });
 
+function setupCache(t: TestContext) {
+  mockSnapshotStorage(t, { cache: ForeverLeaderboardCache, leases: ForeverLeaderboardLease });
+  t.mock.method(ForeverWorker, "findById", () => query({ leaderboardRevision: 0 }));
+  t.after(() => foreverGuildsCache.stop());
+}
+
 test("public directory requires approved visible guilds and returns only summaries", async t => {
+  setupCache(t);
   t.mock.method(ForeverGuild, "find", (filter: unknown) => {
     assert.deepEqual(filter, { status: "approved", hidden: { $ne: true } });
     return query([guild, { ...guild, _id: new Types.ObjectId(), region: "us", roster: [] }]);
@@ -34,6 +43,7 @@ test("public directory requires approved visible guilds and returns only summari
 });
 
 test("guilds without enough profile evidence retain known faction but unknown ruleset", async t => {
+  setupCache(t);
   t.mock.method(ForeverGuild, "find", () => query([guild]));
   t.mock.method(ForeverCharacter, "find", () => query(characters.slice(0, 1)));
   const result = await publicGuilds();
@@ -42,6 +52,7 @@ test("guilds without enough profile evidence retain known faction but unknown ru
 });
 
 test("empty directory does not query character profiles", async t => {
+  setupCache(t);
   t.mock.method(ForeverGuild, "find", () => query([]));
   t.mock.method(ForeverCharacter, "find", () => { throw new Error("Unexpected profile query"); });
   assert.deepEqual(await publicGuilds(), { guilds: [] });

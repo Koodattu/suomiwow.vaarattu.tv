@@ -4,6 +4,7 @@ import { confirmedGuildRuleset } from "./forever-guild-ruleset";
 import { visibleForeverCharacters } from "./forever-visibility";
 import { armoryUrl } from "./forever-armory";
 import { ForeverError } from "./forever-errors";
+import { ForeverSnapshotCache } from "./forever-snapshot";
 
 const publicGuildFilter = { status: "approved", hidden: { $ne: true } } as const;
 const guildFields = "name region slug lastFetchedAt roster";
@@ -26,7 +27,7 @@ function summary(guild: Guild, characters: Character[]) {
   };
 }
 
-export async function publicGuilds() {
+export const foreverGuildsCache = new ForeverSnapshotCache("forever:guilds:v1", async () => {
   const guilds = await ForeverGuild.find(publicGuildFilter).select(guildFields).lean<Guild[]>();
   if (!guilds.length) return { guilds: [] };
   // Fetch profile evidence once for the directory, rather than once per guild.
@@ -40,6 +41,10 @@ export async function publicGuilds() {
     members.push(character); byGuild.set(key, members);
   }
   return { guilds: guilds.map(guild => summary(guild, byGuild.get(`${guild.region}/${guild.slug}`) ?? [])) };
+});
+
+export function publicGuilds() {
+  return foreverGuildsCache.get();
 }
 
 export async function publicGuildDetail(id: Types.ObjectId) {

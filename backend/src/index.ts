@@ -76,6 +76,7 @@ import foreverLevel60Worker from "./features/forever/forever-level60.worker";
 import guildLanguageWorker from "./features/forever/forever-guild-language.worker";
 import namegameWorker from "./features/forever/forever-namegame.worker";
 import { startForeverLeaderboard, stopForeverLeaderboard } from "./features/forever/forever-leaderboard";
+import { startForeverPageCaches, stopForeverPageCaches } from "./features/forever/forever-cache-warmer";
 
 // ============================================================================
 // WORKER MODE CONFIGURATION
@@ -586,6 +587,7 @@ const startServer = async () => {
     await connectDB();
     await initializeSiteAnalytics();
     await initializeForever();
+    startForeverPageCaches();
     completeStartupTask("Connect to MongoDB");
 
     setStartupTask("Initialize Pickem streak rules");
@@ -725,7 +727,7 @@ async function shutdown(): Promise<void> {
   shuttingDown = true;
   ingestionLeases.beginShutdown();
   for (const server of httpServers) server.close();
-  await stopForeverLeaderboard();
+  await Promise.all([stopForeverLeaderboard(), stopForeverPageCaches()]);
   logger.info("Shutting down; draining active ingestion...");
   if (isWorkerProcess) {
     await Promise.all([foreverWorker.stop(), foreverTwitchWorker.stop(), foreverLevel60Worker.stop(), guildLanguageWorker.stop(), namegameWorker.stop()]);

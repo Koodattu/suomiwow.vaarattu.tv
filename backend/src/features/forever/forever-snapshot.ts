@@ -1,0 +1,62 @@
+import { SharedSnapshotCacheService } from "../../services/shared-snapshot-cache.service";
+import logger from "../../utils/logger";
+import { ForeverWorker } from "./forever.models";
+import { ForeverLeaderboardCache, ForeverLeaderboardLease } from "./forever-leaderboard.models";
+
+const FRESH_MS = 60_000;
+type Snapshot<T> = { generatedAt: string; data: T };
+
+/** Public page snapshots share storage and moderation revisions with the leaderboard. */
+export class ForeverSnapshotCache<T> {
+  private readonly shared = new SharedSnapshotCacheService("Forever pages", () => 0,
+    { cache: ForeverLeaderboardCache, leases: ForeverLeaderboardLease });
+  private local?: { key: string; snapshot: Snapshot<T> };
+  private readonly pending = new Map<string, Promise<Snapshot<T>>>();
+  private timer?: ReturnType<typeof setInterval>;
+  private warming?: Promise<void>;
+
+  constructor(private readonly keyPrefix: string, private readonly build: () => Promise<T>) {}
+
+  async get(warm = false): Promise<T> {
+    // Never reuse a pre-moderation snapshot, including while an older build is in flight.
+    const worker = await ForeverWorker.findById("armory").select("leaderboardRevision").lean();
+    const key = `${this.keyPrefix}:${worker?.leaderboardRevision || 0}`;
+    const freshAfter = Date.now() - (warm ? FRESH_MS / 2 : FRESH_MS);
+    if (this.local?.key === key && Date.parse(this.local.snapshot.generatedAt) > freshAfter) return this.local.snapshot.data;
+    let promise = this.pending.get(key);
+    if (!promise) {
+      promise = this.shared.get(key, async () => {
+        const data = await this.build();
+        return { generatedAt: new Date().toISOString(), data };
+      }, FRESH_MS, warm).then(snapshot => {
+        this.local = { key, snapshot };
+        return snapshot;
+      }).finally(() => { this.pending.delete(key); });
+      this.pending.set(key, promise);
+    }
+    return (await promise).data;
+  }
+
+  start() {
+    if (this.timer) return;
+    const warm = () => {
+      if (this.warming) return;
+      this.warming = this.get(true).then(() => undefined,
+        error => { logger.error(`[Forever] ${this.keyPrefix} warm-up failed`, error); })
+        .finally(() => { this.warming = undefined; });
+    };
+    warm();
+    // Check more often than the refresh-ahead window so build time cannot push
+    // the next eligible tick right up against expiry.
+    this.timer = setInterval(warm, FRESH_MS / 4);
+    this.timer.unref();
+  }
+
+  async stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
+    await this.warming;
+    await Promise.allSettled(this.pending.values());
+    this.local = undefined;
+  }
+}
