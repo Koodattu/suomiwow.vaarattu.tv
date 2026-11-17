@@ -67,14 +67,17 @@ export class GuildLanguageWorker {
     const missing = (["structured", "decision"] as const).filter(method => scores[method] == null);
     const assessedAt = new Date();
     const retry = missing.length > 0;
-    const action = guildLanguageAutoAction(scores);
+    // Linked profiles can be a single Finnish member in an otherwise unrelated guild.
+    // Only a successfully fetched, non-empty roster may drive automatic moderation.
+    const action = guild.lastFetchedAt && members.length > 0 ? guildLanguageAutoAction(scores) : null;
     await mongoose.connection.transaction(async session => {
       // Commit the action, audit record and assessment together. A reclaimed lease or
       // concurrent manual review must never publish an automatic moderation action.
       if (action) {
         const reviewed = await ForeverGuild.findOneAndUpdate({ ...fence, ...guildsAwaitingLanguageReview }, {
           $set: { status: action, ...(action === "rejected" && { hidden: true }),
-            autoReview: { action, reviewedAt: assessedAt, structured: scores.structured, decision: scores.decision!.percent } },
+            autoReview: { action, reviewedAt: assessedAt, structured: scores.structured, decision: scores.decision!.percent,
+              evidence, fingerprint, model: GUILD_LANGUAGE_MODEL, version: GUILD_LANGUAGE_VERSION, rosterFetchedAt: guild.lastFetchedAt } },
         }, { session, returnDocument: "after" }).select("region slug failures").lean();
         if (reviewed) {
           if (action === "approved") {

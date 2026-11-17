@@ -49,6 +49,9 @@ const guildSchema = new Schema({
     action: { type: String, enum: ["approved", "rejected"], required: true },
     reviewedAt: { type: Date, required: true },
     structured: { type: Number, required: true }, decision: { type: Number, required: true },
+    // Older decisions have no evidence snapshot; never infer one from the latest roster.
+    evidence: { type: new Schema({ guildName: String, characterNames: [String] }, { _id: false }) },
+    fingerprint: String, model: String, version: Number, rosterFetchedAt: Date,
   }, { _id: false }) },
   rosterPollingVersion: Number, rosterLaggingMembers: Number,
   profileComparisons: { type: Number, default: 0 }, profileAheadCount: { type: Number, default: 0 },

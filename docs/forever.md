@@ -93,6 +93,8 @@ character names in the same region, or just the guild name if none are known. Th
 and assessment time. Running again reuses completed scores for identical names and rubric, retries missing methods, and
 reassesses changed inputs. Scores are available only through the Forever admin API.
 
+Automatic moderation requires a successfully fetched, non-empty roster. Profile-only estimates and empty rosters remain
+informational, even when both scores cross a threshold; the first fetched roster triggers another assessment.
 Unreviewed, visible proposed/pending guilds are automatically approved when both percentages are strictly above 85%.
 This queues a fresh roster and tracks current and future members through the normal roster worker, respecting fetch backoffs.
 When both percentages are strictly below 30%, the guild is hidden and rejected, roster coverage is released and the leaderboard
@@ -100,6 +102,10 @@ cache is invalidated. Exact boundaries, mixed results and missing scores remain 
 are also evaluated automatically without repeating paid calls for unchanged evidence. Missing results retain the hourly retry.
 Manual status/visibility changes prevent subsequent automatic moderation, including changes made while scoring is in flight.
 Already approved, paused, rejected or hidden guilds are never automatically changed.
+
+New automatic decisions retain the exact guild/member names, evidence fingerprint, model, rubric version and roster fetch time
+alongside their original scores. Later assessments cannot overwrite that snapshot. The admin detail API includes the evidence;
+paginated summaries omit the name list. Older decisions retain their original scores without a fabricated evidence snapshot.
 
 The **LLM decision history** status filter combines recorded automatic approvals and rejections;
 **Auto approved** and **Auto rejected** narrow it to one outcome. Selecting any history filter defaults to

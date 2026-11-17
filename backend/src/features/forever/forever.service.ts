@@ -227,7 +227,7 @@ export async function adminOverview(query: { status?: unknown; characterPage?: u
   const [characters, guilds, worker, totalCharacters, totalGuilds, characterCounts, guildCounts, languagePending] = await Promise.all([
     ForeverCharacter.find(filter).select("-history -proposedBy").sort({ createdAt: -1, _id: -1 }).skip((characterPage - 1) * 50).limit(50).lean(),
     ForeverGuild.aggregate([{ $match: guildFilter }, ...guildSortStages, { $skip: (guildPage - 1) * 50 }, { $limit: 50 },
-      { $addFields: { rosterCount: { $size: { $ifNull: ["$roster", []] } } } }, { $project: { roster: 0, languageSort: 0, languageLease: 0, "languageAssessment.fingerprint": 0, "languageAssessment.plain": 0 } }]),
+      { $addFields: { rosterCount: { $size: { $ifNull: ["$roster", []] } } } }, { $project: { roster: 0, languageSort: 0, languageLease: 0, "autoReview.evidence": 0, "languageAssessment.fingerprint": 0, "languageAssessment.plain": 0 } }]),
     ForeverWorker.findById("armory").select("-leaseToken").lean(),
     ForeverCharacter.countDocuments(filter), ForeverGuild.countDocuments(guildFilter),
     ForeverCharacter.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
