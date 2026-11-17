@@ -181,9 +181,10 @@
     "admin": {
       "hidden": "Hidden",
       "hideGuild": "Hide guild",
+      "rejectGuild": "Reject and hide guild",
       "restoreGuild": "Restore guild",
       "guildVisibilityNote": "Hides members imported through this guild and pauses their updates. Individually confirmed characters stay visible and tracked. History is kept.",
-      "guildHiddenNote": "Guild imports are hidden. Individually confirmed characters remain tracked. Restore to resume guild updates.",
+      "guildHiddenNote": "Guild imports are hidden. Individually confirmed characters remain tracked. To resume guild updates, approve and restore the guild.",
       "sections": "Forever administration",
       "reload": "Reload data",
       "searchCharacters": "Find characters",

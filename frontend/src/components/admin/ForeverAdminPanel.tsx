@@ -189,7 +189,7 @@ export default function ForeverAdminPanel() {
             <div className={styles.guildVisibility}>
               <button className={`${buttonClass} ${styles.quietButton}`} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}/visibility`, "PATCH", { hidden: !activeGuild.hidden })}>{t(activeGuild.hidden ? "admin.restoreGuild" : "admin.hideGuild")}</button>
               <span>{t(activeGuild.hidden ? "admin.guildHiddenNote" : "admin.guildVisibilityNote")}</span>
-              {["proposed", "pending"].includes(activeGuild.status) && <button className={buttonClass} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}`, "PATCH", { status: "rejected" })}>{t("reject")}</button>}
+              {(activeGuild.status !== "rejected" || !activeGuild.hidden) && <button className={buttonClass} disabled={busy} onClick={() => void act(`guilds/${activeGuild._id}`, "PATCH", { status: "rejected" })}>{t("admin.rejectGuild")}</button>}
             </div>
             <p className={styles.adminHelp}>{t("guildApprovalNote")}</p>
             {activeGuild.lastFetchedAt ? <>

@@ -103,6 +103,10 @@ are also evaluated automatically without repeating paid calls for unchanged evid
 Manual status/visibility changes prevent subsequent automatic moderation, including changes made while scoring is in flight.
 Already approved, paused, rejected or hidden guilds are never automatically changed.
 
+Admins can **Reject and hide guild** from any guild state, including approved guilds. This records a manual review,
+sets rejected/hidden together, stops roster polling and hides guild-dependent imports while preserving history and
+individually confirmed characters. Resuming a rejected hidden guild requires both approval and restoring visibility.
+
 New automatic decisions retain the exact guild/member names, evidence fingerprint, model, rubric version and roster fetch time
 alongside their original scores. Later assessments cannot overwrite that snapshot. The admin detail API includes the evidence;
 paginated summaries omit the name list. Older decisions retain their original scores without a fabricated evidence snapshot.

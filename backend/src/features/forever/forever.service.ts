@@ -159,7 +159,9 @@ export async function requestRefresh(id: unknown, userId: string) {
 
 export async function setGuildStatus(id: unknown, status: unknown) {
   if (!["approved", "paused", "rejected"].includes(String(status))) throw new ForeverError("invalid_input");
-  const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: { status, manualReviewAt: new Date() } });
+  const result = await ForeverGuild.updateOne({ _id: objectId(id) }, { $set: {
+    status, ...(status === "rejected" ? { hidden: true } : {}), manualReviewAt: new Date(),
+  } });
   if (!result.matchedCount) throw new ForeverError("not_found", 404);
   await invalidateForeverLeaderboard();
   // Approval queues a fresh roster. Pausing stops expansion; already tracked members remain tracked.

@@ -10,8 +10,9 @@ const source = ts.transpileModule(readFileSync(new URL("../src/components/admin/
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 
-function panelSession() {
+function panelSession(detail) {
   const states = [], queries = [];
+  const mutations = [];
   let cursor = 0;
   const guilds = [
     { _id: "new", name: "New decision", status: "approved", autoReview: { action: "rejected", reviewedAt: "2026-11-17T10:00:00Z" } },
@@ -26,16 +27,17 @@ function panelSession() {
       return [states[index], value => { states[index] = value; }];
     } };
     if (name === "@tanstack/react-query") return {
-      useQueryClient: () => ({}),
+      useQueryClient: () => ({ invalidateQueries: async () => {} }),
       useQuery: options => {
         queries.push(options);
-        return { data: options.queryKey[2] === "guild" ? undefined : {
+        return { data: options.queryKey[2] === "guild" ? detail : {
           characters: [], characterCounts: {}, guilds, guildCounts: { approved: 60 }, totalGuilds: 60,
         } };
       },
     };
     if (name === "next-intl") return { useTranslations: () => key => key };
     if (name === "next/link") return { default: "Link" };
+    if (name === "@/lib/forever-api") return { foreverApi: async (...args) => { mutations.push(args); return {}; } };
     if (name.startsWith("@/")) return shared;
     return require(name);
   } });
@@ -48,7 +50,7 @@ function panelSession() {
       else if (node && typeof node === "object" && node.props) { nodes.push(node); visit(node.props.children); }
     };
     visit(tree);
-    return { nodes, params: new URLSearchParams(queries[0].queryKey[2]), detailId: queries[1].queryKey[3] };
+    return { nodes, mutations, params: new URLSearchParams(queries[0].queryKey[2]), detailId: queries[1].queryKey[3] };
   };
 }
 
@@ -75,11 +77,29 @@ test("selecting each LLM history filter requests newest first and resets paginat
   }
 });
 
+test("approved and paused guilds can be rejected and hidden through the admin action", async () => {
+  for (const [status, hidden, available] of [["approved", false, true], ["paused", false, true], ["rejected", false, true], ["rejected", true, false]]) {
+    const render = panelSession({ _id: "selected", name: "Selected guild", status, hidden, roster: [] });
+    render().nodes.find(node => node.type === "button" && node.props.children?.[0] === "discoveredGuilds").props.onClick();
+    const panel = render();
+    const button = panel.nodes.find(node => node.type === "button" && node.props.children === "admin.rejectGuild");
+    assert.equal(!!button, available, `${status}/${hidden}`);
+    if (button) {
+      assert.equal(button.props.disabled, false);
+      button.props.onClick();
+      assert.equal(panel.mutations[0][0], "admin/forever/guilds/selected");
+      assert.equal(panel.mutations[0][1], "PATCH");
+      assert.equal(panel.mutations[0][2].status, "rejected");
+    }
+  }
+});
+
 test("admin history and sorting translations are present in both maintained locales", () => {
   const read = locale => JSON.parse(readFileSync(new URL(`../messages/${locale}.json`, import.meta.url), "utf8")).forever.admin;
   for (const group of ["guildSort", "language"]) assert.deepEqual(Object.keys(read("en")[group]).sort(), Object.keys(read("fi")[group]).sort());
   for (const locale of ["en", "fi"]) {
     assert.ok(read(locale).guildSort["reviewed-desc"]);
     assert.ok(read(locale).language["auto-reviewed"]);
+    assert.ok(read(locale).rejectGuild);
   }
 });

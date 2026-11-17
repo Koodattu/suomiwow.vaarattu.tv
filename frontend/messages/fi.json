@@ -181,9 +181,10 @@
     "admin": {
       "hidden": "Piilotettu",
       "hideGuild": "Piilota kilta",
+      "rejectGuild": "Hylkää ja piilota kilta",
       "restoreGuild": "Palauta kilta",
       "guildVisibilityNote": "Piilottaa killan kautta lisätyt jäsenet ja keskeyttää niiden päivitykset. Erikseen vahvistetut hahmot pysyvät näkyvissä ja seurannassa. Historia säilyy.",
-      "guildHiddenNote": "Killan kautta lisätyt hahmot on piilotettu. Erikseen vahvistettujen hahmojen seuranta jatkuu. Palautus jatkaa killan päivityksiä.",
+      "guildHiddenNote": "Killan kautta lisätyt hahmot on piilotettu. Erikseen vahvistettujen hahmojen seuranta jatkuu. Killan päivitykset jatkuvat, kun kilta on hyväksytty ja palautettu näkyviin.",
       "sections": "Forever-hallinta",
       "reload": "Lataa tiedot uudelleen",
       "searchCharacters": "Hae hahmoja",

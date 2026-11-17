@@ -195,6 +195,32 @@ test("guild automation and review history (isolated replica-set database)", { sk
       assert.equal(changed.languageAssessment?.structured, 5);
       assert.deepEqual(changed.autoReview, approved.autoReview);
     });
+    await t.test("manual rejection hides an approved guild and its imports while preserving individuals and decision history", async () => {
+      const guild = await create(); await worker.tick(client);
+      const approved = (await ForeverGuild.findById(guild._id).lean())!;
+      const coverage = new Date(Date.now() + 86_400_000);
+      await ForeverCharacter.create([
+        { region: "eu", slug: "import", source: "guild", status: "tracked", level: 20,
+          guild: { region: "eu", slug: "guild", name: "Guild" }, rosterGuildSlug: "guild", rosterCoverageUntil: coverage },
+        { region: "eu", slug: "individual", source: "guild", status: "tracked", independentlyTracked: true,
+          guild: { region: "eu", slug: "guild", name: "Guild" } },
+      ]);
+      const revision = (await ForeverWorker.findById("armory").lean())!.leaderboardRevision;
+      await setGuildStatus(String(guild._id), "rejected");
+      const rejected = (await ForeverGuild.findById(guild._id).lean())!;
+      assert.equal(rejected.status, "rejected"); assert.equal(rejected.hidden, true); assert.ok(rejected.manualReviewAt);
+      assert.deepEqual(rejected.autoReview, approved.autoReview);
+      assert.equal(await ForeverCharacter.countDocuments(await visibleForeverCharacters()), 1);
+      assert.equal((await ForeverCharacter.findOne({ slug: "import" }).lean())?.rosterCoverageUntil, undefined);
+      assert.ok((await ForeverWorker.findById("armory").lean())!.leaderboardRevision > revision);
+      await ForeverGuild.updateOne({ _id: guild._id }, { $set: { languageDueAt: new Date(0) } });
+      await worker.tick(client);
+      assert.equal((await ForeverGuild.findById(guild._id).lean())?.status, "rejected");
+      await setGuildStatus(String(guild._id), "approved");
+      assert.equal((await ForeverGuild.findById(guild._id).lean())?.hidden, true);
+      await setGuildVisibility(String(guild._id), false);
+      assert.equal(await ForeverCharacter.countDocuments(await visibleForeverCharacters()), 2);
+    });
     await t.test("approval queues a fresh roster and the existing worker tracks its members", async () => {
       const guild = await create({ status: "proposed" });
       await Promise.all([worker.tick(client), worker.tick(client)]);
