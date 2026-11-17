@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useTranslations } from "next-intl";
 import { formatForeverDate, type ForeverAnalytics } from "@/lib/forever-api";
@@ -35,13 +35,12 @@ function PopulationBars({ title, entries, total, colored = false }: {
   </section>;
 }
 
-export default function ForeverAnalyticsCharts({ data, distribution = data.levels, minimumLevel = 1, controls }: {
-  data: ForeverAnalytics; distribution?: ForeverAnalytics["levels"]; minimumLevel?: number; controls?: ReactNode;
+export default function ForeverAnalyticsCharts({ data, distribution = data.levels, distributionMaximum, minimumLevel = 1, controls }: {
+  data: ForeverAnalytics; distribution?: ForeverAnalytics["levels"]; distributionMaximum: number; minimumLevel?: number; controls?: ReactNode;
 }) {
-  const t = useTranslations("forever"), [days, setDays] = useState(7);
+  const t = useTranslations("forever");
   const distributionTotal = distribution.reduce((sum, entry) => sum + entry.count, 0);
-  const cutoff = Date.parse(data.generatedAt) - days * 86400_000;
-  const activity = data.activity.filter(point => Date.parse(point.at) >= cutoff).map(point => ({ ...point, timestamp: Date.parse(point.at) }));
+  const activity = data.activity.map(point => ({ ...point, timestamp: Date.parse(point.at) }));
   const latestActivity = activity[activity.length - 1];
   const activeShare = latestActivity?.observed ? Math.round(1000 * latestActivity.active / latestActivity.observed) / 10 : null;
   const cells = new Map(data.combinations.map(entry => [JSON.stringify([entry.race, entry.className]), entry]));
@@ -81,7 +80,7 @@ export default function ForeverAnalyticsCharts({ data, distribution = data.level
           <BarChart data={distribution} margin={{ top: 12, right: 6, left: 0, bottom: 0 }} aria-label={t("analytics.levelDistribution")}>
             <CartesianGrid vertical={false} stroke="#afc2a625" strokeDasharray="3 4" />
             <XAxis dataKey="level" ticks={[1, 10, 20, 30, 40, 50, 60]} interval={0} tick={axis} tickLine={false} stroke="#494f40" />
-            <YAxis allowDecimals={false} width={42} tick={axis} axisLine={false} tickLine={false} />
+            <YAxis domain={[0, distributionMaximum]} allowDataOverflow allowDecimals={false} width={42} tick={axis} axisLine={false} tickLine={false} />
             <Tooltip cursor={{ fill: "#d7b87513" }} content={({ active, payload }) => {
               const point = payload?.[0]?.payload as ForeverAnalytics["levels"][number] | undefined;
               return active && point ? <div className={styles.tooltip} role="status"><strong>{t("levelValue", { level: point.level })}</strong><span>{t("analytics.characterCount", { count: point.count })} · {percent(point.count, distributionTotal)}</span></div> : null;
@@ -121,7 +120,6 @@ export default function ForeverAnalyticsCharts({ data, distribution = data.level
           <div><dt>{t("analytics.activeShort")}</dt><dd title={t("analytics.characterCount", { count: latestActivity?.active || 0 })}>{activeShare === null ? "—" : `${number.format(activeShare)} %`}</dd></div>
           <div><dt>{t("analytics.inactiveShort")}</dt><dd title={t("analytics.characterCount", { count: latestActivity ? latestActivity.observed - latestActivity.active : 0 })}>{activeShare === null ? "—" : `${number.format(100 - activeShare)} %`}</dd></div>
         </dl>
-        <div className={styles.range} role="group" aria-label={t("analytics.timeRange")}>{[7, 30].map(value => <button key={value} aria-pressed={days === value} onClick={() => setDays(value)}>{t("analytics.days", { count: value })}</button>)}</div>
       </div>
       {activity.length ? <>
         <div className={styles.legend}><span><i style={{ background: "#d7b875" }} />{t("analytics.active")}</span><span><i style={{ background: "#849b93" }} />{t("analytics.observed")}</span></div>

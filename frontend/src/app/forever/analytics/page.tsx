@@ -8,7 +8,7 @@ import ForeverHeader from "@/components/forever/ForeverHeader";
 import ForeverAnalyticsCharts from "@/components/forever/ForeverAnalyticsCharts";
 import ForeverPopulation from "@/components/forever/ForeverPopulation";
 import ForeverAnalyticsControls, { analyticsDate } from "@/components/forever/ForeverAnalyticsControls";
-import { selectForeverAnalytics } from "@/lib/forever-analytics";
+import { foreverDistributionMaximum, selectForeverAnalytics } from "@/lib/forever-analytics";
 import { foreverLevelingRefetchInterval } from "@/lib/forever-leveling-query";
 import { ForeverErrorMessage, ForeverUpdated } from "@/components/forever/ForeverShared";
 import world from "@/components/forever/forever.module.css";
@@ -23,6 +23,7 @@ export default function ForeverAnalyticsPage() {
   const query = useQuery({ queryKey: ["forever", "analytics"], queryFn: () => foreverApi<ForeverAnalytics>("forever/analytics"),
     staleTime: 15_000, refetchInterval: query => foreverLevelingRefetchInterval(query.state.data) });
   const timeline = query.data?.timeline;
+  const distributionMaximum = useMemo(() => foreverDistributionMaximum(query.data?.levels || [], timeline), [query.data, timeline]);
   const last = (timeline?.days.length || 1) - 1;
   const index = selectedDate && timeline ? Math.max(0, timeline.days.findIndex(day => day.date === selectedDate)) : last;
   const population = useMemo(() => timeline?.days.length ? selectForeverAnalytics(timeline, index, 1) : query.data,
@@ -43,7 +44,7 @@ export default function ForeverAnalyticsPage() {
         <div className={styles.updated}><dt>{index < last ? t("analytics.dayEnd") : t("checked")}</dt><dd>{index < last && timeline ? analyticsDate(timeline.days[index].date) : <ForeverUpdated value={data.generatedAt} />}</dd></div>
       </dl>
       {data.total > 0 && <ForeverPopulation statistics={data.statistics} total={data.total} loading={false} layout="analytics" />}
-      <ForeverAnalyticsCharts data={data} distribution={population?.levels} minimumLevel={minimum}
+      <ForeverAnalyticsCharts data={data} distribution={population?.levels} distributionMaximum={distributionMaximum} minimumLevel={minimum}
         controls={timeline && <ForeverAnalyticsControls timeline={timeline} index={index} minimum={minimum} onDate={setSelectedDate} onMinimum={setMinimum} />} />
     </>}
   </div></div>;

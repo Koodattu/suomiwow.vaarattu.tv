@@ -3,6 +3,18 @@ import type { ForeverAnalytics, ForeverAnalyticsTimeline } from "./forever-api";
 const counts = (map: Map<string | null, number>) => [...map].map(([name, count]) => ({ name, count }))
   .sort((a, b) => b.count - a.count || (a.name || "").localeCompare(b.name || "", "fi"));
 
+/** Keep one scale across dates, including historical peaks that exceed today's counts. */
+export function foreverDistributionMaximum(latestLevels: ForeverAnalytics["levels"], timeline?: ForeverAnalyticsTimeline): number {
+  let maximum = Math.max(1, ...latestLevels.map(entry => entry.count));
+  for (const day of timeline?.days || []) {
+    const levels = new Array<number>(60).fill(0);
+    for (const [, level, count] of day.buckets) levels[level - 1] += count;
+    maximum = Math.max(maximum, ...levels);
+  }
+  const step = 10 ** Math.floor(Math.log10(maximum));
+  return Math.ceil(maximum / step) * step;
+}
+
 /** Fold cached count buckets locally; neither slider performs an API request. */
 export function selectForeverAnalytics(timeline: ForeverAnalyticsTimeline, dayIndex: number, minimumLevel: number): ForeverAnalytics {
   const index = Math.max(0, Math.min(timeline.days.length - 1, dayIndex));
@@ -38,7 +50,7 @@ export function selectForeverAnalytics(timeline: ForeverAnalyticsTimeline, dayIn
     cumulative = 0;
     return levels.find(row => (cumulative += row.count) >= position)?.level || 0;
   };
-  const activity = timeline.days.slice(0, index + 1).filter(sample => Date.parse(sample.at) >= Date.parse(day.at) - 30 * 86400_000)
+  const activity = timeline.days.slice(0, index + 1)
     .map(sample => {
       let active = 0, observed = 0;
       for (const [, level, , activeCount, , , observedCount] of sample.buckets) {

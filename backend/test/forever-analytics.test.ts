@@ -96,12 +96,12 @@ test("faction and ruleset charts share the full analytics population, including 
   assert.equal(result.statistics.combinations.find(entry => entry.faction === "Alliance" && entry.ruleset === null)?.count, 1);
   assert.equal(result.statistics.averageLevel, result.averageLevel); assert.equal(result.statistics.atMaxLevel, result.atMaxLevel);
 });
-test("activity drop-off is reconstructed between gains, with only thirty days returned", () => {
+test("activity drop-off is reconstructed from the first observation, beyond thirty days", () => {
   const result = buildForeverAnalytics([{ level: 12, history: [point(10, 40 * 24), point(11, 4 * 24), point(12, 2)] }], now);
-  assert.equal(result.activity[0].at, new Date(now - 30 * 24 * hour).toISOString());
+  assert.equal(result.activity[0].at, new Date(now - 40 * 24 * hour).toISOString());
   assert.equal(result.activity.find(row => row.at === new Date(now - 90 * hour).toISOString())?.active, 1);
   assert.equal(result.activity.find(row => row.at === new Date(now - 48 * hour).toISOString())?.active, 0);
-  assert.equal(result.active24h, 1); assert.ok(result.activity.length <= 122);
+  assert.equal(result.active24h, 1); assert.equal(result.activity.length, 161);
 });
 test("current level-one characters are excluded only from activity, while gains from level one still count", () => {
   const starter = { level: 1, race: "Orc", className: "Warrior", faction: "Horde", history: [point(1, 120), point(1, 1)] };

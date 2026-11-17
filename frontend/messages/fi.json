@@ -71,9 +71,7 @@
       "active": "Aktiiviset hahmot",
       "observed": "Siihen mennessä havaitut hahmot",
       "partialWindow": "Ensimmäisten 24 tunnin tiedot ovat puutteelliset.",
-      "noHistory": "Ei vielä tallennettuja tasonnousuja.",
-      "timeRange": "Aikaväli",
-      "days": "{count} päivää"
+      "noHistory": "Ei vielä tallennettuja tasonnousuja."
     },
     "brand": "SuomiWoW Forever",
     "timeAgo": {
@@ -194,6 +192,7 @@
       "guildSort": {
         "label": "Järjestä killat",
         "name": "Nimi (A–Ö)",
+        "reviewed-desc": "Kielimallin päätös · uusin ensin",
         "structured-desc": "Luna % · suurin ensin",
         "structured-asc": "Luna % · pienin ensin",
         "decision-desc": "Decisions % · suurin ensin",
@@ -201,6 +200,7 @@
       },
       "language": {
         "title": "Kuinka todennäköisesti kilta on suomenkielinen?",
+        "auto-reviewed": "Kielimallin päätöshistoria",
         "auto-approved": "Automaattisesti hyväksytty",
         "auto-rejected": "Automaattisesti hylätty",
         "automation": "Käsittelemätön kilta hyväksytään ja sen jäsenet lisätään seurantaan, kun molemmat arviot ylittävät 85 %. Jos molemmat ovat alle 30 %, kilta piilotetaan ja hylätään. Muut tulokset jäävät käsin tarkistettaviksi.",

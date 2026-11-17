@@ -101,9 +101,12 @@ are also evaluated automatically without repeating paid calls for unchanged evid
 Manual status/visibility changes prevent subsequent automatic moderation, including changes made while scoring is in flight.
 Already approved, paused, rejected or hidden guilds are never automatically changed.
 
-The **Auto approved** and **Auto rejected** status filters show all recorded automatic actions, including guilds later changed
-manually. Each guild retains the action time and both percentages used for that action, separately from its latest assessment
-and current status. The worker commits moderation, audit evidence and assessment completion in one transaction.
+The **LLM decision history** status filter combines recorded automatic approvals and rejections;
+**Auto approved** and **Auto rejected** narrow it to one outcome. Selecting any history filter defaults to
+**LLM decision · newest first**, ordered by the original decision time before pagination. Guild search still applies.
+Hidden guilds and guilds later changed manually remain in history. The list shows the automatic action and timestamp
+alongside the current status. Each guild retains both percentages used for that action, separately from its latest assessment.
+The worker commits moderation, audit evidence and assessment completion in one transaction.
 
 ## Leaderboard performance and freshness
 

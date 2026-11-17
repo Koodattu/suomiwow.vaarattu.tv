@@ -210,10 +210,13 @@ export async function adminOverview(query: { status?: unknown; characterPage?: u
   if (["proposed", "pending", "approved", "paused", "rejected"].includes(String(query.guildStatus))) guildFilter.status = query.guildStatus;
   else if (query.guildStatus === "auto-approved") guildFilter["autoReview.action"] = "approved";
   else if (query.guildStatus === "auto-rejected") guildFilter["autoReview.action"] = "rejected";
-  const guildSort = query.guildSort ?? "name";
-  if (typeof guildSort !== "string" || !["name", "structured-desc", "structured-asc", "decision-desc", "decision-asc"].includes(guildSort)) throw new ForeverError("invalid_input");
+  else if (query.guildStatus === "auto-reviewed") guildFilter["autoReview.action"] = { $in: ["approved", "rejected"] };
+  const guildSort = query.guildSort ?? (guildFilter["autoReview.action"] ? "reviewed-desc" : "name");
+  if (typeof guildSort !== "string" || !["name", "reviewed-desc", "structured-desc", "structured-asc", "decision-desc", "decision-asc"].includes(guildSort)) throw new ForeverError("invalid_input");
   let guildSortStages: mongoose.PipelineStage[] = [{ $sort: { name: 1, _id: 1 } }];
-  if (guildSort !== "name") {
+  if (guildSort === "reviewed-desc") {
+    guildSortStages = [{ $sort: { "autoReview.reviewedAt": -1, name: 1, _id: 1 } }];
+  } else if (guildSort !== "name") {
     const direction = guildSort.endsWith("-asc") ? 1 : -1;
     const field = guildSort.startsWith("structured-") ? "$languageAssessment.structured" : "$languageAssessment.decision.percent";
     guildSortStages = [

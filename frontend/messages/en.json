@@ -71,9 +71,7 @@
       "active": "Active characters",
       "observed": "Characters observed so far",
       "partialWindow": "The first 24 hours have incomplete coverage.",
-      "noHistory": "No leveling activity recorded yet.",
-      "timeRange": "Time range",
-      "days": "{count} days"
+      "noHistory": "No leveling activity recorded yet."
     },
     "brand": "SuomiWoW Forever",
     "timeAgo": {
@@ -194,6 +192,7 @@
       "guildSort": {
         "label": "Sort guilds",
         "name": "Name (A–Z)",
+        "reviewed-desc": "LLM decision · newest first",
         "structured-desc": "Luna % · high to low",
         "structured-asc": "Luna % · low to high",
         "decision-desc": "Decisions % · high to low",
@@ -201,6 +200,7 @@
       },
       "language": {
         "title": "Likelihood the guild speaks Finnish",
+        "auto-reviewed": "LLM decision history",
         "auto-approved": "Auto approved",
         "auto-rejected": "Auto rejected",
         "automation": "Unreviewed guilds are approved and their rosters tracked when both estimates exceed 85%. Both below 30% hides and rejects the guild. All other results remain for manual review.",

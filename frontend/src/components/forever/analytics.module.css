@@ -17,7 +17,7 @@
 .full { grid-column: 1 / -1; }
 .panelHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 .panelHeading h2 { font: 20px/1.3 Georgia, serif; color: #ebd6a8; margin: 0; }
-.activityHeading { display: grid; grid-template-columns: auto 1fr auto; }
+.activityHeading { display: grid; grid-template-columns: auto 1fr; }
 .activityFacts { display: flex; justify-self: center; gap: 24px; margin: 0; font-size: 12px; }
 .activityFacts > div { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
 .activityFacts dt { color: #b2afa0; }
@@ -49,9 +49,6 @@
 .matrix td span { display: block; padding: 9px 5px; }
 .heatLegend { display: inline-flex; align-items: center; gap: 8px; }
 .heatLegend i { height: 9px; width: 76px; background: linear-gradient(to right, #28565a, #b45324); }
-.range { display: flex; gap: 4px; }
-.range button { color: #bdb6a3; background: none; border: 1px solid #494338; padding: 6px 12px; border-radius: 3px; cursor: pointer; font-size: 12px; }
-.range button[aria-pressed="true"] { background: #d7b87518; border-color: #9e8251; color: #edcf8d; }
 .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 11px; color: #b9b4a4; margin-bottom: 10px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 16px; height: 2px; }
@@ -72,11 +69,9 @@
 @media (max-width: 540px) {
   .activityHeading { display: flex; gap: 10px 8px; }
   .activityHeading h2 { flex-basis: 100%; }
-  .activityHeading .range { margin-left: auto; }
   .activityFacts { gap: 10px; font-size: 10px; }
   .activityFacts > div { gap: 4px; }
   .activityFacts dd { font-size: 15px; }
-  .activityHeading .range button { padding: 6px 8px; font-size: 11px; }
   .controls { gap: 16px; }
   .controlLabel { gap: 6px; font-size: 11px; }
   .bars li { grid-template-columns: 95px minmax(20px, 1fr) 32px 43px; gap: 8px; font-size: 11px; }

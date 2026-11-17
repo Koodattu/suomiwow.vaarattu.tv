@@ -11,6 +11,54 @@ import { ForeverRunner } from "../src/features/forever/forever.worker";
 import { visibleForeverCharacters } from "../src/features/forever/forever-visibility";
 
 const uri = process.env.FOREVER_TEST_MONGODB_URI;
+test("admin LLM decision history is newest first across pages and retains hidden and manually overridden guilds", { skip: !uri }, async () => {
+  await mongoose.connect(uri!, { dbName: "forever_language_history_test_" + randomUUID().replace(/-/g, ""), serverSelectionTimeoutMS: 5000 });
+  try {
+    const fixtures = Array.from({ length: 55 }, (_, index) => {
+      const action = index % 2 === 0 ? "approved" as const : "rejected" as const;
+      return { region: "eu", slug: `history-${index}`, name: `History ${String(index).padStart(2, "0")}`, status: action,
+        hidden: action === "rejected", autoReview: { action, reviewedAt: new Date(Date.UTC(2026, 10, 1, 0, index)), structured: 90, decision: 90 } };
+    });
+    // Identical timestamps and names must still paginate deterministically.
+    const guilds = await ForeverGuild.create([...fixtures, { ...fixtures[54], slug: "history-tie" }]);
+    const overridden = guilds[53];
+    await ForeverGuild.updateOne({ _id: overridden._id }, { $set: { status: "approved", hidden: false, manualReviewAt: new Date() } });
+    // Later assessments and updates must not move an old moderation decision to the top.
+    await ForeverGuild.updateOne({ _id: guilds[0]._id }, { $set: { "languageAssessment.assessedAt": new Date() } });
+    await ForeverGuild.create([
+      { region: "eu", slug: "manual", name: "History manual", status: "approved", manualReviewAt: new Date() },
+      { region: "eu", slug: "pending", name: "History pending", status: "pending" },
+      { region: "eu", slug: "null-review", name: "History null", status: "rejected", autoReview: null },
+      { ...fixtures[54], slug: "other", name: "Other" },
+    ]);
+    const expected = [...guilds].sort((a, b) => b.autoReview!.reviewedAt.getTime() - a.autoReview!.reviewedAt.getTime()
+      || a.name.localeCompare(b.name) || String(a._id).localeCompare(String(b._id)));
+    const ids = (values: { _id: unknown }[]) => values.map(value => String(value._id));
+    for (const guildStatus of ["auto-reviewed", "auto-approved", "auto-rejected"]) {
+      const matching = expected.filter(guild => guildStatus === "auto-reviewed" || `auto-${guild.autoReview!.action}` === guildStatus);
+      const pages = await Promise.all([1, 2].map(guildPage => adminOverview({ guildStatus, guildSearch: "History", guildPage })));
+      assert.equal(pages[0].totalGuilds, matching.length);
+      assert.deepEqual(ids(pages.flatMap(page => page.guilds)), ids(matching));
+    }
+    const explicit = await adminOverview({ guildStatus: "auto-reviewed", guildSearch: "History", guildSort: "reviewed-desc" });
+    assert.deepEqual(ids(explicit.guilds), ids(expected.slice(0, 50)));
+    const savedOverride = explicit.guilds.find(guild => String(guild._id) === String(overridden._id));
+    assert.equal(savedOverride.status, "approved");
+    assert.equal(savedOverride.autoReview.action, "rejected");
+    assert.ok(explicit.guilds.some(guild => guild.hidden && guild.autoReview.action === "rejected"));
+    const alphabetical = await adminOverview({ guildStatus: "auto-reviewed", guildSearch: "History", guildSort: "name" });
+    assert.equal(alphabetical.guilds[0].slug, "history-0");
+    const allPages = await Promise.all([1, 2].map(guildPage => adminOverview({ guildSort: "reviewed-desc", guildPage })));
+    const all = allPages.flatMap(page => page.guilds);
+    assert.ok(all.slice(0, 57).every(guild => guild.autoReview));
+    assert.ok(all.slice(57).every(guild => !guild.autoReview));
+    assert.equal((await adminOverview({ guildStatus: "auto-reviewed", guildSearch: "absent" })).totalGuilds, 0);
+  } finally {
+    await mongoose.connection.dropDatabase();
+    await mongoose.disconnect();
+  }
+});
+
 test("admin guild language sorting applies before pagination, preserves filters and puts missing scores last", { skip: !uri }, async () => {
   await mongoose.connect(uri!, { dbName: "forever_language_sort_test_" + randomUUID().replace(/-/g, ""), serverSelectionTimeoutMS: 5000 });
   try {

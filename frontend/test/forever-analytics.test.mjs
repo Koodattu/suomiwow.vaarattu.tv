@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectForeverAnalytics } from "../src/lib/forever-analytics.ts";
+import { foreverDistributionMaximum, selectForeverAnalytics } from "../src/lib/forever-analytics.ts";
 
 const timeline = {
   startedAt: "2026-11-07T20:00:00Z",
@@ -15,6 +15,31 @@ const timeline = {
     { date: "2026-11-09", at: "2026-11-09T10:00:00Z", buckets: [[0, 20, 3, 0, 0, 0, 3], [1, 60, 1, 1, 0, 30, 1], [2, 1, 1, 0, 1, 0, 0]] },
   ],
 };
+
+test("activity retains every day from the start through the selected day beyond thirty days", () => {
+  const days = Array.from({ length: 45 }, (_, index) => {
+    const at = new Date(Date.parse("2026-09-01T21:00:00Z") + index * 86400_000).toISOString();
+    return { date: at.slice(0, 10), at, buckets: [[0, 20, 3, 2, 0, 0, 3]] };
+  });
+  const history = { ...timeline, startedAt: days[0].at, days };
+  const latest = selectForeverAnalytics(history, 44, 1);
+  assert.equal(latest.activity.length, 45);
+  assert.equal(latest.activity[0].at, days[0].at);
+  assert.equal(latest.activity.at(-1).at, days[44].at);
+  const past = selectForeverAnalytics(history, 35, 1);
+  assert.equal(past.activity.length, 36);
+  assert.equal(past.activity[0].at, days[0].at);
+  assert.equal(past.activity.at(-1).at, days[35].at);
+});
+
+test("distribution ceiling uses the latest counts and fits larger historical level totals across facets", () => {
+  const latest = [{ level: 1, count: 0 }, { level: 60, count: 589 }];
+  assert.equal(foreverDistributionMaximum(latest, timeline), 600);
+  const history = { ...timeline, days: [{ ...timeline.days[0], buckets: [[0, 20, 420], [1, 20, 281], [1, 30, 50]] }] };
+  assert.equal(foreverDistributionMaximum(latest, history), 800);
+  assert.equal(foreverDistributionMaximum([{ level: 60, count: 810 }], history), 900);
+  assert.equal(foreverDistributionMaximum([]), 1);
+});
 
 test("date and minimum level filter every population aggregate using counts rather than number of buckets", () => {
   const all = selectForeverAnalytics(timeline, 2, 1);

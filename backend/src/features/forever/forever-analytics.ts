@@ -72,7 +72,7 @@ export function buildForeverAnalytics(characters: AnalyticsCharacter[], now = Da
   const activity: { at: string; active: number; observed: number; partial: boolean }[] = [];
   let active = 0, observed = 0, cursor = 0;
   if (coverageStart !== null) {
-    const start = Math.max(coverageStart, now - 30 * DAY);
+    const start = coverageStart;
     const times = [start];
     for (let at = Math.floor(start / (6 * HOUR)) * 6 * HOUR + 6 * HOUR; at < now; at += 6 * HOUR) times.push(at);
     if (times[times.length - 1] !== now) times.push(now);
