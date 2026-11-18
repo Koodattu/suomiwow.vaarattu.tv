@@ -123,7 +123,7 @@ const CCG_LINK_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const BANNED_CHANNEL_RETRY_BASE_MS = 60 * 60 * 1000;
 const BANNED_CHANNEL_RETRY_MAX_MS = 12 * 60 * 60 * 1000;
 const INBOUND_DIAGNOSTIC_INTERVAL_MS = 30 * 1000;
-const JOIN_ANNOUNCEMENT_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+const JOIN_ANNOUNCEMENT_COOLDOWN_MS = 16 * 60 * 60 * 1000;
 const JOIN_ANNOUNCEMENT_MESSAGE = "SuomiWoW Bot is here! Type !commands or !komennot for features.";
 const SHARED_CHAT_CACHE_MS = 60 * 1000;
 const SHARED_CHAT_MESSAGE_DEDUPE_MS = 60 * 1000;
@@ -919,10 +919,11 @@ class TwitchChatBotService {
     if (channel === this.normalizeChannelName(twitchChannelPointsService.getHomeChannel())) return;
 
     try {
-      const settings = await this.getChannelSettings(channel);
-      if (!(await this.isSharedChatSettingEnabled(channel, "joinAnnouncementEnabled"))) return;
-      if (settings.lastJoinAnnouncementAt && Date.now() - settings.lastJoinAnnouncementAt.getTime() < JOIN_ANNOUNCEMENT_COOLDOWN_MS) return;
+      const settings = await this.getSharedChatChannelSettings(channel);
+      const cutoff = new Date(Date.now() - JOIN_ANNOUNCEMENT_COOLDOWN_MS);
+      if (settings.some((s) => !s.joinAnnouncementEnabled || (s.lastJoinAnnouncementAt && s.lastJoinAnnouncementAt > cutoff))) return;
 
+      const lastAnnouncement = settings.find((s) => s.channelName === channel)?.lastJoinAnnouncementAt;
       const raidingGuild = await Guild.exists({
         isCurrentlyRaiding: true,
         streamers: {
@@ -930,25 +931,25 @@ class TwitchChatBotService {
             channelName: new RegExp(`^${channel}$`, "i"),
             isLive: true,
             isPlayingWoW: true,
+            ...(lastAnnouncement && { $or: [{ streamStartedAt: null }, { streamStartedAt: { $gt: lastAnnouncement } }] }),
           },
         },
       });
       if (!raidingGuild) return;
 
-      await this.queueSay(channel, JOIN_ANNOUNCEMENT_MESSAGE, { kind: "join_announcement" });
-      await TwitchChannelBotSettings.updateOne(
-        { channelName: channel },
-        {
-          $set: { lastJoinAnnouncementAt: new Date() },
-          $setOnInsert: {
-            channelName: channel,
-            alertsEnabled: true,
-            commandsEnabled: true,
-            joinAnnouncementEnabled: true,
-          },
-        },
-        { upsert: true },
-      );
+      // Reserve before sending. Even an interrupted or uncertain send consumes the cooldown.
+      const claim = await TwitchChannelBotSettings.updateOne(
+        { channelName: channel, lastJoinAnnouncementAt: lastAnnouncement ?? null, joinAnnouncementEnabled: { $ne: false } },
+        { $set: { lastJoinAnnouncementAt: new Date() } },
+        { upsert: !lastAnnouncement },
+      ).catch((error: unknown) => {
+        // Another worker may have inserted the channel's first reservation.
+        if (this.isDuplicateKeyError(error)) return null;
+        throw error;
+      });
+      if (claim?.matchedCount || claim?.upsertedCount) {
+        await this.queueSay(channel, JOIN_ANNOUNCEMENT_MESSAGE, { kind: "join_announcement" });
+      }
     } catch (error) {
       logger.error(`[TwitchBot] Failed to announce joining #${channel}:`, error);
     }
@@ -1718,10 +1719,14 @@ class TwitchChatBotService {
     representativeChannel: string,
     setting: "alertsEnabled" | "joinAnnouncementEnabled",
   ): Promise<boolean> {
+    const settings = await this.getSharedChatChannelSettings(representativeChannel);
+    return settings.every((channelSettings) => channelSettings[setting]);
+  }
+
+  private getSharedChatChannelSettings(representativeChannel: string): Promise<TwitchChannelBotSettingsSnapshot[]> {
     const sharedSession = this.sharedChatSessions.find((session) => session.representativeChannel === representativeChannel);
     const channels = sharedSession?.trackedChannels.length ? sharedSession.trackedChannels : [representativeChannel];
-    const settings = await Promise.all(channels.map((channel) => this.getChannelSettings(channel)));
-    return settings.every((channelSettings) => channelSettings[setting]);
+    return Promise.all(channels.map((channel) => this.getChannelSettings(channel)));
   }
 
   private normalizeTwurpleTokenData(tokenData: TwitchBotRefreshedAccessToken): TwitchBotRefreshedAccessToken {
