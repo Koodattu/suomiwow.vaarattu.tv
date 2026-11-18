@@ -13,8 +13,8 @@ horizontal scrolling. Unfetched roster sizes sort after known sizes in either di
 `GET /api/forever/guilds/:id` applies the same visibility rules and returns the saved
 Armory roster, including untracked members and marked outdated entries. Only publicly
 tracked characters receive profile links. Neither endpoint exposes moderation data.
-Rulesets use the existing three-profile confirmation policy; insufficient or conflicting
-evidence remains unknown. The directory summary uses a server-prepared shared snapshot;
+One verified current member can establish the guild's ruleset. Missing or conflicting
+evidence leaves it unknown. The directory summary uses a server-prepared shared snapshot;
 individual rosters still read the saved data directly. Neither adds external Armory requests.
 
 ## Background page caches
@@ -267,8 +267,8 @@ guilds always need their own approval, so discovery cannot recursively approve
 an entire network of guilds.
 
 Roster entries provide faction but not ruleset. During an approved roster sync,
-three directly fetched, current members must agree on faction and ruleset before
-missing rulesets are filled for other usable members. Any conflicting direct
+one current member's direct profile can supply the faction and ruleset for other
+members with a missing ruleset. Any conflicting direct
 profile or current roster faction prevents inference. `rulesetInferredFromGuild`
 records which guild supplied the ruleset. A departure, outdated entry or loss of
 guild consensus preserves the last confirmed faction and ruleset. A subsequent
@@ -519,9 +519,8 @@ New means no successful direct profile (both `profileFetchedAt` and
 Roster level updates and inferred rulesets do not remove first-profile priority.
 Automatic priority never bypasses retry deadlines, moderation, visibility, or the
 level-10 profile threshold. Uncovered low-level discovery is a separate slow lane.
-Once a new direct profile completes a guild's
-three-member ruleset confirmation, its healthy approved roster is scheduled now;
-the fresh roster applies the consensus to eligible members. Failed guilds retain
+Once a new direct profile establishes a guild's ruleset, its healthy approved roster
+is scheduled immediately. The fresh roster applies the ruleset to eligible members. Failed guilds retain
 their backoff. No live character or guild is assumed to have a ruleset without
 the existing evidence checks.
 

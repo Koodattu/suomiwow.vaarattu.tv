@@ -184,7 +184,7 @@ export class ForeverRunner {
               } } } : {}) }, { session });
               if (profile.guild) await ForeverGuild.updateOne({ region: profile.guild.region, slug: profile.guild.slug },
                 { $set: { name: profile.guild.name }, $setOnInsert: { status: "pending", nextFetchAt: completedAt } }, { upsert: true, session });
-              // A newly verified profile may complete the three-member quorum.
+              // The first verified member can establish the guild's ruleset.
               // Fetch a fresh roster promptly rather than waiting another 15m.
               if (profile.guild && (!current.ruleset || current.ruleset === "Unknown")) {
                 const targetGuild = await ForeverGuild.findOne({ region: profile.guild.region, slug: profile.guild.slug,

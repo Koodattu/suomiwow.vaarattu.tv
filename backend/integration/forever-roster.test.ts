@@ -72,10 +72,10 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       assert.ok(schedule > new Date()); assert.ok(schedule.getTime() <= Date.now() + ROSTER_INTERVAL);
     });
 
-    await t.test("three direct confirmations classify roster-only members; sub-10 profiles never enter either queue", async () => {
+    await t.test("one direct profile classifies a roster-only guildmate; sub-10 profiles never enter either queue", async () => {
       await guild();
-      for (const slug of ["known-one", "known-two", "known-three"]) await tracked(slug);
-      const roster = [member("known-one"), member("known-two"), member("known-three"), member("young-member", 9)];
+      await tracked("known-one");
+      const roster = [member("known-one"), member("young-member", 9)];
       await run(roster);
       const young = (await ForeverCharacter.findOne({ slug: "young-member" }).lean())!;
       assert.equal(young.ruleset, "Normal"); assert.equal(young.faction, "Alliance");
@@ -491,22 +491,19 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       assert.equal((await ForeverCharacter.findOne({ slug: "failed-member" }).lean())?.nextFetchAt?.getTime(), future.getTime());
     });
 
-    await t.test("a third direct confirmation schedules a fresh roster and classifies the remaining guild members", async () => {
+    await t.test("the first direct profile schedules a fresh roster and classifies its low-level guildmate", async () => {
       const future = new Date(Date.now() + ROSTER_INTERVAL);
-      const roster = [member("known-member"), member("new-one"), member("new-two"), member("young-member", 5)];
+      const roster = [member("new-one"), member("young-member", 5)];
       await ForeverGuild.create({ ...guildIdentity, status: "approved", roster, lastFetchedAt: new Date(), nextFetchAt: future });
-      await tracked("known-member", { nextFetchAt: future });
-      await ForeverCharacter.insertMany(roster.slice(1).map(row => ({ ...row, guild: guildIdentity, source: "guild", status: "tracked", nextFetchAt: new Date(0) })));
+      await ForeverCharacter.insertMany(roster.map(row => ({ ...row, guild: guildIdentity, source: "guild", status: "tracked", nextFetchAt: new Date(0) })));
       const calls: string[] = [];
       const runner = new ForeverRunner({ roster: async () => { calls.push("roster"); return roster; }, character: async identity => {
         calls.push(identity.slug); return profile(identity.slug);
       } });
       await ready(); await runner.tick();
-      assert.equal((await ForeverGuild.findOne(guildIdentity).lean())?.nextFetchAt?.getTime(), future.getTime(), "two confirmations must not trigger a roster");
-      await ready(); await runner.tick();
       assert.ok((await ForeverGuild.findOne(guildIdentity).lean())!.nextFetchAt! <= new Date());
       await ready(); await runner.tick();
-      assert.deepEqual(calls, ["new-one", "new-two", "roster"]);
+      assert.deepEqual(calls, ["new-one", "roster"]);
       const young = await ForeverCharacter.findOne({ slug: "young-member" }).lean();
       assert.equal(young?.ruleset, "Normal"); assert.equal(young?.rulesetInferredFromGuild, guildIdentity.slug);
       assert.equal(young?.nextFetchAt, null); assert.equal(young?.profileFetchedAt, undefined);

@@ -9,15 +9,19 @@ const characters = ["one", "two", "three"].map(slug => ({ slug, guild, faction: 
 const roster: ForeverMember[] = [...characters, { slug: "young", faction: "Horde" }].map(c => ({ region: "eu", slug: c.slug,
   faction: c.faction, name: c.slug, className: "Mage", level: c.slug === "young" ? 1 : 20 }));
 
-test("guild rulesets require three agreeing direct profiles and no faction/ruleset conflicts", () => {
+test("one current direct profile confirms a guild ruleset unless other evidence conflicts", () => {
   assert.deepEqual(confirmedGuildRuleset(guild, roster, characters), { faction: "Horde", ruleset: "PvP" });
-  assert.equal(confirmedGuildRuleset(guild, roster, characters.slice(0, 2)), null);
-  for (const patch of [{ ruleset: "Normal" }, { faction: "Alliance" }, { rulesetInferredFromGuild: "guild" },
-    { guild: { ...guild, slug: "other" } }, { guild: { ...guild, region: "us" } }, { sourceUpdatedAt: undefined }]) {
-    assert.equal(confirmedGuildRuleset(guild, roster, [characters[0], characters[1], { ...characters[2], ...patch }]), null);
+  const [direct, other] = characters;
+  assert.deepEqual(confirmedGuildRuleset(guild, roster, [direct]), { faction: "Horde", ruleset: "PvP" });
+  for (const patch of [{ ruleset: "Normal" }, { faction: "Alliance" }]) {
+    assert.equal(confirmedGuildRuleset(guild, roster, [direct, { ...other, ...patch }]), null);
   }
-  assert.equal(confirmedGuildRuleset(guild, roster.map(m => m.slug === "three" ? { ...m, isOutdated: true } : m), characters), null);
-  assert.equal(confirmedGuildRuleset(guild, roster.filter(m => m.slug !== "three"), characters), null);
+  for (const patch of [{ rulesetInferredFromGuild: "guild" }, { ruleset: "Unknown" }, { faction: "Unknown" },
+    { guild: { ...guild, slug: "other" } }, { guild: { ...guild, region: "us" } }, { sourceUpdatedAt: undefined }]) {
+    assert.equal(confirmedGuildRuleset(guild, roster, [{ ...direct, ...patch }]), null);
+  }
+  assert.equal(confirmedGuildRuleset(guild, roster.map(m => ({ ...m, isOutdated: m.slug === direct.slug })), [direct]), null);
+  assert.equal(confirmedGuildRuleset(guild, roster.filter(m => m.slug !== direct.slug), [direct]), null);
   assert.equal(confirmedGuildRuleset(guild, roster.map(m => m.slug === "young" ? { ...m, faction: "Alliance" } : m), characters), null);
 });
 

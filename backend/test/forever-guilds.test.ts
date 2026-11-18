@@ -31,7 +31,7 @@ test("public directory requires approved visible guilds and returns only summari
       { region: "eu", "guild.region": "eu", "guild.slug": "test-guild" },
       { region: "us", "guild.region": "us", "guild.slug": "test-guild" },
     ] });
-    return query(characters);
+    return query([characters[0]]);
   });
   const result = await publicGuilds();
   assert.equal(result.guilds.length, 2);
@@ -42,10 +42,10 @@ test("public directory requires approved visible guilds and returns only summari
   assert.deepEqual(Object.keys(result.guilds[0]).sort(), ["_id", "name", "region", "slug", "rosterCount", "lastFetchedAt", "faction", "ruleset"].sort());
 });
 
-test("guilds without enough profile evidence retain known faction but unknown ruleset", async t => {
+test("guilds without a verified profile retain known faction but unknown ruleset", async t => {
   setupCache(t);
   t.mock.method(ForeverGuild, "find", () => query([guild]));
-  t.mock.method(ForeverCharacter, "find", () => query(characters.slice(0, 1)));
+  t.mock.method(ForeverCharacter, "find", () => query([]));
   const result = await publicGuilds();
   assert.equal(result.guilds[0].faction, "Alliance");
   assert.equal(result.guilds[0].ruleset, null);

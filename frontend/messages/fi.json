@@ -204,7 +204,6 @@
         "auto-reviewed": "Kielimallin päätöshistoria",
         "auto-approved": "Automaattisesti hyväksytty",
         "auto-rejected": "Automaattisesti hylätty",
-        "automation": "Käsittelemätön kilta hyväksytään ja sen jäsenet lisätään seurantaan, kun molemmat arviot ylittävät 85 %. Jos molemmat ovat alle 30 %, kilta piilotetaan ja hylätään. Muut tulokset jäävät käsin tarkistettaviksi.",
         "historyNote": "Mukana ovat myös killat, joita olet myöhemmin muuttanut käsin. Nykyinen tila näytetään erikseen.",
         "actionScores": "Arviot päätöshetkellä: GPT-6 Luna {structured} · Decisions {decision}",
         "run": "Arvioi kaikkien kiltojen suomenkielisyys",

@@ -14,7 +14,7 @@ export function confirmedGuildRuleset(guild: { region: string; slug: string },
   const evidence = characters.filter(character => members.has(character.slug) && character.sourceUpdatedAt &&
     character.guild?.region === guild.region && character.guild.slug === guild.slug && !character.rulesetInferredFromGuild &&
     ["Horde", "Alliance"].includes(character.faction || "") && character.ruleset && character.ruleset !== "Unknown");
-  if (evidence.length < 3) return null;
+  if (evidence.length === 0) return null;
   const { faction, ruleset } = evidence[0];
   if (evidence.some(character => character.faction !== faction || character.ruleset !== ruleset) ||
     [...members.values()].some(member => member.faction && member.faction !== faction)) return null;

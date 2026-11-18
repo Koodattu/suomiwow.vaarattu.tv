@@ -161,7 +161,6 @@ export default function ForeverAdminPanel() {
           onClick={() => void act("guild-language", "POST")}>{t("admin.language.run")}</button>
         {!!data?.languagePending && <span className={styles.adminHelp} role="status">{t("admin.language.pending", { count: data.languagePending })}</span>}
       </div>
-      <p className={styles.adminHelp}>{t("admin.language.automation")}</p>
       {guildFilter.startsWith("auto-") && <p className={styles.adminHelp}>{t("admin.language.historyNote")}</p>}
       {overview.isPending ? <p role="status">{t("loading")}</p> : <div className={styles.adminGuildGrid}>
         <div><div className={styles.adminGuildList}>{data?.guilds.map((entry) => <button className={styles.adminGuildChoice} key={entry._id} aria-pressed={activeGuildId === entry._id} onClick={() => { setGuildId(entry._id); setRosterSearch(""); }}>

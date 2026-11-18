@@ -204,7 +204,6 @@
         "auto-reviewed": "LLM decision history",
         "auto-approved": "Auto approved",
         "auto-rejected": "Auto rejected",
-        "automation": "Unreviewed guilds are approved and their rosters tracked when both estimates exceed 85%. Both below 30% hides and rejects the guild. All other results remain for manual review.",
         "historyNote": "Includes guilds you later changed manually. The current status is shown separately.",
         "actionScores": "Estimates at the time: GPT-6 Luna {structured} · Decisions {decision}",
         "run": "Assess Finnish language for all guilds",
