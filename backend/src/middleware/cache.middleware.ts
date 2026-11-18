@@ -46,8 +46,8 @@ function checkETagMatch(req: Request, res: Response, etag: string): boolean {
  *
  * Note: All cache operations are async since they hit MongoDB.
  */
-export function cacheMiddleware(getKey: (req: Request) => string, getTTL?: (req: Request) => number) {
-  return async (req: Request, res: Response, next: NextFunction) => {
+export function cacheMiddleware<P extends Request["params"] = Record<string, string>>(getKey: (req: Request<P>) => string, getTTL?: (req: Request<P>) => number) {
+  return async (req: Request<P>, res: Response, next: NextFunction) => {
     try {
       // Generate cache key for this request
       const cacheKey = getKey(req);

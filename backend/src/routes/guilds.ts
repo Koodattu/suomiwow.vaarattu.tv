@@ -157,7 +157,7 @@ router.get(
 );
 
 // Get pull history for a specific boss
-router.get("/:realm/:name/raids/:raidId/bosses/:bossId/pull-history", async (req: Request, res: Response) => {
+router.get("/:realm/:name/raids/:raidId/bosses/:bossId/pull-history", async (req, res) => {
   try {
     const realm = decodeURIComponent(req.params.realm);
     const name = decodeURIComponent(req.params.name);
@@ -183,7 +183,7 @@ router.get("/:realm/:name/raids/:raidId/bosses/:bossId/pull-history", async (req
 });
 
 // Get an on-demand kill prediction for a specific progressing boss
-router.get("/:realm/:name/raids/:raidId/bosses/:bossId/prediction", async (req: Request, res: Response) => {
+router.get("/:realm/:name/raids/:raidId/bosses/:bossId/prediction", async (req, res) => {
   try {
     const realm = req.params.realm;
     const name = req.params.name;
@@ -212,7 +212,7 @@ router.get("/:realm/:name/raids/:raidId/bosses/:bossId/prediction", async (req: 
 });
 
 // Get calculated character roster for a specific guild and raid by realm/name
-router.get("/:realm/:name/raids/:raidId/characters", async (req: Request, res: Response) => {
+router.get("/:realm/:name/raids/:raidId/characters", async (req, res) => {
   try {
     const realm = decodeURIComponent(req.params.realm);
     const name = decodeURIComponent(req.params.name);
@@ -249,7 +249,7 @@ router.get(
       return cacheService.getTTLForRaid(raidId);
     },
   ),
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const realm = decodeURIComponent(req.params.realm);
       const name = decodeURIComponent(req.params.name);
@@ -270,7 +270,7 @@ router.get(
 );
 
 // DEPRECATED: Get detailed boss progress by ObjectId (kept for backward compatibility)
-router.get("/:id/raids/:raidId/bosses", async (req: Request, res: Response) => {
+router.get("/:id/raids/:raidId/bosses", async (req, res) => {
   try {
     const guildId = req.params.id;
     const raidId = parseInt(req.params.raidId);
@@ -299,7 +299,7 @@ router.get(
     },
     () => cacheService.GUILD_SUMMARY_TTL,
   ),
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const realm = decodeURIComponent(req.params.realm);
       const name = decodeURIComponent(req.params.name);
@@ -318,7 +318,7 @@ router.get(
 );
 
 // DEPRECATED: Get single guild by ID with summary progress (kept for backward compatibility)
-router.get("/:id/summary", async (req: Request, res: Response) => {
+router.get("/:id/summary", async (req, res) => {
   try {
     const guildId = req.params.id;
     const summary = await guildService.getGuildSummary(guildId);
@@ -335,7 +335,7 @@ router.get("/:id/summary", async (req: Request, res: Response) => {
 });
 
 // Get single guild by ID with full progress for all raids
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", async (req, res) => {
   try {
     const guild = await guildService.getGuildById(req.params.id);
 
@@ -351,7 +351,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 });
 
 // Get full guild profile with all raid progress (including boss details)
-router.get("/:id/profile", async (req: Request, res: Response) => {
+router.get("/:id/profile", async (req, res) => {
   try {
     const guildId = req.params.id;
     const fullProfile = await guildService.getGuildFullProfile(guildId);
@@ -368,7 +368,7 @@ router.get("/:id/profile", async (req: Request, res: Response) => {
 });
 
 // DEBUG: Fetch and log guild zone rankings for a specific zone
-router.get("/:id/debug/rankings/:zoneId", async (req: Request, res: Response) => {
+router.get("/:id/debug/rankings/:zoneId", async (req, res) => {
   try {
     const guildId = req.params.id;
     const zoneId = parseInt(req.params.zoneId);
@@ -388,7 +388,7 @@ router.get("/:id/debug/rankings/:zoneId", async (req: Request, res: Response) =>
 });
 
 // DEBUG: Fetch and log guild zone rankings for current raid
-router.get("/:id/debug/rankings", async (req: Request, res: Response) => {
+router.get("/:id/debug/rankings", async (req, res) => {
   try {
     const guildId = req.params.id;
 

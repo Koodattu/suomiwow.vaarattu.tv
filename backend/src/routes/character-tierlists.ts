@@ -38,7 +38,8 @@ function parseFilters(req: Request, defaultMinReports: number): CharacterTierLis
 }
 
 function parseRaidId(req: Request): number {
-  const raidId = parseInt(req.params.raidId, 10);
+  const value = req.params.raidId;
+  const raidId = typeof value === "string" ? parseInt(value, 10) : NaN;
   if (!Number.isFinite(raidId)) {
     throw new CharacterTierListServiceError(400, "Invalid raid ID");
   }
@@ -89,7 +90,7 @@ router.get(
   },
 );
 
-router.get("/shared/:shareId", async (req: Request, res: Response) => {
+router.get("/shared/:shareId", async (req, res) => {
   try {
     const userId = req.session.userId ?? null;
     const tierList = await characterTierListService.getSharedTierList(userId, req.params.shareId);
@@ -103,7 +104,7 @@ router.get("/shared/:shareId", async (req: Request, res: Response) => {
   }
 });
 
-router.put("/shared/:shareId", async (req: Request, res: Response) => {
+router.put("/shared/:shareId", async (req, res) => {
   try {
     const tierList = await characterTierListService.updateSharedTierList(req.session.userId, req.params.shareId, req.body ?? {});
     if (!tierList) {
@@ -126,7 +127,7 @@ router.get(
     },
     () => cacheService.CHARACTER_TIER_LIST_TTL,
   ),
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const realm = decodeURIComponent(req.params.realm);
       const name = decodeURIComponent(req.params.name);
@@ -145,7 +146,7 @@ router.get(
   },
 );
 
-router.get("/guilds/:realm/:name/raids/:raidId/custom", async (req: Request, res: Response) => {
+router.get("/guilds/:realm/:name/raids/:raidId/custom", async (req, res) => {
   try {
     const realm = decodeURIComponent(req.params.realm);
     const name = decodeURIComponent(req.params.name);
@@ -163,7 +164,7 @@ router.get("/guilds/:realm/:name/raids/:raidId/custom", async (req: Request, res
   }
 });
 
-router.post("/guilds/:realm/:name/raids/:raidId/shared", async (req: Request, res: Response) => {
+router.post("/guilds/:realm/:name/raids/:raidId/shared", async (req, res) => {
   try {
     const realm = decodeURIComponent(req.params.realm);
     const name = decodeURIComponent(req.params.name);
@@ -181,7 +182,7 @@ router.post("/guilds/:realm/:name/raids/:raidId/shared", async (req: Request, re
   }
 });
 
-router.put("/guilds/:realm/:name/raids/:raidId/custom", async (req: Request, res: Response) => {
+router.put("/guilds/:realm/:name/raids/:raidId/custom", async (req, res) => {
   try {
     const userId = req.session.userId;
     if (!userId) {
@@ -203,7 +204,7 @@ router.put("/guilds/:realm/:name/raids/:raidId/custom", async (req: Request, res
   }
 });
 
-router.delete("/guilds/:realm/:name/raids/:raidId/custom", async (req: Request, res: Response) => {
+router.delete("/guilds/:realm/:name/raids/:raidId/custom", async (req, res) => {
   try {
     const userId = req.session.userId;
     if (!userId) {

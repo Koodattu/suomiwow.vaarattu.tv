@@ -25,8 +25,8 @@ const router = Router();
 // This router is mounted only after session middleware. Keep the guard before every route declaration.
 router.use(requireAdmin);
 
-function adminRoute(handler: (req: Request, res: Response) => Promise<unknown>) {
-  return async (req: Request, res: Response) => {
+function adminRoute<P extends Request["params"] = Record<string, string>>(handler: (req: Request<P>, res: Response) => Promise<unknown>) {
+  return async (req: Request<P>, res: Response) => {
     try {
       const value = await handler(req, res);
       if (!res.headersSent) res.json(value);

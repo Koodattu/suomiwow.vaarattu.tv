@@ -31,7 +31,7 @@ router.get(
 );
 
 // Get single raid by ID
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", async (req, res) => {
   try {
     const raidId = parseInt(req.params.id);
     const raid = await Raid.findOne({ id: raidId });
@@ -57,7 +57,7 @@ router.get(
     },
     () => cacheService.STATIC_TTL,
   ),
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const raidId = parseInt(req.params.id);
       const raid = await Raid.findOne({ id: raidId }).select("bosses -_id");
@@ -101,7 +101,7 @@ router.get(
       return cacheService.getTTLForRaid(raidId);
     },
   ),
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const raidId = parseInt(req.params.id);
       const raid = await Raid.findOne({ id: raidId }).select("starts ends -_id");

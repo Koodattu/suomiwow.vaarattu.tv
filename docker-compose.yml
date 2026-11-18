@@ -1,7 +1,7 @@
 services:
   mongodb:
     container_name: wow-prog-db
-    image: mongo:7.0
+    image: mongo:7.0.48
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
@@ -15,7 +15,7 @@ services:
       start_period: 5s
 
   mongodb-init:
-    image: mongo:7.0
+    image: mongo:7.0.48
     depends_on:
       mongodb:
         condition: service_healthy

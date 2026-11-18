@@ -14,7 +14,7 @@ router.get("/posts", async (_req: Request, res: Response) => {
   }
 });
 
-router.get("/posts/:slug", async (req: Request, res: Response) => {
+router.get("/posts/:slug", async (req, res) => {
   try {
     const settings = await reporterSettingsService.get();
     if (!settings.featureEnabled) return res.status(404).json({ error: "Not found" });

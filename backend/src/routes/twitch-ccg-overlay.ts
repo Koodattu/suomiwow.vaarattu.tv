@@ -28,7 +28,7 @@ router.get("/next", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/:eventId/ack", async (req: Request, res: Response) => {
+router.post("/:eventId/ack", async (req, res) => {
   res.set("Cache-Control", "no-store");
   if (!mongoose.Types.ObjectId.isValid(req.params.eventId)) return res.status(400).json({ error: "Invalid overlay event", code: "invalid_event" });
   const leaseId = typeof req.body?.leaseId === "string" ? req.body.leaseId : "";

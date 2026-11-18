@@ -1,26 +1,17 @@
 # Deployment and database backups
 
-## October 2026 Node.js security update
+## November 2026 runtime update
 
-All backend and frontend Docker stages use Node.js `24.22.1`, the patched
-24.x release in the [October 21 advisory](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases).
-The backend worker reuses the backend image. Both Compose files build these
-Dockerfiles; there are no GitHub Actions workflows or separate CI runtime pins.
-The root `.nvmrc` and both package engine requirements also specify patched
-Node.js 24. Updating npm packages or `@types/node` alone does not patch the runtime.
+The backend, worker, and frontend use Node.js 26.13.1 LTS. Both application
+Dockerfiles, the root `.nvmrc`, and both npm engine ranges track the same
+[Node.js security release](https://nodejs.org/en/blog/release/v26.13.1).
 
-The npm lockfiles include Next.js `16.4.1`, Sharp `0.35.5`, and patched
-`proxy-addr`, `brace-expansion`, and `source-map-js` dependencies. The existing
-ESLint configuration is retained to avoid unrelated lint-rule changes.
-The remaining npm audit findings come from development-only `braces` consumers;
-[the advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) has no patched release.
-Do not apply the incompatible downgrades proposed by `npm audit fix --force`.
+Development and production use MongoDB 7.0.48 for the database and replica-set
+initialization. The published Linux/amd64 image includes mongosh 2.14.2.
+Plan a database major upgrade separately with a tested backup and the required
+replica-set and feature compatibility version transitions.
 
-On October 23, the server's MongoDB image was separately observed to bundle
-`mongosh` 2.8.3 with Node.js `24.15.0`. Updating the application images does not
-patch that embedded runtime. A MongoDB-provided shell/image containing the October
-Node.js fixes remains to be verified and rolled out. No host Node.js executable
-was found on the server's SSH PATH.
+The reverse proxy uses the official nginx 1.31.9 Alpine slim image.
 
 ## Deployment overview
 

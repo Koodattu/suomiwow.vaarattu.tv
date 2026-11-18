@@ -127,7 +127,7 @@ router.get(
     },
     () => cacheService.getEventsTTL(),
   ),
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const realm = decodeURIComponent(req.params.realm);
       const name = decodeURIComponent(req.params.name);

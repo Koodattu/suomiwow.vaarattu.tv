@@ -17,7 +17,7 @@ const { buildFacility } = await import("../src/lib/figurine-facilities.ts");
 const source = await readFile(new URL("../src/app/tools/figurine-lab/FigurineStage.tsx", import.meta.url), "utf8");
 const start = source.indexOf("    const pickAt ="), end = source.indexOf("    const samePick =", start);
 assert.ok(start >= 0 && end > start);
-const pick = new vm.Script(`${ts.transpile(source.slice(start, end))}; pickAt();`);
+const pick = new vm.Script(`${ts.transpile(source.slice(start, end))}; pickAt;`);
 
 test("every daily facility can be clicked from either of the other daily facilities", () => {
   const stations = ["crate", "quests", "wheel"];
@@ -34,10 +34,11 @@ test("every daily facility can be clicked from either of the other daily facilit
     groups, stationGroups: Object.entries(groups).map(([station, root]) => [root, station]),
     raycaster, pickFacilityPart, isVisibleHit, isShot, tapDestination, scenery: null,
   });
+  const pickAt = pick.runInContext(context);
   for (const from of stations) for (const to of stations) {
     state.current.view = from;
     raycaster.ray.origin.x = groups[to].position.x;
-    const result = pick.runInContext(context);
+    const result = pickAt();
     const expected = from !== to ? { kind: "station", view: to }
       : to === "crate" ? { kind: "part", station: "crate", part: "chest" } : { kind: "back" };
     assert.deepEqual(result && JSON.parse(JSON.stringify(result)), expected, `${from} -> ${to}`);

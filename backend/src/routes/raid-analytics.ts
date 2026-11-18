@@ -82,7 +82,7 @@ router.get(
     (req) => cacheService.getRaidAnalyticsKey(parseInt(req.params.raidId)),
     () => cacheService.RAID_ANALYTICS_TTL,
   ),
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const raidId = parseInt(req.params.raidId);
 

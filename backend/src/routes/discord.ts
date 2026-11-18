@@ -85,7 +85,7 @@ router.get("/install/callback", async (req: Request, res: Response) => {
   res.redirect(redirectUrl);
 });
 
-router.get("/integrations/:guildId/settings", async (req: Request, res: Response) => {
+router.get("/integrations/:guildId/settings", async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) {
@@ -99,7 +99,7 @@ router.get("/integrations/:guildId/settings", async (req: Request, res: Response
   }
 });
 
-router.put("/integrations/:guildId/settings", async (req: Request, res: Response) => {
+router.put("/integrations/:guildId/settings", async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) {
@@ -113,7 +113,7 @@ router.put("/integrations/:guildId/settings", async (req: Request, res: Response
   }
 });
 
-router.post("/integrations/:guildId/test-message", async (req: Request, res: Response) => {
+router.post("/integrations/:guildId/test-message", async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) {
@@ -127,7 +127,7 @@ router.post("/integrations/:guildId/test-message", async (req: Request, res: Res
   }
 });
 
-router.delete("/integrations/:guildId", async (req: Request, res: Response) => {
+router.delete("/integrations/:guildId", async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) {

@@ -1,10 +1,10 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import characterService from "../services/character.service";
 import logger from "../utils/logger";
 
 const router = Router();
 
-router.get("/:slug", async (req: Request, res: Response) => {
+router.get("/:slug", async (req, res) => {
   try {
     const slug = decodeURIComponent(req.params.slug);
     const account = await characterService.getCharacterAccountBySlug(slug);

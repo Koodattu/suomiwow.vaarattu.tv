@@ -1,6 +1,6 @@
 services:
   mongo:
-    image: mongo:7
+    image: mongo:7.0.48
     container_name: wow-prog-db
     restart: unless-stopped
     logging:
@@ -28,7 +28,7 @@ services:
       start_period: 5s
 
   mongo-init:
-    image: mongo:7
+    image: mongo:7.0.48
     depends_on:
       mongo:
         condition: service_healthy

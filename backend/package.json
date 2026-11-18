@@ -4,7 +4,7 @@
   "description": "WoW Guild Progress Tracker Backend",
   "main": "dist/index.js",
   "engines": {
-    "node": ">=24.22.1 <25"
+    "node": ">=26.13.1 <27"
   },
   "scripts": {
     "dev": "nodemon src/index.ts",
@@ -33,31 +33,31 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@twurple/auth": "^8.1.4",
-    "@twurple/chat": "^8.1.4",
+    "@twurple/auth": "^8.2.0",
+    "@twurple/chat": "^8.2.0",
     "connect-mongo": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
     "express-session": "^1.19.0",
-    "mongoose": "^9.10.0",
+    "mongoose": "^9.12.2",
     "node-cron": "^4.6.0",
     "node-fetch": "^3.3.2",
-    "openai": "^7.56.0",
+    "openai": "^7.60.0",
     "sharp": "^0.35.5",
     "winston": "^3.19.0"
   },
   "devDependencies": {
-    "@types/cookie-parser": "^1.4.8",
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/express-session": "1.19.0",
-    "@types/node": "^24.13.4",
+    "@types/node": "^26.6.6",
     "@types/node-cron": "^3.0.11",
     "@types/node-fetch": "^2.6.13",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   }
 }

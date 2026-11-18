@@ -29,7 +29,7 @@ router.use(async (req, res, next) => {
 });
 
 const route = (fn: (userId: string, body: Record<string, unknown>, id: string) => Promise<unknown>) =>
-  async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+  async (req: import("express").Request<Record<string, string>>, res: import("express").Response, next: import("express").NextFunction) => {
     try { res.json(await fn(req.session.userId!, req.body ?? {}, req.params.id)); }
     catch (error) { next(error); }
   };

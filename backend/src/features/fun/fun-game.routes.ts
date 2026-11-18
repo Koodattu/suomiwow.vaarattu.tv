@@ -76,7 +76,7 @@ router.get("/boss-mechanics/characters", async (req: Request, res: Response) => 
   }
 });
 
-router.get("/:game/search", async (req: Request, res: Response) => {
+router.get("/:game/search", async (req, res) => {
   const game = req.params.game;
   if (!isFunGameSearchSlug(game)) {
     res.status(404).json({ error: "Search is not available for this prototype game", code: "UNKNOWN_FUN_SEARCH" });
@@ -94,7 +94,7 @@ router.get("/:game/search", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/:game/round", async (req: Request, res: Response) => {
+router.post("/:game/round", async (req, res) => {
   const game = req.params.game;
   if (!isFunGameSlug(game)) {
     res.status(404).json({ error: "Unknown prototype game", code: "UNKNOWN_FUN_GAME" });

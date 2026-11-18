@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import compareService from "../services/compare.service";
 import cacheService from "../services/cache.service";
 import { cacheMiddleware } from "../middleware/cache.middleware";
@@ -14,7 +14,7 @@ function getDifficulty(value: unknown): CompareDifficulty | null {
 
 router.get(
   "/:raidId",
-  (req: Request, res: Response, next) => {
+  (req, res, next) => {
     if (Number.isNaN(parseInt(req.params.raidId))) {
       return res.status(400).json({ error: "Invalid raid ID" });
     }
@@ -29,7 +29,7 @@ router.get(
     (req) => cacheService.getCompareKey(parseInt(req.params.raidId), getDifficulty(req.query.difficulty) ?? "mythic"),
     (req) => cacheService.getTTLForRaid(parseInt(req.params.raidId)),
   ),
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const raidId = parseInt(req.params.raidId);
       const difficulty = getDifficulty(req.query.difficulty) ?? "mythic";

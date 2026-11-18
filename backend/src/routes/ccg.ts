@@ -41,7 +41,7 @@ function ownerRateLimitKey(req: Request): string {
 }
 
 function rateLimit(limit: number, windowMs: number, identify: (req: Request) => string = (req) => `ip:${req.ip}`) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return <P extends Request["params"]>(req: Request<P>, res: Response, next: NextFunction) => {
     const now = Date.now();
     pruneRateLimits(now);
     const routePath = typeof req.route?.path === "string" ? req.route.path : req.path;
@@ -57,8 +57,8 @@ function rateLimit(limit: number, windowMs: number, identify: (req: Request) => 
   };
 }
 
-function asyncRoute(handler: (req: Request, res: Response) => Promise<unknown>) {
-  return async (req: Request, res: Response) => {
+function asyncRoute<P extends Request["params"] = Record<string, string>>(handler: (req: Request<P>, res: Response) => Promise<unknown>) {
+  return async (req: Request<P>, res: Response) => {
     try {
       const value = await handler(req, res);
       if (!res.headersSent) res.json(value);

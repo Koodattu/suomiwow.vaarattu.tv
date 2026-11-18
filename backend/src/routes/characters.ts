@@ -25,7 +25,7 @@ router.get("/search", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/:realm/:name/deaths", async (req: Request, res: Response) => {
+router.get("/:realm/:name/deaths", async (req, res) => {
   const number = (value: unknown) => typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
   const zoneId = number(req.query.zoneId);
   const encounterId = number(req.query.encounterId);
@@ -50,7 +50,7 @@ router.get("/:realm/:name/deaths", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/:realm/:name/raids/:raidId/guilds/:guildId/reports", async (req: Request, res: Response) => {
+router.get("/:realm/:name/raids/:raidId/guilds/:guildId/reports", async (req, res) => {
   try {
     const realm = decodeURIComponent(req.params.realm);
     const name = decodeURIComponent(req.params.name);
@@ -93,7 +93,7 @@ router.get(
     },
     () => cacheService.CHARACTER_PROFILE_TTL,
   ),
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const realm = decodeURIComponent(req.params.realm);
       const name = decodeURIComponent(req.params.name);

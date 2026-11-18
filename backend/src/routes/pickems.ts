@@ -148,7 +148,7 @@ router.get(
 );
 
 // Get an available raid's rankings as a reference while a Pickem uses the upcoming raid placeholder.
-router.get("/:pickemId/reference-rankings", async (req: Request, res: Response) => {
+router.get("/:pickemId/reference-rankings", async (req, res) => {
   try {
     const { pickemId } = req.params;
     const pickem = await pickemService.getPickemById(pickemId);
@@ -201,7 +201,7 @@ router.get("/ccg-opportunity", async (req: Request, res: Response) => {
 });
 
 // Get a specific pickem with leaderboard and user's predictions
-router.get("/:pickemId", async (req: Request, res: Response) => {
+router.get("/:pickemId", async (req, res) => {
   try {
     const { pickemId } = req.params;
     const pickem = await pickemService.getPickemById(pickemId);
@@ -326,7 +326,7 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
 });
 
 // Explicitly claim the generic CCG pack reward after submitting predictions.
-router.post("/:pickemId/ccg-reward/claim", async (req: Request, res: Response) => {
+router.post("/:pickemId/ccg-reward/claim", async (req, res) => {
   try {
     const sessionId = req.session?.id || req.ip || "unknown";
     if (!checkPredictRateLimit(`ccg-reward:${sessionId}`)) {
@@ -350,7 +350,7 @@ router.post("/:pickemId/ccg-reward/claim", async (req: Request, res: Response) =
 });
 
 // Submit or update predictions for a pickem
-router.post("/:pickemId/predict", async (req: Request, res: Response) => {
+router.post("/:pickemId/predict", async (req, res) => {
   try {
     const { pickemId } = req.params;
     const predictionInput = (req.body as { predictions?: unknown } | undefined)?.predictions;
@@ -424,7 +424,7 @@ router.post("/:pickemId/predict", async (req: Request, res: Response) => {
 });
 
 // Import a browser-only guest draft without ever replacing an account entry.
-router.post("/:pickemId/import-guest", async (req: Request, res: Response) => {
+router.post("/:pickemId/import-guest", async (req, res) => {
   try {
     const { pickemId } = req.params;
     const predictionInput = (req.body as { predictions?: unknown } | undefined)?.predictions;

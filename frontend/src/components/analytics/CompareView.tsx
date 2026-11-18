@@ -49,7 +49,6 @@ type CompareTableAverages = {
 type MetricPointShapeProps = {
   cx?: number;
   cy?: number;
-  fill?: string;
   payload?: {
     guildName: string;
     valueLabel: string;

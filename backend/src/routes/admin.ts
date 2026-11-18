@@ -383,7 +383,7 @@ router.get("/twitch-bot/channels/settings", async (_req: Request, res: Response)
   }
 });
 
-router.put("/twitch-bot/channels/:channelName/settings", async (req: Request, res: Response) => {
+router.put("/twitch-bot/channels/:channelName/settings", async (req, res) => {
   try {
     const adminUser = (req as any).user;
     const settings = await twitchChatBotService.updateChannelSettings(
@@ -876,7 +876,7 @@ router.get("/users/stats", async (req: Request, res: Response) => {
 });
 
 // Get all pickem submissions for a specific user
-router.get("/users/:userId/pickems", async (req: Request, res: Response) => {
+router.get("/users/:userId/pickems", async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -1175,7 +1175,7 @@ router.get("/guilds/:guildId", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/guilds/:guildId/log-sources", async (req: Request, res: Response) => {
+router.post("/guilds/:guildId/log-sources", async (req, res) => {
   try {
     const { guildId } = req.params;
     const guild = await Guild.findById(guildId);
@@ -1206,7 +1206,7 @@ router.post("/guilds/:guildId/log-sources", async (req: Request, res: Response) 
   }
 });
 
-router.put("/guilds/:guildId/log-sources/:sourceId", async (req: Request, res: Response) => {
+router.put("/guilds/:guildId/log-sources/:sourceId", async (req, res) => {
   try {
     const source = await guildLogSourceService.updateSource(req.params.guildId, req.params.sourceId, {
       enabled: req.body?.enabled,
@@ -1237,7 +1237,7 @@ router.post("/guilds/:guildId/log-sources/:sourceId/queue-rescan", async (req: R
   }
 });
 
-router.get("/guilds/:targetGuildId/log-sources/migration-preview/:sourceGuildId", async (req: Request, res: Response) => {
+router.get("/guilds/:targetGuildId/log-sources/migration-preview/:sourceGuildId", async (req, res) => {
   try {
     const preview = await guildLogSourceService.getMigrationPreview(req.params.targetGuildId, req.params.sourceGuildId);
     return res.json({
@@ -1249,7 +1249,7 @@ router.get("/guilds/:targetGuildId/log-sources/migration-preview/:sourceGuildId"
   }
 });
 
-router.post("/guilds/:targetGuildId/log-sources/migrate", async (req: Request, res: Response) => {
+router.post("/guilds/:targetGuildId/log-sources/migrate", async (req, res) => {
   try {
     const sourceGuildId = typeof req.body?.sourceGuildId === "string" ? req.body.sourceGuildId : "";
     const sourceGuild = await Guild.findById(sourceGuildId).select("name realm").lean();
@@ -1317,7 +1317,7 @@ router.post("/guilds/:guildId/recalculate-stats", async (req: Request, res: Resp
 });
 
 // Update world rankings for single guild (all raids)
-router.post("/guilds/:guildId/update-world-ranks", async (req: Request, res: Response) => {
+router.post("/guilds/:guildId/update-world-ranks", async (req, res) => {
   try {
     const { guildId } = req.params;
 
@@ -1345,7 +1345,7 @@ router.post("/guilds/:guildId/update-world-ranks", async (req: Request, res: Res
 });
 
 // Queue guild for full rescan (WCL guilds go to queue, RIO-only guilds get direct RIO update)
-router.post("/guilds/:guildId/queue-rescan", async (req: Request, res: Response) => {
+router.post("/guilds/:guildId/queue-rescan", async (req, res) => {
   try {
     const { guildId } = req.params;
 
@@ -1677,7 +1677,7 @@ router.get("/guilds/:guildId/reports", async (req: Request, res: Response) => {
 });
 
 // Import a specific Warcraft Logs report code and attribute it to this guild.
-router.post("/guilds/:guildId/reports/import", async (req: Request, res: Response) => {
+router.post("/guilds/:guildId/reports/import", async (req, res) => {
   try {
     const { guildId } = req.params;
     const reportCode = normalizeReportCode(req.body?.reportCode);
@@ -1711,7 +1711,7 @@ router.post("/guilds/:guildId/reports/import", async (req: Request, res: Respons
 });
 
 // Report rules survive deletion and every subsequent fetch or rescan.
-router.get("/guilds/:guildId/report-overrides", async (req: Request, res: Response) => {
+router.get("/guilds/:guildId/report-overrides", async (req, res) => {
   try {
     if (!(await Guild.exists({ _id: req.params.guildId }))) return res.status(404).json({ error: "Guild not found" });
     return res.json(await reportOverrideService.list(req.params.guildId));
@@ -1721,7 +1721,7 @@ router.get("/guilds/:guildId/report-overrides", async (req: Request, res: Respon
   }
 });
 
-router.post("/guilds/:guildId/report-overrides", async (req: Request, res: Response) => {
+router.post("/guilds/:guildId/report-overrides", async (req, res) => {
   try {
     const action = req.body?.action;
     if (!["assign", "exclude", "restore", "clear_assignment"].includes(action)) {
@@ -1744,7 +1744,7 @@ router.post("/guilds/:guildId/report-overrides", async (req: Request, res: Respo
 });
 
 // Removing a report now also prevents this guild from fetching it again.
-router.delete("/guilds/:guildId/reports/:reportId", async (req: Request, res: Response) => {
+router.delete("/guilds/:guildId/reports/:reportId", async (req, res) => {
   try {
     const report = await Report.findOne({ _id: req.params.reportId, guildId: req.params.guildId }).lean();
     if (!report) return res.status(404).json({ error: "Report not found for this guild" });
@@ -1959,7 +1959,7 @@ router.delete("/guilds/:guildId", async (req: Request, res: Response) => {
 });
 
 // Update a guild
-router.put("/guilds/:guildId", async (req: Request, res: Response) => {
+router.put("/guilds/:guildId", async (req, res) => {
   try {
     const { guildId } = req.params;
     const { parent_guild, streamers, activityStatus, horseRaceUmaImage } = req.body;
@@ -2038,7 +2038,7 @@ router.put("/guilds/:guildId", async (req: Request, res: Response) => {
 });
 
 // Remove an association completely, including both admin and self-service claims.
-router.delete("/guilds/:guildId/streamers/:channelName", async (req: Request, res: Response) => {
+router.delete("/guilds/:guildId/streamers/:channelName", async (req, res) => {
   try {
     const { guildId } = req.params;
     const channelName = req.params.channelName.trim().toLowerCase();
@@ -2373,7 +2373,7 @@ router.get("/pickems", async (req: Request, res: Response) => {
 });
 
 // Get a specific pickem by ID
-router.get("/pickems/:pickemId", async (req: Request, res: Response) => {
+router.get("/pickems/:pickemId", async (req, res) => {
   try {
     const { pickemId } = req.params;
     const pickem = await pickemService.getPickemById(pickemId);
@@ -2473,7 +2473,7 @@ router.post("/pickems", async (req: Request, res: Response) => {
 });
 
 // Update an existing pickem
-router.put("/pickems/:pickemId", async (req: Request, res: Response) => {
+router.put("/pickems/:pickemId", async (req, res) => {
   try {
     const { pickemId } = req.params;
     const updates = req.body;
@@ -2555,7 +2555,7 @@ router.put("/pickems/:pickemId", async (req: Request, res: Response) => {
 });
 
 // Delete a pickem
-router.delete("/pickems/:pickemId", async (req: Request, res: Response) => {
+router.delete("/pickems/:pickemId", async (req, res) => {
   try {
     const { pickemId } = req.params;
     const result = await pickemService.deletePickem(pickemId);
@@ -2582,7 +2582,7 @@ router.delete("/pickems/:pickemId", async (req: Request, res: Response) => {
 });
 
 // Toggle pickem active status
-router.patch("/pickems/:pickemId/toggle", async (req: Request, res: Response) => {
+router.patch("/pickems/:pickemId/toggle", async (req, res) => {
   try {
     const { pickemId } = req.params;
     const pickem = await pickemService.getPickemById(pickemId);
@@ -2600,7 +2600,7 @@ router.patch("/pickems/:pickemId/toggle", async (req: Request, res: Response) =>
 });
 
 // Finalize an RWF pickem with final rankings
-router.post("/pickems/:pickemId/finalize", async (req: Request, res: Response) => {
+router.post("/pickems/:pickemId/finalize", async (req, res) => {
   try {
     const { pickemId } = req.params;
     const { finalRankings } = req.body;
@@ -2645,7 +2645,7 @@ router.post("/pickems/:pickemId/finalize", async (req: Request, res: Response) =
 });
 
 // Unfinalize a pickem (admin correction) - works for both RWF and regular
-router.post("/pickems/:pickemId/unfinalize", async (req: Request, res: Response) => {
+router.post("/pickems/:pickemId/unfinalize", async (req, res) => {
   try {
     const { pickemId } = req.params;
 
@@ -2925,7 +2925,7 @@ router.post("/processing-queue/pause-all", async (req: Request, res: Response) =
 });
 
 // Pause a specific guild's processing
-router.post("/processing-queue/:guildId/pause", async (req: Request, res: Response) => {
+router.post("/processing-queue/:guildId/pause", async (req, res) => {
   try {
     const { guildId } = req.params;
 
@@ -2944,7 +2944,7 @@ router.post("/processing-queue/:guildId/pause", async (req: Request, res: Respon
 });
 
 // Resume a specific guild's processing
-router.post("/processing-queue/:guildId/resume", async (req: Request, res: Response) => {
+router.post("/processing-queue/:guildId/resume", async (req, res) => {
   try {
     const { guildId } = req.params;
 
@@ -2963,7 +2963,7 @@ router.post("/processing-queue/:guildId/resume", async (req: Request, res: Respo
 });
 
 // Retry a failed guild's processing
-router.post("/processing-queue/:guildId/retry", async (req: Request, res: Response) => {
+router.post("/processing-queue/:guildId/retry", async (req, res) => {
   try {
     const { guildId } = req.params;
 
@@ -3068,7 +3068,7 @@ router.delete("/processing-queue/clear-errors", async (req: Request, res: Respon
 });
 
 // Remove a guild from the processing queue
-router.delete("/processing-queue/:guildId", async (req: Request, res: Response) => {
+router.delete("/processing-queue/:guildId", async (req, res) => {
   try {
     const { guildId } = req.params;
 
@@ -4223,7 +4223,7 @@ router.get("/characters", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/characters/:characterId/identity-links/preview", async (req: Request, res: Response) => {
+router.post("/characters/:characterId/identity-links/preview", async (req, res) => {
   try {
     const preview = await characterIdentityLinkService.preview(req.params.characterId, {
       name: req.body?.name,
@@ -4241,7 +4241,7 @@ router.post("/characters/:characterId/identity-links/preview", async (req: Reque
   }
 });
 
-router.post("/characters/:characterId/identity-links", async (req: Request, res: Response) => {
+router.post("/characters/:characterId/identity-links", async (req, res) => {
   try {
     const createdBy = (req as any).user?.discord?.username || "admin";
     const { link, preview } = await characterIdentityLinkService.create(
@@ -4283,7 +4283,7 @@ router.post("/characters/:characterId/identity-links", async (req: Request, res:
   }
 });
 
-router.delete("/characters/:characterId/identity-links/:linkId", async (req: Request, res: Response) => {
+router.delete("/characters/:characterId/identity-links/:linkId", async (req, res) => {
   try {
     await characterIdentityLinkService.remove(req.params.characterId, req.params.linkId);
     let rebuild: { deleted: number; inserted: number } | null = null;
@@ -4306,7 +4306,7 @@ router.delete("/characters/:characterId/identity-links/:linkId", async (req: Req
   }
 });
 
-router.post("/characters/:characterId/account-links/preview", async (req: Request, res: Response) => {
+router.post("/characters/:characterId/account-links/preview", async (req, res) => {
   try {
     const preview = await characterAccountManualEdgeService.preview(req.params.characterId, {
       name: req.body?.name,
@@ -4323,7 +4323,7 @@ router.post("/characters/:characterId/account-links/preview", async (req: Reques
   }
 });
 
-router.post("/characters/:characterId/account-links", async (req: Request, res: Response) => {
+router.post("/characters/:characterId/account-links", async (req, res) => {
   try {
     const createdBy = (req as any).user?.discord?.username || "admin";
     const { edge, preview } = await characterAccountManualEdgeService.create(
@@ -4360,7 +4360,7 @@ router.post("/characters/:characterId/account-links", async (req: Request, res: 
   }
 });
 
-router.delete("/characters/:characterId/account-links/:edgeId", async (req: Request, res: Response) => {
+router.delete("/characters/:characterId/account-links/:edgeId", async (req, res) => {
   try {
     await characterAccountManualEdgeService.remove(req.params.characterId, req.params.edgeId);
     let rebuild = null;
@@ -4388,7 +4388,7 @@ router.delete("/characters/:characterId/account-links/:edgeId", async (req: Requ
   }
 });
 
-router.post("/characters/:characterId/continuity-links/preview", async (req: Request, res: Response) => {
+router.post("/characters/:characterId/continuity-links/preview", async (req, res) => {
   try {
     const preview = await characterContinuityService.preview(req.params.characterId, {
       name: req.body?.name,
@@ -4405,7 +4405,7 @@ router.post("/characters/:characterId/continuity-links/preview", async (req: Req
   }
 });
 
-router.post("/characters/:characterId/continuity-links", async (req: Request, res: Response) => {
+router.post("/characters/:characterId/continuity-links", async (req, res) => {
   try {
     const createdBy = (req as any).user?.discord?.username || "admin";
     const { link, preview } = await characterContinuityService.create(
@@ -4457,7 +4457,7 @@ router.post("/characters/:characterId/continuity-links", async (req: Request, re
   }
 });
 
-router.delete("/characters/:characterId/continuity-links/:linkId", async (req: Request, res: Response) => {
+router.delete("/characters/:characterId/continuity-links/:linkId", async (req, res) => {
   try {
     await characterContinuityService.remove(req.params.characterId, req.params.linkId);
     await cacheService.invalidatePattern(/^characters:profile:/);

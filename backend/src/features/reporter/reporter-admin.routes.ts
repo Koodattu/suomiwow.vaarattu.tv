@@ -36,7 +36,7 @@ router.patch("/settings", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/posts/:id/status", async (req: Request, res: Response) => {
+router.patch("/posts/:id/status", async (req, res) => {
   const status = req.body?.status as ReporterPostStatus | undefined;
   if (status !== "draft" && status !== "published") return res.status(400).json({ error: "Status must be draft or published" });
   try {
@@ -47,7 +47,7 @@ router.patch("/posts/:id/status", async (req: Request, res: Response) => {
   }
 });
 
-router.delete("/posts/:id", async (req: Request, res: Response) => {
+router.delete("/posts/:id", async (req, res) => {
   if (reporterRunner.isRunning) return res.status(409).json({ error: "Wait for the active Reporter generation to finish before deleting an article" });
   try {
     res.json(await reporterService.deletePost(req.params.id));
