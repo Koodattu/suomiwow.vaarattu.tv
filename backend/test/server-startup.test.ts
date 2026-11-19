@@ -83,8 +83,13 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
     "./routes/frontend-api": { frontendApiRouter: () => express.Router() },
     "./services/site-analytics.service": { async initializeSiteAnalytics() { analyticsInitialized = true; } },
     "./features/forever/forever.worker": { initializeForever: noop, start() {}, stop() {} },
+    "./features/forever/forever-level60.worker": { start() {}, stop() {} },
+    "./features/forever/forever-namegame.worker": { start() {}, stop() {} },
+    "./features/forever/forever-guild-language.worker": { start() {}, stop() {} },
+    "./features/forever/forever-cache-warmer": { startForeverPageCaches() {}, stopForeverPageCaches() {} },
     "./features/forever/forever-twitch": { start() {}, stop() {} },
     "./features/forever/forever-leaderboard": { startForeverLeaderboard() {}, stopForeverLeaderboard() {} },
+    "./features/ai-usage/ai-usage.routes": { aiUsageRouter: express.Router() },
     "./features/forever/forever.routes": { foreverRouter: express.Router(), foreverAdminRouter: express.Router() },
     "./services/avoidable-damage.service": {
       async warmLeaderboardCaches() {

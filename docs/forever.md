@@ -21,7 +21,7 @@ individual rosters still read the saved data directly. Neither adds external Arm
 
 Analytics, Namegame and the guild directory warm at server startup, then check every
 15 seconds for snapshots at least 30 seconds old, even without visitors.
-Both API and worker processes run the warmer. Each page refreshes
+API processes run the warmer. Each page refreshes
 independently, with shared leases preventing duplicate builds across processes. A slow
 or failed page refresh does not block the other pages; failures retry on the next tick.
 
@@ -36,6 +36,9 @@ Each read checks the indexed moderation revision. Admin visibility/status change
 automatic guild moderation invalidate all three pages across processes immediately.
 An older in-flight build cannot publish into the new revision. Normal roster, level and
 name-score updates appear through the periodic refresh without requiring a page visit.
+Name Game checks a revision written with score batches, roster membership changes and
+rated character guild changes. An unchanged revision reuses the ranked population during
+proactive refreshes. Hard expiry and a 15-minute reconciliation rebuild it from source.
 
 `node --test -r ts-node/register test/forever-snapshot.test.ts` covers startup and idle
 warming for all three pages, shared reuse, concurrency, failures, moderation and shutdown.
@@ -503,7 +506,7 @@ lease token. Expired leases recover after crashes. Shutdown waits for the active
 fetch. Request starts are at least 500 milliseconds apart, including across
 processes, with one request in flight (up to two requests/second). The queue starts
 immediately, continues as soon as that spacing permits, and checks for new work
-every five seconds when idle. Due rosters get bounded priority over individual
+every five seconds when idle. Each runner checks for expired roster coverage and unscheduled low-level rechecks every 30 seconds. Due rosters get bounded priority over individual
 checks as described above.
 
 First-fetch jobs have bounded priority within each job type. Up to three new

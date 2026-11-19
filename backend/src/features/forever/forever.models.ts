@@ -29,16 +29,20 @@ const characterSchema = new Schema({
 }, { timestamps: true, collection: "forever_characters" });
 characterSchema.index({ region: 1, slug: 1 }, { unique: true });
 characterSchema.index({ "nameRating.score": -1, "nameRating.name": 1, _id: 1 }, { partialFilterExpression: { "nameRating.score": { $exists: true } } });
-characterSchema.index({ status: 1, nextFetchAt: 1 });
-characterSchema.index({ status: 1, profileFetchedAt: 1, sourceUpdatedAt: 1, nextFetchAt: 1 });
-characterSchema.index({ status: 1, refreshRequestedAt: 1 });
+characterSchema.index({ status: 1, _id: 1 }, { name: "unrated_unclaimed_names",
+  partialFilterExpression: { status: "tracked", nameRating: null, namegameBatch: null } });
+characterSchema.index({ status: 1, refreshRequestedAt: 1, _id: 1 });
 characterSchema.index({ status: 1, level: -1, name: 1 });
 characterSchema.index({ region: 1, status: 1, level: -1, lastLevelAt: 1, _id: 1 });
 characterSchema.index({ level60NextCheckAt: 1, _id: 1 }, { partialFilterExpression: { region: "eu", status: "tracked", level: 60 } });
-characterSchema.index({ status: 1, twitchNextCheckAt: 1 });
+characterSchema.index({ twitchChannel: 1 }, { partialFilterExpression: { twitchChannel: { $type: "string" } } });
+characterSchema.index({ twitchNextCheckAt: 1, _id: 1 }, { partialFilterExpression: { status: "tracked", twitchChannel: { $type: "string" } } });
+characterSchema.index({ status: 1, nextFetchAt: 1, _id: 1 });
+characterSchema.index({ status: 1, profileFetchedAt: 1, sourceUpdatedAt: 1, nextFetchAt: 1, _id: 1 });
 characterSchema.index({ rosterCoverageUntil: 1 });
 characterSchema.index({ status: 1, lowLevelRecheck: 1, rosterCoverageUntil: 1 });
 characterSchema.index({ region: 1, rosterGuildSlug: 1 });
+characterSchema.index({ region: 1, status: 1, "guild.slug": 1 });
 
 const guildSchema = new Schema({
   ...identity, ...polling, name: { type: String, required: true },
@@ -80,6 +84,7 @@ const workerSchema = new Schema({
   consecutiveGuilds: { type: Number, default: 0 },
   consecutiveNewCharacters: { type: Number, default: 0 },
   consecutiveNewGuilds: { type: Number, default: 0 },
+  namegameRevision: { type: Number, default: 0 },
   leaderboardRevision: { type: Number, default: 0 },
 }, { collection: "forever_worker" });
 const limitSchema = new Schema({ _id: String, count: { type: Number, default: 0 }, expiresAt: Date }, { collection: "forever_request_limits" });

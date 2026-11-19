@@ -38,6 +38,19 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
         $unset: { leaseToken: 1, leaseUntil: 1, errorCode: 1, failureWindowStartedAt: 1 } });
     });
 
+    await t.test("a long-lived runner reconciles expired coverage without scanning it on every request", async t => {
+      const runner = new ForeverRunner({ roster: async () => [], character: async identity => profile(identity.slug) });
+      t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+      await runner.tick();
+      const record = await tracked("expired-member", { rosterCoverageUntil: new Date(Date.now() - 1),
+        nextFetchAt: new Date(Date.now() + 86_400_000) });
+      await ready(); await runner.tick();
+      assert.ok((await ForeverCharacter.findById(record._id).lean())?.rosterCoverageUntil);
+      t.mock.timers.tick(30_000);
+      await ready(); await runner.tick();
+      assert.equal((await ForeverCharacter.findById(record._id).lean())?.rosterCoverageUntil, undefined);
+    });
+
     await t.test("one roster updates members in bulk ahead of the individual backlog, retains metadata and unique ranks", async () => {
       await guild();
       const old = await tracked("first-member", { lastFetchedAt: new Date(Date.now() - 11 * 60 * MINUTE) });
@@ -277,7 +290,7 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       assert.equal((await ForeverGuild.findOne().lean())?.rosterLaggingMembers, 1);
     });
 
-    await t.test("manual refresh requests survive roster updates and instant refresh precedes a due guild", async () => {
+    await t.test("manual refresh requests survive roster updates and instant refresh precedes a due guild", async t => {
       await guild();
       const first = await tracked("first-member"), second = await tracked("second-member", { nextFetchAt: new Date(Date.now() + PROFILE_AUDIT_INTERVAL), lastAttemptAt: new Date(0) });
       await service.requestRefresh(String(second._id), "test-user");
@@ -290,9 +303,16 @@ test("roster-driven polling (isolated replica-set database)", { skip: !uri }, as
       await dueGuild();
       await ForeverCharacter.updateOne({ _id: first._id }, { $set: { refreshRequestedAt: new Date() } });
       await ready();
+      const guildReads = t.mock.method(ForeverGuild, "findOne");
+      const characterReads = t.mock.method(ForeverCharacter, "findOne");
       await new ForeverRunner({ roster: async () => { throw new Error("priority refresh must go first"); }, character: async identity => {
         assert.equal(identity.slug, "first-member"); return profile(identity.slug);
       } }).tick();
+      assert.equal(guildReads.mock.calls.filter(call => "nextFetchAt" in (call.arguments[0] ?? {})).length, 0);
+      assert.equal(characterReads.mock.calls.filter(call => {
+        const filter = call.arguments[0] ?? {};
+        return "nextFetchAt" in filter || "$and" in filter;
+      }).length, 0, "a manual refresh does not scan automatic candidate lanes");
       assert.equal((await ForeverCharacter.findById(first._id).lean())?.refreshRequestedAt, undefined);
     });
 

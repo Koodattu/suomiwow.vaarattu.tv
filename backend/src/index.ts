@@ -587,7 +587,7 @@ const startServer = async () => {
     await connectDB();
     await initializeSiteAnalytics();
     await initializeForever();
-    startForeverPageCaches();
+    if (isApiProcess) startForeverPageCaches();
     completeStartupTask("Connect to MongoDB");
 
     setStartupTask("Initialize Pickem streak rules");

@@ -1,9 +1,8 @@
 import { groupPulls } from "../utils/fight-deduplication";
-import mongoose, { PipelineStage } from "mongoose";
+import mongoose from "mongoose";
 import { activeAvoidableMechanics, AvoidableMechanic, findAvoidableMechanic } from "../config/avoidable-mechanics";
-import { ROLE_BY_CLASS_AND_SPEC } from "../config/specs";
+import { buildMechanicSnapshot, StoredMechanicSnapshot } from "./mechanic-snapshot";
 import AvoidableDamageFight, { MechanicPlayer } from "../models/AvoidableDamageFight";
-import Character from "../models/Character";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
 import Fight from "../models/Fight";
 import Guild, { IGuild } from "../models/Guild";
@@ -16,8 +15,7 @@ import { mechanicClassId, mechanicIdentity, MechanicCollectionPaused } from "../
 import logger from "../utils/logger";
 import { classifyError, ErrorType } from "../utils/error-classifier";
 import { normalizeRealmSlug } from "../utils/realm";
-import { resolveSpecByBlizzardSpecId, slugifySpecName, tryResolveRole } from "../utils/spec";
-import { MechanicLeaderboardFilters, MechanicSnapshot, MechanicSnapshotRow, selectMechanicLeaderboard } from "../utils/mechanic-leaderboard";
+import { MechanicLeaderboardFilters, MechanicSnapshot, selectMechanicLeaderboard } from "../utils/mechanic-leaderboard";
 import iconCacheService from "./icon-cache.service";
 import { SharedSnapshotCacheService } from "./shared-snapshot-cache.service";
 import rateLimitService from "./rate-limit.service";
@@ -336,60 +334,8 @@ class AvoidableDamageService {
     };
   }
 
-  private async visibleFightStages(mechanic: AvoidableMechanic): Promise<PipelineStage[]> {
-    const hidden = await Character.find({ wclProfileHidden: true }).select("wclCanonicalCharacterId").lean();
-    return [
-      { $match: { mechanicKey: mechanic.key, version: mechanic.version } },
-      // Respect report deletion/reassignment and guild exclusions without waiting for another backfill.
-      { $lookup: { from: Fight.collection.name, localField: "sourceFightId", foreignField: "_id",
-        pipeline: [{ $project: { guildId: 1, combatants: 1 } }], as: "source" } },
-      { $match: { $expr: { $eq: [{ $arrayElemAt: ["$source.guildId", 0] }, "$guildId"] } } },
-      { $lookup: { from: Guild.collection.name, localField: "guildId", foreignField: "_id",
-        pipeline: [{ $project: { name: 1, excludedRaidIds: 1 } }], as: "guild" } },
-      { $unwind: "$guild" }, { $match: { "guild.excludedRaidIds": { $ne: mechanic.zoneId } } },
-      { $set: { players: { $filter: { input: "$players", as: "player", cond: { $not: [{ $in: ["$$player.canonicalCharacterId", hidden.map((entry) => entry.wclCanonicalCharacterId)] }] } } } } },
-    ];
-  }
-
-  private async buildLeaderboardSnapshot(mechanic: AvoidableMechanic): Promise<MechanicSnapshot> {
-    const stages = await this.visibleFightStages(mechanic);
-    // Rosters retain WCL display realms; mechanic players store realm slugs.
-    const realmIdentity = (field: string) => [" ", "\t", "\r", "\n", "-", "'", "’", "`"].reduce<unknown>(
-      (input, find) => ({ $replaceAll: { input, find, replacement: "" } }), { $toLower: { $ifNull: [field, ""] } });
-    type AggregateRow = Omit<MechanicSnapshotRow, "key" | "guildId" | "isKill" | "role" | "specName" | "timestamp"> & {
-      _id: { identity: string; guildId: mongoose.Types.ObjectId; isKill: boolean; role?: MechanicSnapshotRow["role"]; specID?: number; specName?: string };
-      timestamp: Date;
-    };
-    const [coverageRows, leaderboard] = await Promise.all([
-      AvoidableDamageFight.aggregate([...stages, { $group: { _id: { guildId: "$guildId", isKill: "$isKill", status: "$status" }, fights: { $sum: 1 }, updatedAt: { $max: "$fetchedAt" } } }]),
-      AvoidableDamageFight.aggregate<AggregateRow>([...stages,
-        { $match: { status: "fetched" } }, { $unwind: "$players" }, { $sort: { timestamp: -1, reportCode: 1 } },
-        // Join the already stored roster for this pull. Never guess a hybrid class's role.
-        { $set: { combatant: { $arrayElemAt: [{ $filter: {
-          input: { $ifNull: [{ $arrayElemAt: ["$source.combatants", 0] }, []] }, as: "combatant",
-          cond: { $and: [
-            { $eq: [{ $toLower: "$$combatant.name" }, { $toLower: "$players.name" }] },
-            { $eq: [realmIdentity("$$combatant.server"), realmIdentity("$players.realm")] },
-          ] },
-        } }, 0] } } },
-        { $group: { _id: { identity: "$players.identity", guildId: "$guildId", isKill: "$isKill", role: "$combatant.role", specID: "$combatant.specID", specName: "$combatant.specName" },
-          name: { $first: "$players.name" }, realm: { $first: "$players.realm" }, region: { $first: "$players.region" },
-          classId: { $first: "$players.classId" }, guildName: { $first: "$guild.name" },
-          damage: { $sum: "$players.damage" }, hits: { $sum: "$players.hits" }, directHits: { $sum: "$players.directHits" }, ticks: { $sum: "$players.ticks" }, pulls: { $sum: 1 },
-          reportCode: { $first: "$reportCode" }, fightId: { $first: "$fightId" }, actorId: { $first: "$players.actorId" }, timestamp: { $first: "$timestamp" } } },
-      ]).allowDiskUse(true),
-    ]);
-    return {
-      mechanic,
-      rows: leaderboard.map(({ _id, timestamp, ...row }) => {
-        const specName = _id.specName || (_id.specID ? resolveSpecByBlizzardSpecId(_id.specID)?.specName : null);
-        const specRole = tryResolveRole(row.classId, specName);
-        const classRoles = [...new Set(Object.values(ROLE_BY_CLASS_AND_SPEC[row.classId] ?? {}))];
-        const role = specRole ?? _id.role ?? (classRoles.length === 1 ? classRoles[0] : null);
-        return { ...row, key: _id.identity, guildId: String(_id.guildId), isKill: _id.isKill, role, specName: specRole && specName ? slugifySpecName(specName) : null, timestamp: timestamp.getTime() };
-      }),
-      coverage: coverageRows.map(({ _id, fights, updatedAt }) => ({ ..._id, guildId: String(_id.guildId), fights, updatedAt: updatedAt?.toISOString() ?? null })),
-    };
+  private buildLeaderboardSnapshot(mechanic: AvoidableMechanic, previous?: StoredMechanicSnapshot) {
+    return buildMechanicSnapshot(mechanic, previous);
   }
 
   private snapshotKey(mechanic: AvoidableMechanic): string {
@@ -397,7 +343,7 @@ class AvoidableDamageService {
   }
 
   private getSnapshot(mechanic: AvoidableMechanic, warm = false): Promise<MechanicSnapshot> {
-    return this.snapshotCache.get(this.snapshotKey(mechanic), () => this.buildLeaderboardSnapshot(mechanic), LEADERBOARD_CACHE_MS, warm);
+    return this.snapshotCache.get<StoredMechanicSnapshot>(this.snapshotKey(mechanic), previous => this.buildLeaderboardSnapshot(mechanic, previous), LEADERBOARD_CACHE_MS, warm);
   }
 
   async warmLeaderboardCaches(mechanicKeys = activeAvoidableMechanics().map((entry) => entry.key), forceRefresh = false): Promise<void> {

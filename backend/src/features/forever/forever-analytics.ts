@@ -1,5 +1,5 @@
 import { ForeverCharacter } from "./forever.models";
-import { visibleForeverCharacters } from "./forever-visibility";
+import { foreverVisibility } from "./forever-visibility";
 import { buildForeverAnalyticsTimeline } from "./forever-analytics-timeline";
 import { ForeverSnapshotCache } from "./forever-snapshot";
 
@@ -105,9 +105,10 @@ export function buildForeverAnalytics(characters: AnalyticsCharacter[], now = Da
 }
 
 export const foreverAnalyticsCache = new ForeverSnapshotCache("forever:analytics:v1", async () => {
-  const visible = await visibleForeverCharacters();
-  const characters = await ForeverCharacter.find({ ...visible, region: "eu", status: "tracked", level: { $gte: 1, $lte: 60 } })
-    .select("-_id level race className faction ruleset history.level history.observedAt").lean();
+  const visible = await foreverVisibility();
+  const candidates = await ForeverCharacter.find({ region: "eu", status: "tracked", level: { $gte: 1, $lte: 60 } })
+    .select("-_id region slug guild.slug source independentlyTracked level race className faction ruleset history.level history.observedAt").lean();
+  const characters = candidates.filter(visible.includes);
   const now = Date.now();
   return { ...buildForeverAnalytics(characters, now), timeline: buildForeverAnalyticsTimeline(characters, now) };
 });

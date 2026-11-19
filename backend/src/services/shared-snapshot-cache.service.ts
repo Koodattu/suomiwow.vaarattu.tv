@@ -20,7 +20,7 @@ export class SharedSnapshotCacheService {
     this.storage = storage || { cache: require("../models/Cache").default, leases: require("../models/CacheRefreshLease").default };
   }
 
-  async get<T>(key: string, build: () => Promise<T>, ttl: number, warm = false): Promise<T> {
+  async get<T>(key: string, build: (previous?: NoInfer<T>) => Promise<T>, ttl: number, warm = false): Promise<T> {
     const entry = await this.storage.cache.findOne({ key }).lean();
     const now = Date.now();
     const usable = entry && entry.staleExpiresAt && new Date(entry.staleExpiresAt).getTime() > now;
@@ -28,7 +28,7 @@ export class SharedSnapshotCacheService {
     const refreshAhead = warm ? Math.min(ttl / 2, 10 * 60 * 1000) : 0;
     if (usable && new Date(entry.expiresAt).getTime() > now + refreshAhead) return entry.data as T;
 
-    const refresh = this.refresh(key, build, ttl, entry ? new Date(entry.cachedAt).getTime() : 0);
+    const refresh = this.refresh(key, build, ttl, entry ? new Date(entry.cachedAt).getTime() : 0, entry?.data as T | undefined);
     if (usable && !warm) {
       void refresh.catch((error) => logger.error(`[${this.logLabel}] Background refresh failed for ${key}:`, error));
       return entry.data as T;
@@ -36,15 +36,15 @@ export class SharedSnapshotCacheService {
     return refresh;
   }
 
-  private refresh<T>(key: string, build: () => Promise<T>, ttl: number, previousCachedAt: number): Promise<T> {
+  private refresh<T>(key: string, build: (previous?: NoInfer<T>) => Promise<T>, ttl: number, previousCachedAt: number, previous?: T): Promise<T> {
     const existing = this.pending.get(key);
     if (existing) return existing as Promise<T>;
-    const promise = this.buildWithLease(key, build, ttl, previousCachedAt).finally(() => this.pending.delete(key));
+    const promise = this.buildWithLease(key, build, ttl, previousCachedAt, previous).finally(() => this.pending.delete(key));
     this.pending.set(key, promise);
     return promise;
   }
 
-  private async buildWithLease<T>(key: string, build: () => Promise<T>, ttl: number, previousCachedAt: number): Promise<T> {
+  private async buildWithLease<T>(key: string, build: (previous?: NoInfer<T>) => Promise<T>, ttl: number, previousCachedAt: number, previous?: T): Promise<T> {
     const owner = randomUUID();
     const deadline = Date.now() + REFRESH_TIMEOUT_MS;
     while (Date.now() < deadline) {
@@ -81,15 +81,20 @@ export class SharedSnapshotCacheService {
       try {
         const published = await this.storage.cache.findOne({ key, cachedAt: { $gt: new Date(previousCachedAt) }, expiresAt: { $gt: new Date() } }).lean();
         if (published) return published.data as T;
-        const data = await build();
+        const data = await build(previous);
         if (leaseLost || !await this.storage.leases.exists({ _id: key, owner, expiresAt: { $gt: new Date() } })) {
           throw new Error(`Cache refresh lease lost for ${key}`);
         }
         const now = new Date();
         const expiresAt = new Date(now.getTime() + ttl);
         // Preserve a last-good result through short worker outages and slow refreshes.
-        await this.storage.cache.findOneAndUpdate({ key }, {
-          $set: { data, cachedAt: now, expiresAt, staleExpiresAt: new Date(expiresAt.getTime() + this.staleWindowMs(key)), ttlMs: ttl, endpoint: key.split(":").slice(0, 2).join(":") },
+        const dates = { cachedAt: now, expiresAt, staleExpiresAt: new Date(expiresAt.getTime() + this.staleWindowMs(key)) };
+        // An unchanged snapshot only renews its dates. Restore the full entry if TTL
+        // cleanup or an invalidation removed the version we originally read.
+        const renewed = previous !== undefined && data === previous &&
+          await this.storage.cache.updateOne({ key, cachedAt: new Date(previousCachedAt) }, { $set: dates });
+        if (!renewed || !renewed.matchedCount) await this.storage.cache.findOneAndUpdate({ key }, {
+          $set: { ...dates, data, ttlMs: ttl, endpoint: key.split(":").slice(0, 2).join(":") },
         }, { upsert: true });
         logger.info(`[${this.logLabel}] Published ${key} in ${Date.now() - startedAt}ms`);
         return data;

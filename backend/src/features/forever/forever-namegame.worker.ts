@@ -22,7 +22,7 @@ async function claimBatch() {
   const token = randomUUID();
   return mongoose.connection.transaction(async session => {
     const ids = candidates.map(row => row._id);
-    await ForeverCharacter.updateMany({ ...eligible, _id: { $in: ids } }, { $set: { namegameBatch: token } }, { session, timestamps: false });
+    await ForeverCharacter.updateMany({ ...eligible, _id: { $in: ids } }, { $set: { namegameBatch: token } }, { session, timestamps: false, hint: "_id_" });
     const claimed = await ForeverCharacter.find({ _id: { $in: ids }, namegameBatch: token }).sort({ _id: 1 })
       .select("name region slug guild.name").session(session).lean();
     if (!claimed.length) return null;
@@ -97,7 +97,8 @@ export class NamegameWorker {
           update: { $set: { nameRating: { name: item.name, ...ratings[i] } }, $unset: { namegameBatch: 1 as const } }, timestamps: false,
         } }));
         await mongoose.connection.transaction(async session => {
-          await ForeverCharacter.bulkWrite(writes, { session });
+          const result = await ForeverCharacter.bulkWrite(writes, { session });
+          if (result.modifiedCount) await ForeverWorker.updateOne({ _id: "armory" }, { $inc: { namegameRevision: 1 } }, { session });
           await NamegameBatch.deleteOne({ _id: pending._id }, { session });
         });
         return;

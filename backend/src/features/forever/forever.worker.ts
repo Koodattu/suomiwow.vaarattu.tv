@@ -12,6 +12,7 @@ import { confirmedGuildRuleset } from "./forever-guild-ruleset";
 const SPACING_MS = 500;
 const IDLE_MS = 5_000;
 const LEASE_MS = 90_000;
+const COVERAGE_SWEEP_MS = 30_000;
 export async function initializeForever() {
   await Promise.all([ForeverCharacter.init(), ForeverGuild.init(), ForeverRequestLimit.init(), ForeverWorker.init()]);
   for (const id of ["armory", "twitch", "level60", "namegame"]) {
@@ -42,6 +43,7 @@ export class ForeverRunner {
   private timer?: NodeJS.Timeout;
   private active?: Promise<void>;
   private stopped = true;
+  private nextCoverageSweep = 0;
   constructor(private readonly source = { character: fetchForeverCharacter, roster: fetchForeverRoster }) {}
 
   start() {
@@ -69,35 +71,55 @@ export class ForeverRunner {
     let nextRequestAt = new Date(Date.now() + SPACING_MS);
     try {
       const due = { $lte: now, $ne: null };
-      await releaseRosterCoverage({ rosterCoverageUntil: { $lte: now, $ne: null } }, now);
-      await scheduleUncoveredLowLevels(now);
+      // Roster writes handle departures immediately. Poll for expired coverage and
+      // unscheduled legacy records independently of the Armory request rate.
+      if (now.getTime() >= this.nextCoverageSweep) {
+        await releaseRosterCoverage({ rosterCoverageUntil: { $lte: now, $ne: null } }, now);
+        await scheduleUncoveredLowLevels(now);
+        this.nextCoverageSweep = now.getTime() + COVERAGE_SWEEP_MS;
+      }
       const visible = await visibleForeverCharacters();
       const baseCharacterDue = { ...visible, status: "tracked" as const, nextFetchAt: due };
       const characterDue = { ...baseCharacterDue, ...profileFetchEligibility };
       const firstProfile = { profileFetchedAt: null, sourceUpdatedAt: null };
       const guildDue = { status: { $in: ["pending", "approved"] as const }, hidden: { $ne: true }, nextFetchAt: due };
-      const [priorityCharacter, unclassifiedCharacter, newCharacter, regularCharacter, newGuild, regularGuild] = await Promise.all([
-        ForeverCharacter.findOne({ ...visible, ...profileFetchEligibility, status: "tracked", refreshRequestedAt: { $ne: null } }).sort({ refreshRequestedAt: 1, _id: 1 }).lean(),
-        ForeverCharacter.findOne({ $and: [characterDue, firstProfile, { ruleset: { $in: [null, "", "Unknown"] } }] }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
-        ForeverCharacter.findOne({ ...characterDue, ...firstProfile }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
-        ForeverCharacter.findOne({ $and: [baseCharacterDue, { $or: [
+      // Follow the scheduler's priority order. Once a lane supplies this turn,
+      // candidates from lower-priority lanes would only be discarded.
+      const selectionFields = "region slug failures refreshRequestedAt refreshQueuedAt lowLevelRecheck level profileLevel profileFetchedAt sourceUpdatedAt rosterObservedAt";
+      const priorityCharacter = await ForeverCharacter.findOne({ ...visible, ...profileFetchEligibility,
+        status: "tracked", refreshRequestedAt: { $ne: null } }).sort({ refreshRequestedAt: 1, _id: 1 }).select(selectionFields).lean();
+      const newCharacterTurns = lease.consecutiveNewCharacters ?? 0;
+      const nextCharacter = async () => {
+        const first = () => ForeverCharacter.findOne({ ...characterDue, ...firstProfile }).sort({ nextFetchAt: 1, _id: 1 }).select(selectionFields).lean();
+        const regular = () => ForeverCharacter.findOne({ $and: [baseCharacterDue, { $or: [
           { $and: [profileFetchEligibility, { $or: [{ profileFetchedAt: { $ne: null } }, { sourceUpdatedAt: { $ne: null } }] }] },
           { lowLevelRecheck: true, rosterCoverageUntil: null },
-        ] }] }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
-        ForeverGuild.findOne({ ...guildDue, lastFetchedAt: null }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
-        ForeverGuild.findOne({ ...guildDue, lastFetchedAt: { $ne: null } }).sort({ nextFetchAt: 1, _id: 1 }).lean(),
-      ]);
-      // Two new-character turns favor missing rulesets, the third serves any
-      // first profile, and the fourth reserves an existing profile refresh.
-      // All automatic lanes obey due dates, including upstream-error backoff.
-      const newCharacterTurns = lease.consecutiveNewCharacters ?? 0;
-      const firstCharacter = (newCharacterTurns < 2 ? unclassifiedCharacter : null) || newCharacter;
-      const character = priorityCharacter || (newCharacterTurns < 3 ? firstCharacter || regularCharacter : regularCharacter || firstCharacter);
-      const guild = (lease.consecutiveNewGuilds ?? 0) < 3 ? newGuild || regularGuild : regularGuild || newGuild;
-      // A due roster updates a whole guild. Do not bury it behind thousands of
-      // overdue individual jobs. Reserve at least every fourth turn for an
-      // eligible character even during guild outages; instant refresh wins.
-      const useGuild = !priorityCharacter && guild && (!character || (lease.consecutiveGuilds ?? 0) < 3);
+        ] }] }).sort({ nextFetchAt: 1, _id: 1 }).select(selectionFields).lean();
+        if (newCharacterTurns >= 3) return await regular() ?? await first();
+        if (newCharacterTurns < 2) {
+          const unclassified = await ForeverCharacter.findOne({ ...characterDue, ...firstProfile, ruleset: { $in: [null, "", "Unknown"] } })
+            .sort({ nextFetchAt: 1, _id: 1 }).select(selectionFields).lean();
+          if (unclassified) return unclassified;
+        }
+        return await first() ?? await regular();
+      };
+      const nextGuild = async () => {
+        const first = () => ForeverGuild.findOne({ ...guildDue, lastFetchedAt: null }).sort({ nextFetchAt: 1, _id: 1 }).select("region slug failures lastFetchedAt").lean();
+        const regular = () => ForeverGuild.findOne({ ...guildDue, lastFetchedAt: { $ne: null } }).sort({ nextFetchAt: 1, _id: 1 }).select("region slug failures lastFetchedAt").lean();
+        return (lease.consecutiveNewGuilds ?? 0) < 3 ? await first() ?? await regular() : await regular() ?? await first();
+      };
+      let character = priorityCharacter;
+      let guild = null;
+      if (!character) {
+        if ((lease.consecutiveGuilds ?? 0) < 3) {
+          guild = await nextGuild();
+          if (!guild) character = await nextCharacter();
+        } else {
+          character = await nextCharacter();
+          if (!character) guild = await nextGuild();
+        }
+      }
+      const useGuild = guild !== null;
       const job = useGuild ? guild : character;
       if (!job) {
         nextRequestAt = new Date(Date.now() + IDLE_MS);
@@ -124,6 +146,7 @@ export class ForeverRunner {
 
       await mongoose.connection.transaction(async (session) => {
         await fence(token, session);
+        let namegameChanged = false;
         const updateFailure = { $set: { lastAttemptAt: completedAt, errorCode: failure?.code,
           nextFetchAt: new Date(completedAt.getTime() + delay) }, $inc: { failures: 1 } };
         if (useGuild) {
@@ -135,7 +158,13 @@ export class ForeverRunner {
                 failures: 0, rosterPollingVersion: 1,
                 nextFetchAt: current.status === "approved" ? nextRosterFetchAt(current, completedAt.getTime()) : null },
                 $unset: { errorCode: 1 } }, { session });
-              if (current.status === "approved") await applyApprovedRoster(current, roster!, completedAt, session);
+              if (current.status === "approved") {
+                const changedMembers = await applyApprovedRoster(current, roster!, completedAt, session);
+                const oldSlugs = new Set(current.roster.map(member => member.slug));
+                const newSlugs = new Set(roster!.map(member => member.slug));
+                namegameChanged = changedMembers || !current.lastFetchedAt || oldSlugs.size !== newSlugs.size
+                  || [...newSlugs].some(slug => !oldSlugs.has(slug));
+              }
             }
           }
         } else {
@@ -150,6 +179,7 @@ export class ForeverRunner {
             if (failure) await ForeverCharacter.updateOne({ _id: job._id }, updateFailure, { session });
             else if (profile) {
               validateProgress({ level: current.profileLevel ?? (current.rosterObservedAt ? undefined : current.level), sourceUpdatedAt: current.sourceUpdatedAt }, profile);
+              namegameChanged = !!current.nameRating && current.guild?.slug !== profile.guild?.slug;
               const changed = profile.level > (current.level ?? 0);
               const lastLevelAt = changed ? completedAt : current.lastLevelAt || completedAt;
               // A lagging direct profile can arrive after the roster reported 60.
@@ -200,6 +230,7 @@ export class ForeverRunner {
           }
         }
         await ForeverWorker.updateOne({ _id: "armory", leaseToken: token }, {
+          ...(namegameChanged ? { $inc: { namegameRevision: 1 } } : {}),
           $set: { nextRequestAt, failedJobs: health.failedJobs, failureWindowStartedAt: health.failureWindowStartedAt,
             consecutiveGuilds: useGuild ? Math.min(3, (lease.consecutiveGuilds ?? 0) + 1) : 0,
             ...(!useGuild && !priorityCharacter ? { consecutiveNewCharacters: character!.lowLevelRecheck || character!.profileFetchedAt || character!.sourceUpdatedAt

@@ -53,7 +53,7 @@ another `flock` on that path. Deployment skips a busy lock and retries next minu
 A backup waits up to one hour for an active deployment or backup, then fails with
 a logged error if the lock is still busy. No application jobs are paused: 11:00
 is a scheduled start, not a guarantee that overnight work or cache warming has
-finished. The dump runs at lower CPU priority.
+finished. The dump reads one collection at a time at lower CPU priority to limit contention with application queries.
 
 ## Backup on demand
 

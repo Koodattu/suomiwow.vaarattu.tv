@@ -112,7 +112,7 @@ class OperationsTests(unittest.TestCase):
         completed = self.backups / names[-1]
         self.assertEqual(gzip.decompress(completed.read_bytes()), b"test archive")
         self.assertEqual(completed.stat().st_mode & 0o777, 0o600)
-        self.assertTrue(any("mongodump" in call and "--oplog" in call for call in self.calls()))
+        self.assertTrue(any("mongodump" in call and "--oplog" in call and "--numParallelCollections=1" in call for call in self.calls()))
         self.assertFalse(any(call[0] == "git" or "compose" in call for call in self.calls()))
 
     def test_failed_dump_preserves_old_backups_and_removes_partial_file(self):

@@ -1,7 +1,7 @@
 import { SharedSnapshotCacheService } from "../../services/shared-snapshot-cache.service";
 import logger from "../../utils/logger";
 import { ForeverCharacter, ForeverWorker } from "./forever.models";
-import { visibleForeverCharacters } from "./forever-visibility";
+import { foreverVisibility } from "./forever-visibility";
 import { ForeverError } from "./forever-errors";
 import { compareForeverLevels } from "./forever-level60";
 import { ForeverLeaderboardCache, ForeverLeaderboardLease } from "./forever-leaderboard.models";
@@ -15,14 +15,15 @@ const displayRace = (race: string) => skyborneRaces.includes(race) ? "Skyborne" 
 const shared = new SharedSnapshotCacheService("Forever leaderboard", () => 0, { cache: ForeverLeaderboardCache, leases: ForeverLeaderboardLease });
 
 async function buildSnapshot() {
-  const visible = await visibleForeverCharacters();
+  const visible = await foreverVisibility();
   const [characters, pending] = await Promise.all([
-    ForeverCharacter.find({ ...visible, region: "eu", status: "tracked", level: { $gte: 1 } })
-      .select(FOREVER_PUBLIC_FIELDS).sort({ level: -1, lastLevelAt: 1, _id: 1 }).readConcern("snapshot").lean().maxTimeMS(10_000),
-    ForeverCharacter.countDocuments({ ...visible, region: "eu", status: "tracked", level: { $exists: false } }).maxTimeMS(10_000),
+    ForeverCharacter.find({ region: "eu", status: "tracked", level: { $gte: 1 } })
+      .select(FOREVER_PUBLIC_FIELDS + " source independentlyTracked").sort({ level: -1, lastLevelAt: 1, _id: 1 }).readConcern("snapshot").lean().maxTimeMS(10_000),
+    ForeverCharacter.countDocuments({ ...visible.filter, region: "eu", status: "tracked", level: { $exists: false } }).maxTimeMS(10_000),
   ]);
   // Rank once, before any filtering or pagination. Histories never enter the snapshot.
-  const ranked = characters.sort(compareForeverLevels).map((character, index) => ({ ...character, rank: index + 1 }));
+  const ranked = characters.filter(visible.includes).sort(compareForeverLevels)
+    .map(({ source, independentlyTracked, ...character }, index) => ({ ...character, rank: index + 1 }));
   const filterOptions = Object.fromEntries(fields.map(field => [field, [...new Set(ranked.map(character => {
     const value = field === "guild" ? character.guild?.name : character[field];
     return field === "race" && value ? displayRace(value) : value;

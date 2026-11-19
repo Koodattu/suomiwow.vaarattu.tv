@@ -38,7 +38,7 @@ export async function applyApprovedRoster(
   const identity = { region: guild.region, slug: guild.slug };
   const slugs = roster.map(member => member.slug);
   await releaseRosterCoverage({ region: guild.region, rosterGuildSlug: guild.slug, slug: { $nin: slugs } }, now, session);
-  if (!roster.length) return;
+  if (!roster.length) return false;
 
   await ForeverCharacter.bulkWrite<StoredCharacter>(roster.map(member => ({ updateOne: {
     filter: { region: member.region, slug: member.slug },
@@ -46,7 +46,7 @@ export async function applyApprovedRoster(
       nextFetchAt: mayFetchProfile(member.level) ? now : null,
       ...(!mayFetchProfile(member.level) ? { rosterLevel: member.level } : {}) } }, upsert: true,
   } })), { session });
-  await ForeverCharacter.updateMany({ region: guild.region, slug: { $in: slugs }, status: "pending" },
+  const promoted = await ForeverCharacter.updateMany({ region: guild.region, slug: { $in: slugs }, status: "pending" },
     { $set: { status: "tracked", independentlyTracked: false } }, { session });
   const rosterCharacters = await ForeverCharacter.find({ region: guild.region, slug: { $in: slugs } })
     .select("-history").session(session).lean();
@@ -77,6 +77,7 @@ export async function applyApprovedRoster(
     (character.profileFetchedAt ?? character.lastFetchedAt)!.getTime() <= now.getTime() - PROFILE_PROBE_INTERVAL)
     .sort((a, b) => ((a.profileFetchedAt ?? a.lastFetchedAt)?.getTime() ?? 0) - ((b.profileFetchedAt ?? b.lastFetchedAt)?.getTime() ?? 0))[0];
 
+  let ratingMembershipChanged = promoted.modifiedCount > 0;
   const writes: AnyBulkWriteOperation<StoredCharacter>[] = characters.map(character => {
     const member = members.get(character.slug)!;
     const fetchedProfile = character.profileFetchedAt ?? (character.sourceUpdatedAt ? character.lastFetchedAt : undefined);
@@ -98,6 +99,7 @@ export async function applyApprovedRoster(
     const changed = member.level > (character.level ?? 0);
     const belowProfileLevel = !mayFetchProfile(member.level);
     const inferRuleset = classification && (!character.ruleset || character.ruleset === "Unknown" || character.rulesetInferredFromGuild);
+    if (character.nameRating && character.guild?.slug !== guild.slug) ratingMembershipChanged = true;
     const knownFaction = character.faction === "Horde" || character.faction === "Alliance";
     const unset: Record<string, 1> = {
       lowLevelRecheck: 1,
@@ -130,4 +132,5 @@ export async function applyApprovedRoster(
     } } };
   });
   if (writes.length) await ForeverCharacter.bulkWrite<StoredCharacter>(writes, { session });
+  return ratingMembershipChanged;
 }

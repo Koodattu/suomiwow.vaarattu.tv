@@ -86,6 +86,7 @@ const CharacterSchema: Schema = new Schema(
 );
 
 CharacterSchema.index({ wclCanonicalCharacterId: 1, classID: 1 }, { unique: true });
+CharacterSchema.index({ wclProfileHidden: 1, wclCanonicalCharacterId: 1 }, { partialFilterExpression: { wclProfileHidden: true } });
 CharacterSchema.index({ name: 1, realm: 1, region: 1 });
 CharacterSchema.index({ "blizzardIdentityOverride.name": 1, "blizzardIdentityOverride.realm": 1, region: 1 });
 CharacterSchema.index({ realm: 1, name: 1, classID: 1 }, { collation: CASE_INSENSITIVE_COLLATION });

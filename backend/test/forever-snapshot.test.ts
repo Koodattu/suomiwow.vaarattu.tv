@@ -11,11 +11,12 @@ import { startForeverPageCaches, stopForeverPageCaches } from "../src/features/f
 import logger from "../src/utils/logger";
 import { deferred, mockSnapshotStorage } from "./helpers/snapshot-cache";
 
-let revision = 0;
+let revision = 0, namegameRevision = 0;
 function setup(t: TestContext) {
   revision = 0;
+  namegameRevision = 0;
   mockSnapshotStorage(t, { cache: ForeverLeaderboardCache, leases: ForeverLeaderboardLease });
-  t.mock.method(ForeverWorker, "findById", () => ({ select: () => ({ lean: async () => ({ leaderboardRevision: revision }) }) }));
+  t.mock.method(ForeverWorker, "findById", () => ({ select: () => ({ lean: async () => ({ leaderboardRevision: revision, namegameRevision }) }) }));
   t.mock.timers.enable({ apis: ["Date", "setInterval"], now: new Date("2026-11-16T10:00:00Z") });
 }
 
@@ -33,7 +34,7 @@ test("startup prepares all three public pages and refreshes them through an idle
   });
   t.mock.method(ForeverCharacter, "find", () => {
     reads++;
-    return query([{ level: version, nameRating: { name: `Name ${version}`, score: version, category: "sound" } }]);
+    return query([{ source: "admin", level: version, nameRating: { name: `Name ${version}`, score: version, category: "sound" } }]);
   });
 
   startForeverPageCaches();
@@ -48,6 +49,7 @@ test("startup prepares all three public pages and refreshes them through an idle
   assert.equal(reads, startupReads, "first visitors do not scan histories, rosters or names");
 
   for (version = 2; version <= 5; version++) {
+    namegameRevision++;
     t.mock.timers.tick(30_000);
     await nextTurn();
     assert.equal(reads, startupReads * version, "each idle interval builds once per page");
@@ -68,6 +70,23 @@ test("startup prepares all three public pages and refreshes them through an idle
   t.mock.timers.tick(120_000);
   await nextTurn();
   assert.equal(reads, stoppedReads, "shutdown removes all page schedules");
+});
+
+test("unchanged Name Game warming reuses the ranked population and observes scores and moderation independently", async t => {
+  setup(t);
+  let builds = 0;
+  const cache = new ForeverSnapshotCache("forever:namegame:test", async () => ++builds, "namegameRevision");
+  t.after(() => cache.stop());
+  assert.equal(await cache.get(true), 1);
+  t.mock.timers.tick(31_000);
+  assert.equal(await cache.get(true), 1);
+  namegameRevision++;
+  t.mock.timers.tick(31_000);
+  assert.equal(await cache.get(true), 2);
+  revision++;
+  assert.equal(await cache.get(), 3);
+  t.mock.timers.tick(61_000);
+  assert.equal(await cache.get(), 4, "hard expiry reconciles even out-of-band changes");
 });
 
 test("a replacement API reuses the persisted snapshot and cold concurrent reads coalesce", async t => {

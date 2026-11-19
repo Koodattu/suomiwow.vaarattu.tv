@@ -47,6 +47,7 @@ const schema = new Schema<IAvoidableDamageFight>({
   duplicateOf: { type: Schema.Types.ObjectId, ref: "Fight" },
 }, { timestamps: true });
 schema.index({ sourceFightId: 1, mechanicKey: 1, version: 1 }, { unique: true });
+schema.index({ mechanicKey: 1, version: 1, sourceFightId: 1 });
 schema.index({ guildId: 1, status: 1, retryAt: 1, reportCode: 1 });
 schema.index({ mechanicKey: 1, version: 1, guildId: 1, isKill: 1, timestamp: 1 });
 export default mongoose.model<IAvoidableDamageFight>("AvoidableDamageFight", schema);

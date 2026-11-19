@@ -31,8 +31,14 @@ export const foreverGuildsCache = new ForeverSnapshotCache("forever:guilds:v1", 
   const guilds = await ForeverGuild.find(publicGuildFilter).select(guildFields).lean<Guild[]>();
   if (!guilds.length) return { guilds: [] };
   // Fetch profile evidence once for the directory, rather than once per guild.
-  const characters = await ForeverCharacter.find({ status: "tracked", $or: guilds.map(guild => ({
-    region: guild.region, "guild.region": guild.region, "guild.slug": guild.slug,
+  const regions = new Map<string, string[]>();
+  for (const guild of guilds) {
+    const slugs = regions.get(guild.region) ?? [];
+    slugs.push(guild.slug);
+    regions.set(guild.region, slugs);
+  }
+  const characters = await ForeverCharacter.find({ status: "tracked", $or: [...regions].map(([region, slugs]) => ({
+    region, "guild.region": region, "guild.slug": { $in: slugs },
   })) }).select(characterFields).lean();
   const byGuild = new Map<string, Character[]>();
   for (const character of characters) {

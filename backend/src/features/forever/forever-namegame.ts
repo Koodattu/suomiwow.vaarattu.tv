@@ -2,7 +2,7 @@ import { ForeverCharacter, ForeverGuild } from "./forever.models";
 import { ForeverSnapshotCache } from "./forever-snapshot";
 import { ForeverError } from "./forever-errors";
 import { NAMEGAME_CATEGORIES, type HumorCategory } from "./forever-namegame-rating";
-import { visibleForeverCharacters } from "./forever-visibility";
+import { foreverVisibility } from "./forever-visibility";
 
 // A roster snapshot is authoritative for guild imports. Their cached character.guild can survive a departure.
 // A direct profile may establish membership before a guild's first roster arrives.
@@ -13,25 +13,37 @@ export async function namegamePopulation() {
   for (const guild of guilds) {
     for (const member of guild.roster) roster.set(guild.region + "/" + member.slug, { name: member.name, guild: guild.name });
   }
-  const filter: Record<string, unknown> = { ...await visibleForeverCharacters(), status: "tracked", $or: [
-    { independentlyTracked: true }, { source: { $in: ["admin", "seed"] } },
-    ...guilds.map(guild => guild.lastFetchedAt || guild.roster.length
-      ? { region: guild.region, slug: { $in: guild.roster.map(member => member.slug) },
-        $or: [{ "guild.slug": guild.slug }, { guild: null }] }
-      : { region: guild.region, "guild.slug": guild.slug }),
+  const visibility = await foreverVisibility();
+  const memberships = new Map<string, Set<string> | null>();
+  const guildFilters = guilds.map(guild => {
+    const slugs = guild.roster.map(member => member.slug);
+    const authoritative = !!guild.lastFetchedAt || slugs.length > 0;
+    memberships.set(guild.region + "/" + guild.slug, authoritative ? new Set(slugs) : null);
+    return authoritative ? { region: guild.region, slug: { $in: slugs }, $or: [{ "guild.slug": guild.slug }, { guild: null }] }
+      : { region: guild.region, "guild.slug": guild.slug };
+  });
+  const filter: Record<string, unknown> = { ...visibility.filter, status: "tracked", $or: [
+    { independentlyTracked: true }, { source: { $in: ["admin", "seed"] } }, ...guildFilters,
   ] };
-  return { filter, roster };
+  function includes(row: { region: string; slug: string; source: string; independentlyTracked?: boolean | null; guild?: { slug: string } | null }) {
+    if (!visibility.includes(row)) return false;
+    if (row.independentlyTracked || row.source === "admin" || row.source === "seed") return true;
+    if (!row.guild) return roster.has(row.region + "/" + row.slug);
+    const members = memberships.get(row.region + "/" + row.guild.slug);
+    return members === null || members?.has(row.slug) === true;
+  }
+  return { filter, roster, includes };
 }
 
 async function buildSnapshot() {
   const population = await namegamePopulation();
-  const rows = await ForeverCharacter.find({ ...population.filter, "nameRating.score": { $gte: 0 } })
-    .select("nameRating").sort({ "nameRating.score": -1, "nameRating.name": 1, _id: 1 }).lean().maxTimeMS(10_000);
-  return { generatedAt: new Date().toISOString(), names: rows.map(({ nameRating }, index) => ({
+  const rows = await ForeverCharacter.find({ status: "tracked", "nameRating.score": { $gte: 0 } })
+    .select("nameRating region slug source independentlyTracked guild.slug").sort({ "nameRating.score": -1, "nameRating.name": 1, _id: 1 }).lean().maxTimeMS(10_000);
+  return { generatedAt: new Date().toISOString(), names: rows.filter(population.includes).map(({ nameRating }, index) => ({
     name: nameRating!.name, category: nameRating!.category, score: nameRating!.score, rank: index + 1,
   })) };
 }
-export const foreverNamegameCache = new ForeverSnapshotCache("forever:namegame:v2", buildSnapshot);
+export const foreverNamegameCache = new ForeverSnapshotCache("forever:namegame:v2", buildSnapshot, "namegameRevision");
 
 export async function namegameLeaderboard(query: { category?: unknown; page?: unknown; search?: unknown; sort?: unknown }) {
   const { category, page = "1", search = "", sort = "score-desc" } = query;

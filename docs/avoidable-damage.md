@@ -96,7 +96,7 @@ The job discovers candidates from **stored Fight and closed Report records only*
 
 `nextPageTimestamp` drives pagination. Each page checks the shared budget and queue state. Results replace the entire per-fight aggregate only after the complete batch succeeds; retries cannot add the same hits twice. A restart or budget pause leaves unfinished data eligible. Failures retry after 24 hours. Archived/unavailable reports stop further requests for that report and require an explicit retry or a new definition version. Existing connected WCL user authorization is used for archive/permission fallback; this feature does not change authentication.
 
-Public `/api/avoidable-damage/options` and `/api/avoidable-damage` read MongoDB only, with five-minute caching and bounded pagination. Saved batches invalidate the shared server cache; already-open browser tables may take a few minutes to refresh. Icons use the existing local icon cache, populated from WCL's ability-icon CDN by the worker. Page views do not call WCL or Wowhead.
+Public `/api/avoidable-damage/options` and `/api/avoidable-damage` read MongoDB only, with five-minute caching and bounded pagination. Each mechanic refresh checks its stored pulls, source rosters, guild exclusions and hidden characters in bounded batches. Unchanged inputs renew the shared snapshot. Saved batches trigger a check for the affected mechanics; already-open browser tables may take a few minutes to refresh. Icons use the existing local icon cache, populated from WCL's ability-icon CDN by the worker. Page views do not call WCL or Wowhead.
 
 ### Admin collection
 

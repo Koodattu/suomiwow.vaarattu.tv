@@ -10,6 +10,7 @@ import Guild from "../src/models/Guild";
 import GuildProcessingQueue from "../src/models/GuildProcessingQueue";
 import Raid from "../src/models/Raid";
 import Report from "../src/models/Report";
+import { buildMechanicSnapshot } from "../src/services/mechanic-snapshot";
 import service from "../src/services/avoidable-damage.service";
 import iconCache from "../src/services/icon-cache.service";
 import wcl from "../src/services/warcraftlogs.service";
@@ -91,10 +92,17 @@ test("mechanic collection and leaderboard work together against MongoDB", { skip
     assert.equal(damage.rows.find((entry) => entry.name === "Dodge")?.pulls, 1);
     assert.equal((await service.getLeaderboard({ ...filters, roles: ["tank"] })).totals.players, 0);
     // All filter combinations above must share the stored, unpaginated snapshot.
-    const aggregate = t.mock.method(AvoidableDamageFight, "aggregate", () => { throw new Error("unexpected repeat aggregation"); });
+    const prepared = await buildMechanicSnapshot(mechanic);
+    assert.equal(await buildMechanicSnapshot(mechanic, prepared), prepared, "unchanged inputs reuse the snapshot");
+    const find = t.mock.method(AvoidableDamageFight, "find", () => { throw new Error("unexpected repeat fight scan"); });
     assert.equal((await service.getLeaderboard({ ...filters, sort: "damage", order: "asc" })).rows[0].name, "Dodge");
     assert.equal((await service.getLeaderboard({ ...filters, minPulls: 10 })).totals.players, 0);
-    aggregate.mock.restore();
+    find.mock.restore();
+    // A raw edit may leave updatedAt untouched. The snapshot must still pick up a corrected roster.
+    await Fight.collection.updateOne({ reportCode: "A", fightId: 1 }, { $set: { combatants: [] } });
+    const corrected = await buildMechanicSnapshot(mechanic, prepared);
+    assert.notEqual(corrected.inputHash, prepared.inputHash);
+    assert.equal(corrected.rows.filter(row => row.role === "healer").length, 0);
 
     // Nightly reruns seed idempotently and don't spend any WCL requests on completed/archived data.
     queue.progress.currentPage = 0;

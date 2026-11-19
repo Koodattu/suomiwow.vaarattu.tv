@@ -28,8 +28,8 @@ test("public directory requires approved visible guilds and returns only summari
   });
   t.mock.method(ForeverCharacter, "find", (filter: unknown) => {
     assert.deepEqual(filter, { status: "tracked", $or: [
-      { region: "eu", "guild.region": "eu", "guild.slug": "test-guild" },
-      { region: "us", "guild.region": "us", "guild.slug": "test-guild" },
+      { region: "eu", "guild.region": "eu", "guild.slug": { $in: ["test-guild"] } },
+      { region: "us", "guild.region": "us", "guild.slug": { $in: ["test-guild"] } },
     ] });
     return query([characters[0]]);
   });

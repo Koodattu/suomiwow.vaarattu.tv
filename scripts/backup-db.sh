@@ -57,7 +57,7 @@ PARTIAL_PATH=$(mktemp "$BACKUP_DIR/.wow_db_backup_$TIMESTAMP.XXXXXX")
 log "Starting database backup to $BACKUP_PATH..."
 # Capture concurrent writes on the replica set; restore with --oplogReplay.
 # Lower the dump's CPU priority because application jobs can still be running.
-if ! docker exec "$DB_CONTAINER_NAME" nice -n 10 mongodump --archive --gzip --oplog > "$PARTIAL_PATH"; then
+if ! docker exec "$DB_CONTAINER_NAME" nice -n 10 mongodump --numParallelCollections=1 --archive --gzip --oplog > "$PARTIAL_PATH"; then
     error "Database backup failed. Existing backups have been kept."
     exit 1
 fi
