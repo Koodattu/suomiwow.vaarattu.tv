@@ -59,13 +59,27 @@ test("date and minimum level filter every population aggregate using counts rath
   assert.equal(past.generatedAt, timeline.days[1].at);
 });
 
-test("activity uses each day's level cutoff, excludes level one, and never includes future days", () => {
+test("activity uses each day's level cutoff, includes level one, and never includes future days", () => {
   const first = selectForeverAnalytics(timeline, 0, 1);
   assert.equal(first.total, 4); assert.equal(first.new24h, 4); assert.equal(first.historyCharacters, 1);
-  assert.deepEqual(first.activity, [{ at: timeline.days[0].at, active: 1, observed: 1, partial: true }]);
+  assert.deepEqual(first.activity, [{ at: timeline.days[0].at, active: 4, observed: 4, partial: true }]);
   const filtered = selectForeverAnalytics(timeline, 2, 30);
   assert.deepEqual(filtered.activity.map(point => point.observed), [0, 1, 1]);
   assert.deepEqual(filtered.activity.map(point => point.partial), [true, false, false]);
+});
+
+test("only levels 10 through 59 need recent activity, including with a minimum level filter", () => {
+  const history = { ...timeline, days: [{ ...timeline.days[0], buckets: [
+    [0, 9, 2, 1, 0, 0, 2],
+    [0, 10, 3, 1, 0, 0, 3],
+    [0, 59, 4, 2, 0, 0, 4],
+    [0, 60, 5, 0, 0, 0, 5],
+  ] }] };
+  for (const [minimum, active, observed] of [[1, 10, 14], [10, 8, 12], [59, 7, 9], [60, 5, 5]]) {
+    const result = selectForeverAnalytics(history, 0, minimum);
+    assert.equal(result.activity[0].active, active);
+    assert.equal(result.activity[0].observed, observed);
+  }
 });
 
 test("empty filtered view has zero counts, no invented median, and does not mutate cached data", () => {

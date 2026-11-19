@@ -66,6 +66,7 @@
       "raceClass": "Rotu × luokka",
       "matrixScroll": "Rotujen ja luokkien hahmomäärät — vieritä sivulle nähdäksesi kaikki luokat",
       "activity": "Hahmojen aktiivisuus",
+      "activityRule": "Tasojen 1–9 ja 60 hahmot lasketaan aina aktiivisiksi. Tasoilla 10–59 hahmo lasketaan aktiiviseksi 24 tunnin ajan ensihavainnosta tai havaitusta tasonnoususta.",
       "activeShort": "aktiivisia",
       "inactiveShort": "epäaktiivisia",
       "active": "Aktiiviset hahmot",

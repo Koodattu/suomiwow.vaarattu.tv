@@ -66,6 +66,7 @@
       "raceClass": "Race × class",
       "matrixScroll": "Race and class counts — scroll horizontally for all classes",
       "activity": "Leveling activity",
+      "activityRule": "Characters at levels 1–9 and 60 always count as active. At levels 10–59, characters count as active for 24 hours after we first see them or record a level gain.",
       "activeShort": "active",
       "inactiveShort": "inactive",
       "active": "Active characters",

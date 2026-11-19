@@ -122,6 +122,7 @@ export default function ForeverAnalyticsCharts({ data, distribution = data.level
         </dl>
       </div>
       {activity.length ? <>
+        {controls && <p className={styles.note}>{t("analytics.activityRule")}</p>}
         <div className={styles.legend}><span><i style={{ background: "#d7b875" }} />{t("analytics.active")}</span><span><i style={{ background: "#849b93" }} />{t("analytics.observed")}</span></div>
         <div className={styles.chart}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>

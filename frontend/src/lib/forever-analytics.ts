@@ -53,9 +53,11 @@ export function selectForeverAnalytics(timeline: ForeverAnalyticsTimeline, dayIn
   const activity = timeline.days.slice(0, index + 1)
     .map(sample => {
       let active = 0, observed = 0;
-      for (const [, level, , activeCount, , , observedCount] of sample.buckets) {
-        if (level < Math.max(2, minimum)) continue;
-        active += activeCount; observed += observedCount;
+      for (const [, level, count, activeCount, , , observedCount] of sample.buckets) {
+        if (level < minimum) continue;
+        const alwaysActive = level < 10 || level === 60;
+        active += alwaysActive ? count : activeCount;
+        observed += alwaysActive ? count : observedCount;
       }
       return { at: sample.at, active, observed, partial: Date.parse(sample.at) - 86400_000 < Date.parse(timeline.startedAt) };
     });

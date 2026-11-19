@@ -176,8 +176,10 @@ observation times are recorded historically. Days across DST have their actual
 distribution. The minimum-level slider (1–60 inclusive) filters population charts
 and totals, while the level histogram keeps the entire selected day's distribution:
 levels below the cutoff are gray, with unchanged heights and full-population tooltip
-percentages. Activity uses each sampled day's level cutoff, not
-the character's level today, and ends at the selected date.
+percentages. The Leveling activity chart uses each character's level on the sampled
+day and ends at the selected date. Levels 1–9 and 60 always count toward both the
+active and observed totals. At levels 10–59, a first sighting or level gain in the
+preceding 24 hours counts as active.
 
 The response includes sparse daily buckets keyed by level and a shared
 race/class/faction/ruleset dictionary. Each bucket stores count, active/new counts,
@@ -193,12 +195,12 @@ The selected view's activity series uses daily samples; the legacy top-level API
 activity remains sampled every six hours. A level cutoff shows the population at
 or above a level, not a measured abandonment rate or the reason someone stopped.
 
-Activity is a rolling 24-hour count of distinct characters first observed or gaining
+The **Active · 24 h** summary and legacy API activity series use a rolling 24-hour count of distinct characters first observed or gaining
 at least one level. First observations start an active window without inventing any
 level gains. Repeated/lower levels, malformed and future observations do not extend
 activity. Multiple overlapping windows per character merge so a character counts
 only once. An observation at exactly `sample time - 24h` has expired. Level-one
-characters remain excluded from activity. Newly observed level-60 characters and
+characters are excluded from this metric. Newly observed level-60 characters and
 recently capped characters are active for 24 hours, then leave the active count.
 The original API series samples every six hours for up to thirty days, plus the current endpoint;
 the interactive UI uses daily samples, offers 7/30-day views and shows the number of cohort members observed by each
