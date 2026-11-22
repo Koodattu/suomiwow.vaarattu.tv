@@ -175,14 +175,14 @@ test("a catch scores its rarity, its size for its kind and its finish, and the t
 });
 
 
-test("the session wallet starts with three coins once and never regenerates outside the chest", () => {
+test("the session wallet starts with ten coins once and never regenerates outside the chest", () => {
   const memory = store(), start = day("2026-11-03");
   assert.equal(initializeCoins(new Date(NaN), memory), 0);
-  assert.equal(initializeCoins(start, memory), 3);
+  assert.equal(initializeCoins(start, memory), 10);
   assert.equal(initializeCoins(start, memory), 0, "mounting twice cannot grant twice");
   assert.equal(initializeCoins(new Date(+start + COIN_INTERVAL_MS), memory), 0);
   assert.equal(initializeCoins(day("2026-12-03"), memory), 0);
-  assert.equal(readRecords(memory).boons.coins, 3);
+  assert.equal(readRecords(memory).boons.coins, 10);
   assert.equal(readRecords(memory).coinAt, start.toISOString());
 });
 
@@ -214,5 +214,5 @@ test("old box rewards are discarded and invalid coin values never become spendab
   }
   const memory = store(); memory.setItem(RECORDS_KEY, JSON.stringify(legacy));
   initializeCoins(day("2026-11-03"), memory);
-  assert.equal(readRecords(memory).boons.coins, 3);
+  assert.equal(readRecords(memory).boons.coins, 10);
 });

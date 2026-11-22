@@ -220,7 +220,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     controls.autoRotateSpeed = 0.65;
     // Auto-rotation yields to the user: it stops on grab and, a while after release, eases back in.
     // Positive turns the camera leftwards.
-    const AUTO_ROTATE_SPEED = 0.6, AUTO_ROTATE_DELAY = 2.5; // about 3.4° a second
+    const AUTO_ROTATE_SPEED = 0.6, AUTO_ROTATE_DELAY = 10; // about 3.4° a second
     let userOrbit = { holding: false, released: -Infinity }, autoRotate = 0;
     controls.addEventListener("start", () => { userOrbit = { holding: true, released: -Infinity }; autoRotate = 0; });
     controls.addEventListener("end", () => { userOrbit = { holding: false, released: performance.now() }; });

@@ -30,6 +30,7 @@ function cameraState(view, idle, reduced = false, width = 1200) {
     flightFrom: new THREE.Spherical(), flightTo: new THREE.Spherical(),
     flight: { from: new THREE.Vector3(0, 3, 9), fromTarget: new THREE.Vector3(0, 1.5, 0), t: 1 },
     FLIGHT_SECONDS: Number(source.match(/const FLIGHT_SECONDS = ([\d.]+)/)[1]), ease: t => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2,
+    AUTO_ROTATE_DELAY: Number(source.match(/AUTO_ROTATE_DELAY = ([\d.]+)/)[1]),
     elapsed: 1 / 60, delta: 1 / 60, idle, reduced,
   });
 }
@@ -93,7 +94,7 @@ test("overview enables orbit and zoom, pauses automatic rotation after input, an
   const from = source.indexOf("      const orbiting ="), to = source.indexOf("      // Timed by the frame delta", from);
   const orbit = new vm.Script(`{${ts.transpile(source.slice(from, to))}}`);
   const state = cameraState("overview", 0);
-  Object.assign(state, { flight: null, introducing: false, active: false, finished: false, current: { rotate: true }, hovering: false, grab: null, shake: null, userOrbit: { holding: false, released: -Infinity }, now: 5000, AUTO_ROTATE_DELAY: 2.5, AUTO_ROTATE_SPEED: 0.6, autoRotate: 0 });
+  Object.assign(state, { flight: null, introducing: false, active: false, finished: false, current: { rotate: true }, hovering: false, grab: null, shake: null, userOrbit: { holding: false, released: -Infinity }, now: 5000, AUTO_ROTATE_SPEED: 0.6, autoRotate: 0 });
   orbit.runInContext(state);
   assert.equal(state.controls.enabled, true);
   assert.equal(state.controls.autoRotate, true);
@@ -103,9 +104,13 @@ test("overview enables orbit and zoom, pauses automatic rotation after input, an
   assert.equal(state.controls.maxDistance, 19, "portrait framing cannot push the orbit into the trees");
   assert.ok(state.controls.maxPolarAngle >= Math.acos(state.homeOffset.y / state.homeOffset.length()), "orbit limits allow the opening camera's angle");
   state.userOrbit.released = state.now;
+  state.now += 9999;
   orbit.runInContext(state);
-  assert.equal(state.controls.autoRotate, false);
-  state.userOrbit.released = -Infinity; state.reduced = true;
+  assert.equal(state.controls.autoRotate, false, "the camera holds for ten seconds after release");
+  state.now += 2;
+  orbit.runInContext(state);
+  assert.equal(state.controls.autoRotate, true, "rotation resumes after the ten-second pause");
+  state.reduced = true;
   orbit.runInContext(state);
   assert.equal(state.controls.autoRotate, false);
   assert.equal(state.controls.enabled, true, "manual camera controls remain available with reduced motion");
@@ -145,7 +150,7 @@ const orbitEnd = source.indexOf("      if (scenery)", orbitStart);
 const finishCamera = new vm.Script(`{${ts.transpile(source.slice(orbitStart, orbitEnd))}}`);
 function withOrbit(state) {
   state.controls = new OrbitControls(state.camera, null);
-  Object.assign(state, { introducing: false, active: false, finished: false, current: { rotate: false }, hovering: false, grab: null, shake: null, userOrbit: { holding: false, released: -Infinity }, now: 5000, AUTO_ROTATE_DELAY: 2.5, AUTO_ROTATE_SPEED: 0.6, autoRotate: 0, mixer: null });
+  Object.assign(state, { introducing: false, active: false, finished: false, current: { rotate: false }, hovering: false, grab: null, shake: null, userOrbit: { holding: false, released: -Infinity }, now: 5000, AUTO_ROTATE_SPEED: 0.6, autoRotate: 0, mixer: null });
   return state;
 }
 

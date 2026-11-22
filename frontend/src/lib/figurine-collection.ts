@@ -328,7 +328,7 @@ export function grantReward(reward: Reward, store: Store | null = sessionStore()
 }
 
 // Alpha wallet: stored with the collection in this browser tab, with no backend or purchases.
-export const STARTING_COINS = 3, COIN_INTERVAL_MS = 4 * 60 * 60 * 1000;
+export const STARTING_COINS = 10, COIN_INTERVAL_MS = 4 * 60 * 60 * 1000;
 export function initializeCoins(now = new Date(), store: Store | null = sessionStore()) {
   const records = readRecords(store), time = now.getTime();
   if (!Number.isFinite(time)) return 0;
