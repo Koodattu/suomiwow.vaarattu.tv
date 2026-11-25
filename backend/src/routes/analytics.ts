@@ -4,6 +4,7 @@ import { requireAdmin } from "../middleware/admin.middleware";
 import logger from "../utils/logger";
 import { audienceReport } from "../services/site-analytics.service";
 import { endpointReport } from "../services/endpoint-analytics.service";
+import type { CrawlerCounts } from "../services/crawler-classification";
 
 const router = Router();
 const DAILY_STATS_BATCH_SIZE = 10;
@@ -34,6 +35,7 @@ type DailyEndpointAggregate = {
 };
 
 type DailyStatsDocument = {
+  crawlerCounts?: CrawlerCounts;
   date: Date | string;
   totalRequests?: number;
   totalResponseTime?: number;
@@ -88,7 +90,9 @@ const mapEntries = <T>(value: StatsMap<T>): [string, T][] => {
   return Object.entries(value);
 };
 
-const toDateKey = (date: Date | string): string => new Date(date).toISOString().slice(0, 10);
+// DailyStats buckets start at server-local midnight. Use the same calendar day for hourly totals.
+const analyticsTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const dayFormatter = new Intl.DateTimeFormat("sv-SE", { timeZone: analyticsTimeZone, year: "numeric", month: "2-digit", day: "2-digit" });
 
 const toValidDate = (date?: Date | string): Date | undefined => {
   if (!date) return undefined;
@@ -308,7 +312,7 @@ router.get("/daily", async (req: Request, res: Response) => {
         {
           $group: {
             _id: {
-              $dateToString: { format: "%Y-%m-%d", date: "$hour" },
+              $dateToString: { format: "%Y-%m-%d", date: "$hour", timezone: analyticsTimeZone },
             },
             totalRequests: { $sum: "$totalRequests" },
             totalResponseTime: { $sum: "$totalResponseTime" },
@@ -317,7 +321,7 @@ router.get("/daily", async (req: Request, res: Response) => {
         },
         { $sort: { _id: 1 } },
       ]),
-      DailyStats.find({ date: { $gte: startDate } }).select("date totalRequests totalResponseTime totalDataTransferred uniqueVisitors").sort({ date: 1 }).lean(),
+      DailyStats.find({ date: { $gte: startDate } }).select("date totalRequests totalResponseTime totalDataTransferred uniqueVisitors crawlerCounts").sort({ date: 1 }).lean(),
     ]);
 
     const rowsByDate = new Map<
@@ -328,6 +332,7 @@ router.get("/daily", async (req: Request, res: Response) => {
         totalResponseTime: number;
         dataTransferred: number;
         uniqueVisitors: number;
+        crawlerCounts?: CrawlerCounts;
       }
     >();
 
@@ -342,11 +347,12 @@ router.get("/daily", async (req: Request, res: Response) => {
     }
 
     for (const stat of persistedDailyStats as DailyStatsDocument[]) {
-      const date = toDateKey(stat.date);
+      const date = dayFormatter.format(new Date(stat.date));
       const existing = rowsByDate.get(date);
 
       if (existing) {
         existing.uniqueVisitors = stat.uniqueVisitors || 0;
+        existing.crawlerCounts = stat.crawlerCounts;
       } else {
         rowsByDate.set(date, {
           date,
@@ -354,6 +360,7 @@ router.get("/daily", async (req: Request, res: Response) => {
           totalResponseTime: stat.totalResponseTime || 0,
           dataTransferred: stat.totalDataTransferred || 0,
           uniqueVisitors: stat.uniqueVisitors || 0,
+          crawlerCounts: stat.crawlerCounts,
         });
       }
     }
@@ -367,6 +374,7 @@ router.get("/daily", async (req: Request, res: Response) => {
         dataTransferred: stat.dataTransferred,
         formattedData: formatBytes(stat.dataTransferred),
         uniqueVisitors: stat.uniqueVisitors,
+        crawlerCounts: stat.crawlerCounts ?? null,
       }));
 
     res.json(formatted);

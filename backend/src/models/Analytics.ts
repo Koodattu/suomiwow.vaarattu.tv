@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import type { CrawlerCategory, CrawlerCounts } from "../services/crawler-classification";
 
 // Individual request log (for detailed analysis, auto-expires after 30 days)
 export interface IRequestLog extends Document {
@@ -12,6 +13,7 @@ export interface IRequestLog extends Document {
   referer?: string;
   endpointVersion?: number;
   automated?: boolean;
+  crawlerCategory?: CrawlerCategory;
   timestamp: Date;
 }
 
@@ -28,6 +30,7 @@ const RequestLogSchema: Schema = new Schema(
     timestamp: { type: Date, required: true, default: Date.now },
     endpointVersion: Number,
     automated: Boolean,
+    crawlerCategory: String,
   },
   {
     timestamps: false,
@@ -115,6 +118,7 @@ HourlyStatsSchema.index({ hour: -1 });
 
 // Daily aggregated stats (for dashboard view)
 export interface IDailyStats extends Document {
+  crawlerCounts?: CrawlerCounts;
   date: Date; // Rounded to day (e.g., 2025-12-01T00:00:00Z)
   totalRequests: number;
   totalResponseTime: number;
@@ -136,6 +140,7 @@ export interface IDailyStats extends Document {
 
 const DailyStatsSchema: Schema = new Schema(
   {
+    crawlerCounts: { type: new Schema({ googlebot: Number, bingbot: Number, suspected: Number, other: Number }, { _id: false }) },
     date: { type: Date, required: true, unique: true },
     totalRequests: { type: Number, required: true, default: 0 },
     totalResponseTime: { type: Number, required: true, default: 0 },

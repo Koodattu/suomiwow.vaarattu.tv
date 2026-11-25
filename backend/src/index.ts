@@ -53,6 +53,7 @@ import taskTracker from "./services/task-tracker.service";
 import { analyticsMiddleware, flushAnalytics } from "./middleware/analytics.middleware";
 import telemetryRouter from "./routes/telemetry";
 import { initializeSiteAnalytics } from "./services/site-analytics.service";
+import { apiCrawlerClassifier } from "./services/crawler-classification";
 import cacheService from "./services/cache.service";
 import cacheWarmerService from "./services/cache-warmer.service";
 import avoidableDamageService from "./services/avoidable-damage.service";
@@ -93,6 +94,7 @@ const isWorkerProcess = WORKER_MODE === "worker" || WORKER_MODE === "both";
 
 const app: Application = express();
 const httpServers: Server[] = [];
+let crawlerRefresh: NodeJS.Timeout | undefined;
 const PORT = process.env.PORT || 3001;
 const WORKER_PORT = process.env.WORKER_PORT || 3002;
 
@@ -586,6 +588,8 @@ const startServer = async () => {
     setStartupTask("Connect to MongoDB");
     await connectDB();
     await initializeSiteAnalytics();
+    void apiCrawlerClassifier.refresh();
+    crawlerRefresh = setInterval(() => void apiCrawlerClassifier.refresh(), 60 * 60_000).unref();
     await initializeForever();
     if (isApiProcess) startForeverPageCaches();
     completeStartupTask("Connect to MongoDB");
@@ -725,6 +729,7 @@ let shuttingDown = false;
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  clearInterval(crawlerRefresh);
   ingestionLeases.beginShutdown();
   for (const server of httpServers) server.close();
   await Promise.all([stopForeverLeaderboard(), stopForeverPageCaches()]);

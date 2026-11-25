@@ -878,6 +878,7 @@ export interface AnalyticsHourly {
 }
 
 export interface AnalyticsDaily {
+  crawlerCounts?: { googlebot: number; bingbot: number; suspected: number; other: number } | null;
   date: string;
   requests: number;
   avgResponseTime: number;

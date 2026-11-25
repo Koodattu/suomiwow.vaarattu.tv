@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { RequestLog, HourlyStats, DailyStats, DailyUniqueVisitor } from "../models/Analytics";
 import logger from "../utils/logger";
 import { isAutomatedAgent } from "../services/site-analytics.service";
+import { apiCrawlerClassifier, type CrawlerCategory, type CrawlerCounts } from "../services/crawler-classification";
 
 // In-memory buffer to batch writes (reduces database load)
 interface LogEntry {
@@ -17,6 +18,7 @@ interface LogEntry {
   timestamp: Date;
   endpointVersion: number;
   automated: boolean;
+  crawlerCategory: CrawlerCategory;
 }
 
 const logBuffer: LogEntry[] = [];
@@ -210,6 +212,7 @@ const flushBufferedBatch = async () => {
         >;
         statusCodes: Map<string, number>;
         uniqueVisitors: Map<string, Date>;
+        crawlerCounts: CrawlerCounts;
       }
     >();
 
@@ -225,11 +228,13 @@ const flushBufferedBatch = async () => {
           endpoints: new Map(),
           statusCodes: new Map(),
           uniqueVisitors: new Map(),
+          crawlerCounts: { googlebot: 0, bingbot: 0, suspected: 0, other: 0 },
         });
       }
 
       const dayData = dailyUpdates.get(dayKeyStr)!;
       dayData.totalRequests++;
+      dayData.crawlerCounts[log.crawlerCategory]++;
       dayData.totalResponseTime += log.responseTime;
       dayData.totalDataTransferred += log.responseSize;
 
@@ -311,6 +316,9 @@ const flushBufferedBatch = async () => {
       };
 
       const uniqueVisitorIncrement = uniqueVisitorIncrements.get(dayStr) || 0;
+      for (const [category, count] of Object.entries(data.crawlerCounts)) {
+        increment[`crawlerCounts.${category}`] = count;
+      }
       if (uniqueVisitorIncrement > 0) {
         increment.uniqueVisitors = uniqueVisitorIncrement;
       }
@@ -406,18 +414,25 @@ export const analyticsMiddleware = (req: Request, res: Response, next: NextFunct
     const endpoint = routePath ? `${req.baseUrl}${routePath}`.replace(/\/$/, "") || "/" :
       originalPath.startsWith("/icons/") ? "/icons/:file" : res.statusCode === 404 ? "/unmatched" : normalizeEndpoint(originalPath);
 
+    const visitorHash = getVisitorHash(req);
+    const userAgent = req.get("user-agent") || "";
+    const referer = req.get("referer");
     const logEntry: LogEntry = {
       endpoint,
       method: req.method,
       statusCode: res.statusCode,
       responseTime,
       responseSize,
-      visitorHash: getVisitorHash(req),
-      userAgent: req.get("user-agent"),
-      referer: req.get("referer"),
+      visitorHash,
+      userAgent,
+      referer,
       timestamp: new Date(),
       endpointVersion: 2,
-      automated: isAutomatedAgent(req.get("user-agent") || ""),
+      automated: isAutomatedAgent(userAgent),
+      crawlerCategory: apiCrawlerClassifier.classify({
+        agent: userAgent, ip: req.ip, method: req.method, path: originalPath, referer,
+        anonymousIdentity: req.session?.userId ? undefined : visitorHash,
+      }),
     };
 
     logBuffer.push(logEntry);

@@ -12,6 +12,8 @@ import { endpointReport } from "../src/services/endpoint-analytics.service";
 import telemetry from "../src/routes/telemetry";
 import analytics from "../src/routes/analytics";
 import { frontendApiRouter } from "../src/routes/frontend-api";
+import { apiCrawlerClassifier } from "../src/services/crawler-classification";
+import discordService from "../src/services/discord.service";
 
 async function listen(server: Server) {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -30,6 +32,7 @@ test("analytics coverage and audience accounting", { skip: !uri }, async t => {
   });
   const upstreamUrl = await listen(upstream);
   const app = express();
+  app.set("trust proxy", "loopback");
   app.use((req, _res, next) => { req.session = { userId: req.get("test-account") } as typeof req.session; next(); });
   app.use(analyticsMiddleware);
   app.use(express.json());
@@ -127,6 +130,26 @@ test("analytics coverage and audience accounting", { skip: !uri }, async t => {
       let limited = false;
       for (let i = 0; i < 65; i++) { if ((await event({}, { "user-agent": "Mozilla/5.0 rate-limit-test" })).status === 429) { limited = true; break; } }
       assert.ok(limited);
+    });
+    await t.test("daily admin report separates verified, suspected and legacy coverage", async t => {
+      await apiCrawlerClassifier.refresh(async url => Response.json({
+        prefixes: [{ ipv4Prefix: String(url).includes("google.com") ? "192.0.2.0/24" : "198.51.100.0/24" }],
+      }));
+      for (const [agent, ip] of [["Googlebot/2.1", "192.0.2.1"], ["bingbot/2.0", "198.51.100.1"], ["Googlebot/2.1", "203.0.113.1"]]) {
+        const res = await fetch(base + "/api/guilds", { headers: { "user-agent": agent, "x-forwarded-for": ip } });
+        assert.equal(res.status, 200);
+      }
+      await flushAnalytics();
+      assert.equal(await RequestLog.countDocuments({ crawlerCategory: "suspected" }), 1);
+      t.mock.method(discordService, "getUserFromSession", async () => ({ discord: { username: "fixture" } }));
+      t.mock.method(discordService, "isAdmin", () => true);
+      const res = await fetch(base + "/api/analytics/daily", { headers: { "test-account": "fixture" } });
+      assert.equal(res.status, 200);
+      const days = await res.json() as { requests: number; crawlerCounts: Record<string, number> | null }[];
+      assert.equal(days[0].crawlerCounts, null);
+      const today = days[days.length - 1];
+      assert.deepEqual(today.crawlerCounts, { googlebot: 1, bingbot: 1, suspected: 1, other: 8 });
+      assert.equal(today.requests, 11);
     });
   } finally {
     await close(server); await close(upstream);

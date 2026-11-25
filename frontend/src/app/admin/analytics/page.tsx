@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import SiteAudiencePanel from "@/components/admin/SiteAudiencePanel";
+import CrawlerTraffic from "@/components/admin/CrawlerTraffic";
 import { useRouter } from "next/navigation";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAuth } from "@/context/AuthContext";
@@ -499,6 +500,7 @@ export default function AdminAnalyticsPage() {
                   </div>
                 </div>
                 <DailyTrafficChart data={dailyChartData} />
+                <CrawlerTraffic days={dailyChartData} />
               </div>
 
               {/* Peak Hours */}

@@ -13,6 +13,19 @@ replica-set and feature compatibility version transitions.
 
 The reverse proxy uses the official nginx 1.31.9 Alpine slim image.
 
+## Client addresses and crawler analytics
+
+Nginx accepts `CF-Connecting-IP` only from the Cloudflare networks listed in
+`nginx/nginx.conf`. Review that list against [Cloudflare's published ranges](https://www.cloudflare.com/ips/)
+when updating the proxy. The access log records the connection peer first and
+the normalized client address last. Express receives that client address in a
+single forwarded hop. Keep the API and worker ports internal to the proxy.
+
+The backend refreshes the official Google common-crawler and Bingbot ranges
+hourly. A failed refresh can use the last successful list for up to 48 hours.
+Unverified crawler claims and anonymous profile sweeps are labeled for reporting
+only. The daily breakdown starts with the first classified requests after rollout.
+
 ## Deployment overview
 
 The VM runs the Bash scripts tracked in this repository. Deployment and database
