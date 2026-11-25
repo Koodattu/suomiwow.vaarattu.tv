@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions, Label, Listbox, ListboxButton, ListboxLabel, ListboxOption, ListboxOptions } from "@headlessui/react";
 import { FaArrowLeft, FaArrowRight, FaArrowRotateLeft, FaCheck, FaChevronDown, FaMagnifyingGlass } from "react-icons/fa6";
 import IconImage from "@/components/IconImage";
 import { useDebouncedSearchQuery } from "@/features/fun/useFunGameSearch";
 import { useAvoidableDamage, useAvoidableMechanicOptions } from "@/lib/queries";
+import { DEFAULT_MECHANIC_FILTERS, MECHANIC_ROLES, MIN_PULLS, mechanicFilterParams, mechanicSelection, readMechanicFilters, type MechanicViewFilters } from "@/lib/mechanic-filters";
 import { formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
-import type { MechanicFilters, MechanicRole } from "@/types/avoidable-damage";
+import type { MechanicOptions, MechanicRole } from "@/types/avoidable-damage";
 
 const CLASS_COLORS: Record<string, string> = {
   "Death Knight": "#C41E3A", Druid: "#FF7C0A", Hunter: "#AAD372", Mage: "#3FC7EB", Monk: "#00FF98", Paladin: "#F48CBA",
@@ -18,29 +19,33 @@ const CLASS_COLORS: Record<string, string> = {
 };
 const selectStyle = "h-11 w-full min-w-0 rounded-md border border-gray-700 bg-gray-900 px-2.5 text-xs text-gray-100 focus:outline-none focus-visible:border-gray-500 focus-visible:ring-1 focus-visible:ring-gray-500";
 const labelStyle = "flex min-w-0 flex-col gap-1 text-[11px] font-medium text-gray-400";
-const ROLES: MechanicRole[] = ["dps", "healer", "tank"];
 const roleIcon = (role: MechanicRole) => `roleicon_${role === "dps" ? "damage" : role}.png`;
+
+function replaceMechanicUrl(options: MechanicOptions | undefined, changes: Partial<MechanicViewFilters> = {}) {
+  const url = new URL(window.location.href);
+  const filters = { ...readMechanicFilters(url.searchParams), ...changes };
+  if (options) {
+    const { selected, selectedGuild } = mechanicSelection(options, filters);
+    filters.mechanic = selected?.key ?? "";
+    filters.guildId = selectedGuild?.id;
+  }
+  mechanicFilterParams(filters, url.searchParams);
+  if (url.href !== window.location.href) window.history.replaceState(null, "", url);
+}
 
 export default function MechanicLeaderboardView() {
   const t = useTranslations("mechanicLeaderboard");
   const locale = useLocale();
   const router = useRouter();
+  const params = useSearchParams();
   const options = useAvoidableMechanicOptions();
-  const [mechanicKey, setMechanicKey] = useState("");
-  const [guildId, setGuildId] = useState("");
+  const filters = readMechanicFilters(params);
+  const { roles, minPulls, sort, order, page, search: characterSearch = "" } = filters;
   const [guildSearch, setGuildSearch] = useState("");
-  const [characterSearch, setCharacterSearch] = useState("");
   const search = useDebouncedSearchQuery(characterSearch);
-  const [sort, setSort] = useState<MechanicFilters["sort"]>("damage");
-  const [order, setOrder] = useState<MechanicFilters["order"]>("desc");
-  const [roles, setRoles] = useState<MechanicRole[]>(ROLES);
-  const [minPulls, setMinPulls] = useState(10);
-  const [page, setPage] = useState(1);
   const mechanics = options.data?.mechanics ?? [];
-  const selected = mechanics.find((entry) => entry.key === mechanicKey) ?? mechanics[0];
+  const { selected, guilds, selectedGuild } = mechanicSelection(options.data, filters);
   const selectedRaid = options.data?.raids.find((entry) => entry.id === selected?.zoneId);
-  const guilds = options.data?.guilds.filter((entry) => selected && entry.mechanicKeys?.includes(selected.key)) ?? [];
-  const selectedGuild = guilds.find((entry) => entry.id === guildId);
   const filteredGuilds = guilds.filter((entry) => entry.name.toLocaleLowerCase(locale).includes(guildSearch.trim().toLocaleLowerCase(locale)));
   const board = useAvoidableDamage({ mechanic: selected?.key ?? "", guildId: selectedGuild?.id, outcome: "all", sort, order, roles, minPulls, page,
     search: search.trimmedQuery ? search.debouncedQuery : undefined });
@@ -51,25 +56,18 @@ export default function MechanicLeaderboardView() {
   const coverage = data?.coverage;
   const raids = options.data?.raids.slice().sort((a, b) => b.id - a.id) ?? [];
   const error = options.isError || board.isError;
-  const changeSort = (value: MechanicFilters["sort"]) => {
-    setOrder(sort === value && order === "desc" ? "asc" : "desc");
-    setSort(value);
-    setPage(1);
-  };
+  useEffect(() => {
+    if (options.data?.mechanics.length) replaceMechanicUrl(options.data);
+  }, [options.data, params]);
+  const updateFilters = (changes: Partial<MechanicViewFilters>) => replaceMechanicUrl(options.data, { page: 1, ...changes });
+  const changeSort = (value: MechanicViewFilters["sort"]) => updateFilters({ sort: value, order: sort === value && order === "desc" ? "asc" : "desc" });
   const sortDirection = order === "asc" ? "ascending" : "descending";
   const sortArrow = order === "asc" ? " ↑" : " ↓";
-  const hasChanges = selected?.key !== mechanics[0]?.key || Boolean(selectedGuild) || roles.length !== ROLES.length ||
+  const hasChanges = selected?.key !== mechanics[0]?.key || Boolean(selectedGuild) || roles.length !== MECHANIC_ROLES.length ||
     minPulls !== 10 || sort !== "damage" || order !== "desc" || Boolean(characterSearch) || page !== 1;
   const resetFilters = () => {
-    setMechanicKey("");
-    setGuildId("");
+    updateFilters(DEFAULT_MECHANIC_FILTERS);
     setGuildSearch("");
-    setCharacterSearch("");
-    setRoles(ROLES);
-    setMinPulls(10);
-    setSort("damage");
-    setOrder("desc");
-    setPage(1);
   };
 
   return (
@@ -86,10 +84,8 @@ export default function MechanicLeaderboardView() {
 
         <section aria-label={t("filters")} className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.15fr)_7.25rem_7.5rem_minmax(0,1fr)]">
           <Listbox value={selected?.key ?? ""} onChange={(key: string) => {
-            setMechanicKey(key);
-            if (!selectedGuild?.mechanicKeys.includes(key)) setGuildId("");
+            updateFilters({ mechanic: key });
             setGuildSearch("");
-            setPage(1);
           }} disabled={!mechanics.length}>
             <div className={`relative col-span-2 lg:col-span-1 ${labelStyle}`}>
               <ListboxLabel>{t("mechanic")}</ListboxLabel>
@@ -130,7 +126,7 @@ export default function MechanicLeaderboardView() {
               </ListboxOptions>
             </div>
           </Listbox>
-          <Combobox value={selectedGuild?.id ?? ""} onChange={(id: string | null) => { setGuildId(id ?? ""); setGuildSearch(""); setPage(1); }} onClose={() => setGuildSearch("")} immediate>
+          <Combobox value={selectedGuild?.id ?? ""} onChange={(id: string | null) => { updateFilters({ guildId: id ?? undefined }); setGuildSearch(""); }} onClose={() => setGuildSearch("")} immediate>
             <div className={`relative col-span-2 lg:col-span-1 ${labelStyle}`}>
               <Label>{t("guild")}</Label>
               <div className="relative">
@@ -151,26 +147,26 @@ export default function MechanicLeaderboardView() {
               </ComboboxOptions>
             </div>
           </Combobox>
-          <Listbox value={roles} onChange={(values: MechanicRole[]) => { setRoles(ROLES.filter((role) => values.includes(role))); setPage(1); }} multiple>
+          <Listbox value={roles} onChange={(values: MechanicRole[]) => updateFilters({ roles: MECHANIC_ROLES.filter((role) => values.includes(role)) })} multiple>
             <div className={`relative ${labelStyle}`}>
               <ListboxLabel>{t("roles")}</ListboxLabel>
               <ListboxButton className={`${selectStyle} flex items-center justify-between gap-2 text-left`}>
                 <span className="flex min-w-0 items-center gap-1.5">
                   {roles.map((role) => <span key={role} title={t(`role.${role}`)} className="shrink-0"><IconImage iconFilename={roleIcon(role)} alt="" width={20} height={20} /></span>)}
-                  <span className={roles.length > 1 ? "sr-only" : "truncate"}>{roles.length === ROLES.length ? t("allRoles") : roles.length ? roles.map((role) => t(`role.${role}`)).join(", ") : t("noRoles")}</span>
+                  <span className={roles.length > 1 ? "sr-only" : "truncate"}>{roles.length === MECHANIC_ROLES.length ? t("allRoles") : roles.length ? roles.map((role) => t(`role.${role}`)).join(", ") : t("noRoles")}</span>
                 </span>
                 <FaChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
               </ListboxButton>
               <ListboxOptions className="absolute top-full z-20 mt-1 min-w-full whitespace-nowrap rounded-md border border-gray-700 bg-gray-900 p-1 text-sm text-gray-100 shadow-xl focus:outline-none">
-                {ROLES.map((role) => <ListboxOption key={role} value={role} className="flex cursor-pointer items-center gap-3 rounded px-3 py-2.5 data-focus:bg-gray-800">
+                {MECHANIC_ROLES.map((role) => <ListboxOption key={role} value={role} className="flex cursor-pointer items-center gap-3 rounded px-3 py-2.5 data-focus:bg-gray-800">
                   {({ selected: checked }) => <><span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-gray-300 bg-gray-300 text-gray-950" : "border-gray-500"}`} aria-hidden="true">{checked && <FaCheck className="h-3 w-3" />}</span><IconImage iconFilename={roleIcon(role)} alt="" width={20} height={20} className="shrink-0" />{t(`role.${role}`)}</>}
                 </ListboxOption>)}
               </ListboxOptions>
             </div>
           </Listbox>
           <label className={labelStyle}>{t("minimumPulls")}
-            <select className={selectStyle} value={minPulls} onChange={(event) => { setMinPulls(Number(event.target.value)); setPage(1); }}>
-              {[10, 25, 50, 100].map((count) => <option key={count} value={count}>{t("atLeastPulls", { count })}</option>)}
+            <select className={selectStyle} value={minPulls} onChange={(event) => updateFilters({ minPulls: Number(event.target.value) })}>
+              {MIN_PULLS.map((count) => <option key={count} value={count}>{t("atLeastPulls", { count })}</option>)}
             </select>
           </label>
           <div className={`col-span-2 lg:col-span-1 ${labelStyle}`}>
@@ -180,7 +176,7 @@ export default function MechanicLeaderboardView() {
                 <FaMagnifyingGlass className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-500" aria-hidden="true" />
                 <input id="mechanic-character-search" type="search" value={characterSearch} maxLength={60} autoComplete="off" spellCheck={false}
                   placeholder={t("searchCharacters")} className={`${selectStyle} pl-8`}
-                  onChange={(event) => { setCharacterSearch(event.target.value); setPage(1); }} />
+                  onChange={(event) => updateFilters({ search: event.target.value })} />
               </div>
               {hasChanges && <button type="button" onClick={resetFilters} aria-label={t("reset")} title={t("reset")}
                 className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-red-400 hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-1 focus-visible:outline-gray-500">
@@ -228,7 +224,7 @@ export default function MechanicLeaderboardView() {
               </table>
             </div>}
 
-            {data.totalPages > 1 && <nav aria-label={t("pagination")} className="mt-4 flex items-center justify-end gap-4 text-sm"><button disabled={page <= 1 || board.isPlaceholderData} className="rounded border border-gray-700 px-3 py-2 hover:bg-gray-800 disabled:opacity-40" onClick={() => setPage(page - 1)}>{t("previous")}</button><span className="text-gray-400">{t("page", { page: data.page, total: data.totalPages })}</span><button disabled={page >= data.totalPages || board.isPlaceholderData} className="rounded border border-gray-700 px-3 py-2 hover:bg-gray-800 disabled:opacity-40" onClick={() => setPage(page + 1)}>{t("next")}</button></nav>}
+            {data.totalPages > 1 && <nav aria-label={t("pagination")} className="mt-4 flex items-center justify-end gap-4 text-sm"><button disabled={page <= 1 || board.isPlaceholderData} className="rounded border border-gray-700 px-3 py-2 hover:bg-gray-800 disabled:opacity-40" onClick={() => updateFilters({ page: page - 1 })}>{t("previous")}</button><span className="text-gray-400">{t("page", { page: data.page, total: data.totalPages })}</span><button disabled={page >= data.totalPages || board.isPlaceholderData} className="rounded border border-gray-700 px-3 py-2 hover:bg-gray-800 disabled:opacity-40" onClick={() => updateFilters({ page: page + 1 })}>{t("next")}</button></nav>}
             <details className="mt-6 rounded-lg border border-gray-800 px-4 py-3 text-xs leading-6 text-gray-400"><summary className="cursor-pointer font-medium text-gray-300">{t("about")}</summary><p className="mt-3">{t("measurement")}</p><p className="mt-2">{t("scope")}</p><p className="mt-2">{t("roleScope")}</p><p className="mt-2">{t("missing", { pending: number(coverage?.pending ?? 0), failed: number(coverage?.failed ?? 0), unavailable: number((coverage?.archived ?? 0) + (coverage?.unavailable ?? 0)), duplicate: number(coverage?.duplicate ?? 0) })}</p><p className="mt-2">{t("nightly")}{data.updatedAt && ` · ${t("updated", { date: new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.updatedAt)) })}`}</p></details>
           </>}
       </div>

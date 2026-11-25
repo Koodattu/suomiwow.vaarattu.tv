@@ -1,6 +1,7 @@
 import { groupPulls } from "../utils/fight-deduplication";
 import mongoose from "mongoose";
 import { activeAvoidableMechanics, AvoidableMechanic, findAvoidableMechanic } from "../config/avoidable-mechanics";
+import { mainRaidBosses } from "../config/raid-encounters";
 import { buildMechanicSnapshot, StoredMechanicSnapshot } from "./mechanic-snapshot";
 import AvoidableDamageFight, { MechanicPlayer } from "../models/AvoidableDamageFight";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
@@ -26,7 +27,7 @@ const RETRY_MS = 24 * 60 * 60 * 1000;
 const REPORTS_PER_TURN = 10;
 const FIGHTS_PER_REQUEST = 50;
 const LEADERBOARD_CACHE_MS = 5 * 60 * 1000;
-const OPTIONS_CACHE_KEY = "avoidable-damage:options:v3";
+const OPTIONS_CACHE_KEY = "avoidable-damage:options:v4";
 const currentVersions = (mechanics = activeAvoidableMechanics()) => mechanics.map((entry) => ({ mechanicKey: entry.key, version: entry.version }));
 const queueMechanics = (queue: IGuildProcessingQueue) => activeAvoidableMechanics().filter((entry) =>
   queue.targetMechanicKeys === undefined || queue.targetMechanicKeys.includes(entry.key));
@@ -293,6 +294,9 @@ class AvoidableDamageService {
       Guild.find().select("name realm region excludedRaidIds progress.raidId progress.difficulty progress.bosses.bossId progress.bosses.pullCount progress.bosses.kills").sort({ name: 1, realm: 1 }).lean(),
     ]);
     const raidsById = new Map(raids.map((raid) => [raid.id, raid]));
+    const encounterOrder = new Map(raids.map((raid) => [raid.id, mainRaidBosses(raid.id, raid.bosses ?? []).map((boss) => boss.id)]));
+    const position = (mechanic: AvoidableMechanic) => encounterOrder.get(mechanic.zoneId)?.indexOf(mechanic.encounterId) ?? -1;
+    mechanics.sort((a, b) => b.zoneId - a.zoneId || position(b) - position(a));
     return {
       mechanics: mechanics.map((mechanic) => ({ ...mechanic, bossIcon: raidsById.get(mechanic.zoneId)?.bosses?.find((boss) => boss.id === mechanic.encounterId)?.iconUrl })),
       raids: raids.map(({ bosses: _bosses, ...raid }) => raid),

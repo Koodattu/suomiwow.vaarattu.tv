@@ -2,6 +2,7 @@ import type { AdminReportOverride, AdminReportOverrideAction } from "@/types";
 import type { CharacterDeathsResponse } from "@/types/character-deaths";
 import type { AiUsageReport } from "@/types/ai-usage";
 import type { MechanicFilters, MechanicLeaderboard, MechanicOptions, MechanicCollectionStatus, MechanicBackfillRequest, MechanicBackfillResult } from "@/types/avoidable-damage";
+import { mechanicFilterParams } from "./mechanic-filters";
 import {
   GuildListItem,
   GuildDirectoryItem,
@@ -269,10 +270,8 @@ export const api = {
     return response.json();
   },
   async getAvoidableDamage(filters: MechanicFilters, signal?: AbortSignal): Promise<MechanicLeaderboard> {
-    const query = new URLSearchParams({ mechanic: filters.mechanic, outcome: filters.outcome, sort: filters.sort,
-      order: filters.order, roles: filters.roles.join(","), minPulls: String(filters.minPulls), page: String(filters.page) });
-    if (filters.guildId) query.set("guildId", filters.guildId);
-    if (filters.search) query.set("search", filters.search);
+    const query = mechanicFilterParams(filters);
+    query.set("outcome", filters.outcome);
     const response = await fetch(`${API_URL}/api/avoidable-damage?${query}`, { signal });
     if (!response.ok) throw new Error("Could not load mechanic leaderboard");
     return response.json();

@@ -5,7 +5,7 @@ import Guild from "../src/models/Guild";
 import Raid from "../src/models/Raid";
 import service from "../src/services/avoidable-damage.service";
 
-test("guild options identify participation in the exact Mythic boss and respect raid exclusions", async (t) => {
+test("mechanic options follow raid progression and scope guilds to the exact Mythic boss", async (t) => {
   const mechanic = findAvoidableMechanic("sszorak-tempest")!;
   const other = findAvoidableMechanic("coiled-altar-axegrinder")!;
   const boss = (bossId = mechanic.encounterId, pullCount = 10, kills = 0) => ({ bossId, pullCount, kills });
@@ -22,7 +22,11 @@ test("guild options identify participation in the exact Mythic boss and respect 
     { _id: "untracked" },
   ].map((guild) => ({ name: guild._id, realm: "realm", region: "eu", ...guild }));
   t.mock.method(Raid, "find", () => ({ select: () => ({ lean: async () => [
-    { id: mechanic.zoneId, name: "Raid", expansion: "Midnight", iconUrl: "raid.jpg", bosses: [{ id: mechanic.encounterId, iconUrl: "boss.jpg" }] },
+    { id: mechanic.zoneId, name: "Raid", expansion: "Midnight", iconUrl: "raid.jpg", bosses: [
+      { id: 3492 }, { id: mechanic.encounterId, iconUrl: "boss.jpg" }, { id: other.encounterId },
+    ] },
+    { id: 33, bosses: [{ id: 2688 }, { id: 2680 }, { id: 2685 }] },
+    { id: 35 },
   ] }) }) as unknown as ReturnType<typeof Raid.find>);
   t.mock.method(Guild, "find", () => ({ select: () => ({ sort: () => ({ lean: async () => guilds }) }) }) as unknown as ReturnType<typeof Guild.find>);
 
@@ -32,5 +36,11 @@ test("guild options identify participation in the exact Mythic boss and respect 
   assert.deepEqual(participants(other.key), ["both", "other-boss"]);
   assert.equal(options.guilds.length, guilds.length, "admin collection keeps its existing guild list");
   assert.equal(options.mechanics.find((entry) => entry.key === mechanic.key)?.bossIcon, "boss.jpg");
+  assert.deepEqual(options.mechanics.slice(0, 3).map((entry) => entry.key), [
+    "ulatek-caustic-waves", "coiled-altar-axegrinder", "sszorak-tempest",
+  ], "the default and first options follow the newest raid's configured progression");
+  assert.deepEqual(options.mechanics.filter((entry) => entry.zoneId === 33).map((entry) => entry.key), [
+    "sarkareth-scorching-bomb", "sarkareth-abyssal-breath", "sarkareth-scouring-eternity", "rashok-lava-wave", "kazzara-hellbeam",
+  ], "older raids use stored encounter order and keep each boss's mechanics together");
   assert.equal("progress" in options.guilds[0], false, "public options should only include compact participation keys");
 });
