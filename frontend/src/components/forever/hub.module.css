@@ -1,0 +1,57 @@
+.shell { max-width: 1080px; margin: 0 auto; padding: clamp(12px, 3vw, 36px) 0 20px; }
+.shell > section, .shell > nav { margin-top: clamp(28px, 3.5vw, 44px); }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 24px; padding: clamp(20px, 3.3vw, 42px); border-block: 1px solid #65583c; background: radial-gradient(ellipse at 84% 40%, #354337 0, transparent 46%), linear-gradient(110deg, #28271c, #1b251f); }
+.intro h1 { font: 400 clamp(36px, 5vw, 64px)/1.1 "Forever Display", Georgia, serif; color: #f1d49a; text-wrap: balance; }
+.intro > p { margin-top: 10px; color: #d2cbb9; font-size: 15px; line-height: 1.55; }
+.crest { width: clamp(100px, 15vw, 180px); height: auto; margin-top: 8px; align-self: start; }
+.search { max-width: 560px; margin-top: 22px; min-width: 0; }
+.search label { display: block; margin-bottom: 6px; color: #eee2c8; font-size: 14px; font-weight: 600; }
+.field { position: relative; }
+.field > svg { position: absolute; top: 15px; left: 14px; color: var(--forever-gold); pointer-events: none; }
+.field input { width: 100%; height: 46px; padding: 0 12px 0 40px; border: 1px solid #867550; border-radius: 4px; background: #101711; color: #f4efdf; font-size: 16px; color-scheme: dark; }
+.field input::placeholder { color: #aaa898; }
+.results { margin-top: 8px; padding: 10px 14px; background: #151c17; border: 1px solid var(--forever-line); border-radius: 4px; }
+.results > p { font-size: 14px; }
+.results > section { margin-top: 10px; }
+.results a { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; padding: 8px 2px; overflow-wrap: anywhere; }
+.results li + li { border-top: 1px solid var(--forever-line); }
+.results a span, .heading small, .milestones small { color: #c0bba9; font-size: 12px; }
+.results a:hover strong, .milestones a:hover strong, .shortcuts a:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.heading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 12px; }
+.heading h2 { font: 400 clamp(22px, 2.3vw, 28px)/1.2 Georgia, serif; color: #f1e5c9; }
+.stats, .milestones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stats { border-block: 1px solid var(--forever-line); }
+.stats a { display: grid; gap: 4px; padding: 13px 18px; height: 100%; }
+.stats li + li { border-left: 1px solid var(--forever-line); }
+.stats strong { font: 400 clamp(26px, 3vw, 36px)/1.2 Georgia, serif; font-variant-numeric: tabular-nums; color: #f2d498; }
+.stats span { color: #d4cebc; font-size: 13px; }
+.stats svg { display: inline; vertical-align: middle; margin-left: 4px; color: var(--forever-gold); }
+.stats a:hover, .milestones a:hover, .shortcuts a:hover { background: #dac0820b; }
+.milestones { gap: 12px; }
+.milestones a { display: flex; align-items: center; gap: 12px; height: 100%; padding: 14px; border-left: 2px solid #ad8c49; background: linear-gradient(110deg, #302d20, #20291f); }
+.milestones a > div { min-width: 0; }
+.milestones strong, .milestones small { display: block; overflow-wrap: anywhere; }
+.milestones small { margin-top: 3px; }
+.shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.shortcuts a { display: block; height: 100%; padding: 16px; border: 1px solid var(--forever-line); border-radius: 3px; background: #1d241d; }
+.shortcuts a > div { display: flex; align-items: center; gap: 9px; color: var(--forever-gold); }
+.shortcuts svg { flex-shrink: 0; }
+.shortcuts svg:last-child { margin-left: auto; }
+.shortcuts strong { font: 400 18px Georgia, serif; color: #ead8ac; overflow-wrap: anywhere; }
+.shortcuts p, .quiet { margin-top: 6px; color: #c0bba9; font-size: 13px; overflow-wrap: anywhere; }
+.error { display: flex; align-items: center; gap: 12px; }
+@media (max-width: 800px) {
+  .milestones { grid-template-columns: 1fr; gap: 6px; }
+  .shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .hero { position: relative; display: block; }
+  .intro h1 { padding-right: 58px; }
+  .crest { position: absolute; top: 15px; right: 14px; width: 56px; margin: 0; }
+  .stats a { padding: 12px 8px; }
+  .shortcuts { gap: 8px; }
+  .shortcuts a { padding: 12px; }
+}
+@media (max-width: 380px) {
+  .shortcuts { grid-template-columns: 1fr; }
+}

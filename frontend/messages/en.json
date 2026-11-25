@@ -1,5 +1,18 @@
 {
   "forever": {
+    "hub": {
+      "intro": "Follow characters and guilds in the Finnish WoW Forever community on EU realms.",
+      "search": "Find a character or guild",
+      "placeholder": "Character or guild name",
+      "noMatches": "No matching characters or guilds. You can suggest one for tracking.",
+      "matchCount": "{count, plural, one {# result shown} other {# results shown}}",
+      "today": "Today in Forever",
+      "milestones": "Latest to reach level 60",
+      "observed": "First seen at 60",
+      "noMilestones": "No tracked characters have been observed leveling up to 60 yet.",
+      "explore": "Explore Forever",
+      "topName": "Top-ranked name: {name}"
+    },
     "guilds": {
       "title": "Guilds",
       "description": "Guilds and their rosters.",

@@ -428,9 +428,10 @@ identity, guild, level, a Blizzard portrait, source/check times, and a level his
 are outside this first version.
 
 The public UI follows the Forever Armory's dark earthy surfaces, gold accents,
-and class-colored names. All public Forever pages use the same 1600px maximum
-content width and responsive side padding. The hub starts directly with a compact,
-centered destination menu capped at 960px. The subpages share a header with
+and class-colored names. The hub searches public characters and guilds by name,
+with a suggestion form for missing entries. Its summary uses the existing analytics,
+guild and Namegame snapshots. The three latest level-60 milestones require an earlier
+observation below 60 and are ordered by the first observation at 60. The subpages share a header with
 the brand and title, centered Leveling/Analytics/Namegame/Guilds navigation, and
 an inline character/guild suggestion form on desktop. On smaller screens,
 navigation occupies its own row and a Suggest button opens the form in a dialog.

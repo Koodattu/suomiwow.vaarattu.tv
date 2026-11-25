@@ -60,6 +60,10 @@ export async function invalidateForeverLeaderboard() {
   local = undefined;
 }
 
+export async function publicLeaderboardCharacters() {
+  return (await snapshot()).data.characters;
+}
+
 export function startForeverLeaderboard() {
   if (timer) return;
   const warm = () => { void snapshot(true).catch(error => logger.error("[Forever] Leaderboard warm-up failed", error)); };

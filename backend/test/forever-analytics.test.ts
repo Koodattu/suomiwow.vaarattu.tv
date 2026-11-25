@@ -1,6 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildForeverAnalytics } from "../src/features/forever/forever-analytics";
+import { buildForeverAnalytics, latestLevel60s } from "../src/features/forever/forever-analytics";
+
+test("the hub shows the three newest observed crossings using the first cap sighting", () => {
+  const at = (level: number, time: number) => ({ level, observedAt: new Date(time) });
+  const capped = (slug: string, ...history: ReturnType<typeof at>[]) => ({ slug, level: 60, history });
+  const results = latestLevel60s([
+    capped("late-import", at(60, 98)),
+    capped("same-time", at(58, 97), at(60, 97)),
+    capped("inverted", at(59, 96), at(60, 95)),
+    capped("future", at(59, 80), at(60, 101)),
+    capped("no-cap", at(59, 94)),
+    capped("invalid", at(0, 10), at(60, 99)),
+    capped("oldest", at(59, 11), at(60, 20)),
+    capped("b", at(48, 10), at(60, 50)),
+    capped("a", at(60, 50), at(59, 11), at(60, 98)),
+    capped("newest", at(55, 50), at(60, 80)),
+  ], 100);
+  assert.deepEqual(results.map(row => [row.slug, Date.parse(row.observedAt)]), [["newest", 80], ["a", 50], ["b", 50]]);
+});
 
 const now = Date.parse("2026-11-08T12:00:00Z"), hour = 3_600_000;
 const point = (level: number, hoursAgo: number) => ({ level, observedAt: new Date(now - hoursAgo * hour) });

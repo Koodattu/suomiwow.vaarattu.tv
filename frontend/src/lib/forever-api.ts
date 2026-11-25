@@ -10,8 +10,9 @@ export interface ForeverCharacter {
 export function foreverRace(race?: string): string {
   return race === "Windshaper Skyborne" || race === "High Order Skyborne" ? "Skyborne" : race || "—";
 }
-export function foreverCharacterPath(character: Pick<ForeverCharacter, "slug" | "region" | "_id">): string {
-  return `/forever/characters/${encodeURIComponent(character.region === "eu" ? character.slug : character._id)}`;
+export function foreverCharacterPath(character: Pick<ForeverCharacter, "slug" | "region" | "_id"> | string): string {
+  const identity = typeof character === "string" ? character : character.region === "eu" ? character.slug : character._id;
+  return `/forever/characters/${encodeURIComponent(identity)}`;
 }
 export function foreverRouteIdentity(segment: string): string {
   // Next's dynamic route segment may retain percent escapes; API callers use plain identities.

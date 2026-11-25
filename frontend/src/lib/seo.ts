@@ -148,6 +148,10 @@ export function getPageMetadata(
 ): PageSeoMetadata {
   const isEnglish = locale === "en";
 
+  if (pathname === "/forever") {
+    const copy = (isEnglish ? en : fi).forever;
+    return withEmbedMetadata(pathname, { title: copy.brand, description: copy.hub.intro });
+  }
   if (pathname === "/forever/namegame") {
     const copy = (isEnglish ? en : fi).forever.namegame;
     return withEmbedMetadata(pathname, { title: `Forever · ${copy.title}`, description: copy.description });

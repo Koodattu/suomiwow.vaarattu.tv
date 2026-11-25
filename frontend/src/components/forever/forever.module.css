@@ -91,10 +91,6 @@
 .form .input { width: 100%; min-width: 0; flex: 1 1 160px; }
 .form .button { flex: 1 1 auto; }
 .formSuccess { color: #a9cda0; font-size: 12px; line-height: 1.5; margin-top: 10px; }
-.hubLink { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; border: 1px solid #6b5939; border-radius: 3px; background: linear-gradient(110deg, #363222, #1d2d20); text-decoration: none; }
-.hubLink:hover { border-color: #c5a56a; background: linear-gradient(110deg, #423b28, #233825); }
-.hubLink h2 { font: 22px Georgia, serif; color: #ecd8aa; }
-.hubLink p { color: #bab6a1; font-size: 12px; margin-top: 6px; }
 .adminTop { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 460px); align-items: center; gap: 24px; margin-bottom: 20px; }
 
 @media (max-width: 1100px) {

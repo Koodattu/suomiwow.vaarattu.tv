@@ -104,15 +104,36 @@ export function buildForeverAnalytics(characters: AnalyticsCharacter[], now = Da
   };
 }
 
-export const foreverAnalyticsCache = new ForeverSnapshotCache("forever:analytics:v1", async () => {
+type MilestoneCandidate = AnalyticsCharacter & { slug: string; name?: string | null; avatarUrl?: string | null };
+
+export function latestLevel60s(characters: MilestoneCandidate[], now: number) {
+  const milestones = [];
+  for (const character of characters) {
+    if (character.level !== 60) continue;
+    let firstLower = Infinity, first60 = Infinity;
+    for (const point of character.history ?? []) {
+      const at = new Date(point.observedAt).getTime();
+      if (!Number.isFinite(at) || at > now) continue;
+      if (point.level === 60) first60 = Math.min(first60, at);
+      else if (Number.isInteger(point.level) && point.level >= 1 && point.level < 60) firstLower = Math.min(firstLower, at);
+    }
+    if (!Number.isFinite(first60) || firstLower >= first60) continue;
+    milestones.push({ slug: character.slug, name: character.name || character.slug, className: character.className,
+      avatarUrl: character.avatarUrl, observedAt: new Date(first60).toISOString() });
+  }
+  return milestones.sort((a, b) => b.observedAt.localeCompare(a.observedAt) || a.slug.localeCompare(b.slug, "fi")).slice(0, 3);
+}
+
+export const foreverAnalyticsCache = new ForeverSnapshotCache("forever:analytics:v2", async () => {
   const visible = await foreverVisibility();
   const candidates = await ForeverCharacter.find({ region: "eu", status: "tracked", level: { $gte: 1, $lte: 60 } })
-    .select("-_id region slug guild.slug source independentlyTracked level race className faction ruleset history.level history.observedAt").lean();
+    .select("-_id region slug name avatarUrl guild.slug source independentlyTracked level race className faction ruleset history.level history.observedAt").lean();
   const characters = candidates.filter(visible.includes);
   const now = Date.now();
-  return { ...buildForeverAnalytics(characters, now), timeline: buildForeverAnalyticsTimeline(characters, now) };
+  return { analytics: { ...buildForeverAnalytics(characters, now), timeline: buildForeverAnalyticsTimeline(characters, now) },
+    milestones: latestLevel60s(characters, now) };
 });
 
-export function foreverAnalytics() {
-  return foreverAnalyticsCache.get();
+export async function foreverAnalytics() {
+  return (await foreverAnalyticsCache.get()).analytics;
 }

@@ -7,6 +7,7 @@ import { foreverAnalytics } from "./forever-analytics";
 import { namegameLeaderboard, namegameOverview } from "./forever-namegame";
 import { queueGuildLanguageAssessments } from "./forever-guild-language.worker";
 import { publicGuilds, publicGuildDetail } from "./forever-guilds";
+import { foreverHub, searchForeverHub } from "./forever-hub";
 
 function route(handler: (req: Request, res: Response) => Promise<unknown>) {
   return async (req: Request, res: Response) => {
@@ -29,6 +30,8 @@ async function requireDiscord(req: Request, res: Response, next: NextFunction) {
   } catch { res.status(503).json({ code: "unavailable" }); }
 }
 export const foreverRouter = Router();
+foreverRouter.get("/hub", route(async () => foreverHub()));
+foreverRouter.get("/hub/search", route(async req => searchForeverHub(req.query.q)));
 foreverRouter.get("/leveling", route(async (req) => service.leaderboard(req.query)));
 foreverRouter.get("/analytics", route(async () => foreverAnalytics()));
 foreverRouter.get("/namegame", route(async (req) => namegameLeaderboard(req.query)));

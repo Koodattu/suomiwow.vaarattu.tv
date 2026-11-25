@@ -1,5 +1,18 @@
 {
   "forever": {
+    "hub": {
+      "intro": "Seuraa suomalaisyhteisön hahmoja ja kiltoja WoW Foreverin EU-palvelimilla.",
+      "search": "Etsi hahmoa tai kiltaa",
+      "placeholder": "Hahmon tai killan nimi",
+      "noMatches": "Haulla ei löytynyt hahmoja tai kiltoja. Voit ehdottaa puuttuvaa hahmoa tai kiltaa seurantaan.",
+      "matchCount": "{count, plural, one {Näytetään # tulos} other {Näytetään # tulosta}}",
+      "today": "Tänään Foreverissa",
+      "milestones": "Viimeksi tasolle 60 nousseet",
+      "observed": "Havaittu tasolla 60",
+      "noMilestones": "Seurannassa ei ole vielä havaittu nousuja tasolle 60.",
+      "explore": "Tutustu Foreveriin",
+      "topName": "Nimilistan kärjessä: {name}"
+    },
     "guilds": {
       "title": "Killat",
       "description": "Killat ja niiden jäsenet.",

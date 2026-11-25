@@ -15,6 +15,7 @@ test("Skyborne display labels and name links preserve accents and existing non-E
   assert.equal(foreverRace("Dwarf"), "Dwarf"); assert.equal(foreverRace(undefined), "—");
   const character = { _id: "507f1f77bcf86cd799439011", region: "eu", slug: "väinö-korpi" };
   assert.equal(foreverCharacterPath(character), "/forever/characters/v%C3%A4in%C3%B6-korpi");
+  assert.equal(foreverCharacterPath(character.slug), "/forever/characters/v%C3%A4in%C3%B6-korpi");
   assert.equal(foreverCharacterPath({ ...character, region: "us" }), `/forever/characters/${character._id}`);
   assert.equal(foreverRouteIdentity("v%C3%A4in%C3%B6-korpi"), "väinö-korpi");
   assert.equal(foreverRouteIdentity("väinö-korpi"), "väinö-korpi");
