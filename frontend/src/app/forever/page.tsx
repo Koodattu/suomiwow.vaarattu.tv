@@ -15,16 +15,11 @@ type Hub = {
   generatedAt: string; characters: number; guilds: number; levelsGained24h: number; featuredName: string | null;
   milestones: { name: string; slug: string; className?: string; avatarUrl?: string | null; observedAt: string }[];
 };
-const metrics = [
-  { field: "characters", label: "analytics.tracked", to: "leveling" },
-  { field: "guilds", label: "guilds.title", to: "guilds" },
-  { field: "levelsGained24h", label: "analytics.levelsGained24h", to: "analytics" },
-] as const;
 const destinations = [
-  { to: "leveling", title: "title", description: "hubDescription", icon: FiFlag },
-  { to: "analytics", title: "analytics.title", description: "analytics.hubDescription", icon: FiBarChart2 },
-  { to: "namegame", title: "namegame.title", description: "namegame.description", icon: FiSmile },
-  { to: "guilds", title: "guilds.title", description: "guilds.description", icon: FiUsers },
+  { to: "leveling", title: "title", description: "hubDescription", icon: FiFlag, field: "characters", unit: "hub.trackedUnit" },
+  { to: "guilds", title: "guilds.title", description: "guilds.description", icon: FiUsers, field: "guilds", unit: "hub.guildUnit" },
+  { to: "analytics", title: "analytics.title", description: "analytics.hubDescription", icon: FiBarChart2, field: "levelsGained24h", unit: "hub.levelsUnit" },
+  { to: "namegame", title: "namegame.title", description: "namegame.description", icon: FiSmile, field: null, unit: null },
 ] as const;
 
 export default function ForeverHub() {
@@ -35,40 +30,42 @@ export default function ForeverHub() {
   return <div className={world.world}><div className={styles.shell}>
     <header className={styles.hero}>
       <div className={styles.intro}>
-        <h1>{t("brand")}</h1>
-        <p>{t("hub.intro")}</p>
-        <ForeverHubSearch />
+        <Image className={styles.crest} src="/forever-logo.png" alt="" width={1353} height={1162} sizes="56px" priority />
+        <div><h1>{t("brand")}</h1><p>{t("hub.intro")}</p></div>
       </div>
-      <Image className={styles.crest} src="/forever-logo.png" alt="" width={1353} height={1162} sizes="(max-width: 640px) 56px, 180px" />
+      <ForeverHubSearch />
     </header>
-    <section aria-labelledby="forever-today">
-      <div className={styles.heading}><h2 id="forever-today">{t("hub.today")}</h2>
+
+    <nav aria-labelledby="forever-explore">
+      <div className={styles.heading}><h2 id="forever-explore">{t("hub.explore")}</h2>
         {data && <small>{t("checked")} <ForeverDate value={data.generatedAt} /></small>}
       </div>
       {query.isError && <div className={styles.error}><ForeverErrorMessage error={query.error} />
         <button type="button" className={world.button} onClick={() => void query.refetch()}>{t("progress.tryAgain")}</button></div>}
+      <ul className={styles.shortcuts}>{destinations.map(({ to, title, description, icon: Icon, field, unit }) =>
+        <li key={to}><Link href={`/forever/${to}`}>
+          <div className={styles.cardTitle}><Icon aria-hidden="true" /><strong>{t(title)}</strong><FiArrowRight aria-hidden="true" /></div>
+          <p>{t(description)}</p>
+          <div className={styles.metric}>{field && unit
+            ? <><strong>{data ? format.number(data[field]) : "—"}</strong><span>{t(unit, { count: data?.[field] ?? 0 })}</span></>
+            : data?.featuredName
+              ? <><span>{t("hub.topNameLabel")}</span><strong className={styles.metricName}>{data.featuredName}</strong></>
+              : <strong>—</strong>}
+          </div>
+        </Link></li>)}</ul>
+    </nav>
+
+    <section aria-labelledby="forever-milestones">
+      <div className={styles.heading}><h2 id="forever-milestones">{t("hub.milestones")}</h2>
+        <Link className={styles.more} href="/forever/leveling">{t("hub.leaderboard")} <FiArrowRight aria-hidden="true" /></Link>
+      </div>
       {!data && !query.isError && <p role="status" className={styles.quiet}>{t("loading")}</p>}
-      {data && <ul className={styles.stats}>{metrics.map(({ field, label, to }) =>
-        <li key={field}><Link href={`/forever/${to}`}>
-          <strong>{format.number(data[field])}</strong><span>{t(label)} <FiArrowRight aria-hidden="true" /></span>
-        </Link></li>)}</ul>}
-    </section>
-    {data && <section aria-labelledby="forever-milestones">
-      <div className={styles.heading}><h2 id="forever-milestones">{t("hub.milestones")}</h2></div>
-      {data.milestones.length ? <ul className={styles.milestones}>{data.milestones.map(character =>
+      {data && (data.milestones.length ? <ul className={styles.milestones}>{data.milestones.map(character =>
         <li key={character.slug}><Link href={foreverCharacterPath(character.slug)}>
           <Portrait character={character} />
           <div><strong style={{ color: classColor(character.className) }}>{character.name}</strong>
             <small>{t("hub.observed")} <ForeverDate value={character.observedAt} compact /></small></div>
-        </Link></li>)}</ul> : <p className={styles.quiet}>{t("hub.noMilestones")}</p>}
-    </section>}
-    <nav aria-labelledby="forever-explore">
-      <div className={styles.heading}><h2 id="forever-explore">{t("hub.explore")}</h2></div>
-      <ul className={styles.shortcuts}>{destinations.map(({ to, title, description, icon: Icon }) =>
-        <li key={to}><Link href={`/forever/${to}`}>
-          <div><Icon aria-hidden="true" /><strong>{t(title)}</strong><FiArrowRight aria-hidden="true" /></div>
-          <p>{to === "namegame" && data?.featuredName ? t("hub.topName", { name: data.featuredName }) : t(description)}</p>
-        </Link></li>)}</ul>
-    </nav>
+        </Link></li>)}</ul> : <p className={styles.quiet}>{t("hub.noMilestones")}</p>)}
+    </section>
   </div></div>;
 }

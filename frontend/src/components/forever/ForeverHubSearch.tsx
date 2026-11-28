@@ -32,7 +32,7 @@ export default function ForeverHubSearch() {
   const data = ready ? query.data : undefined;
   const empty = data && !data.characters.length && !data.guilds.length;
   return <section className={styles.search} aria-label={t("hub.search")}>
-    <label htmlFor="forever-search">{t("hub.search")}</label>
+    <label htmlFor="forever-search" className="sr-only">{t("hub.search")}</label>
     <div className={styles.field}><FiSearch aria-hidden="true" />
       <input id="forever-search" type="search" autoComplete="off" maxLength={100} value={input}
         placeholder={t("hub.placeholder")} onChange={event => setInput(event.target.value)} />

@@ -6,12 +6,15 @@
       "placeholder": "Character or guild name",
       "noMatches": "No matching characters or guilds. You can suggest one for tracking.",
       "matchCount": "{count, plural, one {# result shown} other {# results shown}}",
-      "today": "Today in Forever",
       "milestones": "Latest to reach level 60",
       "observed": "First seen at 60",
       "noMilestones": "No tracked characters have been observed leveling up to 60 yet.",
       "explore": "Explore Forever",
-      "topName": "Top-ranked name: {name}"
+      "trackedUnit": "{count, plural, one {tracked character} other {tracked characters}}",
+      "guildUnit": "{count, plural, one {guild} other {guilds}}",
+      "levelsUnit": "{count, plural, one {level gained · 24 h} other {levels gained · 24 h}}",
+      "topNameLabel": "Top-ranked name",
+      "leaderboard": "Full leaderboard"
     },
     "guilds": {
       "title": "Guilds",
@@ -835,9 +838,7 @@
   },
   "analyticsLanding": {
     "eyebrow": "Analytics",
-    "title": "Choose an analytics view",
     "description": "Explore raid progression, compare guilds, follow character connections, or see who keeps finding the same mechanic.",
-    "open": "Open view",
     "raids": {
       "title": "Raid Analytics",
       "description": "Inspect progression, boss kills, raid activity, and performance trends across tracked guilds."

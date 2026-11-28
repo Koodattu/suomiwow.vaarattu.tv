@@ -6,12 +6,15 @@
       "placeholder": "Hahmon tai killan nimi",
       "noMatches": "Haulla ei löytynyt hahmoja tai kiltoja. Voit ehdottaa puuttuvaa hahmoa tai kiltaa seurantaan.",
       "matchCount": "{count, plural, one {Näytetään # tulos} other {Näytetään # tulosta}}",
-      "today": "Tänään Foreverissa",
       "milestones": "Viimeksi tasolle 60 nousseet",
       "observed": "Havaittu tasolla 60",
       "noMilestones": "Seurannassa ei ole vielä havaittu nousuja tasolle 60.",
       "explore": "Tutustu Foreveriin",
-      "topName": "Nimilistan kärjessä: {name}"
+      "trackedUnit": "{count, plural, one {seurattu hahmo} other {seurattua hahmoa}}",
+      "guildUnit": "{count, plural, one {kilta} other {kiltaa}}",
+      "levelsUnit": "{count, plural, one {tasonousu · 24 h} other {tasonousua · 24 h}}",
+      "topNameLabel": "Nimilistan kärjessä",
+      "leaderboard": "Koko tulostaulu"
     },
     "guilds": {
       "title": "Killat",
@@ -835,9 +838,7 @@
   },
   "analyticsLanding": {
     "eyebrow": "Analytiikka",
-    "title": "Valitse analytiikkanäkymä",
     "description": "Tutki raidien etenemistä, vertaa kiltoja, seuraa hahmojen yhteyksiä tai katso, keihin samat mekaniikat osuvat kerta toisensa jälkeen.",
-    "open": "Avaa näkymä",
     "raids": {
       "title": "Raidianalytiikka",
       "description": "Tutki seurattujen kiltojen etenemistä, pomokaatoja, raidiaktiivisuutta ja suoritusten kehitystä."
