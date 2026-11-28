@@ -8,7 +8,7 @@ import { ForeverCharacter, ForeverGuild, ForeverRequestLimit, ForeverWorker } fr
 import foreverRunner, { ForeverRunner, initializeForever } from "../src/features/forever/forever.worker";
 import * as service from "../src/features/forever/forever.service";
 import { ForeverTwitchRunner } from "../src/features/forever/forever-twitch";
-import { seedForeverCharacters } from "../src/features/forever/forever-seed";
+import { foreverSeedRecords, seedForeverCharacters } from "../src/features/forever/forever-seed";
 import { invalidateForeverLeaderboard, stopForeverLeaderboard } from "../src/features/forever/forever-leaderboard";
 
 const uri = process.env.FOREVER_TEST_MONGODB_URI;
@@ -310,7 +310,10 @@ test("Forever tracking integration (isolated replica-set database)", { skip: !ur
       assert.equal((await ForeverWorker.findById("armory").lean())?.leaseToken, "successor");
     });
     await t.test("seed reruns preserve edits, pauses and history without duplicate Wiba entries", async () => {
-      assert.equal((await seedForeverCharacters()).inserted, 125);
+      // Every distinct seed is inserted once; the list grows as new seeds are added.
+      const seeds = new Set(foreverSeedRecords().map(record => `${record.region}/${record.slug}`));
+      assert.equal(seeds.size, foreverSeedRecords().length, "seed list has no duplicate characters");
+      assert.equal((await seedForeverCharacters()).inserted, seeds.size);
       const wiba = await ForeverCharacter.findOne({ slug: "wiba-wiba" }).lean();
       assert.equal(wiba?.twitchChannel, "wiba");
       await service.setCharacterStatus(String(wiba!._id), "paused");

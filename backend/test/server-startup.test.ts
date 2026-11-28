@@ -26,6 +26,8 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
   const exited = deferred<number>();
   const signals = new Map<string, () => void>();
   const lifecycle: string[] = [];
+  // Hourly background refreshes (crawler ranges) must not outlive shutdown.
+  const intervals = new Set<object>();
   let signalled = false;
   const servers: Server[] = [];
   const errors: unknown[][] = [];
@@ -63,6 +65,7 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
     "./config/database": noop,
     "./config/ccg": { CCG_FEATURE_ENABLED: false },
     "./services/cache.service": { initialize: noop },
+    "./services/crawler-classification": { apiCrawlerClassifier: { refresh: noop, classify: () => "other" } },
     "./services/ingestion-lease.service": {
       beginShutdown() { lifecycle.push("reject-new-work"); },
       async drain() {
@@ -132,10 +135,13 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
       on(signal: string, handler: () => void) { signals.set(signal, handler); },
       exit(code: number) {
         if (!signalled) assert.fail(`Startup exited with ${code}: ${errors.flat().join(" ")}`);
+        assert.equal(intervals.size, 0, "shutdown clears background intervals");
         lifecycle.push("exit");
         exited.resolve(code);
       },
     },
+    setInterval() { const timer = { unref: () => timer }; intervals.add(timer); return timer; },
+    clearInterval(timer?: object) { if (timer) intervals.delete(timer); },
     require(name: string) {
       if (Object.prototype.hasOwnProperty.call(dependencies, name)) return dependencies[name];
       if (name.startsWith("./routes/") || name.endsWith(".routes")) return express.Router();
