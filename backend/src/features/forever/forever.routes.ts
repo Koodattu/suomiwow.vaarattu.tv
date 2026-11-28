@@ -41,7 +41,10 @@ foreverRouter.get("/namegame/overview", route(async () => namegameOverview()));
 foreverRouter.get("/guilds", route(async () => publicGuilds()));
 foreverRouter.get("/raids", route(async () => foreverRaids()));
 foreverRouter.get("/records", route(async (req) => foreverRecords(req.query)));
-foreverRouter.get("/guilds/:id", route(async (req) => publicGuildDetail(/^[a-f\d]{24}$/i.test(req.params.id) ? service.objectId(req.params.id) : req.params.id)));
+foreverRouter.get("/guilds/:id", route(async (req) => {
+  const id = String(req.params.id);
+  return publicGuildDetail(/^[a-f\d]{24}$/i.test(id) ? service.objectId(id) : id);
+}));
 foreverRouter.get("/characters/:id", route(async (req) => service.characterDetail(req.params.id)));
 foreverRouter.post("/proposals", requireDiscord, route(async (req, res) => {
   const result = await service.addCharacter(req.body?.url, "proposal", req.session.userId!);
