@@ -1,16 +1,30 @@
-.hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px 28px; margin-top: 14px; padding: 18px 20px; border-block: 1px solid #65583c; background: radial-gradient(ellipse at 8% 50%, color-mix(in srgb, var(--class-color, #9e8d65) 22%, transparent) 0, transparent 55%), linear-gradient(110deg, #28271c, #1b251f); }
+/* The Armory stage: class-tinted backdrop, identity and key numbers, gear around the render. */
+.stage { position: relative; margin-top: 14px; overflow: hidden; border: 1px solid #65583c; border-radius: 4px;
+  background: radial-gradient(ellipse at 50% 58%, color-mix(in srgb, var(--class-color, #9e8d65) 24%, transparent) 0, transparent 52%),
+    radial-gradient(ellipse at 50% 120%, #00000099, transparent 60%), linear-gradient(180deg, #23241b, #121612 70%);
+  box-shadow: 0 12px 36px #0007, inset 0 1px #cdb47b25; }
+.stageHeader { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px 28px; padding: 18px 20px 14px;
+  border-bottom: 1px solid #ffffff0f; background: linear-gradient(180deg, #00000040, transparent); }
 .identity { display: flex; align-items: center; gap: 16px; min-width: 0; }
-.identity h2 { font: 400 clamp(26px, 3vw, 36px)/1.1 Georgia, serif; overflow-wrap: anywhere; }
-.identity p { margin-top: 4px; color: #d2cbb9; font-size: 14px; }
+.identity h2 { font: 400 clamp(28px, 3.4vw, 42px)/1.05 Georgia, serif; overflow-wrap: anywhere; text-shadow: 0 2px 10px #000; }
+.identity p { margin-top: 4px; color: #e0d9c6; font-size: 15px; }
+.identity p strong { color: #f2d498; font-weight: 700; }
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; color: #c9c2af; font-size: 13px; }
 .meta a { color: #ecd5a1; font-weight: 600; }
 .meta a:hover { color: #ffe4aa; text-decoration: underline; text-underline-offset: 3px; }
 .heroStats { display: grid; grid-template-columns: repeat(4, minmax(84px, auto)); gap: 2px; }
-.heroStats div { padding: 6px 14px; border-left: 1px solid var(--forever-line); }
-.heroStats dt { color: #c0bba9; font-size: 12px; }
-.heroStats dd { font: 400 clamp(22px, 2.4vw, 30px)/1.2 Georgia, serif; color: #f2d498; font-variant-numeric: tabular-nums; }
+.heroStats div { padding: 6px 14px; border-left: 1px solid #ffffff14; }
+.heroStats dt { color: #c0bba9; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.heroStats dd { font: 400 clamp(24px, 2.6vw, 32px)/1.2 Georgia, serif; color: #f2d498; font-variant-numeric: tabular-nums; }
 .heroStats small { display: block; color: #aaa898; font: 11px/1.3 Arial, sans-serif; }
-.sources { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 18px; color: #aaa898; font-size: 12px; }
+.stage .paperdoll { padding: 14px 16px 6px; }
+.stage > .empty { padding: 32px 20px; }
+.sectionNav { position: sticky; top: 0; z-index: 20; display: flex; gap: 4px; margin-top: 12px; padding: 6px; overflow-x: auto; border: 1px solid #494338;
+  border-radius: 4px; background: #121512ee; backdrop-filter: blur(6px); scrollbar-width: thin; }
+.sectionNav a { flex-shrink: 0; min-height: 36px; padding: 8px 12px; border-radius: 3px; color: #c9c2af; font: 600 13px/1.3 Arial, sans-serif; white-space: nowrap; }
+.sectionNav a:hover { color: #ffe4aa; background: #d7b87514; }
+.grid > section { scroll-margin-top: 64px; }
+.sources { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; padding: 8px 16px 12px; color: #aaa898; font-size: 12px; }
 
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
 .panel { min-width: 0; padding: 16px 18px; border: 1px solid #5c5039; border-radius: 3px; background: #141613f2; box-shadow: inset 0 1px #cdb47b25; }
@@ -26,13 +40,14 @@
 .column, .weapons { display: grid; gap: 6px; }
 .weapons { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 760px; width: 100%; justify-self: center; }
 /* Blizzard's render leaves wide margins around the character; zoom toward the figure. */
-.render { align-self: stretch; position: relative; min-height: 320px; overflow: hidden; background: radial-gradient(ellipse at 50% 55%, #d7b87522, transparent 65%); }
+.render { align-self: stretch; position: relative; min-height: 440px; overflow: hidden; background: radial-gradient(ellipse at 50% 55%, #d7b87522, transparent 65%); }
 .render img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; transform: scale(1.55); transform-origin: 50% 40%; }
-.slot { position: relative; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 4px 8px 4px 4px; border: 1px solid #ffffff0d; border-radius: 3px; background: #0f1310cc; outline: none; }
+.slot { position: relative; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 4px 8px 4px 4px; border: 1px solid #ffffff0d; border-radius: 3px; background: #0b0e0bb3; outline: none; }
 .slot[data-align="right"] { flex-direction: row-reverse; padding: 4px 4px 4px 8px; text-align: right; }
 .slot:not([data-empty]):hover, .slot:focus-visible { border-color: color-mix(in srgb, var(--quality) 60%, transparent); background: #1a1f19; }
 .slot:focus-visible { outline: 2px solid #efd58d; outline-offset: 2px; }
-.slotIcon { flex-shrink: 0; width: 40px; height: 40px; border: 1px solid var(--quality, #3d3a30); border-radius: 3px; background: #090b09; overflow: hidden; }
+.slotIcon { flex-shrink: 0; width: 44px; height: 44px; border: 1px solid var(--quality, #3d3a30); border-radius: 4px; background: #090b09; overflow: hidden;
+  box-shadow: 0 0 0 1px #000, 0 0 10px color-mix(in srgb, var(--quality, transparent) 35%, transparent); }
 .slot[data-empty] .slotIcon { border-style: dashed; border-color: #3d3a30; }
 .slotIcon img { width: 100%; height: 100%; }
 .slotText { display: grid; min-width: 0; }
@@ -79,6 +94,21 @@
 .kills .count { color: #f2d498; font-variant-numeric: tabular-nums; text-align: right; }
 .kills td:nth-last-child(-n+2) { white-space: nowrap; }
 .scroll { overflow-x: auto; }
+.raidCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.raidCard { --banner: #2a3a2e; border: 1px solid #494338; border-radius: 4px; overflow: hidden; background: #0f120f; }
+.raidCard[data-raid="barrow-deeps"] { --banner: #1f4a57; }
+.raidCard[data-raid="hyjal-summit"] { --banner: #2f5a2c; }
+.raidCard[data-raid="onyxias-lair"] { --banner: #6a2a1b; }
+.raidCard header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px;
+  background: radial-gradient(ellipse at 10% 0%, var(--banner), transparent 75%), #151912; border-bottom: 1px solid #ffffff0d; }
+.raidCard h4 { color: #f1d49a; font: 400 18px Georgia, serif; }
+.raidCard header small { color: #aaa898; font-size: 11px; }
+.raidCard ol { padding: 6px 14px 10px; }
+.raidCard li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; font-size: 13px; color: #9b968a; }
+.raidCard li[data-killed] { color: #eee9dc; }
+.raidCard li[data-killed] > span:first-child { color: #1eff00; }
+.raidCard li > span:last-child { color: #aaa898; font-size: 12px; white-space: nowrap; }
+.status { padding: 3px 8px; border: 1px solid #8d7545; border-radius: 3px; background: #40331e99; color: #ffe4aa; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .achievements { display: grid; gap: 1px; }
 .achievements li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid #ffffff0b; font-size: 13px; }
 .achievements time { flex-shrink: 0; color: #aaa898; font-size: 12px; }
@@ -87,7 +117,7 @@
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
-  .hero { grid-template-columns: 1fr; }
+  .stageHeader { grid-template-columns: 1fr; }
   .heroStats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .heroStats div:first-child { border-left: 0; padding-left: 0; }
   .paperdoll { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -1,4 +1,5 @@
 import { ArmoryError } from "./forever-armory";
+import { RAID_ACHIEVEMENTS } from "./forever-raid-catalog";
 
 // Parsers for the character data Blizzard publishes alongside levels: the Armory
 // page's embedded profile (gear, talents, professions) and the official profile
@@ -175,8 +176,12 @@ export function parseStatistics(payload: unknown, slug: string): { records: Fore
 }
 
 export interface ForeverAchievement { id: number; name: string; completedAt: Date }
-/** Parses `/achievements`; only completed achievements with a completion time are kept. */
-export function parseAchievements(payload: unknown, slug: string): { points: number | null; achievements: ForeverAchievement[] } {
+/**
+ * Parses `/achievements`; only completed achievements with a completion time are kept.
+ * `raidCriteria` lists the encounter criteria completed inside raid achievements, finished or not.
+ * Blizzard gives these per-boss criteria no time of their own.
+ */
+export function parseAchievements(payload: unknown, slug: string): { points: number | null; achievements: ForeverAchievement[]; raidCriteria: number[]; raidClears: ForeverAchievement[] } {
   const document = object(payload);
   checkCharacter(document, slug);
   if (!Array.isArray(document!.achievements)) throw new ArmoryError("invalid_data");
@@ -186,7 +191,28 @@ export function parseAchievements(payload: unknown, slug: string): { points: num
     if (!id || !name || !at || object(achievement?.criteria)?.is_completed === false || at > Date.now() + 300_000) return [];
     return [{ id, name, completedAt: new Date(at) }];
   }).sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime() || a.id - b.id);
-  return { points: integer(document!.total_points), achievements: achievements.slice(0, 400) };
+  const raidCriteria = new Set<number>();
+  for (const entry of document!.achievements as unknown[]) {
+    const achievement = object(entry), id = integer(achievement?.id);
+    if (!id || !RAID_ACHIEVEMENTS.has(id)) continue;
+    for (const child of array(object(achievement?.criteria)?.child_criteria)) {
+      const criterion = object(child), criterionId = integer(criterion?.id);
+      if (criterionId && criterion?.is_completed === true) raidCriteria.add(criterionId);
+    }
+  }
+  return { points: integer(document!.total_points), achievements: achievements.slice(0, 400), raidCriteria: [...raidCriteria].sort((a, b) => a - b),
+    raidClears: achievements.filter(achievement => RAID_ACHIEVEMENTS.has(achievement.id)) };
+}
+
+export interface RaidCriterionSeen { id: number; seenAt: Date; after: Date | null }
+/**
+ * Keeps when each raid encounter criterion was first seen complete. The kill happened between
+ * the previous check (`after`) and `seenAt`; without a previous check it may predate tracking.
+ */
+export function mergeRaidCriteria(previous: readonly RaidCriterionSeen[], completed: readonly number[], seenAt: Date, previousCheck: Date | null): RaidCriterionSeen[] {
+  const known = new Map(previous.map(entry => [entry.id, entry]));
+  for (const id of completed) if (!known.has(id)) known.set(id, { id, seenAt, after: previousCheck });
+  return [...known.values()].sort((a, b) => a.id - b.id);
 }
 
 export interface StoredBoss {
@@ -218,19 +244,20 @@ export function mergeBossKills(previous: readonly StoredBoss[], observed: readon
   return [...merged.values()].sort((a, b) => a.instance.localeCompare(b.instance) || a.boss.localeCompare(b.boss));
 }
 
-export interface KillEntry { bossId: number; boss: string; instance: string; at: number; characterId: string; guildSlug: string | null }
-export interface KillGroup { bossId: number; boss: string; instance: string; at: number; entries: KillEntry[] }
+/** `bossKey` identifies one encounter (a statistic, or a catalog raid boss or full clear). */
+export interface KillEntry { bossKey: string; boss: string; instance: string; at: number; characterId: string; guildSlug: string | null }
+export interface KillGroup { bossKey: string; boss: string; instance: string; at: number; entries: KillEntry[] }
 /** Group members' kills of the same boss that Blizzard dated within the same two minutes. */
 export function groupKills(entries: readonly KillEntry[], windowMs = 120_000): KillGroup[] {
-  const sorted = [...entries].sort((a, b) => a.bossId - b.bossId || a.at - b.at);
+  const sorted = [...entries].sort((a, b) => a.bossKey.localeCompare(b.bossKey) || a.at - b.at);
   const groups: KillGroup[] = [];
   for (const entry of sorted) {
     const group = groups[groups.length - 1];
-    if (group && group.bossId === entry.bossId && entry.at - group.entries[group.entries.length - 1].at <= windowMs) {
+    if (group && group.bossKey === entry.bossKey && entry.at - group.entries[group.entries.length - 1].at <= windowMs) {
       if (!group.entries.some(existing => existing.characterId === entry.characterId)) group.entries.push(entry);
-    } else groups.push({ bossId: entry.bossId, boss: entry.boss, instance: entry.instance, at: entry.at, entries: [entry] });
+    } else groups.push({ bossKey: entry.bossKey, boss: entry.boss, instance: entry.instance, at: entry.at, entries: [entry] });
   }
-  return groups.sort((a, b) => b.at - a.at || a.bossId - b.bossId);
+  return groups.sort((a, b) => b.at - a.at || a.bossKey.localeCompare(b.bossKey));
 }
 
 /** A group kill belongs to a guild when at least three tracked members, and half the tracked group, share it. */

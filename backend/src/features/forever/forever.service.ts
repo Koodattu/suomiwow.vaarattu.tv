@@ -11,7 +11,8 @@ import { MIN_STATS_LEVEL } from "./forever-blizzard.worker";
 import { ForeverCharacterDetail } from "./forever-details.models";
 import { averageItemLevel, type ForeverGearItem, type StoredBoss } from "./forever-details";
 import { itemLevels } from "./forever-records";
-import { isForeverRaid } from "./forever-raids";
+import { characterRaidProgress } from "./forever-raids";
+import { raidFor } from "./forever-raid-catalog";
 import { releaseRosterCoverage } from "./forever-roster-sync";
 
 import { ForeverError } from "./forever-errors";
@@ -213,7 +214,7 @@ async function characterProfile(id: unknown, level?: number | null) {
   const levels = await itemLevels(gear.map(item => item.id));
   const itemLevel = level === 60 ? averageItemLevel(gear, levels) : null;
   const bosses = ((detail.blizzard?.bosses ?? []) as StoredBoss[]).map(boss => ({
-    boss: boss.boss, instance: boss.instance, raid: isForeverRaid(boss.instance), count: boss.count,
+    boss: boss.boss, instance: boss.instance, raid: !!raidFor(boss.instance, boss.boss), count: boss.count,
     lastKillAt: boss.lastKillAt, firstKillAt: boss.firstKillAt ?? null,
   }));
   return {
@@ -225,7 +226,7 @@ async function characterProfile(id: unknown, level?: number | null) {
     renderUrl: detail.armory?.renderUrl ?? null,
     records: detail.blizzard?.records ?? null,
     achievements: (detail.blizzard?.achievements ?? []).slice(0, 40), achievementCount: detail.blizzard?.achievements?.length ?? 0,
-    bosses,
+    bosses, raids: characterRaidProgress(detail as Parameters<typeof characterRaidProgress>[0]),
   };
 }
 export async function adminOverview(query: { status?: unknown; characterPage?: unknown; guildPage?: unknown; search?: unknown; health?: unknown; guildStatus?: unknown; guildSearch?: unknown; guildSort?: unknown } = {}) {

@@ -8,7 +8,7 @@ import { GuildDirectoryBackLink, GuildHeader, GuildPagination, guildPageSize } f
 import { classColor, Faction, ForeverDate, ForeverErrorMessage } from "@/components/forever/ForeverShared";
 import { foreverApi, foreverCharacterPath, foreverRace } from "@/lib/forever-api";
 import { filterForeverRoster, rosterSorts, type RosterSort, type PublicForeverGuildDetail } from "@/lib/forever-guilds";
-import { KillFeed, ProgressBar } from "@/components/forever/ForeverRaidParts";
+import { KillFeed, KillTime, RaidPips } from "@/components/forever/ForeverRaidParts";
 import world from "@/components/forever/forever.module.css";
 import styles from "@/components/forever/guilds.module.css";
 import boards from "@/components/forever/boards.module.css";
@@ -34,8 +34,10 @@ function GuildOverview({ overview }: { overview: NonNullable<PublicForeverGuildD
           <b>{row.values.itemLevel}</b></li>)}</ol>}
       </div>
       <div className={boards.tile}><h3>{t("guilds.raidProgress")}</h3>
-        {overview.raids.length ? <ul>{overview.raids.map(raid => <li key={raid.instance} className={boards.progressRow} style={{ gridTemplateColumns: "minmax(0, 1fr) 110px" }}>
-          <span style={{ textAlign: "left", color: "#eee9dc" }}>{raid.instance}</span><ProgressBar killed={raid.killed} total={raid.bosses} />
+        {overview.raids.length ? <ul className={boards.guildRaids}>{overview.raids.map(raid => <li key={raid.key}>
+          <div><Link href="/forever/raids">{raid.instance}</Link>
+            {raid.clearedAt && <small>{t("raids.cleared")} <KillTime at={raid.clearedAt} approximate={false} /></small>}</div>
+          <RaidPips killed={raid.bosses.map(boss => !!boss.kill)} total={raid.bossCount} />
         </li>)}</ul> : <p className={boards.quiet}>{t("guilds.noRaids")}</p>}
       </div>
     </div>

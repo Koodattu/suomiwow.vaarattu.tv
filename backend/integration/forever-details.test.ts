@@ -56,15 +56,21 @@ test("profile details, Blizzard statistics, item levels, raids and records (isol
   // Whole seconds, as Blizzard reports them; future times are rejected as invalid.
   const killAt = Math.floor((Date.now() - 10 * 86_400_000) / 1000) * 1000;
   let latestKill = killAt;
+  const onyxiaAt = killAt + 3_600_000;
   const names: (string | null | undefined)[] = [];
   const runner = new ForeverBlizzardRunner({
     item: async (id, name) => { names.push(name); return id === 300 ? null : { level: id === 100 ? 66 : 63, name: name ?? null, namespace: "static-forever-eu" }; },
     statistics: async slug => ({ character: { slug }, categories: [{ name: "Dungeons & Raids", sub_categories: [{ name: "Boss Kills", statistics: members.includes(slug) ? [
-      { id: 501, name: "Lucifron kills (Molten Core)", quantity: slug === "jasen-yksi" && latestKill !== killAt ? 2 : 1,
+      { id: 501, name: "Chillhowl kills (Barrow Deeps)", quantity: slug === "jasen-yksi" && latestKill !== killAt ? 2 : 1,
         last_updated_timestamp: slug === "jasen-yksi" ? latestKill : killAt },
     ] : [] }], statistics: [{ id: 1, name: "Equipped epic items in item slots", quantity: slug === "varuste-sankari" ? 2 : 0 }] }] }),
     achievements: async slug => ({ character: { slug }, total_points: 0, achievements: [
       { id: 9, achievement: { name: "Artisan Tailor" }, criteria: { is_completed: true }, completed_timestamp: killAt - 86_400_000 },
+      ...members.includes(slug) ? [
+        // Elder Tangleclaw has no kill statistic here, only achievement progress.
+        { id: 62035, achievement: { name: "Conqueror of the Deeps" }, criteria: { is_completed: false, child_criteria: [{ id: 230801, is_completed: true }] } },
+        { id: 684, achievement: { name: "Conqueror of the Lair" }, criteria: { is_completed: true }, completed_timestamp: onyxiaAt },
+      ] : [],
     ] }),
   });
   const drain = async () => {
@@ -82,10 +88,16 @@ test("profile details, Blizzard statistics, item levels, raids and records (isol
   assert.equal(checked, 4);
 
   const raids = await buildForeverRaids();
-  const core = raids.raids.find(raid => raid.instance === "Molten Core")!;
-  assert.deepEqual(core.guilds.map(row => [row.guild.slug, row.killed, row.bosses[0].participants]), [["kilta", 1, 3]]);
-  assert.equal(raids.recent[0].guild?.slug, "kilta");
-  assert.equal(raids.recent[0].at, new Date(killAt).toISOString());
+  const deeps = raids.raids.find(raid => raid.key === "barrow-deeps")!;
+  assert.deepEqual(deeps.guilds.map(row => [row.guild.slug, row.killed, row.approximate, row.bosses.map(entry => [entry.name, entry.approximate])]),
+    [["kilta", 2, true, [["Chillhowl", false], ["Elder Tangleclaw", true]]]]);
+  assert.deepEqual([deeps.bosses[0].first?.guild.slug, deeps.bosses[0].first?.at, deeps.bosses[0].first?.participants], ["kilta", new Date(killAt).toISOString(), 3]);
+  assert.equal(deeps.bosses[1].first?.approximate, true, "criteria-only evidence is marked approximate");
+  assert.equal(deeps.bosses[2].first, null);
+  const lair = raids.raids.find(raid => raid.key === "onyxias-lair")!;
+  assert.deepEqual([lair.bosses[0].first?.guild.slug, lair.bosses[0].first?.approximate, lair.firstClear?.at], ["kilta", false, new Date(onyxiaAt).toISOString()]);
+  assert.deepEqual(raids.recent.slice(0, 2).map(kill => [kill.boss, kill.instance, kill.raid, kill.guild?.slug]),
+    [["Onyxia", "Onyxia's Lair", true, "kilta"], ["Chillhowl", "Barrow Deeps", true, "kilta"]]);
 
   const records = await foreverRecords({ board: "itemLevel" });
   // Hood 66 + staff 63 twice over 17 slots, with the hidden robe left out of the average.
@@ -99,7 +111,11 @@ test("profile details, Blizzard statistics, item levels, raids and records (isol
 
   const guildPage = await publicGuildDetail("kilta");
   assert.equal(guildPage.overview.level60, 3);
-  assert.deepEqual(guildPage.overview.raids.map(raid => [raid.instance, raid.killed]), [["Molten Core", 1]]);
+  assert.deepEqual(guildPage.overview.raids.map(raid => [raid.instance, raid.killed]), [["Barrow Deeps", 2], ["Hyjal Summit", 0], ["Onyxia's Lair", 1]]);
+  const memberDetail = await characterDetail("jasen-kaksi");
+  const memberDeeps = memberDetail.profile!.raids[0];
+  assert.deepEqual(memberDeeps.bosses.slice(0, 3).map(entry => [entry.name, entry.killed, entry.firstKillAt?.getTime() ?? null, !!entry.seenAt]),
+    [["Chillhowl", true, killAt, false], ["Elder Tangleclaw", true, null, true], ["Khalith the Dreadspinner", false, null, false]]);
 
   // A later kill by one member adds a dated kill without moving the exact first kill.
   latestKill = killAt + 7 * 86_400_000; // A week later, still in the past.

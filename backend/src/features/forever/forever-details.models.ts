@@ -22,6 +22,10 @@ const detailSchema = new Schema({
     records: { type: Schema.Types.Mixed, default: {} },
     achievements: { type: [new Schema({ id: Number, name: String, completedAt: Date }, { _id: false })], default: [] },
     bosses: { type: [bossSchema], default: [] },
+    // Raid encounter criteria first seen complete, dated to the check window that saw them.
+    // Raid full-clear (and Onyxia) achievements with their exact completion times.
+    raidClears: { type: [new Schema({ id: Number, name: String, completedAt: Date }, { _id: false })], default: [] },
+    raidCriteria: { type: [new Schema({ id: { type: Number, required: true }, seenAt: { type: Date, required: true }, after: Date }, { _id: false })], default: [] },
   }, { _id: false }) },
 }, { timestamps: true, collection: "forever_character_details" });
 detailSchema.index({ region: 1, slug: 1 });

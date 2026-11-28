@@ -12,7 +12,8 @@ export interface PublicForeverGuildDetail extends PublicForeverGuild {
   overview?: {
     level60: number; classes60: { name: string; count: number }[];
     averageItemLevel: number | null; gearedMembers: number; topGeared: ForeverRecordRow[];
-    raids: { instance: string; bosses: number; killed: number; reachedAt: string; list: { boss: string; firstKillAt: string; participants: number }[] }[];
+    raids: { key: string; instance: string; size: number | null; bossCount: number; killed: number; clearedAt: string | null;
+      bosses: { name: string; kill: { name: string; at: string; approximate: boolean } | null }[] }[];
     recentKills: ForeverKillEvent[];
   };
 }

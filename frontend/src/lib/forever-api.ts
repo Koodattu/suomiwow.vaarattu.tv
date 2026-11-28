@@ -24,16 +24,24 @@ export interface ForeverProfile {
   records: Partial<Record<ForeverRecordKey, number>> | null;
   achievements: { id: number; name: string; completedAt: string }[]; achievementCount: number;
   bosses: ForeverBossKill[];
+  raids: ForeverCharacterRaid[];
+}
+export interface ForeverCharacterRaid {
+  key: string; instance: string; size: number; opensAt: string | null; clearedAt: string | null;
+  bosses: { name: string; killed: boolean; count: number; firstKillAt: string | null; seenAt: string | null; seenAfter: string | null; beforeTracking: boolean }[];
 }
 export interface ForeverKillEvent {
-  boss: string; instance: string; raid: boolean; at: string;
+  boss: string; instance: string; raid: boolean; clear: boolean; at: string;
   guild: { id: string | null; name: string; slug: string } | null;
   participants: { id: string; slug: string; name: string; className: string | null }[];
 }
+export interface ForeverPublicGuildRef { id: string | null; name: string; slug: string }
+export interface ForeverBossCredit { guild: ForeverPublicGuildRef; at: string; approximate: boolean; participants: number }
 export interface ForeverRaidProgress {
-  instance: string; bosses: number;
-  guilds: { guild: { id: string | null; name: string; slug: string }; killed: number; reachedAt: string; lastKillAt: string;
-    bosses: { boss: string; firstKillAt: string; participants: number }[] }[];
+  key: string; instance: string; size: number | null; opensAt: string | null; legacy: boolean; discovered: boolean; bossCount: number;
+  bosses: { name: string; first: ForeverBossCredit | null }[]; firstClear: ForeverBossCredit | null;
+  guilds: { guild: ForeverPublicGuildRef; killed: number; reachedAt: string; approximate: boolean; clearedAt: string | null;
+    bosses: { name: string; at: string; approximate: boolean }[] }[];
 }
 export interface ForeverRaids { raids: ForeverRaidProgress[]; recent: ForeverKillEvent[]; groupKills: number; trackedCharacters: number }
 export const foreverRecordBoards = ["itemLevel", "epicsEquipped", "achievements", "mounts", "exalted", "battlegroundsWon", "honorableKills", "duelsWon", "totalKills"] as const;

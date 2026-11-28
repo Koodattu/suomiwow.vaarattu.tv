@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import { useId, type CSSProperties } from "react";
-import { useFormatter, useTranslations } from "next-intl";
-import type { ForeverBossKill, ForeverGearItem, ForeverProfile, ForeverRecordKey } from "@/lib/forever-api";
+import { useFormatter, useNow, useTranslations } from "next-intl";
+import { formatForeverDate, type ForeverBossKill, type ForeverGearItem, type ForeverProfile, type ForeverRecordKey } from "@/lib/forever-api";
 import { ForeverDate } from "./ForeverShared";
+import { KillTime, raidStatus, RaidPips } from "./ForeverRaidParts";
 import styles from "./profile.module.css";
 
 // Blizzard's quality colours, with rare and epic lifted slightly for small text on the dark board.
@@ -126,4 +127,25 @@ export function ProfileAchievements({ profile }: { profile: ForeverProfile }) {
       <span>{achievement.name}</span><ForeverDate value={achievement.completedAt} compact />
     </li>)}</ol>
   </>;
+}
+
+export function ProfileRaids({ profile }: { profile: ForeverProfile }) {
+  const t = useTranslations("forever"), now = useNow({ updateInterval: 60_000 });
+  return <div className={styles.raidCards}>{profile.raids.map(raid => { const entered = raid.bosses.some(boss => boss.killed); return <section key={raid.key} className={styles.raidCard} data-raid={raid.key} aria-label={raid.instance}>
+    <header>
+      <div><h4>{raid.instance}</h4>
+        <small>{t("raids.players", { count: raid.size })}{raid.clearedAt ? <> · {t("profile.cleared")} <ForeverDate value={raid.clearedAt} /></> : null}</small></div>
+      {raidStatus(raid, now.getTime()) === "upcoming" && !entered
+        ? <span className={styles.status}>{t("raids.opens", { date: formatForeverDate(`${raid.opensAt}T09:00:00Z`).split(" ")[0] })}</span>
+        : <RaidPips killed={raid.bosses.map(boss => boss.killed)} total={raid.bosses.length} />}
+    </header>
+    <ol>{raid.bosses.map(boss => <li key={boss.name} data-killed={boss.killed || undefined}>
+      <span aria-hidden="true">{boss.killed ? "✓" : "·"}</span>
+      <span>{boss.name}{boss.count > 1 ? <small> ×{boss.count}</small> : null}</span>
+      <span>{boss.firstKillAt ? <ForeverDate value={boss.firstKillAt} compact />
+        : boss.seenAt ? <KillTime at={boss.seenAt} approximate after={boss.seenAfter} compact />
+        : boss.beforeTracking ? <span className={styles.muted}>{t("profile.beforeTracking")}</span>
+        : entered ? <span className={styles.muted}>{t("profile.notKilledShort")}</span> : null}</span>
+    </li>)}</ol>
+  </section>; })}</div>;
 }

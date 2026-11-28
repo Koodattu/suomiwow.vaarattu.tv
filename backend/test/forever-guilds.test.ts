@@ -85,7 +85,10 @@ test("public roster includes unfetched and outdated members without exposing adm
   assert.equal("proposedBy" in result, false);
   assert.equal("languageAssessment" in result, false);
   assert.equal("failures" in result, false);
-  assert.deepEqual(result.overview, { level60: 0, classes60: [], averageItemLevel: null, gearedMembers: 0, topGeared: [], raids: [], recentKills: [] });
+  const { raids, ...overview } = result.overview;
+  assert.deepEqual(overview, { level60: 0, classes60: [], averageItemLevel: null, gearedMembers: 0, topGeared: [], recentKills: [] });
+  assert.deepEqual(raids.map(raid => [raid.instance, raid.killed, raid.bosses.length]), [["Barrow Deeps", 0, 8], ["Hyjal Summit", 0, 13], ["Onyxia's Lair", 0, 1]],
+    "current raids are listed before anyone has a kill");
 });
 
 test("hidden, unapproved and missing guilds cannot be opened directly", async t => {

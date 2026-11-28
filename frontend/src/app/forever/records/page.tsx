@@ -58,8 +58,9 @@ function RecordsBoard() {
       {query.isPending && <p className={world.empty} role="status">{t("loading")}</p>}
       {data && <>
         <div className={guildStyles.resultCount} role="status">{t("records.count", { count: data.total, total: data.ranked })}</div>
-        {data.rows.length ? <ol className={styles.rows}>{data.rows.map(row => <li key={row.id} className={styles.row}>
-          <span className={styles.rank}>{row.rank}</span>
+        {data.rows.length ? <ol className={styles.rows}>{data.rows.map(row => <li key={row.id} className={styles.row}
+          data-medal={row.rank <= 3 ? row.rank : undefined} style={{ borderLeftColor: classColor(row.className ?? undefined) }}>
+          <span className={styles.rank} data-medal={row.rank <= 3 ? row.rank : undefined}>{row.rank}</span>
           <div className={styles.who}><Portrait character={{ avatarUrl: row.avatarUrl, className: row.className ?? undefined }} />
             <div><Link href={foreverCharacterPath({ slug: row.slug, region: row.region, _id: row.id })} style={{ color: classColor(row.className ?? undefined) }}>{row.name}</Link>
               <small>{t("levelValue", { level: row.level ?? "—" })} · {row.className}</small></div></div>

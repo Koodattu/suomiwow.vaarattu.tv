@@ -8,6 +8,7 @@
 
 /* Board tabs */
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.tabs a { white-space: nowrap; }
 .tabs a { min-height: 36px; padding: 8px 12px; border: 1px solid #4c4a3b; border-radius: 3px; background: #191d17; color: #c9c4b6; font: 600 13px/1.3 Arial, sans-serif; }
 .tabs a:hover { border-color: #8d7545; color: #ffe4aa; }
 .tabs a[aria-current="page"] { border-color: #d7b875; background: #40331e; color: #ffe4aa; }
@@ -15,7 +16,9 @@
 /* Leaderboard rows */
 .rows { min-width: 0; }
 .row { display: grid; grid-template-columns: 52px minmax(0, 2fr) minmax(0, 1.4fr) 200px; align-items: center; gap: 14px; padding: 9px 16px; border-bottom: 1px solid #ffffff09; }
+.row { border-left: 3px solid transparent; }
 .row:hover { background: #ddbd6c0a; }
+.row[data-medal] { background: linear-gradient(90deg, #d7b8750d, transparent 40%); }
 .rank { color: #aaa898; font-variant-numeric: tabular-nums; text-align: right; }
 .who { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .who a { font-weight: 600; overflow-wrap: anywhere; }
@@ -25,27 +28,53 @@
 .value { color: #f2d498; font: 400 22px/1.2 Georgia, serif; font-variant-numeric: tabular-nums; text-align: right; }
 .value small { display: block; color: #aaa898; font: 11px Arial, sans-serif; }
 
-/* Raid progress */
-.raids { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr)); gap: 16px; }
-.raid { padding: 16px 18px; border: 1px solid #5c5039; border-radius: 3px; background: #141613f2; }
-.raid h3 { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; color: #ead8ac; font: 400 19px Georgia, serif; }
-.raid h3 small { color: #aaa898; font: 12px Arial, sans-serif; }
-.progressRow { display: grid; grid-template-columns: 28px minmax(0, 1fr) 110px; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #ffffff0b; font-size: 14px; }
-.progressRow > span:first-child { color: #aaa898; text-align: right; font-variant-numeric: tabular-nums; }
-.progressRow a { font-weight: 600; color: #eee9dc; }
-.progressRow a:hover { color: #ffe4aa; text-decoration: underline; text-underline-offset: 3px; }
-.progressRow details { min-width: 0; }
-.progressRow summary { cursor: pointer; list-style: none; }
-.progressRow summary::-webkit-details-marker { display: none; }
-.progressRow ol { margin-top: 6px; color: #c0bba9; font-size: 12px; }
-.progressRow ol li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
-.bar { display: grid; gap: 3px; text-align: right; color: #f2d498; font-variant-numeric: tabular-nums; }
-.bar meter { width: 100%; height: 6px; }
-.bar meter::-webkit-meter-bar { border: 0; border-radius: 3px; background: #2a2b22; }
-.bar meter::-webkit-meter-optimum-value, .bar meter::-webkit-meter-suboptimum-value, .bar meter::-webkit-meter-even-less-good-value { border-radius: 3px; background: linear-gradient(90deg, #8d7545, #d7b875); }
-.bar meter::-moz-meter-bar { border-radius: 3px; background: #d7b875; }
-.upcoming { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.upcoming li { padding: 6px 10px; border: 1px solid #4c4a3b; border-radius: 3px; color: #c9c2af; font-size: 13px; }
+/* Raid cards: an Armory-like banner per raid, then bosses in order beside guild standings. */
+.pageIntro { max-width: 820px; margin-bottom: 20px; color: #d2cbb9; font-size: 14px; line-height: 1.55; }
+.method { margin-top: 8px; color: #c0bba9; font-size: 13px; }
+.method summary { width: fit-content; cursor: pointer; color: #ecd5a1; font-weight: 600; }
+.method summary:hover { color: #ffe4aa; }
+.method p { margin-top: 6px; max-width: 760px; }
+.raidList { display: grid; gap: 18px; }
+.raidCard { overflow: hidden; border: 1px solid #5c5039; border-radius: 4px; background: #121512; box-shadow: 0 10px 30px #0006, inset 0 1px #cdb47b22; }
+.raidBanner { --banner: #2a3a2e; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 10px 24px; min-height: 120px; padding: 22px 22px 16px;
+  border-bottom: 1px solid #5c503999; background: linear-gradient(0deg, #121512 0%, transparent 70%), radial-gradient(ellipse at 18% 0%, var(--banner) 0%, transparent 70%), linear-gradient(120deg, #1c1f19, #121512); }
+.raidCard[data-raid="barrow-deeps"] .raidBanner { --banner: #1f4a57; }
+.raidCard[data-raid="hyjal-summit"] .raidBanner { --banner: #2f5a2c; }
+.raidCard[data-raid="onyxias-lair"] .raidBanner { --banner: #6a2a1b; }
+.raidBanner h3 { font: 400 clamp(26px, 3vw, 36px)/1.1 "Forever Display", Georgia, serif; color: #f1d49a; text-shadow: 0 2px 8px #000; }
+.raidMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 6px; color: #d2cbb9; font-size: 13px; }
+.status { padding: 3px 8px; border: 1px solid #8d7545; border-radius: 3px; background: #40331e99; color: #ffe4aa; font-size: 12px; font-weight: 600; }
+.firstClear { display: grid; gap: 2px; text-align: right; font-size: 13px; }
+.firstClear > span:first-child { color: #d7b875; font: 600 11px Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.raidBody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; }
+.raidBody > section { min-width: 0; padding: 16px 22px 18px; }
+.raidBody > section + section { border-left: 1px solid #ffffff0d; }
+.raidSubheading { margin-bottom: 8px; color: #d7b875; font: 600 11px Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.bossList li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: baseline; gap: 4px 10px; padding: 7px 0; border-bottom: 1px solid #ffffff0b; font-size: 14px; }
+.bossNo { color: #8f8a78; font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; }
+.bossName { color: #d9d3c2; overflow-wrap: anywhere; }
+.bossList li[data-killed] .bossName { color: #f1e5c9; font-weight: 600; }
+.bossList li[data-killed] .bossNo { color: #1eff00; }
+.credit { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 2px 8px; font-size: 12px; color: #c0bba9; text-align: right; }
+.credit a { color: #ecd5a1; font-weight: 600; }
+.credit a:hover { color: #ffe4aa; text-decoration: underline; text-underline-offset: 3px; }
+.approximate { color: #c0bba9; cursor: help; text-decoration: underline dotted #8f8a78; text-underline-offset: 3px; }
+.muted { color: #8f8a78; font-size: 12px; }
+.footnote { margin-top: 8px; color: #8f8a78; font-size: 11px; }
+.standings li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #ffffff0b; }
+.standingGuild { min-width: 0; }
+.standingGuild a { color: #eee9dc; font-weight: 600; overflow-wrap: anywhere; }
+.standingGuild a:hover { color: #ffe4aa; text-decoration: underline; text-underline-offset: 3px; }
+.standingGuild small { display: block; color: #aaa898; font-size: 11px; }
+.rank[data-medal] { display: inline-grid; place-items: center; width: 26px; height: 26px; justify-self: end; border-radius: 50%; color: #1a1408; font-weight: 700; font-size: 13px; }
+.rank[data-medal="1"] { background: radial-gradient(circle at 35% 30%, #fff1b8, #d7a93a 70%); }
+.rank[data-medal="2"] { background: radial-gradient(circle at 35% 30%, #ffffff, #a9b0b8 70%); }
+.rank[data-medal="3"] { background: radial-gradient(circle at 35% 30%, #ffd7b0, #b07037 70%); }
+.pips { display: inline-grid; justify-items: end; gap: 3px; }
+.pipRow { display: flex; gap: 2px; }
+.pipRow i { width: 9px; height: 12px; border-radius: 2px; background: #2a2b22; box-shadow: inset 0 0 0 1px #3c3c30; }
+.pipRow i[data-on] { background: linear-gradient(#ffe39a, #c9963b); box-shadow: 0 0 6px #d7b87566; }
+.pips b { color: #f2d498; font: 400 15px Georgia, serif; font-variant-numeric: tabular-nums; }
 
 /* Kill feed */
 .feed { display: grid; gap: 8px; }
@@ -72,9 +101,23 @@
 .classList i { width: 9px; height: 9px; border-radius: 2px; }
 .topList li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 13px; }
 .topList li a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.guildRaids li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid #ffffff0b; font-size: 13px; }
+.guildRaids a { color: #eee9dc; font-weight: 600; }
+.guildRaids a:hover { color: #ffe4aa; text-decoration: underline; text-underline-offset: 3px; }
+.guildRaids small { display: block; color: #aaa898; font-size: 11px; }
 .topList b { color: #f2d498; font-variant-numeric: tabular-nums; }
 
+@media (max-width: 900px) {
+  .raidBody { grid-template-columns: 1fr; }
+  .raidBody > section + section { border-left: 0; border-top: 1px solid #ffffff0d; }
+  .firstClear { text-align: left; }
+}
 @media (max-width: 700px) {
+  .tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+  .raidBanner { padding: 16px 14px 12px; min-height: 96px; }
+  .raidBody > section { padding: 12px 14px; }
+  .bossList li { grid-template-columns: 22px minmax(0, 1fr); }
+  .bossList li > :last-child { grid-column: 2; justify-content: flex-start; text-align: left; }
   .row { grid-template-columns: 34px minmax(0, 1fr) minmax(64px, auto); gap: 10px; padding: 9px 10px; }
   .guildCell { display: none; }
   .value { font-size: 18px; }

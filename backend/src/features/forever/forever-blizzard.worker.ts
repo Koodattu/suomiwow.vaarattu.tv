@@ -1,14 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 import logger from "../../utils/logger";
 import { ArmoryError, fetchForeverAchievements, fetchForeverItem, fetchForeverStatistics, type ForeverItemData } from "./forever-armory";
-import { mergeBossKills, parseAchievements, parseStatistics, type StoredBoss } from "./forever-details";
+import { mergeBossKills, mergeRaidCriteria, parseAchievements, parseStatistics, type RaidCriterionSeen, type StoredBoss } from "./forever-details";
 import { ForeverCharacterDetail, ForeverItem } from "./forever-details.models";
 import { ForeverCharacter, ForeverWorker } from "./forever.models";
 import { visibleForeverCharacters } from "./forever-visibility";
 
-// The official profile API is a separate quota from the Armory website. One turn every
-// four seconds is at most 900 turns (about 1,800 requests) an hour, far below Blizzard's
-// 36,000-per-hour client limit, and leaves room for the level-60 milestone worker.
+// The official profile API is a separate quota from the Armory website. Each four-second turn
+// checks one character (two requests) and resolves one queued item (one or two requests): at
+// most about 3,600 requests an hour, a tenth of Blizzard's 36,000-per-hour client limit.
+// Characters go first so a backlog of new items never delays raid kill tracking.
 const INTERVAL = 4_000;
 const HOUR = 3600_000;
 export const MIN_STATS_LEVEL = 40;
@@ -57,10 +58,11 @@ export class ForeverBlizzardRunner {
     let nextRequestAt = new Date(now.getTime() + INTERVAL);
     let failure: ArmoryError | undefined;
     try {
-      // Item levels first: they unlock rankings for characters whose gear is already known.
-      const item = await ForeverItem.findOne({ nextCheckAt: { $type: "date", $lte: now } }).sort({ nextCheckAt: 1, _id: 1 }).lean();
-      if (item) failure = await this.resolveItem(item._id as number, item.name ?? null, item.misses ?? 0);
-      else failure = await this.checkCharacter(now);
+      failure = await this.checkCharacter(now);
+      if (!failure) {
+        const item = await ForeverItem.findOne({ nextCheckAt: { $type: "date", $lte: now } }).sort({ nextCheckAt: 1, _id: 1 }).lean();
+        if (item) failure = await this.resolveItem(item._id as number, item.name ?? null, item.misses ?? 0);
+      }
       if (failure && (failure.retryAfterMs || [429, 401, 403].includes(failure.status))) {
         nextRequestAt = new Date(Date.now() + Math.max(failure.retryAfterMs, 2 * 60_000));
       }
@@ -98,10 +100,13 @@ export class ForeverBlizzardRunner {
       const statistics = parseStatistics(await this.fetch.statistics(character.slug), character.slug);
       const achievements = parseAchievements(await this.fetch.achievements(character.slug), character.slug);
       const fetchedAt = new Date();
-      const previous = await ForeverCharacterDetail.findById(character._id).select("blizzard.bosses").lean();
+      const previous = await ForeverCharacterDetail.findById(character._id).select("blizzard.bosses blizzard.raidCriteria blizzard.fetchedAt").lean();
       const bosses = mergeBossKills((previous?.blizzard?.bosses ?? []) as StoredBoss[], statistics.bosses, character.guild?.slug ?? null);
+      const raidCriteria = mergeRaidCriteria((previous?.blizzard?.raidCriteria ?? []) as RaidCriterionSeen[], achievements.raidCriteria,
+        fetchedAt, previous?.blizzard?.fetchedAt ?? null);
       await ForeverCharacterDetail.updateOne({ _id: character._id }, { $set: { region: "eu", slug: character.slug, blizzard: {
-        fetchedAt, achievementPoints: achievements.points, achievementCount: achievements.achievements.length, records: statistics.records, achievements: achievements.achievements, bosses,
+        fetchedAt, achievementPoints: achievements.points, achievementCount: achievements.achievements.length, records: statistics.records,
+        achievements: achievements.achievements, bosses, raidCriteria, raidClears: achievements.raidClears,
       } } }, { upsert: true });
       await ForeverCharacter.updateOne({ _id: character._id }, { $set: { statsNextCheckAt: nextStatsCheckAt(character.slug, level, fetchedAt.getTime()), statsFailures: 0 } });
       return undefined;

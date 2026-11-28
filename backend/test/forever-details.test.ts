@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseCharacterHtml } from "../src/features/forever/forever-armory";
-import { averageItemLevel, creditedGuild, groupKills, mergeBossKills, parseAchievements, parseArmoryDetails, parseStatistics,
+import { averageItemLevel, creditedGuild, groupKills, mergeBossKills, mergeRaidCriteria, parseAchievements, parseArmoryDetails, parseStatistics,
   type KillEntry, type StoredBoss } from "../src/features/forever/forever-details";
+import { FOREVER_RAIDS, raidClearAchievement, raidCriterion, raidFor } from "../src/features/forever/forever-raid-catalog";
 import { nextStatsCheckAt, statsInterval } from "../src/features/forever/forever-blizzard.worker";
 
 const icon = (id: number) => ({ content: { assets: [{ key: "icon", value: `https://render.worldofwarcraft.com/forever-eu/icons/56/${id}.jpg` }] } });
@@ -120,11 +121,11 @@ test("boss kill history dates first kills only when tracking saw the first one",
 
 test("tracked members' kills dated together form one group kill credited to their guild", () => {
   const at = Date.parse("2026-12-01T20:00:00Z");
-  const entry = (characterId: string, guildSlug: string | null, offset = 0, bossId = 1): KillEntry =>
-    ({ bossId, boss: "Ragnaros", instance: "Molten Core", at: at + offset, characterId, guildSlug });
+  const entry = (characterId: string, guildSlug: string | null, offset = 0, bossKey = "a"): KillEntry =>
+    ({ bossKey, boss: "Ragnaros", instance: "Molten Core", at: at + offset, characterId, guildSlug });
   const groups = groupKills([entry("a", "kilta"), entry("b", "kilta", 1000), entry("c", "kilta", 90_000), entry("c", "kilta", 90_000),
-    entry("d", "muu", 400_000), entry("e", "kilta", 0, 2)]);
-  assert.deepEqual(groups.map(group => [group.bossId, group.entries.map(row => row.characterId)]), [[1, ["d"]], [1, ["a", "b", "c"]], [2, ["e"]]]);
+    entry("d", "muu", 400_000), entry("e", "kilta", 0, "b")]);
+  assert.deepEqual(groups.map(group => [group.bossKey, group.entries.map(row => row.characterId)]), [["a", ["d"]], ["a", ["a", "b", "c"]], ["b", ["e"]]]);
   assert.equal(creditedGuild(groups[1].entries), "kilta");
   assert.equal(creditedGuild([entry("a", "kilta"), entry("b", "kilta")]), null, "two players are not a guild group");
   assert.equal(creditedGuild([entry("a", "x"), entry("b", "x"), entry("c", "x"), entry("d", "y"), entry("e", "y"), entry("f", null), entry("g", null)]), null,
@@ -138,4 +139,36 @@ test("statistics are checked twice a day at 60 and every three days while leveli
   const next = nextStatsCheckAt("hahmo", 60, now).getTime() - now;
   assert.ok(next >= 12 * 3600_000 && next < 13 * 3600_000);
   assert.equal(nextStatsCheckAt("hahmo", 60, now).getTime(), nextStatsCheckAt("hahmo", 60, now).getTime());
+});
+
+test("raid achievements expose per-boss criteria and dated clears", () => {
+  const parsed = parseAchievements({ character: { slug: "hahmo" }, achievements: [
+    { id: 62035, achievement: { name: "Conqueror of the Deeps" }, criteria: { is_completed: false, child_criteria: [
+      { id: 230806, is_completed: true }, { id: 230801, is_completed: false }, { id: 230802, is_completed: true }] } },
+    { id: 684, achievement: { name: "Conqueror of the Lair" }, criteria: { is_completed: true }, completed_timestamp: 9000 },
+    { id: 221565, achievement: { name: "Master of Alterac Valley" }, criteria: { child_criteria: [{ id: 221566, is_completed: true }] } },
+  ] }, "hahmo");
+  assert.deepEqual(parsed.raidCriteria, [230802, 230806], "only raid encounters, never other achievements' criteria");
+  assert.deepEqual(parsed.raidClears.map(row => [row.id, row.completedAt.getTime()]), [[684, 9000]]);
+});
+
+test("the raid catalog maps Blizzard's criteria, clears and statistic names to the same bosses", () => {
+  const deeps = FOREVER_RAIDS.find(raid => raid.key === "barrow-deeps")!;
+  assert.equal(deeps.bosses.length, 8);
+  assert.deepEqual(raidCriterion(230806), { raid: deeps, boss: "Chillhowl" });
+  assert.deepEqual(raidCriterion(234187), { raid: deeps, boss: "Chillhowl" }, "both achievement versions");
+  assert.equal(raidClearAchievement(64020), deeps);
+  assert.equal(raidFor("the Barrow Deeps"), deeps);
+  assert.equal(raidFor("Somewhere Else", "Sonya Darkhallow"), deeps, "a boss name identifies its raid");
+  assert.equal(raidFor("Hyjal Summit")?.bosses.length, 13);
+  assert.equal(raidFor("Deadmines", "Edwin VanCleef"), null);
+  assert.equal(raidFor("Molten Core")?.legacy, true);
+});
+
+test("raid criteria keep the check window that first saw each boss", () => {
+  const first = new Date("2026-12-09T20:00:00Z"), second = new Date("2026-12-10T08:00:00Z");
+  const initial = mergeRaidCriteria([], [230806], first, null);
+  assert.deepEqual(initial, [{ id: 230806, seenAt: first, after: null }], "seen on the first check: may predate tracking");
+  const later = mergeRaidCriteria(initial, [230806, 230801], second, first);
+  assert.deepEqual(later, [{ id: 230801, seenAt: second, after: first }, { id: 230806, seenAt: first, after: null }]);
 });

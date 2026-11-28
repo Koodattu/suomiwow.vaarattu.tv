@@ -96,8 +96,9 @@ character, so leaderboard scans stay small. Only `render.worldofwarcraft.com` im
 **Statistics and achievements** come from the official profile API (`profile-forever-eu`):
 `/achievements/statistics` and `/achievements`. The Blizzard worker (`forever-blizzard.worker.ts`, lease
 `blizzard`) checks tracked EU characters from level 40. Level 60s are checked every 12 hours, others every
-72 hours, each with a stable per-character phase of up to an hour. One turn runs every four seconds, at most
-about 1,800 requests an hour. Blizzard's limit is 36,000 per hour. A user's **Request refresh** also brings
+72 hours, each with a stable per-character phase of up to an hour. Each four-second turn checks one character,
+then resolves one queued item, at most about 3,600 requests an hour against Blizzard's 36,000. Characters go
+first so a backlog of new items never delays raid kill tracking. A user's **Request refresh** also brings
 this check forward, at most once per half hour per character. A 404 waits a day. Rate limits and authorization
 errors pause the worker. Forever achievements award no points, so records count completed achievements.
 
@@ -110,9 +111,23 @@ Statistics with no kills are omitted by Blizzard, so new raids appear automatica
 **Group kills** are tracked players' kills of the same boss dated within two minutes of each other. Guild
 members who kill a boss together share the same second. A group kill is credited to a guild when at least
 three of its tracked members, and half the tracked group, were there. Dungeon groups need three tracked
-players. Raids are the instances in `FOREVER_RAIDS` in `forever-raids.ts`; add new Forever raids there.
-Progress counts each boss once per guild, dated by its first credited kill, and orders guilds by bosses
-killed, then by the time the latest of those bosses first fell.
+players.
+
+**Raids** are listed in `forever-raid-catalog.ts`, from Blizzard's static achievement data. Barrow Deeps
+(10 players, 8 bosses), Hyjal Summit (20 players, 13 bosses) and Onyxia's Lair (40 players) open on 9 December
+2026, per community guides. Each raid's "Conqueror" achievement names one criterion per encounter. The
+catalog keeps Blizzard's listing order, which is not a guaranteed kill order. Hyjal Summit's route can vary.
+Both achievement versions per raid map to the same bosses. Vanilla raids appear only once someone has a kill.
+An instance outside the catalog counts as a raid once a tracked group larger than five kills there.
+
+**Raid kills** use the best evidence available. A boss kill statistic gives exact times, grouped as above.
+When a boss has no statistic, each character's raid achievement still lists the encounters they have
+completed, without times. Each criterion is stored with the check that first showed it (`seenAt`) and the
+previous check (`after`). A guild is then credited once three tracked members show the boss, dated to the
+check that showed the third, and the page marks it "≈". Exact credit replaces approximate credit. A "Conqueror"
+achievement's completion time dates the full clear exactly; for Onyxia it is the kill itself. Achievement
+evidence uses each player's current guild. Each boss shows the first Finnish guild to kill it. Guilds rank by
+bosses killed, then by full clear, then by when they reached that count.
 
 **Item level** is not in Forever's Armory data or its profile API. Each new item ID is queued in
 `forever_items` and looked up once in `static-forever-eu`, then `static-classic1x-eu`. A fallback result is
@@ -122,7 +137,7 @@ icons. The average uses the 17 equipment slots: empty slots count as zero and a 
 Unknown items are left out of the average. Level 60 characters with at most two unknown items are ranked,
 and each row shows its unknown count.
 
-Raid and record pages use the shared page snapshots (`forever:raids:v1`, `forever:records:v1`) and are
+Raid and record pages use the shared page snapshots (`forever:raids:v2`, `forever:records:v1`) and are
 warmed with the other Forever pages. Guild detail pages read the same snapshots. Guild pages also accept an
 EU guild slug in place of the ID, which character profiles use for their guild link.
 
