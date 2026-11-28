@@ -291,22 +291,20 @@ class TwitchCcgRewardService {
     kinds: readonly TwitchCcgRewardKind[] = ["packs", "packs_10", "card_reveal"],
     limit = 25,
   ): Promise<number> {
-    const twitchUsers = await TwitchCcgRedemption.aggregate<{ _id: string }>([
-      {
-        $match: {
-          grantStatus: { $in: ["pending", "failed"] },
-          grantNextAttemptAt: { $lte: new Date() },
-          ...twitchCcgRewardKindMatch(kinds),
-        },
-      },
-      { $lookup: { from: User.collection.name, localField: "twitchUserId", foreignField: "twitch.id", as: "linkedUsers" } },
-      { $match: { "linkedUsers.0": { $exists: true } } },
-      { $group: { _id: "$twitchUserId" } },
-      { $limit: limit },
-    ]);
+    // Redemptions from viewers without a linked account stay due indefinitely. Resolve links
+    // with one indexed query per pass, not a users lookup per redemption.
+    const due: string[] = await TwitchCcgRedemption.distinct("twitchUserId", {
+      grantStatus: { $in: ["pending", "failed"] },
+      grantNextAttemptAt: { $lte: new Date() },
+      ...twitchCcgRewardKindMatch(kinds),
+    });
+    if (!due.length) return 0;
+    const linked = await User.find({ "twitch.id": { $in: due } }).select("twitch.id").lean();
+    const linkedIds = new Set(linked.map(user => user.twitch?.id).filter((id): id is string => !!id));
+    const twitchUsers = due.filter(id => linkedIds.has(id)).sort().slice(0, limit);
 
     let granted = 0;
-    for (const twitchUser of twitchUsers) granted += await this.grantPendingForTwitchUser(twitchUser._id, true, kinds);
+    for (const twitchUserId of twitchUsers) granted += await this.grantPendingForTwitchUser(twitchUserId, true, kinds);
     return granted;
   }
 

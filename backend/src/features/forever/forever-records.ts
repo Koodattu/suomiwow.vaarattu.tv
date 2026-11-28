@@ -60,7 +60,8 @@ export async function buildForeverRecords(): Promise<{ rows: ForeverRecordRow[] 
   return { rows };
 }
 
-export const foreverRecordsCache = new ForeverSnapshotCache("forever:records:v1", buildForeverRecords);
+// Gear and statistics change with twice-daily profile checks; rebuild every five minutes.
+export const foreverRecordsCache = new ForeverSnapshotCache("forever:records:v1", buildForeverRecords, undefined, 5 * 60_000);
 
 const filterValue = (value: unknown) => {
   if (value === undefined || value === "") return null;
@@ -68,16 +69,29 @@ const filterValue = (value: unknown) => {
   return value;
 };
 
+// Rankings depend only on the snapshot, so each board is sorted once per snapshot, not per request.
+const rankings = new WeakMap<ForeverRecordRow[], Map<RecordBoard, (ForeverRecordRow & { rank: number })[]>>();
+function ranking(rows: ForeverRecordRow[], board: RecordBoard) {
+  const boards = rankings.get(rows) ?? new Map<RecordBoard, (ForeverRecordRow & { rank: number })[]>();
+  rankings.set(rows, boards);
+  let ranked = boards.get(board);
+  if (!ranked) {
+    ranked = rows.filter(row => row.values[board] !== undefined && row.values[board]! > 0)
+      .sort((a, b) => b.values[board]! - a.values[board]! || a.name.localeCompare(b.name, "fi") || a.id.localeCompare(b.id))
+      // Ranks stay global so a filtered view still shows each character's standing.
+      .map((row, index) => ({ ...row, rank: index + 1 }));
+    boards.set(board, ranked);
+  }
+  return ranked;
+}
+
 export async function foreverRecords(query: { board?: unknown; className?: unknown; guild?: unknown; ruleset?: unknown; faction?: unknown; page?: unknown }) {
   const board = (query.board ?? "itemLevel") as RecordBoard;
   if (!RECORD_BOARDS.includes(board)) throw new ForeverError("invalid_input");
   const filters = { className: filterValue(query.className), guild: filterValue(query.guild), ruleset: filterValue(query.ruleset), faction: filterValue(query.faction) };
   const { rows } = await foreverRecordsCache.get();
-  const ranked = rows.filter(row => row.values[board] !== undefined && row.values[board]! > 0)
-    .sort((a, b) => b.values[board]! - a.values[board]! || a.name.localeCompare(b.name, "fi") || a.id.localeCompare(b.id));
-  // Ranks stay global so a filtered view still shows each character's standing.
-  const withRank = ranked.map((row, index) => ({ ...row, rank: index + 1 }));
-  const filtered = withRank.filter(row => (!filters.className || row.className === filters.className)
+  const ranked = ranking(rows, board);
+  const filtered = ranked.filter(row => (!filters.className || row.className === filters.className)
     && (!filters.guild || row.guild?.slug === filters.guild) && (!filters.ruleset || row.ruleset === filters.ruleset)
     && (!filters.faction || row.faction === filters.faction));
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));

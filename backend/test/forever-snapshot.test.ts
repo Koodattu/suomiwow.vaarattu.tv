@@ -11,6 +11,8 @@ import { startForeverPageCaches, stopForeverPageCaches } from "../src/features/f
 import logger from "../src/utils/logger";
 import { deferred, mockSnapshotStorage } from "./helpers/snapshot-cache";
 import { ForeverCharacterDetail, ForeverItem } from "../src/features/forever/forever-details.models";
+import { foreverRaidsCache } from "../src/features/forever/forever-raids";
+import { foreverRecordsCache } from "../src/features/forever/forever-records";
 
 let revision = 0, namegameRevision = 0;
 function setup(t: TestContext) {
@@ -27,6 +29,9 @@ function setup(t: TestContext) {
 
 test("startup prepares all three public pages and refreshes them through an idle period", async t => {
   setup(t);
+  // Raids and records refresh on a five-minute cycle; their cadence has its own test below.
+  t.mock.method(foreverRaidsCache, "start", () => {});
+  t.mock.method(foreverRecordsCache, "start", () => {});
   t.after(stopForeverPageCaches);
   let reads = 0, version = 1;
   const query = (rows: unknown[]) => ({
@@ -193,4 +198,18 @@ test("expired snapshots wait for fresh data instead of retaining obsolete data i
   assert.equal(await cache.get(), 1);
   t.mock.timers.tick(60_001);
   assert.equal(await cache.get(), 2);
+});
+
+test("a page with a five-minute freshness refreshes ahead of its own expiry, not every half minute", async t => {
+  setup(t);
+  let builds = 0;
+  const cache = new ForeverSnapshotCache("forever:test:slow", async () => ++builds, undefined, 5 * 60_000);
+  t.after(() => cache.stop());
+  cache.start(); await nextTurn();
+  assert.equal(builds, 1);
+  for (let elapsed = 0; elapsed < 135_000; elapsed += 15_000) { t.mock.timers.tick(15_000); await nextTurn(); }
+  assert.equal(builds, 1, "still fresh after two minutes");
+  assert.equal(await cache.get(), 1, "visitors read the prepared snapshot");
+  for (let elapsed = 0; elapsed < 45_000; elapsed += 15_000) { t.mock.timers.tick(15_000); await nextTurn(); }
+  assert.equal(builds, 2, "refreshes once half the lifetime has passed");
 });

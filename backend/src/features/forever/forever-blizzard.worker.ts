@@ -7,8 +7,9 @@ import { ForeverCharacter, ForeverWorker } from "./forever.models";
 import { visibleForeverCharacters } from "./forever-visibility";
 
 // The official profile API is a separate quota from the Armory website. Each four-second turn
-// checks one character (two requests) and resolves one queued item (one or two requests): at
-// most about 3,600 requests an hour, a tenth of Blizzard's 36,000-per-hour client limit.
+// checks one character (two requests) and resolves up to two queued items (one or two requests
+// each): at most about 5,400 requests an hour, 15% of Blizzard's 36,000-per-hour client limit.
+// Item lookups are one-off: each resolved level is kept permanently.
 // Characters go first so a backlog of new items never delays raid kill tracking.
 const INTERVAL = 4_000;
 const HOUR = 3600_000;
@@ -20,6 +21,7 @@ export function nextStatsCheckAt(slug: string, level: number, now = Date.now()) 
   return new Date(now + statsInterval(level) + phase(slug));
 }
 const ITEM_RETRY = 7 * 24 * HOUR;
+const ITEMS_PER_TURN = 2;
 
 type Fetchers = {
   statistics: (slug: string) => Promise<unknown>;
@@ -59,9 +61,10 @@ export class ForeverBlizzardRunner {
     let failure: ArmoryError | undefined;
     try {
       failure = await this.checkCharacter(now);
-      if (!failure) {
+      for (let index = 0; index < ITEMS_PER_TURN && !failure; index++) {
         const item = await ForeverItem.findOne({ nextCheckAt: { $type: "date", $lte: now } }).sort({ nextCheckAt: 1, _id: 1 }).lean();
-        if (item) failure = await this.resolveItem(item._id as number, item.name ?? null, item.misses ?? 0);
+        if (!item) break;
+        failure = await this.resolveItem(item._id as number, item.name ?? null, item.misses ?? 0);
       }
       if (failure && (failure.retryAfterMs || [429, 401, 403].includes(failure.status))) {
         nextRequestAt = new Date(Date.now() + Math.max(failure.retryAfterMs, 2 * 60_000));

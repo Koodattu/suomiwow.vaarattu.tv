@@ -15,13 +15,15 @@ export class ForeverSnapshotCache<T> {
   private timer?: ReturnType<typeof setInterval>;
   private warming?: Promise<void>;
 
-  constructor(private readonly keyPrefix: string, private readonly build: () => Promise<T>, private readonly revisionField?: "namegameRevision") {}
+  /** `freshMs` suits each page's source: pages fed by twice-daily profile checks can rebuild less often. */
+  constructor(private readonly keyPrefix: string, private readonly build: () => Promise<T>, private readonly revisionField?: "namegameRevision",
+    private readonly freshMs = FRESH_MS) {}
 
   async get(warm = false): Promise<T> {
     // Never reuse a pre-moderation snapshot, including while an older build is in flight.
     const worker = await ForeverWorker.findById("armory").select(this.revisionField ? `leaderboardRevision ${this.revisionField}` : "leaderboardRevision").lean();
     const key = `${this.keyPrefix}:${worker?.leaderboardRevision || 0}`;
-    const freshAfter = Date.now() - (warm ? FRESH_MS / 2 : FRESH_MS);
+    const freshAfter = Date.now() - (warm ? this.freshMs / 2 : this.freshMs);
     if (this.local?.key === key && Date.parse(this.local.snapshot.generatedAt) > freshAfter) return this.local.snapshot.data;
     let promise = this.pending.get(key);
     if (!promise) {
@@ -29,11 +31,11 @@ export class ForeverSnapshotCache<T> {
       promise = this.shared.get<Snapshot<T>>(key, async previous => {
         // Periodically reconcile direct database repairs and mixed-version deployments.
         const reusable = warm && sourceRevision !== undefined && previous?.sourceRevision === sourceRevision
-          && Date.parse(previous.generatedAt) > Date.now() - FRESH_MS
+          && Date.parse(previous.generatedAt) > Date.now() - this.freshMs
           && (previous.builtAt ?? 0) > Date.now() - 15 * 60_000;
         const data = reusable ? previous.data : await this.build();
         return { generatedAt: new Date().toISOString(), ...(sourceRevision !== undefined ? { sourceRevision, builtAt: reusable ? previous.builtAt : Date.now() } : {}), data };
-      }, FRESH_MS, warm).then(snapshot => {
+      }, this.freshMs, warm).then(snapshot => {
         this.local = { key, snapshot };
         return snapshot;
       }).finally(() => { this.pending.delete(key); });
@@ -53,7 +55,7 @@ export class ForeverSnapshotCache<T> {
     warm();
     // Check more often than the refresh-ahead window so build time cannot push
     // the next eligible tick right up against expiry.
-    this.timer = setInterval(warm, FRESH_MS / 4);
+    this.timer = setInterval(warm, this.freshMs / 4);
     this.timer.unref();
   }
 

@@ -162,7 +162,9 @@ export async function buildForeverRaids(): Promise<ForeverRaidsSnapshot> {
   return { raids, recent: events.slice(0, RECENT).map(({ event }) => event), groupKills: events.length, trackedCharacters: details.length };
 }
 
-export const foreverRaidsCache = new ForeverSnapshotCache("forever:raids:v2", buildForeverRaids);
+// Kill evidence arrives with profile checks every 12 hours; five minutes keeps the page current
+// without rescanning every tracked character's kill history twice a minute.
+export const foreverRaidsCache = new ForeverSnapshotCache("forever:raids:v2", buildForeverRaids, undefined, 5 * 60_000);
 export function foreverRaids() { return foreverRaidsCache.get(); }
 
 /** A guild's own progress in every raid it has credit in, and its latest shared kills. */

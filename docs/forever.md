@@ -97,8 +97,8 @@ character, so leaderboard scans stay small. Only `render.worldofwarcraft.com` im
 `/achievements/statistics` and `/achievements`. The Blizzard worker (`forever-blizzard.worker.ts`, lease
 `blizzard`) checks tracked EU characters from level 40. Level 60s are checked every 12 hours, others every
 72 hours, each with a stable per-character phase of up to an hour. Each four-second turn checks one character,
-then resolves one queued item, at most about 3,600 requests an hour against Blizzard's 36,000. Characters go
-first so a backlog of new items never delays raid kill tracking. A user's **Request refresh** also brings
+then resolves up to two queued items, at most about 5,400 requests an hour against Blizzard's 36,000. Characters
+go first so a backlog of new items never delays raid kill tracking. Item lookups are one-off. A user's **Request refresh** also brings
 this check forward, at most once per half hour per character. A 404 waits a day. Rate limits and authorization
 errors pause the worker. Forever achievements award no points, so records count completed achievements.
 
@@ -138,7 +138,9 @@ Unknown items are left out of the average. Level 60 characters with at most two 
 and each row shows its unknown count.
 
 Raid and record pages use the shared page snapshots (`forever:raids:v2`, `forever:records:v1`) and are
-warmed with the other Forever pages. Guild detail pages read the same snapshots. Guild pages also accept an
+warmed with the other Forever pages. Their source data changes with twice-daily profile checks, so they have a
+five-minute lifetime and refresh ahead after half of it, instead of the other pages' 60 seconds. Each records
+board is sorted once per snapshot. Guild detail pages read the same snapshots. Guild pages also accept an
 EU guild slug in place of the ID, which character profiles use for their guild link.
 
 ## Guild language estimates
