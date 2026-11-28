@@ -80,6 +80,52 @@ lost its acknowledgement, match the batch ID to `namegame_batch` in OpenAI reque
 `responseId` on the batch and clear its `error` to resume polling. A process interruption before acknowledgement
 can leave the same case with neither field set.
 
+## Character profiles, records and raids
+
+Character pages show gear, talents, professions, records, boss kills and achievements. Guild pages add
+level 60 counts, class mix, average item level and raid progress. `/forever/records` ranks characters,
+and `/forever/raids` shows raid progress and recent group kills. Verified 28 November 2026.
+
+**Gear, talents and professions** come from the Armory page the worker already fetches
+(`characterProfileInitialState`), so they cost no extra requests. Each item carries its name, quality, icon,
+stats, equip effects, set name and required level, which is enough for tooltips. Every talent tree is
+marked `active` on Forever, so pages show points per tree instead of an active spec. The page also links a
+full-body character render on Blizzard's CDN. Sections are stored in `forever_character_details`, beside the
+character, so leaderboard scans stay small. Only `render.worldofwarcraft.com` image URLs are kept.
+
+**Statistics and achievements** come from the official profile API (`profile-forever-eu`):
+`/achievements/statistics` and `/achievements`. The Blizzard worker (`forever-blizzard.worker.ts`, lease
+`blizzard`) checks tracked EU characters from level 40. Level 60s are checked every 12 hours, others every
+72 hours, each with a stable per-character phase of up to an hour. One turn runs every four seconds, at most
+about 1,800 requests an hour. Blizzard's limit is 36,000 per hour. A user's **Request refresh** also brings
+this check forward, at most once per half hour per character. A 404 waits a day. Rate limits and authorization
+errors pause the worker. Forever achievements award no points, so records count completed achievements.
+
+**Boss kill times** are exact. Each boss statistic holds a kill count and the second of the latest kill.
+When the worker first sees a count of one, that is the first kill. Any later change of time is another kill.
+Raid lockouts allow one kill per boss per reset, so 12-hour checks see every raid kill. Kills before tracking
+show as "Before tracking". Up to 30 kill times per boss are kept, with the character's guild at the time.
+Statistics with no kills are omitted by Blizzard, so new raids appear automatically on their first kill.
+
+**Group kills** are tracked players' kills of the same boss dated within two minutes of each other. Guild
+members who kill a boss together share the same second. A group kill is credited to a guild when at least
+three of its tracked members, and half the tracked group, were there. Dungeon groups need three tracked
+players. Raids are the instances in `FOREVER_RAIDS` in `forever-raids.ts`; add new Forever raids there.
+Progress counts each boss once per guild, dated by its first credited kill, and orders guilds by bosses
+killed, then by the time the latest of those bosses first fell.
+
+**Item level** is not in Forever's Armory data or its profile API. Each new item ID is queued in
+`forever_items` and looked up once in `static-forever-eu`, then `static-classic1x-eu`. A fallback result is
+accepted only when its name matches the item Forever shows. Resolved levels are permanent. Missing items are
+retried weekly. Blizzard withholds many new Forever items from its catalogs, though it still serves their
+icons. The average uses the 17 equipment slots: empty slots count as zero and a two-hander counts twice.
+Unknown items are left out of the average. Level 60 characters with at most two unknown items are ranked,
+and each row shows its unknown count.
+
+Raid and record pages use the shared page snapshots (`forever:raids:v1`, `forever:records:v1`) and are
+warmed with the other Forever pages. Guild detail pages read the same snapshots. Guild pages also accept an
+EU guild slug in place of the ID, which character profiles use for their guild link.
+
 ## Guild language estimates
 
 In **Admin → Forever → Discovered guilds**, choose **Assess Finnish language for all guilds**.
@@ -616,6 +662,7 @@ node --test -r ts-node/register integration/forever.test.ts
 node --test -r ts-node/register integration/forever-roster.test.ts
 node --test -r ts-node/register test/forever-guild-language.test.ts integration/forever-guild-language.test.ts
 node --test -r ts-node/register test/forever-guild-ruleset.test.ts
+node --test -r ts-node/register test/forever-details.test.ts
 ```
 
 The integration suite needs a disposable MongoDB replica set. It creates and

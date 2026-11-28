@@ -10,6 +10,7 @@ import { namegameLeaderboard, namegameOverview } from "../src/features/forever/f
 import { startForeverPageCaches, stopForeverPageCaches } from "../src/features/forever/forever-cache-warmer";
 import logger from "../src/utils/logger";
 import { deferred, mockSnapshotStorage } from "./helpers/snapshot-cache";
+import { ForeverCharacterDetail, ForeverItem } from "../src/features/forever/forever-details.models";
 
 let revision = 0, namegameRevision = 0;
 function setup(t: TestContext) {
@@ -18,6 +19,10 @@ function setup(t: TestContext) {
   mockSnapshotStorage(t, { cache: ForeverLeaderboardCache, leases: ForeverLeaderboardLease });
   t.mock.method(ForeverWorker, "findById", () => ({ select: () => ({ lean: async () => ({ leaderboardRevision: revision, namegameRevision }) }) }));
   t.mock.timers.enable({ apis: ["Date", "setInterval"], now: new Date("2026-11-16T10:00:00Z") });
+  // Raid and record pages read profile details; no profiles have been fetched in these scenarios.
+  const empty = { select() { return this; }, lean: async () => [] };
+  t.mock.method(ForeverCharacterDetail, "find", () => empty);
+  t.mock.method(ForeverItem, "find", () => empty);
 }
 
 test("startup prepares all three public pages and refreshes them through an idle period", async t => {

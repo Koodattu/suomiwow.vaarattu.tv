@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
-import { FiArrowRight, FiBarChart2, FiFlag, FiSmile, FiUsers } from "react-icons/fi";
+import { FiArrowRight, FiAward, FiBarChart2, FiFlag, FiShield, FiSmile, FiUsers } from "react-icons/fi";
 import { foreverApi, foreverCharacterPath } from "@/lib/forever-api";
 import { classColor, ForeverDate, ForeverErrorMessage, Portrait } from "@/components/forever/ForeverShared";
 import ForeverHubSearch from "@/components/forever/ForeverHubSearch";
@@ -13,10 +13,13 @@ import world from "@/components/forever/forever.module.css";
 
 type Hub = {
   generatedAt: string; characters: number; guilds: number; levelsGained24h: number; featuredName: string | null;
+  topItemLevel: { name: string; value: number } | null; latestRaidKill: { boss: string; guild: string | null; at: string } | null;
   milestones: { name: string; slug: string; className?: string; avatarUrl?: string | null; observedAt: string }[];
 };
 const destinations = [
   { to: "leveling", title: "title", description: "hubDescription", icon: FiFlag, field: "characters", unit: "hub.trackedUnit" },
+  { to: "records", title: "records.title", description: "hub.recordsDescription", icon: FiAward, field: null, unit: null },
+  { to: "raids", title: "raids.title", description: "hub.raidsDescription", icon: FiShield, field: null, unit: null },
   { to: "guilds", title: "guilds.title", description: "guilds.description", icon: FiUsers, field: "guilds", unit: "hub.guildUnit" },
   { to: "analytics", title: "analytics.title", description: "analytics.hubDescription", icon: FiBarChart2, field: "levelsGained24h", unit: "hub.levelsUnit" },
   { to: "namegame", title: "namegame.title", description: "namegame.description", icon: FiSmile, field: null, unit: null },
@@ -48,6 +51,12 @@ export default function ForeverHub() {
           <p>{t(description)}</p>
           <div className={styles.metric}>{field && unit
             ? <><strong>{data ? format.number(data[field]) : "—"}</strong><span>{t(unit, { count: data?.[field] ?? 0 })}</span></>
+            : to === "records" ? data?.topItemLevel
+              ? <><span>{t("hub.topItemLevelLabel")}</span><strong className={styles.metricName}>{data.topItemLevel.name} · {format.number(data.topItemLevel.value, { maximumFractionDigits: 1 })}</strong></>
+              : <span>{t("hub.recordsSoon")}</span>
+            : to === "raids" ? data?.latestRaidKill
+              ? <><span>{t("hub.latestKillLabel")}</span><strong className={styles.metricName}>{data.latestRaidKill.boss}{data.latestRaidKill.guild ? ` · ${data.latestRaidKill.guild}` : ""}</strong></>
+              : <span>{t("hub.raidsSoon")}</span>
             : data?.featuredName
               ? <><span>{t("hub.topNameLabel")}</span><strong className={styles.metricName}>{data.featuredName}</strong></>
               : <strong>—</strong>}

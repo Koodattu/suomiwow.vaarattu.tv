@@ -1,5 +1,6 @@
 // Public Armory contracts verified against Blizzard's Forever site on 2026-11-05.
 // This is the website's data contract, not a documented Battle.net API.
+import { parseArmoryDetails, type ForeverArmoryDetails } from "./forever-details";
 export const ARMORY_ORIGIN = "https://worldofwarcraft.blizzard.com";
 export type ForeverRegion = "eu" | "us";
 export interface ForeverIdentity { region: ForeverRegion; slug: string }
@@ -7,6 +8,8 @@ export interface ForeverProfile extends ForeverIdentity {
   name: string; level: number; className: string; race: string; faction: string;
   avatarUrl?: string | null;
   ruleset: string; sourceUpdatedAt: Date; guild: (ForeverIdentity & { name: string }) | null;
+  /** Gear, talents and professions from the same page. Absent when the page omits or reshapes them. */
+  details?: ForeverArmoryDetails;
 }
 export interface ForeverMember extends ForeverIdentity {
   name: string; level: number; className: string;
@@ -95,10 +98,16 @@ export function parseCharacterHtml(html: string, expected: ForeverIdentity): For
     if (source.region !== expected.region) throw new ArmoryError("identity_mismatch");
     guild = { region: expected.region, slug: normalizeSlug(source.slug), name: label(source.name) };
   }
+  let details: ForeverArmoryDetails | undefined;
+  // Extra sections are a bonus; their absence never blocks the level observation.
+  try {
+    const parsed = parseArmoryDetails(character, expected.region);
+    if (parsed.gear.length || parsed.specs.length || parsed.professions.length) details = parsed;
+  } catch { details = undefined; }
   return { ...expected, name: `${label(character.name)} ${label(character.surname)}`, level: level(character.level),
     avatarUrl: parseAvatarUrl(character.avatar?.url, expected.region),
     className: label(character.class?.name), race: label(character.race?.name), faction: label(character.faction?.name),
-    ruleset: label(character.ruleset?.name), sourceUpdatedAt: new Date(timestamp), guild };
+    ruleset: label(character.ruleset?.name), sourceUpdatedAt: new Date(timestamp), guild, ...(details ? { details } : {}) };
 }
 
 export function parseRosterResponse(value: unknown, expected: ForeverIdentity): ForeverMember[] {
@@ -157,11 +166,39 @@ async function request(url: string, init: RequestInit = {}): Promise<string> {
   }
 }
 
-export async function fetchForeverAchievements(slug: string): Promise<unknown> {
+async function blizzardApi(path: string): Promise<unknown> {
   const { default: blizzard } = await import("../../services/blizzard.service");
   const token = await blizzard.getAccessToken();
-  const url = `https://eu.api.blizzard.com/profile/wow/character/${encodeURIComponent(normalizeSlug(slug))}/achievements?namespace=profile-forever-eu&locale=en_GB`;
-  return JSON.parse(await request(url, { headers: { Authorization: `Bearer ${token}` } }));
+  const text = await request(`https://eu.api.blizzard.com${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  try { return JSON.parse(text); } catch { throw new ArmoryError("invalid_data"); }
+}
+const profilePath = (slug: string, section: string) =>
+  `/profile/wow/character/${encodeURIComponent(normalizeSlug(slug))}/${section}?namespace=profile-forever-eu&locale=en_GB`;
+export function fetchForeverAchievements(slug: string): Promise<unknown> {
+  return blizzardApi(profilePath(slug, "achievements"));
+}
+export function fetchForeverStatistics(slug: string): Promise<unknown> {
+  return blizzardApi(profilePath(slug, "achievements/statistics"));
+}
+
+// Forever reuses vanilla item IDs, but its static catalog only holds items it changed or added.
+// Unchanged vanilla items resolve from the Classic Era catalog.
+const ITEM_NAMESPACES = ["static-forever-eu", "static-classic1x-eu"] as const;
+export interface ForeverItemData { level: number; name: string | null; namespace: string }
+/** `expectedName` guards the Classic fallback: an ID is accepted only when it names the same item Forever shows. */
+export async function fetchForeverItem(id: number, expectedName?: string | null): Promise<ForeverItemData | null> {
+  if (!Number.isSafeInteger(id) || id <= 0) throw new ArmoryError("invalid_data");
+  for (const namespace of ITEM_NAMESPACES) {
+    let payload: unknown;
+    try { payload = await blizzardApi(`/data/wow/item/${id}?namespace=${namespace}&locale=en_GB`); }
+    catch (error) { if (error instanceof ArmoryError && error.status === 404) continue; throw error; }
+    const item = record(payload);
+    if (item.id !== id || !Number.isInteger(item.level) || item.level < 1 || item.level > 1000) throw new ArmoryError("invalid_data");
+    const name = typeof item.name === "string" ? item.name.slice(0, 200) : null;
+    if (expectedName && name !== expectedName) continue;
+    return { level: item.level, name, namespace };
+  }
+  return null;
 }
 
 export async function fetchForeverCharacter(identity: ForeverIdentity): Promise<ForeverProfile> {

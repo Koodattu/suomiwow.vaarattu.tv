@@ -1,3 +1,4 @@
+import type { ForeverKillEvent, ForeverRecordRow } from "./forever-api";
 export interface PublicForeverGuild {
   _id: string; name: string; region: string; slug: string; rosterCount: number;
   lastFetchedAt: string | null; faction: string | null; ruleset: string | null;
@@ -8,6 +9,12 @@ export interface ForeverRosterMember {
 }
 export interface PublicForeverGuildDetail extends PublicForeverGuild {
   armoryUrl: string; roster: ForeverRosterMember[];
+  overview?: {
+    level60: number; classes60: { name: string; count: number }[];
+    averageItemLevel: number | null; gearedMembers: number; topGeared: ForeverRecordRow[];
+    raids: { instance: string; bosses: number; killed: number; reachedAt: string; list: { boss: string; firstKillAt: string; participants: number }[] }[];
+    recentKills: ForeverKillEvent[];
+  };
 }
 export const guildSorts = ["sizeDesc", "sizeAsc", "nameAsc", "nameDesc"] as const;
 export type GuildSort = typeof guildSorts[number];

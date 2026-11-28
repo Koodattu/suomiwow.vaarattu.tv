@@ -8,14 +8,15 @@ import { visibleForeverCharacters } from "./forever-visibility";
 import { applyApprovedRoster, releaseRosterCoverage, scheduleUncoveredLowLevels } from "./forever-roster-sync";
 import { foreverSeedRecords } from "./forever-seed";
 import { confirmedGuildRuleset } from "./forever-guild-ruleset";
+import { ForeverCharacterDetail, ForeverItem } from "./forever-details.models";
 
 const SPACING_MS = 500;
 const IDLE_MS = 5_000;
 const LEASE_MS = 90_000;
 const COVERAGE_SWEEP_MS = 30_000;
 export async function initializeForever() {
-  await Promise.all([ForeverCharacter.init(), ForeverGuild.init(), ForeverRequestLimit.init(), ForeverWorker.init()]);
-  for (const id of ["armory", "twitch", "level60", "namegame"]) {
+  await Promise.all([ForeverCharacter.init(), ForeverGuild.init(), ForeverRequestLimit.init(), ForeverWorker.init(), ForeverCharacterDetail.init(), ForeverItem.init()]);
+  for (const id of ["armory", "twitch", "level60", "namegame", "blizzard"]) {
     try { await ForeverWorker.updateOne({ _id: id }, { $setOnInsert: { nextRequestAt: new Date() } }, { upsert: true }); }
     catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
   }
@@ -30,6 +31,15 @@ export async function initializeForever() {
   const legacyGuilds = await ForeverGuild.find({ status: "approved", hidden: { $ne: true }, failures: 0, rosterPollingVersion: { $ne: 1 } }).select("region slug").lean();
   for (const guild of legacyGuilds) await ForeverGuild.updateOne({ _id: guild._id, failures: 0, rosterPollingVersion: { $ne: 1 } },
     { $set: { rosterPollingVersion: 1, nextFetchAt: nextRosterFetchAt(guild) } });
+}
+
+async function saveArmoryDetails(id: unknown, profile: ForeverProfile, details: NonNullable<ForeverProfile["details"]>, fetchedAt: Date, session: ClientSession) {
+  await ForeverCharacterDetail.updateOne({ _id: id }, { $set: { region: profile.region, slug: profile.slug,
+    armory: { ...details, fetchedAt, sourceUpdatedAt: profile.sourceUpdatedAt } } }, { upsert: true, session });
+  // Queue unseen item IDs for one permanent item-level lookup by the Blizzard API worker.
+  const items = new Map(details.gear.map(item => [item.id, item.name]));
+  if (items.size) await ForeverItem.bulkWrite([...items].map(([_id, name]) => ({ updateOne: { filter: { _id },
+    update: { $setOnInsert: { name, nextCheckAt: fetchedAt, misses: 0 } }, upsert: true } })), { session, ordered: false });
 }
 
 async function fence(token: string, session: ClientSession) {
@@ -201,7 +211,9 @@ export class ForeverRunner {
               }
               const keepGuildClassification = current.rulesetInferredFromGuild &&
                 (profile.ruleset === "Unknown" || !["Alliance", "Horde"].includes(profile.faction));
-              await ForeverCharacter.updateOne({ _id: job._id }, { $set: { ...profile,
+              const { details, ...profileFields } = profile;
+              if (details) await saveArmoryDetails(current._id, profile, details, completedAt, session);
+              await ForeverCharacter.updateOne({ _id: job._id }, { $set: { ...profileFields,
                 ...(keepGuildClassification ? { faction: current.faction, ruleset: current.ruleset } : {}),
                 level: Math.max(profile.level, current.level ?? 0), profileLevel: profile.level, profileFetchedAt: completedAt,
                 lastLevelAt, lastAttemptAt: completedAt, lastFetchedAt: completedAt, failures: 0,

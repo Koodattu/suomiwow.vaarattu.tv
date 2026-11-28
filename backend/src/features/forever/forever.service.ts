@@ -7,6 +7,11 @@ import { mayFetchProfile, mayRequestRefresh, MINUTE, profileFetchEligibility } f
 import { normalizeTwitchChannel } from "./forever-twitch";
 import { visibleForeverCharacters } from "./forever-visibility";
 import foreverRunner from "./forever.worker";
+import { MIN_STATS_LEVEL } from "./forever-blizzard.worker";
+import { ForeverCharacterDetail } from "./forever-details.models";
+import { averageItemLevel, type ForeverGearItem, type StoredBoss } from "./forever-details";
+import { itemLevels } from "./forever-records";
+import { isForeverRaid } from "./forever-raids";
 import { releaseRosterCoverage } from "./forever-roster-sync";
 
 import { ForeverError } from "./forever-errors";
@@ -154,6 +159,13 @@ export async function requestRefresh(id: unknown, userId: string) {
     await ForeverCharacter.updateOne({ _id: character._id, status: "tracked", failures: 0, nextFetchAt: character.nextFetchAt },
       { $set: { nextFetchAt: new Date(), refreshQueuedAt: new Date() } });
   }
+  // Also bring the official statistics forward, at most once per half hour per character.
+  if ((character.level ?? 0) >= MIN_STATS_LEVEL) {
+    const details = await ForeverCharacterDetail.findById(character._id).select("blizzard.fetchedAt").lean();
+    const checkedAt = details?.blizzard?.fetchedAt?.getTime() ?? 0;
+    if (Date.now() - checkedAt >= 30 * 60_000) await ForeverCharacter.updateOne({ _id: character._id, status: "tracked" },
+      { $set: { statsNextCheckAt: new Date() } });
+  }
   return { queued: true };
 }
 
@@ -190,7 +202,31 @@ export async function characterDetail(id: unknown) {
   }
   const character = await ForeverCharacter.findOne({ ...await visibleForeverCharacters(), ...identity, status: "tracked" }).select(`${publicFields} history`).lean();
   if (!character) throw new ForeverError("not_found", 404);
-  return { ...character, armoryUrl: armoryUrl(character as { region: "eu" | "us"; slug: string }) };
+  return { ...character, armoryUrl: armoryUrl(character as { region: "eu" | "us"; slug: string }), profile: await characterProfile(character._id, character.level) };
+}
+
+/** Gear, talents, professions, records, boss kills and achievements, each with the time Blizzard data was read. */
+async function characterProfile(id: unknown, level?: number | null) {
+  const detail = await ForeverCharacterDetail.findById(id).lean();
+  if (!detail) return null;
+  const gear = (detail.armory?.gear ?? []) as ForeverGearItem[];
+  const levels = await itemLevels(gear.map(item => item.id));
+  const itemLevel = level === 60 ? averageItemLevel(gear, levels) : null;
+  const bosses = ((detail.blizzard?.bosses ?? []) as StoredBoss[]).map(boss => ({
+    boss: boss.boss, instance: boss.instance, raid: isForeverRaid(boss.instance), count: boss.count,
+    lastKillAt: boss.lastKillAt, firstKillAt: boss.firstKillAt ?? null,
+  }));
+  return {
+    armoryFetchedAt: detail.armory?.fetchedAt ?? null, statsFetchedAt: detail.blizzard?.fetchedAt ?? null,
+    gear: gear.map(item => ({ ...item, itemLevel: levels.get(item.id) ?? null })),
+    itemLevel: itemLevel ? { average: itemLevel.average, unknown: itemLevel.unknown } : null,
+    specs: detail.armory?.specs ?? [], professions: detail.armory?.professions ?? [],
+    honorableKills: detail.armory?.honorableKills ?? null, pvpRank: detail.armory?.pvpRank ?? null,
+    renderUrl: detail.armory?.renderUrl ?? null,
+    records: detail.blizzard?.records ?? null,
+    achievements: (detail.blizzard?.achievements ?? []).slice(0, 40), achievementCount: detail.blizzard?.achievements?.length ?? 0,
+    bosses,
+  };
 }
 export async function adminOverview(query: { status?: unknown; characterPage?: unknown; guildPage?: unknown; search?: unknown; health?: unknown; guildStatus?: unknown; guildSearch?: unknown; guildSort?: unknown } = {}) {
   const characterPage = Math.min(1000, Math.max(1, Number.parseInt(String(query.characterPage), 10) || 1));

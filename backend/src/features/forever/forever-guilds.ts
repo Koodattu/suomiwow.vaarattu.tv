@@ -2,9 +2,11 @@ import { Types } from "mongoose";
 import { ForeverCharacter, ForeverGuild } from "./forever.models";
 import { confirmedGuildRuleset } from "./forever-guild-ruleset";
 import { visibleForeverCharacters } from "./forever-visibility";
-import { armoryUrl } from "./forever-armory";
+import { armoryUrl, normalizeSlug } from "./forever-armory";
 import { ForeverError } from "./forever-errors";
 import { ForeverSnapshotCache } from "./forever-snapshot";
+import { foreverGuildRecords } from "./forever-records";
+import { foreverGuildRaids } from "./forever-raids";
 
 const publicGuildFilter = { status: "approved", hidden: { $ne: true } } as const;
 const guildFields = "name region slug lastFetchedAt roster";
@@ -53,16 +55,30 @@ export function publicGuilds() {
   return foreverGuildsCache.get();
 }
 
-export async function publicGuildDetail(id: Types.ObjectId) {
-  const guild = await ForeverGuild.findOne({ ...publicGuildFilter, _id: id }).select(guildFields).lean<Guild | null>();
+/** Accepts a guild ID, or an EU guild slug for links from character profiles. */
+export async function publicGuildDetail(id: Types.ObjectId | string) {
+  let identity: Record<string, unknown> = { _id: id };
+  if (typeof id === "string") {
+    try { identity = { region: "eu", slug: normalizeSlug(id) }; } catch { throw new ForeverError("not_found", 404); }
+  }
+  const guild = await ForeverGuild.findOne({ ...publicGuildFilter, ...identity }).select(guildFields).lean<Guild | null>();
   if (!guild) throw new ForeverError("not_found", 404);
   const characters = await ForeverCharacter.find({
     ...await visibleForeverCharacters(), status: "tracked", region: guild.region,
     slug: { $in: guild.roster.map(member => member.slug) },
   }).select(characterFields).lean();
   const tracked = new Map(characters.map(character => [character.slug, character]));
+  const current = guild.roster.filter(member => !member.isOutdated);
+  const classes = new Map<string, number>();
+  for (const member of current) if (member.level === 60 && member.className) classes.set(member.className, (classes.get(member.className) ?? 0) + 1);
+  const [records, raids] = await Promise.all([foreverGuildRecords(guild.slug), foreverGuildRaids(guild.slug)]);
   return {
     ...summary(guild, characters), armoryUrl: armoryUrl(guild, "guild"),
+    overview: {
+      level60: current.filter(member => member.level === 60).length,
+      classes60: [...classes].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
+      ...records, raids: raids.raids, recentKills: raids.recent,
+    },
     roster: guild.roster.map(member => ({
       region: member.region, slug: member.slug, name: member.name || member.slug,
       level: member.level ?? null, className: member.className ?? null, race: member.race ?? null,

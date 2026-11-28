@@ -25,7 +25,7 @@
 .milestones a > div { min-width: 0; }
 .milestones strong, .milestones small { display: block; overflow-wrap: anywhere; }
 .milestones small { margin-top: 3px; }
-.shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .shortcuts a { display: flex; flex-direction: column; height: 100%; padding: 16px 18px; border: 1px solid var(--forever-line); border-radius: 3px; background: linear-gradient(160deg, #262a1f, #1a211b); transition: border-color .15s, background .15s; }
 .shortcuts a:hover { border-color: #8d7545; background: linear-gradient(160deg, #2f3124, #1f271f); }
 .cardTitle { display: flex; align-items: center; gap: 9px; color: var(--forever-gold); }

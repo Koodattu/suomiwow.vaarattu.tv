@@ -6,6 +6,46 @@ export interface ForeverCharacter {
   guild?: { name: string; slug: string; region: string } | null;
   refreshRequestedAt?: string; lastFetchedAt?: string; lastAttemptAt?: string; nextFetchAt?: string; sourceUpdatedAt?: string; errorCode?: string; failures?: number;
   history?: { level: number; observedAt: string; sourceUpdatedAt?: string }[]; armoryUrl?: string;
+  profile?: ForeverProfile | null;
+}
+export interface ForeverGearItem {
+  slot: string; id: number; name: string; quality: string; icon: string | null; inventoryType: string | null;
+  subclass: string | null; set: string | null; requiredLevel: number | null; lines: string[]; itemLevel: number | null;
+}
+export type ForeverRecordKey = "epicsEquipped" | "epicsAcquired" | "mounts" | "exalted" | "battlegroundsPlayed" | "battlegroundsWon"
+  | "duelsWon" | "duelsLost" | "totalKills" | "deathsFromPlayers" | "dungeonsEntered" | "raidsEntered";
+export interface ForeverBossKill { boss: string; instance: string; raid: boolean; count: number; lastKillAt: string; firstKillAt: string | null }
+export interface ForeverProfile {
+  armoryFetchedAt: string | null; statsFetchedAt: string | null;
+  gear: ForeverGearItem[]; itemLevel: { average: number; unknown: number } | null;
+  specs: { name: string; points: number; icon: string | null; talents: { id: number; name: string; rank: number; icon: string | null }[] }[];
+  professions: { name: string; icon: string | null; skill: number; max: number; primary: boolean }[];
+  honorableKills: number | null; pvpRank: number | null; renderUrl: string | null;
+  records: Partial<Record<ForeverRecordKey, number>> | null;
+  achievements: { id: number; name: string; completedAt: string }[]; achievementCount: number;
+  bosses: ForeverBossKill[];
+}
+export interface ForeverKillEvent {
+  boss: string; instance: string; raid: boolean; at: string;
+  guild: { id: string | null; name: string; slug: string } | null;
+  participants: { id: string; slug: string; name: string; className: string | null }[];
+}
+export interface ForeverRaidProgress {
+  instance: string; bosses: number;
+  guilds: { guild: { id: string | null; name: string; slug: string }; killed: number; reachedAt: string; lastKillAt: string;
+    bosses: { boss: string; firstKillAt: string; participants: number }[] }[];
+}
+export interface ForeverRaids { raids: ForeverRaidProgress[]; recent: ForeverKillEvent[]; groupKills: number; trackedCharacters: number }
+export const foreverRecordBoards = ["itemLevel", "epicsEquipped", "achievements", "mounts", "exalted", "battlegroundsWon", "honorableKills", "duelsWon", "totalKills"] as const;
+export type ForeverRecordBoard = typeof foreverRecordBoards[number];
+export interface ForeverRecordRow {
+  id: string; region: string; slug: string; name: string; className: string | null; race: string | null; faction: string | null;
+  ruleset: string | null; level: number | null; avatarUrl: string | null; guild: { name: string; slug: string } | null;
+  values: Partial<Record<ForeverRecordBoard, number>>; itemLevelUnknown: number | null; rank: number;
+}
+export interface ForeverRecordsPage {
+  board: ForeverRecordBoard; total: number; ranked: number; page: number; pageSize: number; rows: ForeverRecordRow[];
+  filterOptions: { className: string[]; ruleset: string[]; faction: string[]; guild: { slug: string; name: string }[] };
 }
 export function foreverRace(race?: string): string {
   return race === "Windshaper Skyborne" || race === "High Order Skyborne" ? "Skyborne" : race || "—";

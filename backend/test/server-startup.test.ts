@@ -84,6 +84,7 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
     "./services/site-analytics.service": { async initializeSiteAnalytics() { analyticsInitialized = true; } },
     "./features/forever/forever.worker": { initializeForever: noop, start() {}, stop() {} },
     "./features/forever/forever-level60.worker": { start() {}, stop() {} },
+    "./features/forever/forever-blizzard.worker": { start() {}, stop() {} },
     "./features/forever/forever-namegame.worker": { start() {}, stop() {} },
     "./features/forever/forever-guild-language.worker": { start() {}, stop() {} },
     "./features/forever/forever-cache-warmer": { startForeverPageCaches() {}, stopForeverPageCaches() {} },

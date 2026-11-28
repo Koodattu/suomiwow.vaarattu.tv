@@ -5,6 +5,9 @@ import { ForeverCharacter, ForeverGuild, ForeverWorker } from "../src/features/f
 import { foreverGuildsCache, publicGuilds, publicGuildDetail } from "../src/features/forever/forever-guilds";
 import { ForeverLeaderboardCache, ForeverLeaderboardLease } from "../src/features/forever/forever-leaderboard.models";
 import { mockSnapshotStorage } from "./helpers/snapshot-cache";
+import { ForeverCharacterDetail, ForeverItem } from "../src/features/forever/forever-details.models";
+import { foreverRaidsCache } from "../src/features/forever/forever-raids";
+import { foreverRecordsCache } from "../src/features/forever/forever-records";
 
 const guildId = new Types.ObjectId();
 const roster = ["alpha", "beta", "gamma"].map(slug => ({ region: "eu" as const, slug, name: slug, level: 20, className: "Mage", faction: "Alliance" }));
@@ -59,6 +62,10 @@ test("empty directory does not query character profiles", async t => {
 });
 
 test("public roster includes unfetched and outdated members without exposing admin fields", async t => {
+  setupCache(t);
+  t.after(() => Promise.all([foreverRaidsCache.stop(), foreverRecordsCache.stop()]));
+  t.mock.method(ForeverCharacterDetail, "find", () => query([]));
+  t.mock.method(ForeverItem, "find", () => query([]));
   t.mock.method(ForeverGuild, "findOne", (filter: unknown) => {
     assert.deepEqual(filter, { status: "approved", hidden: { $ne: true }, _id: guildId });
     return query({ ...guild, roster: [...roster, { ...roster[0], slug: "untracked", isOutdated: true }] });
@@ -78,6 +85,7 @@ test("public roster includes unfetched and outdated members without exposing adm
   assert.equal("proposedBy" in result, false);
   assert.equal("languageAssessment" in result, false);
   assert.equal("failures" in result, false);
+  assert.deepEqual(result.overview, { level60: 0, classes60: [], averageItemLevel: null, gearedMembers: 0, topGeared: [], raids: [], recentKills: [] });
 });
 
 test("hidden, unapproved and missing guilds cannot be opened directly", async t => {

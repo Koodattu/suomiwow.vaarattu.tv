@@ -19,6 +19,8 @@ const characterSchema = new Schema({
   name: String, level: Number, className: String, race: String, faction: String, ruleset: String, avatarUrl: String,
   sourceUpdatedAt: Date, lastLevelAt: Date, refreshRequestedAt: Date, refreshQueuedAt: Date,
   estimatedLevel60At: Date, level60NextCheckAt: Date,
+  // Official profile API statistics/achievements; missing means due now.
+  statsNextCheckAt: Date, statsFailures: Number,
   profileFetchedAt: Date, profileLevel: Number,
   lowLevelRecheck: Boolean,
   rulesetInferredFromGuild: String,
@@ -35,6 +37,7 @@ characterSchema.index({ status: 1, refreshRequestedAt: 1, _id: 1 });
 characterSchema.index({ status: 1, level: -1, name: 1 });
 characterSchema.index({ region: 1, status: 1, level: -1, lastLevelAt: 1, _id: 1 });
 characterSchema.index({ level60NextCheckAt: 1, _id: 1 }, { partialFilterExpression: { region: "eu", status: "tracked", level: 60 } });
+characterSchema.index({ statsNextCheckAt: 1, _id: 1 }, { partialFilterExpression: { region: "eu", status: "tracked", level: { $gte: 40 } } });
 characterSchema.index({ twitchChannel: 1 }, { partialFilterExpression: { twitchChannel: { $type: "string" } } });
 characterSchema.index({ twitchNextCheckAt: 1, _id: 1 }, { partialFilterExpression: { status: "tracked", twitchChannel: { $type: "string" } } });
 characterSchema.index({ status: 1, nextFetchAt: 1, _id: 1 });

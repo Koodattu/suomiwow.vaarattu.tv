@@ -1,0 +1,105 @@
+.hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px 28px; margin-top: 14px; padding: 18px 20px; border-block: 1px solid #65583c; background: radial-gradient(ellipse at 8% 50%, color-mix(in srgb, var(--class-color, #9e8d65) 22%, transparent) 0, transparent 55%), linear-gradient(110deg, #28271c, #1b251f); }
+.identity { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.identity h2 { font: 400 clamp(26px, 3vw, 36px)/1.1 Georgia, serif; overflow-wrap: anywhere; }
+.identity p { margin-top: 4px; color: #d2cbb9; font-size: 14px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; color: #c9c2af; font-size: 13px; }
+.meta a { color: #ecd5a1; font-weight: 600; }
+.meta a:hover { color: #ffe4aa; text-decoration: underline; text-underline-offset: 3px; }
+.heroStats { display: grid; grid-template-columns: repeat(4, minmax(84px, auto)); gap: 2px; }
+.heroStats div { padding: 6px 14px; border-left: 1px solid var(--forever-line); }
+.heroStats dt { color: #c0bba9; font-size: 12px; }
+.heroStats dd { font: 400 clamp(22px, 2.4vw, 30px)/1.2 Georgia, serif; color: #f2d498; font-variant-numeric: tabular-nums; }
+.heroStats small { display: block; color: #aaa898; font: 11px/1.3 Arial, sans-serif; }
+.sources { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 18px; color: #aaa898; font-size: 12px; }
+
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.panel { min-width: 0; padding: 16px 18px; border: 1px solid #5c5039; border-radius: 3px; background: #141613f2; box-shadow: inset 0 1px #cdb47b25; }
+.wide { grid-column: 1 / -1; }
+.panel > h3, .panelHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; font: 400 20px/1.2 Georgia, serif; color: #f1e5c9; }
+.panelHeading small { color: #aaa898; font: 12px Arial, sans-serif; }
+.subheading { margin: 4px 0 8px; color: #d7b875; font: 600 12px Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.empty { color: #c0bba9; font-size: 14px; }
+.muted { color: #aaa898; }
+
+/* Paperdoll: two slot columns around the character, weapons beneath, as in game. */
+.paperdoll { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 300px) minmax(0, 1fr); gap: 6px 14px; align-items: start; }
+.column, .weapons { display: grid; gap: 6px; }
+.weapons { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 760px; width: 100%; justify-self: center; }
+/* Blizzard's render leaves wide margins around the character; zoom toward the figure. */
+.render { align-self: stretch; position: relative; min-height: 320px; overflow: hidden; background: radial-gradient(ellipse at 50% 55%, #d7b87522, transparent 65%); }
+.render img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; transform: scale(1.55); transform-origin: 50% 40%; }
+.slot { position: relative; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 4px 8px 4px 4px; border: 1px solid #ffffff0d; border-radius: 3px; background: #0f1310cc; outline: none; }
+.slot[data-align="right"] { flex-direction: row-reverse; padding: 4px 4px 4px 8px; text-align: right; }
+.slot:not([data-empty]):hover, .slot:focus-visible { border-color: color-mix(in srgb, var(--quality) 60%, transparent); background: #1a1f19; }
+.slot:focus-visible { outline: 2px solid #efd58d; outline-offset: 2px; }
+.slotIcon { flex-shrink: 0; width: 40px; height: 40px; border: 1px solid var(--quality, #3d3a30); border-radius: 3px; background: #090b09; overflow: hidden; }
+.slot[data-empty] .slotIcon { border-style: dashed; border-color: #3d3a30; }
+.slotIcon img { width: 100%; height: 100%; }
+.slotText { display: grid; min-width: 0; }
+.slotText strong { color: var(--quality); font-size: 13px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slotText small { color: #aaa898; font-size: 11px; }
+.tooltip { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; display: none; width: max-content; max-width: 300px; padding: 10px 12px; border: 1px solid #5c5039; border-radius: 4px; background: #090c0af5; box-shadow: 0 8px 24px #000a; color: #e8e2d0; font-size: 12px; line-height: 1.45; text-align: left; pointer-events: none; }
+.slot[data-align="right"] .tooltip { left: auto; right: 0; }
+.slot:hover .tooltip, .slot:focus-visible .tooltip { display: grid; }
+.tooltip strong { color: var(--quality); font-size: 14px; }
+.tooltipLevel { color: #f2d498; }
+.tooltipSet { margin-top: 4px; color: #e6cc80; }
+
+.treeSplit { margin: -6px 0 10px; color: #f2d498; font: 400 18px Georgia, serif; }
+.trees { display: grid; gap: 12px; }
+.tree h4 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: #ead8ac; font: 400 15px Georgia, serif; }
+.tree h4 img { border-radius: 3px; }
+.tree h4 small { margin-left: auto; color: #c0bba9; font: 12px Arial, sans-serif; }
+.tree[data-empty] { opacity: .55; }
+.tree ul { display: flex; flex-wrap: wrap; gap: 5px; }
+.tree li { position: relative; width: 32px; height: 32px; }
+.tree li img, .talentFallback { display: block; width: 32px; height: 32px; border: 1px solid #5c5039; border-radius: 3px; background: #0b0e0b; }
+.tree li b { position: absolute; right: -3px; bottom: -3px; min-width: 15px; padding: 0 3px; border-radius: 3px; background: #0b0e0b; color: #1eff00; font: 700 10px/14px Arial, sans-serif; text-align: center; }
+
+.professions { display: grid; gap: 10px; }
+.professions li { display: flex; align-items: center; gap: 10px; }
+.professions img { flex-shrink: 0; border-radius: 3px; }
+.professions li > div { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; flex: 1; min-width: 0; font-size: 13px; }
+.professions strong { color: #f2d498; font-variant-numeric: tabular-nums; }
+.professions meter { grid-column: 1 / -1; width: 100%; height: 6px; }
+.professions meter::-webkit-meter-bar { border: 0; border-radius: 3px; background: #2a2b22; }
+.professions meter::-webkit-meter-optimum-value { border-radius: 3px; background: linear-gradient(90deg, #8d7545, #d7b875); }
+.professions meter::-moz-meter-bar { border-radius: 3px; background: #d7b875; }
+
+.records { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.records div { padding: 8px 10px; border: 1px solid var(--forever-line); border-radius: 3px; background: #10130f; }
+.records dt { color: #c0bba9; font-size: 12px; }
+.records dd { color: #f2d498; font: 400 20px/1.25 Georgia, serif; font-variant-numeric: tabular-nums; }
+
+.kills { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+.kills th, .kills td { padding: 6px 10px; border-bottom: 1px solid #ffffff0b; text-align: left; vertical-align: top; }
+.kills thead th { color: #b1aa98; font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.kills .instance { color: #ead8ac; font: 400 14px Georgia, serif; border-right: 1px solid #ffffff0b; }
+.kills .boss { color: #eee9dc; font-weight: 600; }
+.kills .count { color: #f2d498; font-variant-numeric: tabular-nums; text-align: right; }
+.kills td:nth-last-child(-n+2) { white-space: nowrap; }
+.scroll { overflow-x: auto; }
+.achievements { display: grid; gap: 1px; }
+.achievements li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid #ffffff0b; font-size: 13px; }
+.achievements time { flex-shrink: 0; color: #aaa898; font-size: 12px; }
+
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; }
+  .heroStats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .heroStats div:first-child { border-left: 0; padding-left: 0; }
+  .paperdoll { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .render { display: none; }
+  .weapons { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .grid { grid-template-columns: 1fr; }
+  .paperdoll { grid-template-columns: 1fr; }
+  .slot[data-empty] { display: none; }
+  .slot[data-align="right"] { flex-direction: row; padding: 4px 8px 4px 4px; text-align: left; }
+  .slot[data-align="right"] .tooltip { left: 0; right: auto; }
+  .heroStats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .heroStats div { border-left: 0; padding-left: 0; }
+}

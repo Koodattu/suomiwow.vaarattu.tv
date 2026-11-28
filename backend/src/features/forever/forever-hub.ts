@@ -3,14 +3,20 @@ import { ForeverError } from "./forever-errors";
 import { publicGuilds } from "./forever-guilds";
 import { publicLeaderboardCharacters } from "./forever-leaderboard";
 import { foreverNamegameCache } from "./forever-namegame";
+import { foreverRaids } from "./forever-raids";
+import { foreverRecords } from "./forever-records";
 
 export async function foreverHub() {
-  const [{ analytics, milestones }, { guilds }, { names }] = await Promise.all([
-    foreverAnalyticsCache.get(), publicGuilds(), foreverNamegameCache.get(),
+  const [{ analytics, milestones }, { guilds }, { names }, records, raids] = await Promise.all([
+    foreverAnalyticsCache.get(), publicGuilds(), foreverNamegameCache.get(), foreverRecords({ board: "itemLevel" }), foreverRaids(),
   ]);
+  const top = records.rows[0];
+  const latestRaid = raids.recent.find(kill => kill.raid);
   return {
     generatedAt: analytics.generatedAt, characters: analytics.total, guilds: guilds.length,
     levelsGained24h: analytics.levelsGained24h, milestones, featuredName: names[0]?.name ?? null,
+    topItemLevel: top ? { name: top.name, value: top.values.itemLevel! } : null,
+    latestRaidKill: latestRaid ? { boss: latestRaid.boss, guild: latestRaid.guild?.name ?? null, at: latestRaid.at } : null,
   };
 }
 
